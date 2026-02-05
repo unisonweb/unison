@@ -328,11 +328,11 @@ analyseNotes codebase fileUri ppe src notes = do
               TypeError.RedundantPattern loc -> singleRange loc
               TypeError.UncoveredPatterns loc _pats -> singleRange loc
               TypeError.KindInferenceFailure ke -> singleRange (KindInference.lspLoc ke)
-              TypeError.MissingRecordField _fieldName expectedFieldType actualRecordType expectedRecordType ->
+              TypeError.MissingRecordField {fieldType, recordWithoutField, recordWithField} ->
                 do
-                  r1 <- aToR (ABT.annotation actualRecordType)
-                  r2 <- aToR (ABT.annotation expectedFieldType)
-                  r3 <- aToR (ABT.annotation expectedRecordType)
+                  r1 <- aToR (ABT.annotation recordWithoutField)
+                  r2 <- aToR (ABT.annotation fieldType)
+                  r3 <- aToR (ABT.annotation recordWithField)
                   pure
                     ( r1,
                       [ ("expected field type", r2),
@@ -367,10 +367,10 @@ analyseNotes codebase fileUri ppe src notes = do
                 Context.RedundantPattern loc -> singleRange loc
                 Context.InaccessiblePattern loc -> singleRange loc
                 Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
-                Context.MissingRecordField _fieldName fieldType actualRecordType expectedRecordType -> do
-                  r1 <- aToR (ABT.annotation actualRecordType)
+                Context.MissingRecordField _fieldName fieldType recordWithoutField recordWithField -> do
+                  r1 <- aToR (ABT.annotation recordWithoutField)
                   r2 <- aToR (ABT.annotation fieldType)
-                  r3 <- aToR (ABT.annotation expectedRecordType)
+                  r3 <- aToR (ABT.annotation recordWithField)
                   pure
                     ( r1,
                       [ ("expected field type", r2),
