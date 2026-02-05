@@ -144,7 +144,6 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq, unzip)
-import qualified Unison.Debug as Debug
 
 closure :: (Var v) => Map v (Set v, Set v) -> Map v (Set v)
 closure m0 = trace (snd <$> m0)

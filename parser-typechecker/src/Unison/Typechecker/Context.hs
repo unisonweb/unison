@@ -93,7 +93,6 @@ import Unison.DataDeclaration
   )
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.Debug qualified as Debug
 import Unison.KindInference qualified as KindInference
 import Unison.Name (Name)
 import Unison.Pattern (Pattern)
