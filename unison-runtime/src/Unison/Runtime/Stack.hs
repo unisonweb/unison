@@ -68,6 +68,7 @@ module Unison.Runtime.Stack
     USeg,
     BSeg,
     SegList,
+    segToList,
     Val
       ( ..,
         CharVal,
@@ -189,6 +190,7 @@ import Data.Atomics qualified as Atomic
 import Data.Bits (clearBit)
 import Data.Char qualified as Char
 import Data.Functor.Classes (Eq1 (..), Ord1 (..))
+import Data.HashMap.Strict (HashMap)
 import Data.IORef (IORef)
 import Data.Map.Strict.Internal (Map (..))
 import Data.Ord (comparing)
@@ -401,6 +403,9 @@ unboxedTypeTagFromInt = \case
   3 -> NatTag
   _ -> error "intToUnboxedTypeTag: invalid tag"
 
+-- TODO: Should replace the HashMap with an EnumMap over FieldRefs
+type RecordValMap = HashMap Text Val
+
 data GClosure comb
   = GPAp
       !CombIx
@@ -418,7 +423,7 @@ data GClosure comb
       !Int
       -- | u/b data stacks
       {-# UNPACK #-} !Seg
-  | GRecord !RecordRef !Seg
+  | GRecord !RecordRef !RecordValMap
   | GForeign !Foreign
   | -- | The type tag for the value in the corresponding unboxed stack slot.
     --
@@ -470,7 +475,7 @@ pattern Data2 r t i j = Closure (GData2 r t i j)
 
 pattern DataG r t seg = Closure (GDataG r t seg)
 
-pattern RecordG :: RecordRef -> Seg -> Closure
+pattern RecordG :: RecordRef -> RecordValMap -> Closure
 pattern RecordG rr seg = Closure (GRecord rr seg)
 
 pattern Captured k a seg = Closure (GCaptured k a seg)
@@ -625,10 +630,10 @@ pattern DataC rf ct segs <-
   where
     DataC rf ct segs = formData rf ct segs
 
-pattern RecordC :: RecordRef -> SegList -> Closure
-pattern RecordC rr segList <- (RecordG rr (segToList -> segList))
+pattern RecordC :: RecordRef -> RecordValMap -> Closure
+pattern RecordC rr v <- (RecordG rr v)
   where
-    RecordC rr seg = RecordG rr (segFromList seg)
+    RecordC rr v = RecordG rr v
 
 matchCharVal :: Val -> Maybe Char
 matchCharVal = \case

@@ -234,8 +234,8 @@ putInstr = \case
   (Name r a) -> putTag NameT <> putRef r <> putArgs a
   (Info s) -> putTag InfoT <> putString s
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
-  (RecPack rr args) -> putTag RecPackT <> putRecordRef rr <> putArgs args
-  (RecUnpack rr recIndex) -> putTag RecUnpackT <> putRecordRef rr <> pInt recIndex
+  (RecPack rr fields args) -> putTag RecPackT <> putRecordRef rr <> putFoldable putText fields <> putArgs args
+  (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putText fields <> pInt recIndex
   (Lit l) -> putTag LitT <> putLit l
   (Print i) -> putTag PrintT <> pInt i
   (Reset s nh ah) ->
@@ -285,8 +285,8 @@ getInstr =
     InLocalT -> InLocal <$> gInt
     KeepAliveT -> KeepAlive <$> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
-    RecPackT -> RecPack <$> getRecordRef <*> getArgs
-    RecUnpackT -> RecUnpack <$> getRecordRef <*> gInt
+    RecPackT -> RecPack <$> getRecordRef <*> getVector getText <*> getArgs
+    RecUnpackT -> RecUnpack <$> getVector getText <*> gInt
 
 data ArgsT
   = ZArgsT

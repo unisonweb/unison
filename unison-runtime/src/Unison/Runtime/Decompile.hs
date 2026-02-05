@@ -11,9 +11,9 @@ module Unison.Runtime.Decompile
   )
 where
 
+import Data.HashMap.Strict qualified as HMS
 import Data.Map qualified as Map
 import Data.Set (singleton)
-import Data.Set qualified as Set
 import Data.Text qualified as DT
 import Numeric.Natural (Natural)
 import Unison.ABT (substs)
@@ -114,14 +114,9 @@ decompile rsLookup backref topTerms = \case
           app () (builtin () "Any.Any") <$> decompile rsLookup backref topTerms b
     (DataC rf (maskTags -> ct) vs) ->
       apps' (con rf ct) <$> traverse (decompile rsLookup backref topTerms) vs
-    (RecordC rr vals) -> do
+    (RecordC _rr vals) -> do
       vs' <- traverse (decompile rsLookup backref topTerms) vals
-      case rsLookup rr of
-        Just (ANF.RecordSchema fields) ->
-          pure $ Term.record () (Map.fromList $ zip (Set.toList fields) vs')
-        Nothing ->
-          -- Unknown record schema, some error locations just lack the context, we'll do the best we can.
-          pure $ Term.record () (Map.fromList $ zip ([(1 :: Int) ..] <&> \n -> "<unknown field " <> tShow n <> ">") vs')
+      pure $ Term.record () (Map.fromList $ HMS.toList vs')
     (PApV (CIx rf rt k) _ vs)
       | rf == Builtin "jumpCont" ->
           err Cont $ bug "<Continuation>"

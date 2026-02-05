@@ -33,6 +33,7 @@ import Control.Lens
 import Control.Monad.State.Strict
 import Data.Atomics qualified as Atomic
 import Data.HashMap.Lazy qualified as HM
+import Data.HashMap.Lazy qualified as HMS
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
@@ -78,6 +79,7 @@ import Unison.Runtime.ANF.Optimize qualified as ANF
 import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
 import Data.Text qualified as Text
+import Data.Vector qualified as V
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
@@ -425,14 +427,19 @@ exec _ henv !_activeThreads !stk !k _ (Pack r t args) = do
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (RecPack rs args) = do
-  clo <- buildRec stk rs args
+exec _ henv !_activeThreads !stk !k _ (RecPack rr fields args) = do
+  clo <- buildRec stk rr fields args
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (RecUnpack _fieldsRecRef recIndex) = do
+exec _ henv !_activeThreads !stk !k _ (RecUnpack desiredFields recIndex) = do
   bpeekOff stk recIndex >>= \case
-    RecordG _valRecRef seg -> do
+    RecordG _valRecRef vals -> do
+      let seg =
+            V.toList desiredFields
+              <&> (\f -> vals HM.! f)
+              -- TODO: Can we speed this up somehow?
+              & segFromList
       stk' <- dumpSeg stk seg S
       pure (False, henv, stk', k)
     _ -> die [] "RecUnpack called on non-record value"
@@ -1113,11 +1120,15 @@ buildData !stk !r !t (VArgV i) = do
 {-# INLINE buildData #-}
 
 -- | Pack some number of args into a record data type of the provided ref/tag type.
-buildRec :: Stack -> ANF.RecordRef -> Args -> IO Closure
-buildRec !stk rr args = do
+buildRec :: Stack -> ANF.RecordRef -> V.Vector Text.Text -> Args -> IO Closure
+buildRec !stk rr fields args = do
   -- TODO: Add more cases like buildData for efficiency
   seg <- augSeg I stk nullSeg (Just $ argsToArgs' args)
-  pure $ RecordG rr seg
+  let valMap =
+        segToList seg
+          & zip (V.toList fields)
+          & HMS.fromList
+  pure $ RecordG rr valMap
 {-# INLINE buildRec #-}
 
 dumpDataValNoTag ::
@@ -2042,12 +2053,17 @@ reifyValue0Canon combs tys tms rty rtm rrLookup = goV
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy rn
       rf <- ixTy rn
       boxedVal . formDataReplaced rf t <$> goVs vs
-    goV (ANF.Record rs vals) = do
+    goV (ANF.Record rs@(ANF.RecordSchema fields) vals) = do
       rref <- case BM.lookupL rs rrLookup of
         Just r -> pure r
         Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
       vals' <- goVs vals
-      pure $ boxedVal $ RecordG rref vals'
+      let fieldMap =
+            -- TODO: Maybe need to reverse seg here?
+            zip (Set.toList fields) (segToList vals')
+              & HMS.fromList
+
+      pure $ boxedVal $ RecordG rref fieldMap
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs
@@ -2145,12 +2161,17 @@ reifyValue0 (combs, rty, rtm, rrLookup) = goV
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
       boxedVal . formDataReplaced r t <$> goVs vs
-    goV (ANF.Record rs vals) = do
+    goV (ANF.Record rs@(ANF.RecordSchema fields) vals) = do
       rref <- case BM.lookupL rs rrLookup of
         Just r -> pure r
         Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
       vals' <- goVs vals
-      pure $ boxedVal $ RecordG rref vals'
+      let fieldMap =
+            -- TODO: Maybe need to reverse seg here?
+            zip (Set.toList fields) (segToList vals')
+              & HMS.fromList
+
+      pure $ boxedVal $ RecordG rref fieldMap
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs

@@ -63,6 +63,8 @@ import Data.Primitive.PrimArray qualified as PA
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Vector (Vector)
+import Data.Vector qualified as V
 import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
@@ -555,13 +557,15 @@ data GInstr comb
   | -- Pack a record type into a closure and place it on the stack.
     RecPack
       !ANF.RecordRef
+      !(Vector Text.Text)
       -- values to pack
       !Args
   | -- Unpack a set of fields from a record on the boxed stack.
     -- It may be a subset of the fields, so the RecordRef may not match
     -- that of the record in the closure.
     RecUnpack
-      !ANF.RecordRef {- fields to unpack -}
+      -- TODO: replace with fieldRefs
+      !(Vector Text.Text {- fields to unpack -})
       !Int {- index of record on boxed stack -}
   | -- Which fields to pack each arg into
     -- TODO: Do we need this? I think we should just generate ANF
@@ -1099,9 +1103,8 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
       DMatch (Just r) i
         <$> emitDataMatching r rns grpr grpn rec ctx cs df
   | Just (i, BX) <- ctxResolve ctx v,
-    MatchRec rs (TAbss vs bd) <- bs = do
-      let recordRef = recNum rns rs
-      let instr = RecUnpack recordRef i
+    MatchRec (ANF.RecordSchema fields) (TAbss vs bd) <- bs = do
+      let instr = RecUnpack (V.fromList $ Set.toList fields) i
       let newCtx = pushCtx (zip vs (repeat BX {- these are ignored -})) ctx
       Ins instr <$> emitSection rns grpr grpn rec newCtx bd
   | Just (i, BX) <- ctxResolve ctx v,
@@ -1219,8 +1222,8 @@ emitFunction rns _grpr _ _ _ (FCon r t) as =
     $ VArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitFunction rns _grpr _ _ _ (FRec rs) as =
-  Ins (RecPack recRef as)
+emitFunction rns _grpr _ _ _ (FRec rs@(ANF.RecordSchema fields)) as =
+  Ins (RecPack recRef (V.fromList $ Set.toList fields) as)
     . Yield
     $ VArg1 0
   where
@@ -1302,8 +1305,8 @@ emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
   fmap (Ins . Pack r (packTags rt n) $ emitArgs grpn ctx args)
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs) args) =
-  fmap (Ins . RecPack (recNum rns rs) $ emitArgs grpn ctx args)
+emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs@(ANF.RecordSchema fields)) args) =
+  fmap (Ins . RecPack (recNum rns rs) (V.fromList $ Set.toList fields) $ emitArgs grpn ctx args)
 emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
 emitLet _ _ _ _ _ _ ctx (TDiscard v)

@@ -209,6 +209,13 @@ putEnumSet pk s =
 getEnumSet :: (PrimBase m) => (EnumKey k) => Get m k -> Get m (EnumSet k)
 getEnumSet gk = setFromList <$> getList gk
 
+getSet :: (Ord a, PrimBase m) => Get m a -> Get m (Set.Set a)
+getSet getA = Set.fromList <$> getList getA
+{-# INLINEABLE getSet #-}
+
+putSet :: (Ord a) => (a -> Builder) -> Set.Set a -> Builder
+putSet putA s = putFoldable putA (Set.toAscList s)
+
 putMaybe :: Maybe a -> (a -> Builder) -> Builder
 putMaybe Nothing _ = BU.word8 0
 putMaybe (Just a) putA = BU.word8 1 <> putA a
