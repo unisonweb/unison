@@ -1,6 +1,7 @@
 module Unison.Hashing.V2.Type
   ( Type,
     TypeF (..),
+    FieldBehavior(..),
     bindExternal,
     bindReferences,
 
@@ -35,6 +36,17 @@ import Unison.Prelude
 import Unison.Util.List qualified as List
 import Unison.Var (Var)
 
+-- | Whether the record type unifies with types that have _extra_ fields.
+-- E.g. subtype (Record _ {a: Int, b: Nat}) (Record AllowExtraFields {a: Int})
+--   will succeed, since the former has all the required fields, and extra fields are allowed,
+--   but:
+--   subtype (Record _ {a: Int, b: Nat}) (Record RequireExactFields {a: Int})
+-- fails.
+data FieldBehavior
+  = AllowExtraFields
+  | RequireExactFields
+  deriving (Eq, Ord, Show)
+
 -- | Base functor for types in the Unison language
 data TypeF a
   = TypeRef Reference
@@ -47,7 +59,7 @@ data TypeF a
   | TypeIntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
-  | TypeRecord (Map Text a)
+  | TypeRecord FieldBehavior (Map Text a)
   deriving (Foldable, Functor, Traversable)
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
@@ -152,9 +164,12 @@ instance Hashable1 TypeF where
             TypeEffect e t -> [tag 5, hashed (hash e), hashed (hash t)]
             TypeForall a -> [tag 6, hashed (hash a)]
             TypeIntroOuter a -> [tag 7, hashed (hash a)]
-            TypeRecord fields ->
-              let sortedFields = Map.toAscList fields
+            TypeRecord fb fields ->
+              let fbh = case fb of
+                    AllowExtraFields -> 0
+                    RequireExactFields -> 1
+                  sortedFields = Map.toAscList fields
                   fieldHashes =
                     sortedFields & foldMap \(fieldName, fieldType) ->
                       [Hashable.accumulateToken fieldName, hashed (hash fieldType)]
-               in tag 8 : fieldHashes
+               in tag 8 : tag fbh : fieldHashes

@@ -115,9 +115,13 @@ recordType :: (Monad m, Var v) => TypeP v m
 recordType = do
   open <- openBlockWith "{"
   fields <- sepBy (reserved ",") recordField
+  fb <-
+    optional (reserved "|" *> reserved "...") >>= \case
+      Just _ -> pure Type.AllowExtraFields
+      Nothing -> pure Type.RequireExactFields
   close <- closeBlock
   let a = ann open <> ann close
-  pure $ Type.record a (Map.fromList fields)
+  pure $ Type.record a fb (Map.fromList fields)
   where
     recordField = do
       nameTok <- recordFieldName

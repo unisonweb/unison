@@ -53,6 +53,7 @@ data Element r
     DocKeyword
   | RecordFieldName Text
   | RecordFieldValueColon
+  | RecordExtraFields
   deriving (Eq, Ord, Show, Functor)
 
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r

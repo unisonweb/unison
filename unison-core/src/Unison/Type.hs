@@ -38,6 +38,17 @@ import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
+-- | Whether the record type unifies with types that have _extra_ fields.
+-- E.g. subtype (Record _ {a: Int, b: Nat}) (Record AllowExtraFields {a: Int})
+--   will succeed, since the former has all the required fields, and extra fields are allowed,
+--   but:
+--   subtype (Record _ {a: Int, b: Nat}) (Record RequireExactFields {a: Int})
+-- fails.
+data FieldBehavior
+  = AllowExtraFields
+  | RequireExactFields
+  deriving (Eq, Ord, Show)
+
 -- | Base functor for types in the Unison language
 data F a
   = Ref TypeReference
@@ -51,7 +62,7 @@ data F a
   -- bound by outer type signatures, to support scoped type
   -- variables
   | -- Record type, mapping field names to types
-    Record (Map Text a)
+    Record FieldBehavior (Map Text a)
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
 _Ref :: Prism' (F a) TypeReference
@@ -149,8 +160,8 @@ pattern Pure' t <- (unPure -> Just t)
 pattern Request' :: [Type v a] -> Type v a -> Type v a
 pattern Request' ets res <- Apps' (Ref' ((== effectRef) -> True)) [(flattenEffects -> ets), res]
 
-pattern Record' :: Map Text (ABT.Term F v a) -> ABT.Term F v a
-pattern Record' fields <- ABT.Tm' (Record fields)
+pattern Record' :: FieldBehavior -> Map Text (ABT.Term F v a) -> ABT.Term F v a
+pattern Record' fb fields <- ABT.Tm' (Record fb fields)
 
 pattern Effects' :: [ABT.Term F v a] -> ABT.Term F v a
 pattern Effects' es <- ABT.Tm' (Effects es)
@@ -440,8 +451,8 @@ char a = ref a charRef
 integer :: (Ord v) => a -> Type v a
 integer a = ref a integerRef
 
-record :: (Ord v) => a -> Map Text (Type v a) -> Type v a
-record a fields = ABT.tm' a (Record fields)
+record :: (Ord v) => a -> FieldBehavior -> Map Text (Type v a) -> Type v a
+record a fb fields = ABT.tm' a (Record fb fields)
 
 natural :: (Ord v) => a -> Type v a
 natural a = ref a naturalRef
@@ -933,9 +944,11 @@ instance (Show a) => Show (F a) where
       go p (IntroOuter body) = case p of
         0 -> showsPrec p body
         _ -> showParen True $ s "outer " <> shows body
-      go p (Record fields) =
-        showParen (p > 0) $
-          foldl' (<>) (s "{") (List.intersperse (s ", ") (showField <$> Map.toList fields)) <> s "}"
+      go p (Record fb fields) =
+        let fbs = case fb of
+              RequireExactFields -> s ""
+              AllowExtraFields -> s "| ..."
+         in showParen (p > 0) $ foldl' (<>) (s "{") (List.intersperse (s ", ") (showField <$> Map.toList fields)) <> fbs <> s "}"
         where
           showField (l, t) = s (Text.unpack l) <> s ": " <> shows t
       (<>) = (.)

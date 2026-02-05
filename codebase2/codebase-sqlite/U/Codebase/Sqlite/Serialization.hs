@@ -457,7 +457,7 @@ getType getReference = getABT getSymbol getUnit go
         5 -> Type.Effects <$> getList getChild
         6 -> Type.Forall <$> getChild
         7 -> Type.IntroOuter <$> getChild
-        8 -> Type.Record . Map.fromList <$> getList (getPair getText getChild)
+        8 -> Type.Record <$> getEnum @Type.FieldBehavior <*> (Map.fromList <$> getList (getPair getText getChild))
         tag -> unknownTag "getType" tag
     getKind :: (MonadGet m) => m Kind
     getKind =
@@ -1134,7 +1134,7 @@ putType putReference putVar = putABT putVar putUnit go
       Type.Effects es -> putWord8 5 *> putFoldable putChild es
       Type.Forall body -> putWord8 6 *> putChild body
       Type.IntroOuter body -> putWord8 7 *> putChild body
-      Type.Record fields -> putWord8 8 *> putFoldable (\(l, t) -> putText l *> putChild t) (Map.toAscList fields)
+      Type.Record fb fields -> putWord8 8 *> putEnum @Type.FieldBehavior fb *> putFoldable (\(l, t) -> putText l *> putChild t) (Map.toAscList fields)
     putKind :: (MonadPut m) => Kind -> m ()
     putKind k = case k of
       Kind.Star -> putWord8 0
@@ -1161,3 +1161,9 @@ getMaybe getA =
 unknownTag :: (MonadGet m, Show a) => String -> a -> m x
 unknownTag msg tag =
   fail $ "unknown tag " ++ show tag ++ " while deserializing: " ++ msg
+
+putEnum :: forall e m. (MonadPut m, Enum e) => e -> m ()
+putEnum e = putVarInt (fromEnum e)
+
+getEnum :: forall e m. (MonadGet m, Enum e) => m e
+getEnum = toEnum <$> getVarInt

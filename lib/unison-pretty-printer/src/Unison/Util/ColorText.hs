@@ -203,3 +203,4 @@ defaultColors = \case
   ST.DocKeyword -> Just HiCyan
   ST.RecordFieldName {} -> Just HiCyan
   ST.RecordFieldValueColon -> Just HiPurple
+  ST.RecordExtraFields -> Just HiPurple

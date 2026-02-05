@@ -363,8 +363,11 @@ type2to1' convertRef =
       V2.Type.Effects as -> V1.Type.Effects as
       V2.Type.Forall a -> V1.Type.Forall a
       V2.Type.IntroOuter a -> V1.Type.IntroOuter a
-      V2.Type.Record fields -> V1.Type.Record fields
+      V2.Type.Record fb fields -> V1.Type.Record (convertFB fb) fields
       where
+        convertFB = \case
+          V2.Type.AllowExtraFields -> V1.Type.AllowExtraFields
+          V2.Type.RequireExactFields -> V1.Type.RequireExactFields
         convertKind = \case
           V2.Kind.Star -> V1.Kind.Star
           V2.Kind.Arrow i o -> V1.Kind.Arrow (convertKind i) (convertKind o)
@@ -391,8 +394,11 @@ type1to2' convertRef =
       V1.Type.Effects as -> V2.Type.Effects as
       V1.Type.Forall a -> V2.Type.Forall a
       V1.Type.IntroOuter a -> V2.Type.IntroOuter a
-      V1.Type.Record fields -> V2.Type.Record fields
+      V1.Type.Record fb fields -> V2.Type.Record (convertFB fb) fields
       where
+        convertFB = \case
+          V1.Type.AllowExtraFields -> V2.Type.AllowExtraFields
+          V1.Type.RequireExactFields -> V2.Type.RequireExactFields
         convertKind = \case
           V1.Kind.Star -> V2.Kind.Star
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)

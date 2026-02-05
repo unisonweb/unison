@@ -74,7 +74,7 @@ desugarPattern typ v0 pat k vs = case pat of
     rest <- foldr (\(v, pat, t) b -> desugarPattern t v pat b) k tpatvars vs
     pure (Grd c rest)
   RecordLiteral _loc fields
-    | Type.Record' typeFields <- typ -> handleRecord typ typeFields v0 k fields vs
+    | Type.Record' fb typeFields <- typ -> handleRecord fb typ typeFields v0 k fields vs
     | otherwise -> error "desugarPattern: RecordLiteral pattern does not correspond to record type"
   As _ rest -> desugarPattern typ v0 rest k (v0 : vs)
   EffectPure _ resume -> do
@@ -98,6 +98,7 @@ desugarPattern typ v0 pat k vs = case pat of
 handleRecord ::
   forall v vt loc m.
   (Pmc vt v loc m) =>
+  Type.FieldBehavior ->
   Type vt loc ->
   (Map Text (Type vt loc)) ->
   v ->
@@ -105,7 +106,7 @@ handleRecord ::
   Map Text (Pattern loc) ->
   [v] ->
   m (GrdTree (PmGrd vt v loc) loc)
-handleRecord typ typeFields recordVar k fieldPats vs = do
+handleRecord fb typ typeFields recordVar k fieldPats vs = do
   -- TODO: Definitely double-check this
   let go ::
         (Text, (v, (Type vt loc, Pattern loc))) ->
@@ -116,7 +117,9 @@ handleRecord typ typeFields recordVar k fieldPats vs = do
         desugarPattern fieldType fieldVar fieldPat k vs
   let cleanFields k = \case
         This _ -> Nothing
-        That _ -> error $ "TODO: this error should likely happen elsewhere: handleRecord: extra field in pattern. " <> show k
+        That _ -> case fb of
+          Type.AllowExtraFields -> Nothing
+          Type.RequireExactFields -> error $ "TODO: this error should likely happen elsewhere: handleRecord: extra field in pattern. " <> show k
         These t p -> Just (t, p)
   let addVars a = do
         v <- fresh

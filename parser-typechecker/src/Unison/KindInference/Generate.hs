@@ -113,7 +113,7 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
           effKind <- freshVar eff
           effConstraints <- typeConstraintTree effKind eff
           pure $ ParentConstraint (IsAbility effKind (Provenance EffectsList $ ABT.annotation eff)) effConstraints
-      Type.Record fields -> do
+      Type.Record _fb fields -> do
         ParentConstraint (IsType resultVar (Provenance Record annotation)) . Node <$> for (Map.toList fields) \(fieldName, fieldType) -> do
           fieldKind <- freshVar fieldType
           fieldConstraints <- typeConstraintTree fieldKind fieldType

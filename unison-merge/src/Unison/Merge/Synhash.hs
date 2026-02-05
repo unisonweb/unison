@@ -382,7 +382,12 @@ hashTypeFTokens ppe = \case
   Type.Effects es -> [H.Tag 5, hashLengthToken es]
   Type.Forall {} -> [H.Tag 6]
   Type.IntroOuter {} -> [H.Tag 7]
-  Type.Record fields -> H.Tag 8 : fieldNameTokens (Map.keys fields)
+  Type.Record fb fields -> [H.Tag 8] <> fieldBehaviorTokens fb <> fieldNameTokens (Map.keys fields)
+
+fieldBehaviorTokens :: Type.FieldBehavior -> [Token]
+fieldBehaviorTokens = \case
+  Type.AllowExtraFields -> [H.Tag 0]
+  Type.RequireExactFields -> [H.Tag 1]
 
 fieldNameTokens :: [Text] -> [Token]
 fieldNameTokens names =

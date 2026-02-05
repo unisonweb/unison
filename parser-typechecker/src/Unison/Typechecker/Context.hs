@@ -781,7 +781,7 @@ wellformedType c t = case t of
   Type.Forall' t' ->
     let (v, ctx2) = extendUniversal c
      in wellformedType ctx2 (ABT.bind t' (universal' (ABT.annotation t) v))
-  Type.Record' fields ->
+  Type.Record' _fb fields ->
     all (wellformedType c) fields
   _ -> error $ "Match failure in wellformedType: " ++ show t
   where
@@ -1375,6 +1375,8 @@ synthesizeWanted e
       appendContext [Var (TypeVar.Existential blank v)]
       pure (existential' l blank v, [])
   | Term.Record' fields <- e = scope (InRecordLiteral (ABT.annotation e)) $ do
+      -- Record literals have an exact field set.
+      let fb = Type.RequireExactFields
       (fieldTypes, wantedSets) <-
         fields
           & Map.traverseWithKey
@@ -1386,7 +1388,7 @@ synthesizeWanted e
           <&> Align.unzip
       -- Unify ability wants for the whole record
       wanteds <- foldM coalesceWanted [] (fold wantedSets)
-      pure (Type.record l fieldTypes, wanteds)
+      pure (Type.record l fb fieldTypes, wanteds)
   | Term.List' v <- e = do
       ft <- vectorConstructorOfArity l (Foldable.length v)
       case Foldable.toList v of
@@ -1752,8 +1754,10 @@ checkPattern scrutineeType p =
         let vt = existentialp (Pattern.loc pat) fieldTypeV
         appendContext [existential fieldTypeV]
         pure vt
+      -- Record patterns allow extra unmatched fields
+      let fb = Type.AllowExtraFields
       -- Build the type of the pattern, filled with those unification variables
-      let patternRecordType = Type.record recordLoc inferredFieldTypes
+      let patternRecordType = Type.record recordLoc fb inferredFieldTypes
       lift $ subtype scrutineeType patternRecordType
       lift $ for_ inferredFieldTypes applyM
       -- Unify each field pattern against the variable for that field
@@ -2121,9 +2125,10 @@ tweakEffects v0 t0
       appendContext (existential <$> vs)
       pure (vs, ABT.substInheritAnnotation v0 (typ vs) ty)
 
-    rewrite :: Maybe Bool
-                  -> ABT.Term Type.F (TypeVar v loc) a
-                  -> MT v loc (Result v loc) ([v], Type.Type (TypeVar v loc) a)
+    rewrite ::
+      Maybe Bool ->
+      ABT.Term Type.F (TypeVar v loc) a ->
+      MT v loc (Result v loc) ([v], Type.Type (TypeVar v loc) a)
     rewrite p ty
       | Type.ForallNamed' v t <- ty,
         v0 /= v =
@@ -2148,9 +2153,9 @@ tweakEffects v0 t0
           (vfs, f) <- rewrite p f
           (vxs, x) <- rewrite Nothing x
           pure (vfs ++ vxs, Type.app (loc ty) f x)
-      | Type.Record' fields <- ty = do
+      | Type.Record' fb fields <- ty = do
           (vs, fields') <- getCompose $ for fields (Compose . rewrite p)
-          pure (vs, Type.record (loc ty) fields')
+          pure (vs, Type.record (loc ty) fb fields')
       | otherwise = pure ([], ty)
       where
         a = loc ty
@@ -2179,7 +2184,7 @@ isVariant u = walk True
       walk var i && walk var o && all (walk var) es
     walk var (Type.App' f x) = walk var f && walk False x
     walk var (Type.Var' v) = u /= v || var
-    walk var (Type.Record' fields) = all (walk var) fields
+    walk var (Type.Record' _fb fields) = all (walk var) fields
     walk _ _ = True
 
 skolemize ::
@@ -2479,7 +2484,7 @@ discardCovariant vars gens ty =
       | Just vs <- checkVarianceWith vars f,
         length vs == length xs =
           keepVarsT pos f <> foldMap (keepVarsV pos) (zip vs xs)
-    keepVarsT pos (Type.Record' fields) =
+    keepVarsT pos (Type.Record' _fb fields) =
       -- TODO: Is this right?
       foldMap (keepVarsT pos) fields
     keepVarsT _ t = foldMap exi $ Type.freeVars t
@@ -2590,9 +2595,9 @@ relax' vars nonArrow fv = rebuild True
             Just (Pos : _) -> rebuild False x
             _ -> pure x
           pure $ Type.app loc f x
-      | Type.Record' fields <- t = do
+      | Type.Record' fb fields <- t = do
           fields <- traverse (rebuild False) fields
-          pure $ Type.record loc fields
+          pure $ Type.record loc fb fields
       | top, nonArrow = ftv loc <&> \tv -> Type.effect loc [tv] t
       | otherwise = pure t
       where
@@ -2866,11 +2871,15 @@ subtype tx ty = scope (InSubtype tx ty) $ do
           vars <- getVariances
           t <- relax' vars False (extendExistential Var.inferAbility) t
           instantiateR t b v
-    go _ r1@(Type.Record' fields1) r2@(Type.Record' fields2) = do
+    go _ r1@(Type.Record' _fb1 fields1) r2@(Type.Record' fb2 fields2) = do
       Align.align fields1 fields2
         & Map.traverseWithKey
           ( \fieldName -> \case
-              This t1 -> failWith $ MissingRecordField fieldName t1 r1 r2
+              This t1 -> case fb2 of
+                Type.RequireExactFields -> failWith $ MissingRecordField fieldName t1 r1 r2
+                Type.AllowExtraFields -> pure ()
+              -- If we're missing a field in r1, there's no way it can be a subtype,
+              -- regardless of the field behavior.
               That t2 -> failWith $ UnexpectedRecordField fieldName t2 r1 r2
               These t1 t2 -> subtype t1 t2
           )
@@ -2957,7 +2966,8 @@ equate0 t (Type.Var' (TypeVar.Existential b v))
       instantiateL b v t
 equate0 (Type.Effects' es1) (Type.Effects' es2) =
   equateAbilities es1 es2
-equate0 r1@(Type.Record' fields1) r2@(Type.Record' fields2) = do
+equate0 r1@(Type.Record' _fb1 fields1) r2@(Type.Record' _fb2 fields2)
+  = do
   Align.align fields1 fields2
     & Map.traverseWithKey
       ( \fieldName -> \case
@@ -3031,7 +3041,7 @@ instantiateL blank v (Type.stripIntroOuters -> t) =
           [existential y', existential x', s]
         applyM x >>= instantiateL B.Blank x'
         applyM y >>= instantiateL B.Blank y'
-      Type.Record' fields -> do
+      Type.Record' fb fields -> do
         -- For now, treat record instantiation similarly to a Constructor Application,
         -- we require that record types match exactly, no record field subsets are allowed yet.
         -- First generate a new var and existential for each field's type
@@ -3045,13 +3055,14 @@ instantiateL blank v (Type.stripIntroOuters -> t) =
             <&> Align.unzip
         let recordLoc = ABT.annotation t
         -- We can assert that the result type is equal to the record filled with the existentials
-        let solved = Solved blank v (Type.Monotype (Type.record recordLoc fieldExistentials))
+        let solved = Solved blank v (Type.Monotype (Type.record recordLoc fb fieldExistentials))
         -- Now, update the context, replacing the existential of the current var to
         -- include the new field existentials and the solved type, which depends on them.
         replaceContext
           (existential v)
           ((existential <$> Map.elems fieldVars) <> [solved])
         -- Finally, instantiate each field type to the corresponding existential
+        -- Any missing fields are simply not instantiated
         for_ (Align.zip fields fieldVars) \(fieldTyp, fieldVar) ->
           applyM fieldTyp >>= instantiateL B.Blank fieldVar
       Type.Effect1' es vt -> do
@@ -3167,9 +3178,8 @@ instantiateR (Type.stripIntroOuters -> t) blank v =
         replaceContext (existential v) [existential y', existential x', s]
         applyM x >>= \x -> instantiateR x B.Blank x'
         applyM y >>= \y -> instantiateR y B.Blank y'
-      Type.Record' fields -> do
-        -- For now, treat record instantiation similarly to a Constructor Application,
-        -- we require that record types match exactly, no record field subsets are allowed yet.
+      Type.Record' fb fields -> do
+        -- For now, treat record instantiation similarly to a Constructor Application
         --
         -- { name : n } <: v' will
         -- 1. create result', n', add these to the context
@@ -3185,7 +3195,7 @@ instantiateR (Type.stripIntroOuters -> t) blank v =
             <&> Align.unzip
         let recordLoc = ABT.annotation t
         -- We can assert that the result type is equal to the record filled with the existentials
-        let solved = Solved blank v (Type.Monotype (Type.record recordLoc fieldExistentials))
+        let solved = Solved blank v (Type.Monotype (Type.record recordLoc fb fieldExistentials))
         -- Now, update the context, replacing the existential of the current var to
         -- include the new field existentials and the solved type, which depends on them.
         replaceContext
@@ -3194,7 +3204,6 @@ instantiateR (Type.stripIntroOuters -> t) blank v =
         -- Finally, instantiate each field type to the corresponding existential
         for_ (Align.zip fields fieldVars) \(fieldTyp, fieldVar) ->
           applyM fieldTyp >>= instantiateL B.Blank fieldVar
-
       Type.Effect1' es vt -> do
         es' <- freshenVar (nameFrom Var.inferAbility es)
         vt' <- freshenVar (nameFrom Var.inferTypeConstructorArg vt)

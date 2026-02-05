@@ -22,7 +22,7 @@ unpackRec = cases
   Loading changes detected in scratch.u.
 
   + mkRec     : a -> b -> c -> {x: a, y: b, z: c}
-  + unpackRec : {x: Nat, y: Nat, z: Nat} -> Nat
+  + unpackRec : {x: Nat, y: Nat, z: Nat | ... } -> Nat
 
   Run `update` to apply these changes to your codebase.
 
@@ -49,7 +49,7 @@ scratch/main> ls
 
   1. lib.      (746 terms, 116 types)
   2. mkRec     (a -> b -> c -> {x: a, y: b, z: c})
-  3. unpackRec ({x: Nat, y: Nat, z: Nat} -> Nat)
+  3. unpackRec ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
 ```
 
 We should be able to create wrapper types which encapsulate records, and manipulate them.
@@ -121,7 +121,7 @@ scratch/main> ls
   7.  mkRec       (a -> b -> c -> {x: a, y: b, z: c})
   8.  p           (Point)
   9.  unpackPoint (Point -> Nat)
-  10. unpackRec   ({x: Nat, y: Nat, z: Nat} -> Nat)
+  10. unpackRec   ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
 
 scratch/main> view Point
 
@@ -150,9 +150,9 @@ getName = cases
     name: 𝕩16
 
   because it should have the type:
-    
+
     {age: Nat}
-    
+
 
   derived from here:
 
@@ -180,11 +180,49 @@ createPerson = Person { name: "Alice", age: 30, address: "123 Main St" }
     address: Text
 
   so that it would match the type:
-    
+
     {age: Nat, name: Text}
-    
+
 
   from here:
 
       4 | createPerson = Person { name: "Alice", age: 30, address: "123 Main St" }
+```
+
+Record field projections should infer the most general record type:
+
+``` unison
+getAddress = cases
+    { address: address } -> address
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + getAddress : {address: t | ... } -> t
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> ls
+
+  1.  Point       (type)
+  2.  Point.      (1 term)
+  3.  getAddress  ({address: t | ... } -> t)
+  4.  getX        (Point -> Nat)
+  5.  getY        (Point -> Nat)
+  6.  lib.        (746 terms, 116 types)
+  7.  mkPoint     (Nat -> Nat -> Point)
+  8.  mkRec       (a -> b -> c -> {x: a, y: b, z: c})
+  9.  p           (Point)
+  10. unpackPoint (Point -> Nat)
+  11. unpackRec   ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
 ```

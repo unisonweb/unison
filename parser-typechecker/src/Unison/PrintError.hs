@@ -1533,14 +1533,20 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
             then go 0 body
             else "forall " <> spaces renderVar vs <> " . " <> go 1 body
       Type.Var' v -> renderVar v
-      Type.Record' fields ->
-        "{"
-          <> commas
-            ( \(label, fieldType) ->
-                fromString (Text.unpack label) <> ": " <> go 0 fieldType
-            )
-            (Map.toList fields)
-          <> "}"
+      Type.Record' fb fields ->
+        let fbs = case fb of
+              Type.AllowExtraFields -> "| ..."
+              Type.RequireExactFields -> ""
+         in curly
+              (p >= 3)
+              "{"
+              <> commas
+                ( \(label, fieldType) ->
+                    fromString (Text.unpack label) <> ": " <> go 0 fieldType
+                )
+                (Map.toList fields)
+              <> fbs
+              <> "}"
       _ -> error $ "pattern match failure in PrintError.renderType " ++ show t
       where
         go = renderType0 env f
