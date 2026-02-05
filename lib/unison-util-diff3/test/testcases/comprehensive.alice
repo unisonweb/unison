@@ -1,0 +1,11 @@
+bar : Nat ->{IO} Nat
+bar x =
+  -- begin doing stuff
+  log x
+  -- compute y
+  y = x + 2
+  -- i do like turtles
+  -- output stuff
+  log y
+  -- done!
+  y + 1

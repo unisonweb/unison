@@ -17,8 +17,6 @@ where
 
 import Control.Lens (mapped, (?=), _1)
 import Control.Monad.Reader (ask)
-import Data.Algorithm.Diff qualified as Diff
-import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Semialign (zipWith)
 import Data.Set qualified as Set
@@ -105,6 +103,7 @@ import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, defnsAreEmpty)
+import Unison.Util.Diff3 qualified as Diff3
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -435,11 +434,7 @@ doMerge info = do
                       env.writeSource name contents True
                     env.writeSource
                       mergedFilename
-                      ( makeMergedFileContents
-                          mergeSourceAndTarget
-                          fileContents.alice
-                          fileContents.bob
-                      )
+                      (makeMergedFileContents mergeSourceAndTarget fileContents)
                       True
                     let createProcess = (Process.shell (Text.unpack mergetool)) {Process.delegate_ctlc = True}
                     Process.withCreateProcess createProcess \_ _ _ -> Process.waitForProcess
@@ -564,28 +559,20 @@ typecheckedUnisonFileToBranchAdds tuf = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Making file with conflict markers
 
-makeMergedFileContents :: MergeSourceAndTarget -> Text -> Text -> Text
-makeMergedFileContents sourceAndTarget aliceContents bobContents =
-  let f :: (TextBuilder, Diff.Diff Text) -> Diff.Diff Text -> (TextBuilder, Diff.Diff Text)
-      f (acc, previous) line =
-        case (previous, line) of
-          (Diff.Both {}, Diff.Both bothLine _) -> go (TextBuilder.text bothLine)
-          (Diff.Both {}, Diff.First aliceLine) -> go (aliceSlug <> TextBuilder.text aliceLine)
-          (Diff.Both {}, Diff.Second bobLine) -> go (aliceSlug <> middleSlug <> TextBuilder.text bobLine)
-          (Diff.First {}, Diff.Both bothLine _) -> go (middleSlug <> bobSlug <> TextBuilder.text bothLine)
-          (Diff.First {}, Diff.First aliceLine) -> go (TextBuilder.text aliceLine)
-          (Diff.First {}, Diff.Second bobLine) -> go (middleSlug <> TextBuilder.text bobLine)
-          (Diff.Second {}, Diff.Both bothLine _) -> go (bobSlug <> TextBuilder.text bothLine)
-          (Diff.Second {}, Diff.First aliceLine) -> go (bobSlug <> aliceSlug <> TextBuilder.text aliceLine)
-          (Diff.Second {}, Diff.Second bobLine) -> go (TextBuilder.text bobLine)
-        where
-          go content =
-            let !acc1 = acc <> content <> newline
-             in (acc1, line)
-   in Diff.getDiff (Text.lines aliceContents) (Text.lines bobContents)
-        & List.foldl' f (mempty @TextBuilder, Diff.Both Text.empty Text.empty)
-        & fst
-        & TextBuilder.toText
+makeMergedFileContents :: MergeSourceAndTarget -> Merge.ThreeWay Text -> Text
+makeMergedFileContents sourceAndTarget fileContents =
+  Diff3.diff3 (Text.lines fileContents.lca) (Text.lines fileContents.alice) (Text.lines fileContents.bob)
+    & foldMap \case
+      Diff3.Hunk hunk -> foldMap line hunk
+      Diff3.Conflict lca alice bob ->
+        aliceSlug
+          <> foldMap line alice
+          <> middleSlug
+          <> foldMap line lca
+          <> middleSlug
+          <> foldMap line bob
+          <> bobSlug
+    & TextBuilder.toText
   where
     aliceSlug :: TextBuilder
     aliceSlug =
@@ -608,6 +595,10 @@ makeMergedFileContents sourceAndTarget aliceContents bobContents =
                    Just name -> TextBuilder.text (Name.toText name)
            )
         <> newline
+
+    line :: Text -> TextBuilder
+    line s =
+      TextBuilder.text s <> newline
 
     newline :: TextBuilder
     newline = "\n"
