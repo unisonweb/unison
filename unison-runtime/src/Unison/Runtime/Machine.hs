@@ -430,6 +430,12 @@ exec _ henv !_activeThreads !stk !k _ (RecPack rs args) = do
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
+exec _ henv !_activeThreads !stk !k _ (RecUnpack _fieldsRecRef recIndex) = do
+  bpeekOff stk recIndex >>= \case
+    RecordG _valRecRef seg -> do
+      stk' <- dumpSeg stk seg S
+      pure (False, henv, stk', k)
+    _ -> die [] "RecUnpack called on non-record value"
 exec _ henv !_activeThreads !stk !k _ (Print i) = do
   t <- peekOffBi stk i
   Tx.putStrLn (Util.Text.toText t)

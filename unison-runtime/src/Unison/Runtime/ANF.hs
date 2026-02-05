@@ -1465,6 +1465,9 @@ instance Monoid (BranchAccum e) where
 newtype RecordRef = RecordRef Word64
   deriving (Show, Eq, Ord)
 
+newtype FieldRef = FieldRef Word64
+  deriving (Show, Eq, Ord)
+
 newtype RecordSchema = RecordSchema (Set FieldName)
   deriving (Show, Eq, Ord)
 

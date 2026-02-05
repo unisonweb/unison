@@ -172,6 +172,7 @@ data InstrT
   | InLocalT
   | KeepAliveT
   | RecPackT
+  | RecUnpackT
 
 instance Tag InstrT where
   tag2word Prim1T = 0
@@ -195,6 +196,7 @@ instance Tag InstrT where
   tag2word InLocalT = 20
   tag2word KeepAliveT = 21
   tag2word RecPackT = 22
+  tag2word RecUnpackT = 23
 
   word2tag 0 = pure Prim1T
   word2tag 1 = pure Prim2T
@@ -217,6 +219,7 @@ instance Tag InstrT where
   word2tag 20 = pure InLocalT
   word2tag 21 = pure KeepAliveT
   word2tag 22 = pure RecPackT
+  word2tag 23 = pure RecUnpackT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: GInstr cix -> Builder
@@ -232,6 +235,7 @@ putInstr = \case
   (Info s) -> putTag InfoT <> putString s
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
   (RecPack rr args) -> putTag RecPackT <> putRecordRef rr <> putArgs args
+  (RecUnpack rr recIndex) -> putTag RecUnpackT <> putRecordRef rr <> pInt recIndex
   (Lit l) -> putTag LitT <> putLit l
   (Print i) -> putTag PrintT <> pInt i
   (Reset s nh ah) ->
@@ -282,6 +286,7 @@ getInstr =
     KeepAliveT -> KeepAlive <$> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
     RecPackT -> RecPack <$> getRecordRef <*> getArgs
+    RecUnpackT -> RecUnpack <$> getRecordRef <*> gInt
 
 data ArgsT
   = ZArgsT
