@@ -339,6 +339,15 @@ analyseNotes codebase fileUri ppe src notes = do
                         ("expected record type", r3)
                       ]
                     )
+              TypeError.UnexpectedRecordField {recordWithoutField, recordWithField} ->
+                do
+                  r1 <- aToR (ABT.annotation recordWithField)
+                  r2 <- aToR (ABT.annotation recordWithoutField)
+                  pure
+                    ( r1,
+                      [ ("expected record type", r2)
+                      ]
+                    )
               TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
                 Context.PatternArityMismatch loc _typ _numArgs -> singleRange loc
                 Context.HandlerOfUnexpectedType loc _typ -> singleRange loc
@@ -359,6 +368,16 @@ analyseNotes codebase fileUri ppe src notes = do
                 Context.InaccessiblePattern loc -> singleRange loc
                 Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
                 Context.MissingRecordField _fieldName fieldType actualRecordType expectedRecordType -> do
+                  r1 <- aToR (ABT.annotation actualRecordType)
+                  r2 <- aToR (ABT.annotation fieldType)
+                  r3 <- aToR (ABT.annotation expectedRecordType)
+                  pure
+                    ( r1,
+                      [ ("expected field type", r2),
+                        ("expected record type", r3)
+                      ]
+                    )
+                Context.UnexpectedRecordField _fieldName fieldType actualRecordType expectedRecordType -> do
                   r1 <- aToR (ABT.annotation actualRecordType)
                   r2 <- aToR (ABT.annotation fieldType)
                   r3 <- aToR (ABT.annotation expectedRecordType)

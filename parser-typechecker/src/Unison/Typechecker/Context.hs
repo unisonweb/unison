@@ -509,6 +509,11 @@ data Cause v loc
       (Type v loc {- the type we expected there -})
       (Type v loc {- record literal missing the field -})
       (Type v loc {- record literal which has the type -})
+  | UnexpectedRecordField
+      (Text {- the extra/unexpected field name -})
+      (Type v loc {- the type we inferred there -})
+      (Type v loc {- record literal with the extra field -})
+      (Type v loc {- record type we're trying to match -})
   | PatternMatchedMissingField
       (Text {- the field name we tried to match, but wasn't in the type -})
       (Pattern loc {- the place we matched on the missing field -})
@@ -2862,12 +2867,11 @@ subtype tx ty = scope (InSubtype tx ty) $ do
           t <- relax' vars False (extendExistential Var.inferAbility) t
           instantiateR t b v
     go _ r1@(Type.Record' fields1) r2@(Type.Record' fields2) = do
-      -- TODO: doublecheck this
       Align.align fields1 fields2
         & Map.traverseWithKey
           ( \fieldName -> \case
-              This t1 -> failWith $ MissingRecordField fieldName t1 r2 r1
-              That t2 -> failWith $ MissingRecordField fieldName t2 r1 r2
+              This t1 -> failWith $ MissingRecordField fieldName t1 r1 r2
+              That t2 -> failWith $ UnexpectedRecordField fieldName t2 r1 r2
               These t1 t2 -> subtype t1 t2
           )
         & void

@@ -147,9 +147,15 @@ data TypeError v loc
   | KindInferenceFailure (KindError v loc)
   | MissingRecordField
       { missingFieldName :: Text,
-        expectedFieldType :: C.Type v loc,
-        actualRecordType :: C.Type v loc,
-        expectedRecordType :: C.Type v loc
+        fieldType :: C.Type v loc,
+        recordWithField :: C.Type v loc,
+        recordWithoutField :: C.Type v loc
+      }
+  | UnexpectedRecordField
+      { unexpectedFieldName :: Text,
+        fieldType :: C.Type v loc,
+        recordWithoutField :: C.Type v loc,
+        recordWithField :: C.Type v loc
       }
   | Other (C.ErrorNote v loc)
   deriving (Show)
@@ -186,7 +192,8 @@ allErrors =
       ifBody,
       listBody,
       matchBody,
-      recordFieldMismatch,
+      missingRecordField,
+      unexpectedReccordField,
       applyingFunction,
       applyingNonFunction,
       generalMismatch,
@@ -421,17 +428,30 @@ existentialMismatch0 em getExpectedLoc = do
       -- todo : save type leaves too
       n
 
-recordFieldMismatch ::
+missingRecordField ::
   (Var v, Ord loc) =>
   Ex.ErrorExtractor v loc (TypeError v loc)
-recordFieldMismatch = do
-  (missingFieldName, expectedFieldType, actualRecordType, expectedRecordType) <- Ex.missingRecordField
+missingRecordField = do
+  (missingFieldName, fieldType, recordWithoutField, recordWithField) <- Ex.missingRecordField
   pure $
     MissingRecordField
       { missingFieldName,
-        expectedFieldType,
-        actualRecordType,
-        expectedRecordType
+        fieldType,
+        recordWithoutField,
+        recordWithField
+      }
+
+unexpectedReccordField ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (TypeError v loc)
+unexpectedReccordField = do
+  (unexpectedFieldName, fieldType, recordWithoutField, recordWithField) <- Ex.unexpectedRecordField
+  pure $
+    UnexpectedRecordField
+      { unexpectedFieldName,
+        fieldType,
+        recordWithoutField,
+        recordWithField
       }
 
 actionRestriction ::

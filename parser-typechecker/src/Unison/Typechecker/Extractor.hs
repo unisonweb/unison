@@ -292,6 +292,13 @@ missingRecordField =
       pure (fieldName, expectedFieldType, actualRecordType, expectedRecordType)
     _ -> mzero
 
+unexpectedRecordField :: ErrorExtractor v loc (Text, C.Type v loc, C.Type v loc, C.Type v loc)
+unexpectedRecordField =
+  cause >>= \case
+    C.UnexpectedRecordField fieldName actualFieldType recordWithoutField recordWithField ->
+      pure (fieldName, actualFieldType, recordWithoutField, recordWithField)
+    _ -> mzero
+
 illFormedType :: ErrorExtractor v loc (C.Context v loc)
 illFormedType =
   cause >>= \case

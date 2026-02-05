@@ -988,16 +988,16 @@ renderTypeError e env src = case e of
         case defns of
           _ Nel.:| [] -> "name"
           _ -> "names"
-  MissingRecordField fieldName fieldType actualRecordType expectedRecordType ->
+  MissingRecordField {missingFieldName, fieldType, recordWithField, recordWithoutField} ->
     Pr.lines
       [ Pr.wrap "I expected this record: ",
         "",
-        annotatedAsErrorSite src actualRecordType,
+        annotatedAsErrorSite src recordWithoutField,
         "",
         "to have the field",
         Pr.indentN 2 $
           ( style Type2 $
-              (Text.unpack fieldName)
+              (Text.unpack missingFieldName)
                 <> ": "
                 <> (renderType' env fieldType)
           ),
@@ -1006,7 +1006,7 @@ renderTypeError e env src = case e of
         Pr.indentN 2 $
           ( Pr.lines
               [ "",
-                style Type2 (renderType' env expectedRecordType),
+                style Type2 (renderType' env recordWithField),
                 ""
               ]
           ),
@@ -1014,6 +1014,33 @@ renderTypeError e env src = case e of
         Pr.wrap "from here: ",
         "",
         annotatedAsStyle Type1 src fieldType
+      ]
+  UnexpectedRecordField {unexpectedFieldName, fieldType, recordWithoutField, recordWithField} ->
+    Pr.lines
+      [ Pr.wrap "I didn't expect this record: ",
+        "",
+        annotatedAsErrorSite src recordWithField,
+        "",
+        "to have the field",
+        Pr.indentN 2 $
+          ( style Type1 $
+              (Text.unpack unexpectedFieldName)
+                <> ": "
+                <> (renderType' env fieldType)
+          ),
+        "",
+        "because it should have the type:",
+        Pr.indentN 2 $
+          ( Pr.lines
+              [ "",
+                style Type1 (renderType' env recordWithoutField),
+                ""
+              ]
+          ),
+        "",
+        Pr.wrap "derived from here: ",
+        "",
+        annotatedAsStyle Type2 src recordWithoutField
       ]
   Other (C.cause -> C.HandlerOfUnexpectedType loc typ) ->
     Pr.lines
@@ -1328,6 +1355,22 @@ renderTypeError e env src = case e of
             Pr.indent "  " $
               renderType' env expectedRecordType,
             "but it was missing."
+          ]
+      C.UnexpectedRecordField fieldName unexpectedFieldType actualRecordType expectedRecordType ->
+        mconcat
+          [ "Did not expect this record to have the field: \n",
+            Pr.indent "  " $
+              fromString (Text.unpack fieldName)
+                <> " : "
+                <> renderType' env unexpectedFieldType,
+            "\n",
+            "because it would not match the type of this record: \n",
+            Pr.indent "  " $
+              renderType' env expectedRecordType,
+            "\n",
+            "but it was present in this record: \n",
+            Pr.indent "  " $
+              renderType' env actualRecordType
           ]
       C.PatternMatchedMissingField fieldName fieldPat missingFieldTyp ->
         mconcat
