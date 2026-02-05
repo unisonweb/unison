@@ -417,8 +417,8 @@ parseAndTypecheckUnisonFile names sourceName text = do
     let tes = [err | Result.TypeError err <- toList notes]
         cbs =
           [ bug
-            | Result.CompilerBug (Result.TypecheckerBug bug) <-
-                toList notes
+          | Result.CompilerBug (Result.TypecheckerBug bug) <-
+              toList notes
           ]
 
     when (not (null tes)) do

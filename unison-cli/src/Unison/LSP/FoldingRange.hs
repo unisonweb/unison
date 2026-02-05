@@ -24,7 +24,7 @@ import Unison.UnisonFile (UnisonFile (..))
 import Unison.UnisonFile qualified as UF
 import Unison.Var qualified as Var
 
-foldingRangeRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentFoldingRange -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentFoldingRange) -> Lsp ()) -> Lsp ()
+foldingRangeRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentFoldingRange -> (Either (Msg.TResponseError m) (Msg.MessageResult 'Msg.Method_TextDocumentFoldingRange) -> Lsp ()) -> Lsp ()
 foldingRangeRequest m respond = do
   let fileUri = m ^. params . textDocument . uri
   foldRanges <-

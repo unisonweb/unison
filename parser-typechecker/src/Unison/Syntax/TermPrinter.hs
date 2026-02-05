@@ -21,7 +21,7 @@ import Control.Monad.State (evalState)
 import Control.Monad.State qualified as State
 import Data.Char (isPrint)
 import Data.Foldable qualified as Foldable
-import Data.List
+import Data.List hiding (unsnoc, unzip)
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
@@ -70,6 +70,7 @@ import Unison.Util.Pretty qualified as PP
 import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import Prelude hiding (unzip)
 
 type SyntaxText = S.SyntaxText' Reference
 

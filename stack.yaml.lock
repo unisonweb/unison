@@ -48,13 +48,6 @@ packages:
   original:
     hackage: monad-validate-1.3.0.0@sha256:eb6ddd5c9cf72ff0563cba604fa00291376e96138fdb4932d00ff3a99d66706e,2605
 - completed:
-    hackage: recover-rtti-0.4.3@sha256:01adcbab70a6542914df28ac120a23a923d8566236f2c0295998e9419f53dd62,4672
-    pantry-tree:
-      sha256: 59a5df9c88f83816a9826b1e9708153d06d64bd1aed6c1d71ef0a1f6db070599
-      size: 2489
-  original:
-    hackage: recover-rtti-0.4.3@sha256:01adcbab70a6542914df28ac120a23a923d8566236f2c0295998e9419f53dd62,4672
-- completed:
     hackage: numerals-0.4.1@sha256:f138b4a0efbde3b3c6cbccb788eff683cb8a5d046f449729712fd174c5ee8a78,11430
     pantry-tree:
       sha256: c616791b08f1792fd1d4ca03c6d2c773dedb25b24b66454c97864aefd85a5d0a
@@ -70,7 +63,7 @@ packages:
     hackage: network-udp-0.0.0@sha256:408d2d4fa1a25e49e95752ee124cca641993404bb133ae10fb81daef22d876ae,1075
 snapshots:
 - completed:
-    sha256: 8e7996960d864443a66eb4105338bbdd6830377b9f6f99cd5527ef73c10c01e7
-    size: 719128
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/22/26.yaml
-  original: lts-22.26
+    sha256: 4b787f53036611a03edbf438dd5412daa03fb3da5d938ae8865ec471fe3f9632
+    size: 726335
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/24/21.yaml
+  original: lts-24.21

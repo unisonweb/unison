@@ -50,7 +50,7 @@ generateRecordAccessors namespaced generatedAnn fields typename typ =
             -- [_, y, _]
             cargs =
               [ if j == i then Pattern.Var ann else Pattern.Unbound ann
-                | (_, j) <- fields `zip` [0 ..]
+              | (_, j) <- fields `zip` [0 ..]
               ]
             -- y -> y
             rhs = ABT.abs' ann fname (Term.var ann fname)
@@ -70,7 +70,7 @@ generateRecordAccessors namespaced generatedAnn fields typename typ =
             -- [x, _, z]
             cargs =
               [ if j == i then Pattern.Unbound ann else Pattern.Var ann
-                | (_, j) <- fields `zip` [0 ..]
+              | (_, j) <- fields `zip` [0 ..]
               ]
             -- x z -> Point x y' z
             rhs =
@@ -81,7 +81,7 @@ generateRecordAccessors namespaced generatedAnn fields typename typ =
             -- [x, y', z]
             vargs =
               [ if j == i then Term.var ann fname' else Term.var ann v
-                | ((v, _), j) <- fields `zip` [0 ..]
+              | ((v, _), j) <- fields `zip` [0 ..]
               ]
 
         -- example: `f point -> case point of Point x y z -> Point x (f y) z`
@@ -107,5 +107,5 @@ generateRecordAccessors namespaced generatedAnn fields typename typ =
               [ if j == i
                   then Term.apps' (Term.var ann fname') [Term.var ann v]
                   else Term.var ann v
-                | ((v, _), j) <- fields `zip` [0 ..]
+              | ((v, _), j) <- fields `zip` [0 ..]
               ]

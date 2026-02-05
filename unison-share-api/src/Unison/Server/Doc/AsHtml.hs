@@ -8,7 +8,6 @@ import Control.Monad.Writer.Class (MonadWriter)
 import Control.Monad.Writer.Class qualified as Writer
 import Control.Monad.Writer.Lazy (runWriterT)
 import Data.Char qualified as Char
-import Data.Foldable
 import Data.List (intersperse)
 import Data.Map (Map)
 import Data.Map qualified as Map

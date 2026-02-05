@@ -113,7 +113,6 @@ lca' = go Set.empty Set.empty
             else -- Note: swapping position of left and right when we recurse so that
             -- we search each side equally. This avoids having to case on both
             -- arguments, and the order shouldn't really matter.
-
               go
                 seenRight
                 (Set.insert (currentHash left) seenLeft)

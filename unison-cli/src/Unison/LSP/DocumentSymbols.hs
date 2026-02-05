@@ -18,7 +18,7 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Util.Pretty qualified as Pretty
 
 -- | Go to Definition handler
-documentSymbolsHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentDocumentSymbol -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentDocumentSymbol) -> Lsp ()) -> Lsp ()
+documentSymbolsHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentDocumentSymbol -> (Either (Msg.TResponseError m) (Msg.MessageResult 'Msg.Method_TextDocumentDocumentSymbol) -> Lsp ()) -> Lsp ()
 documentSymbolsHandler m respond = do
   respond . Right . maybe (InR . InL $ []) (InR . InL) =<< runMaybeT do
     let fileUri = m ^. params . textDocument . uri

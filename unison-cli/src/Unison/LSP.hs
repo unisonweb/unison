@@ -145,7 +145,7 @@ lspDoInitialize ::
   Signal PP.ProjectPathIds ->
   LanguageContextEnv Config ->
   Msg.TMessage 'Msg.Method_Initialize ->
-  IO (Either Msg.ResponseError Env)
+  IO (Either (Msg.TResponseError 'Msg.Method_Initialize) Env)
 lspDoInitialize vfsVar codebase runtime scope signal lspContext _initMsg = do
   checkedFilesVar <- newTVarIO mempty
   dirtyFilesVar <- newTVarIO mempty
@@ -207,9 +207,9 @@ lspRequestHandlers lspFormattingConfig =
     defaultTimeout = 10_000 -- 10s
     mkHandler ::
       forall m.
-      (Show (Msg.TRequestMessage m), Show (Msg.TResponseMessage m), Show (Msg.MessageResult m)) =>
+      (Show (Msg.TRequestMessage m), Show (Msg.ErrorData m), Show (Msg.MessageResult m)) =>
       ( ( Msg.TRequestMessage m ->
-          (Either Msg.ResponseError (Msg.MessageResult m) -> Lsp ()) ->
+          (Either (Msg.TResponseError m) (Msg.MessageResult m) -> Lsp ()) ->
           Lsp ()
         ) ->
         ClientMessageHandler Lsp 'Msg.Request m

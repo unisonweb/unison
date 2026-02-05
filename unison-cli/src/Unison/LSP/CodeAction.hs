@@ -16,7 +16,7 @@ import Unison.LSP.Types
 import Unison.Prelude
 
 -- | Computes code actions for a document.
-codeActionHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentCodeAction -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentCodeAction) -> Lsp ()) -> Lsp ()
+codeActionHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentCodeAction -> (Either (Msg.TResponseError m) (Msg.MessageResult 'Msg.Method_TextDocumentCodeAction) -> Lsp ()) -> Lsp ()
 codeActionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InL . fmap InR) =<< runMaybeT do
     FileAnalysis {codeActions} <- getFileAnalysis (m ^. params . textDocument . uri)

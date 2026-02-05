@@ -61,7 +61,7 @@ instance Aeson.ToJSON OpenOnShareResponse where
 -- to the local Share service.
 openOnShareHandler ::
   Msg.TRequestMessage ('Msg.Method_CustomMethod "unison/openOnShare") ->
-  (Either Msg.ResponseError Aeson.Value -> Lsp ()) ->
+  (Either (Msg.TResponseError ('Msg.Method_CustomMethod "unison/openOnShare")) Aeson.Value -> Lsp ()) ->
   Lsp ()
 openOnShareHandler m respond = do
   result <- runExceptT $ do

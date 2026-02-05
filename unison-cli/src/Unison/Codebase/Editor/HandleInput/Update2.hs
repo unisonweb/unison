@@ -17,7 +17,7 @@ import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
-import Text.Builder qualified
+import TextBuilder qualified
 import U.Codebase.Reference (TermReferenceId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
@@ -271,7 +271,7 @@ handleUpdate2 = do
                               ( ProjectUtils.findTemporaryBranchName
                                   projectId
                                   ( ("update-" <> projectBranchNameToValidProjectBranchNameText pp.branch.name)
-                                      & Text.Builder.run
+                                      & TextBuilder.toText
                                       & unsafeFrom @Text
                                   )
                               )
@@ -387,7 +387,7 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
           deleteConstructorActions <-
             ( maybe [] (map (BranchUtil.makeAnnihilateTermName . Path.splitFromName))
                 <$> getConstructors (Name.unsafeParseVar symbol)
-              )
+            )
               & onLeft abort
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
               split = splitVar symbol
