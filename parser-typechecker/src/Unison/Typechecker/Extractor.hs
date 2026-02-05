@@ -70,7 +70,6 @@ _no xa = SubseqExtractor' $ \note ->
   let as = runSubseq xa note
    in if null [a | Pure a <- as]
         then -- results are not full
-
           if null as
             then [Pure ()] -- results are empty, make them full
             -- not full and not empty, find the negation

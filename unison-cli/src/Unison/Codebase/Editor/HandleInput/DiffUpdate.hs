@@ -101,7 +101,7 @@ handleDiffUpdate = do
       fileTermsWithRefIds =
         Map.fromList
           [ (Name.unsafeParseVar var, (refId, term, typ))
-            | (var, (_, refId, _, term, typ)) <- Map.toList (UF.hashTermsId tuf)
+          | (var, (_, refId, _, term, typ)) <- Map.toList (UF.hashTermsId tuf)
           ]
 
   let fileTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
@@ -120,9 +120,9 @@ handleDiffUpdate = do
       updatedTermRefIds =
         Map.fromList
           [ (name, refId)
-            | name <- Set.toList updatedTermNames,
-              Just referent <- [Map.lookup name (BiMultimap.range unconflictedView.defns.terms)],
-              Just refId <- [Referent.toTermReferenceId referent]
+          | name <- Set.toList updatedTermNames,
+            Just referent <- [Map.lookup name (BiMultimap.range unconflictedView.defns.terms)],
+            Just refId <- [Referent.toTermReferenceId referent]
           ]
 
   -- Fetch the old terms from the codebase
@@ -153,10 +153,10 @@ handleDiffUpdate = do
       fileTypeDeclsWithRefIds =
         Map.fromList $
           [ (Name.unsafeParseVar var, (refId, Right decl))
-            | (var, (refId, decl)) <- Map.toList (UF.dataDeclarationsId' tuf)
+          | (var, (refId, decl)) <- Map.toList (UF.dataDeclarationsId' tuf)
           ]
             ++ [ (Name.unsafeParseVar var, (refId, Left decl))
-                 | (var, (refId, decl)) <- Map.toList (UF.effectDeclarationsId' tuf)
+               | (var, (refId, decl)) <- Map.toList (UF.effectDeclarationsId' tuf)
                ]
 
   let newTypes :: Map Name (TypeReferenceId, Decl Symbol Ann)
@@ -172,9 +172,9 @@ handleDiffUpdate = do
       updatedTypeRefIds =
         Map.fromList
           [ (name, refId)
-            | name <- Set.toList updatedTypeNames,
-              Just typeRef <- [Map.lookup name (BiMultimap.range unconflictedView.defns.types)],
-              Just refId <- [Reference.toId typeRef]
+          | name <- Set.toList updatedTypeNames,
+            Just typeRef <- [Map.lookup name (BiMultimap.range unconflictedView.defns.types)],
+            Just refId <- [Reference.toId typeRef]
           ]
 
   -- Fetch the old types from the codebase

@@ -309,9 +309,9 @@ joinRan :: (Ord a, Ord b, Ord c) => Relation a c -> Relation b c -> Relation (a,
 joinRan a b =
   fromList
     [ ((a, b), c)
-      | c <- S.toList $ ran a `S.intersection` ran b,
-        a <- S.toList $ lookupRan c a,
-        b <- S.toList $ lookupRan c b
+    | c <- S.toList $ ran a `S.intersection` ran b,
+      a <- S.toList $ lookupRan c a,
+      b <- S.toList $ lookupRan c b
     ]
 
 foldl :: (c -> a -> b -> c) -> c -> Relation a b -> c

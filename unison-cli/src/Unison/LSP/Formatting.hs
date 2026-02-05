@@ -15,12 +15,12 @@ import Unison.LSP.FileAnalysis qualified as FileAnalysis
 import Unison.LSP.Types
 import Unison.Prelude
 
-formatDocRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentFormatting -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentFormatting) -> Lsp ()) -> Lsp ()
+formatDocRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentFormatting -> (Either (Msg.TResponseError m) (Msg.MessageResult 'Msg.Method_TextDocumentFormatting) -> Lsp ()) -> Lsp ()
 formatDocRequest m respond = do
   edits <- formatDefs (m ^. params . textDocument . uri) Nothing
   respond . Right . InL $ edits
 
-formatRangeRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentRangeFormatting -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentRangeFormatting) -> Lsp ()) -> Lsp ()
+formatRangeRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentRangeFormatting -> (Either (Msg.TResponseError m) (Msg.MessageResult 'Msg.Method_TextDocumentRangeFormatting) -> Lsp ()) -> Lsp ()
 formatRangeRequest m respond = do
   let p = m ^. params
   edits <- formatDefs (p ^. textDocument . uri) (Just . Set.singleton $ p ^. range)

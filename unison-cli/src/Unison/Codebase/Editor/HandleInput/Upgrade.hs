@@ -20,7 +20,7 @@ import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Text.Builder qualified
+import TextBuilder qualified
 import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Util.Text qualified as Text (unsafeToInt)
@@ -442,7 +442,7 @@ findTemporaryBranchName projectId = \case
     where
       mk :: Text -> Text -> Text
       mk old new =
-        Text.Builder.run ("upgrade-" <> Text.Builder.text old <> "-to-" <> Text.Builder.text new)
+        TextBuilder.toText ("upgrade-" <> TextBuilder.text old <> "-to-" <> TextBuilder.text new)
 
       scrub :: Text -> Text
       scrub =

@@ -8,7 +8,6 @@ import Data.Digest.Murmur64
     hash64,
     hash64AddInt,
   )
-import Data.List as List (foldl')
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Text qualified as DT

@@ -34,10 +34,10 @@ cancelRequest lspId = do
   liftIO cancel
 
 withDebugging ::
-  (Show (Msg.TRequestMessage message), Show (Msg.MessageResult message)) =>
-  (Msg.TRequestMessage message -> (Either Msg.ResponseError (Msg.MessageResult message) -> Lsp ()) -> Lsp ()) ->
+  (Show (Msg.TRequestMessage message), Show (Msg.ErrorData message), Show (Msg.MessageResult message)) =>
+  (Msg.TRequestMessage message -> (Either (Msg.TResponseError message) (Msg.MessageResult message) -> Lsp ()) -> Lsp ()) ->
   Msg.TRequestMessage message ->
-  (Either Msg.ResponseError (Msg.MessageResult message) -> Lsp ()) ->
+  (Either (Msg.TResponseError message) (Msg.MessageResult message) -> Lsp ()) ->
   Lsp ()
 withDebugging handler message respond = do
   Debug.debugM Debug.LSP "Request" message
@@ -49,9 +49,9 @@ withDebugging handler message respond = do
 withCancellation ::
   forall message.
   Maybe Int ->
-  (Msg.TRequestMessage message -> (Either Msg.ResponseError (Msg.MessageResult message) -> Lsp ()) -> Lsp ()) ->
+  (Msg.TRequestMessage message -> (Either (Msg.TResponseError message) (Msg.MessageResult message) -> Lsp ()) -> Lsp ()) ->
   Msg.TRequestMessage message ->
-  (Either Msg.ResponseError (Msg.MessageResult message) -> Lsp ()) ->
+  (Either (Msg.TResponseError message) (Msg.MessageResult message) -> Lsp ()) ->
   Lsp ()
 withCancellation mayTimeoutMillis handler message respond = do
   let reqId = case message ^. LSP.id of
@@ -73,10 +73,10 @@ withCancellation mayTimeoutMillis handler message respond = do
           (timeout (t * 1000) action) >>= \case
             Nothing -> respond $ serverCancelErr "Timeout"
             Just () -> pure ()
-    clientCancelErr :: Text -> Either Msg.ResponseError b
-    clientCancelErr msg = Left $ Msg.ResponseError (InL LSPErrorCodes_RequestCancelled) msg Nothing
-    serverCancelErr :: Text -> Either Msg.ResponseError b
-    serverCancelErr msg = Left $ Msg.ResponseError (InL LSPErrorCodes_ServerCancelled) msg Nothing
+    clientCancelErr :: Text -> Either (Msg.TResponseError message) b
+    clientCancelErr msg = Left $ Msg.TResponseError (InL LSPErrorCodes_RequestCancelled) msg Nothing
+    serverCancelErr :: Text -> Either (Msg.TResponseError message) b
+    serverCancelErr msg = Left $ Msg.TResponseError (InL LSPErrorCodes_ServerCancelled) msg Nothing
     -- I intentionally defer adding the canceller until after we've started the request,
     -- No matter what it's possible for a message to be cancelled before the
     -- canceller has been added, but this means we're not blocking the request waiting for

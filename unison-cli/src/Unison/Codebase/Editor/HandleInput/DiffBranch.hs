@@ -12,8 +12,8 @@ import Data.Text qualified as Text
 import Data.These (These (..))
 import System.Environment (lookupEnv)
 import System.Process qualified as Process
-import Text.Builder qualified
-import Text.Builder qualified as Text (Builder)
+import TextBuilder (TextBuilder)
+import TextBuilder qualified
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -448,10 +448,10 @@ resolveDiffBranchArg abort currentProject = \case
   DiffBranchArg'Hash hash -> Cli.resolveShortCausalHashToCausalHash abort hash
 
 -- | Mangle a diff branch arg into a text. It's only used to make a somewhat recognizable temp file name.
-mangleDiffBranchArg :: DiffBranchArg -> Text.Builder
+mangleDiffBranchArg :: DiffBranchArg -> TextBuilder
 mangleDiffBranchArg = \case
   DiffBranchArg'Branch branch -> projectBranchNameToValidProjectBranchNameText branch.branch
-  DiffBranchArg'Hash hash -> Text.Builder.text (ShortCausalHash.toText hash)
+  DiffBranchArg'Hash hash -> TextBuilder.text (ShortCausalHash.toText hash)
 
 renderUnisonFile ::
   (Monoid a, Var v) =>

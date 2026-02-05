@@ -181,13 +181,13 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) guid r name 
               [ case accessor of
                   Nothing -> declName `Name.joinDot` fieldName
                   Just accessor -> declName `Name.joinDot` fieldName `Name.joinDot` accessor
-                | HQ.NameOnly declName <- [name],
-                  fieldName <- fieldNames,
-                  accessor <-
-                    [ Nothing,
-                      Just (Name.fromSegment NameSegment.setSegment),
-                      Just (Name.fromSegment NameSegment.modifySegment)
-                    ]
+              | HQ.NameOnly declName <- [name],
+                fieldName <- fieldNames,
+                accessor <-
+                  [ Nothing,
+                    Just (Name.fromSegment NameSegment.setSegment),
+                    Just (Name.fromSegment NameSegment.modifySegment)
+                  ]
               ]
           pure . P.group $
             fmt S.DelimiterChar "{ "
@@ -276,24 +276,24 @@ getFieldAndAccessorNames env r hqTypename dd = do
   let fieldNamesByHash =
         Map.fromList
           [ (r, f)
-            | (r, n) <- accessorNamesByHash,
-              let typenameText = Name.toText typename,
-              typenameText `Text.isPrefixOf` n,
-              let rest = Text.drop (Text.length typenameText + 1) n,
-              (f, rest) <- pure $ Text.span (/= '.') rest,
-              rest `elem` ["", ".set", ".modify"]
+          | (r, n) <- accessorNamesByHash,
+            let typenameText = Name.toText typename,
+            typenameText `Text.isPrefixOf` n,
+            let rest = Text.drop (Text.length typenameText + 1) n,
+            (f, rest) <- pure $ Text.span (/= '.') rest,
+            rest `elem` ["", ".set", ".modify"]
           ]
 
   if Map.size fieldNamesByHash == length accessorNamesByHash
     then
       Just
         ( [ Name.unsafeParseText name
-            | -- "_0"
-              v <- vars,
-              -- #getx
-              Just (ref, _, _) <- [Map.lookup (Var.namespaced (Name.toVar typename :| [v])) hashes],
-              -- "x"
-              Just name <- [Map.lookup ref fieldNamesByHash]
+          | -- "_0"
+            v <- vars,
+            -- #getx
+            Just (ref, _, _) <- [Map.lookup (Var.namespaced (Name.toVar typename :| [v])) hashes],
+            -- "x"
+            Just name <- [Map.lookup ref fieldNamesByHash]
           ],
           map (Name.unsafeParseText . snd) accessorNamesByHash
         )

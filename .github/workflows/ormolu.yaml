@@ -7,14 +7,14 @@ on:
   workflow_dispatch:
 
 env:
-  ormolu_version: "0.7.2.0"
+  ormolu_version: "0.8.0.2"
 
 jobs:
   ormolu:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - uses: haskell-actions/run-ormolu@15b0083a0ef416915994fb511652b187f6026a40 # v15
+      - uses: haskell-actions/run-ormolu@c5eec49879ee294be01c787bcbf7b5a373a37060 # v17
         with:
           version: ${{ env.ormolu_version }}
           mode: inplace

@@ -53,12 +53,12 @@ instance Aeson.FromJSON TextReplacement where
         Aeson..: "fileUri"
 
 -- | Computes code actions for a document.
-executeCommandHandler :: Msg.TRequestMessage 'Msg.Method_WorkspaceExecuteCommand -> (Either Msg.ResponseError (Aeson.Value |? Null) -> Lsp ()) -> Lsp ()
+executeCommandHandler :: Msg.TRequestMessage 'Msg.Method_WorkspaceExecuteCommand -> (Either (Msg.TResponseError m) (Aeson.Value |? Null) -> Lsp ()) -> Lsp ()
 executeCommandHandler m respond = do
   respond =<< runExceptT do
     let cmd = m ^. params . command
     let args = m ^. params . arguments
-    let invalidCmdErr = throwError $ Msg.ResponseError (InR ErrorCodes_InvalidParams) "Invalid command" Nothing
+    let invalidCmdErr = throwError $ Msg.TResponseError (InR ErrorCodes_InvalidParams) "Invalid command" Nothing
     case cmd of
       "replaceText" -> case args of
         Just [Aeson.fromJSON -> Aeson.Success (TextReplacement range description replacementText fileUri)] -> do

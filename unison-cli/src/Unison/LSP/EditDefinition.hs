@@ -58,7 +58,7 @@ instance Aeson.ToJSON EditDefinitionResponse where
 -- This resolves the symbol at the given position to its FQN and adds it to the current file.
 editDefinitionHandler ::
   Msg.TRequestMessage ('Msg.Method_CustomMethod "unison/editDefinition") ->
-  (Either Msg.ResponseError Aeson.Value -> Lsp ()) ->
+  (Either (Msg.TResponseError ('Msg.Method_CustomMethod "unison/editDefinition")) Aeson.Value -> Lsp ()) ->
   Lsp ()
 editDefinitionHandler m respond = do
   result <- runExceptT $ do

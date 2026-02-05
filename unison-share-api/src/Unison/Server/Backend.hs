@@ -646,8 +646,8 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqs = do
       -- Handle query misses correctly
       missingRefs =
         [ HQ.HashOnly x
-          | x <- hashes,
-            isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
+        | x <- hashes,
+          isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
         ]
       -- Gather the results
       results =

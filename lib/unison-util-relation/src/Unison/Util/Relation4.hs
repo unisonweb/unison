@@ -36,8 +36,8 @@ size = getSum . foldMap (Sum . R3.size) . d1
 toNestedList :: Relation4 a b c d -> [(a, (b, (c, d)))]
 toNestedList r4 =
   [ (a, bcd)
-    | (a, r3) <- Map.toList $ d1 r4,
-      bcd <- R3.toNestedList r3
+  | (a, r3) <- Map.toList $ d1 r4,
+    bcd <- R3.toNestedList r3
   ]
 
 toList :: Relation4 a b c d -> [(a, b, c, d)]
@@ -78,11 +78,11 @@ selectD34 ::
 selectD34 c d r =
   fromList
     [ (a, b, c, d)
-      | (a, b) <-
-          maybe
-            []
-            (maybe [] R.toList . Map.lookup d . R3.d3)
-            (Map.lookup c (d3 r))
+    | (a, b) <-
+        maybe
+          []
+          (maybe [] R.toList . Map.lookup d . R3.d3)
+          (Map.lookup c (d3 r))
     ]
 
 restrict34d12 ::

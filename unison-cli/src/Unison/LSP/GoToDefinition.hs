@@ -16,7 +16,7 @@ import Unison.LSP.Types
 import Unison.Prelude
 
 -- | Go to Definition handler
-goToDefinitionHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentDefinition -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentDefinition) -> Lsp ()) -> Lsp ()
+goToDefinitionHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentDefinition -> (Either (Msg.TResponseError m) (Msg.MessageResult 'Msg.Method_TextDocumentDefinition) -> Lsp ()) -> Lsp ()
 goToDefinitionHandler m respond = do
   respond . Right . maybe (InR . InL $ []) (InR . InL) =<< runMaybeT do
     let pos = (m ^. params . position)
@@ -27,7 +27,7 @@ goToDefinitionHandler m respond = do
       [DefinitionLink (LocationLink originLoc targetUri targetRange targetRange)]
 
 -- | Go to Declaration handler
-goToDeclarationHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentDeclaration -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentDeclaration) -> Lsp ()) -> Lsp ()
+goToDeclarationHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentDeclaration -> (Either (Msg.TResponseError m) (Msg.MessageResult 'Msg.Method_TextDocumentDeclaration) -> Lsp ()) -> Lsp ()
 goToDeclarationHandler m respond = do
   respond . Right . maybe (InR . InL $ []) (InR . InL) =<< runMaybeT do
     let pos = (m ^. params . position)
@@ -37,7 +37,7 @@ goToDeclarationHandler m respond = do
     pure $
       [DeclarationLink (LocationLink originLoc targetUri targetRange targetRange)]
 
-goToImplementationHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentImplementation -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentImplementation) -> Lsp ()) -> Lsp ()
+goToImplementationHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentImplementation -> (Either (Msg.TResponseError m) (Msg.MessageResult 'Msg.Method_TextDocumentImplementation) -> Lsp ()) -> Lsp ()
 goToImplementationHandler m respond = do
   respond . Right . maybe (InR . InL $ []) (InR . InL) =<< runMaybeT do
     let pos = (m ^. params . position)

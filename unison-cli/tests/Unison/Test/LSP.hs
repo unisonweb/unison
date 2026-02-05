@@ -8,7 +8,7 @@ import Crypto.Random qualified as Random
 import Data.List.Extra (firstJust)
 import Data.Map.Strict qualified as Map
 import Data.String.Here.Uninterpolated (here)
-import Data.Text
+import Data.Text hiding (show)
 import Data.Text qualified as Text
 import EasyTest
 import Language.LSP.Protocol.Lens qualified as LSP

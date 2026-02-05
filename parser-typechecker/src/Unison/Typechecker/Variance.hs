@@ -1,7 +1,7 @@
 module Unison.Typechecker.Variance where
 
 import Control.Monad.State.Strict
-import Data.Foldable (foldl', traverse_)
+import Data.Foldable (traverse_)
 import Data.Graph (flattenSCC, stronglyConnComp)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map

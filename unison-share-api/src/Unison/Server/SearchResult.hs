@@ -85,11 +85,11 @@ _fromNames n0@(Names terms types) = typeResults <> termResults
   where
     typeResults =
       [ typeSearchResult n0 name r
-        | (name, r) <- R.toList types
+      | (name, r) <- R.toList types
       ]
     termResults =
       [ termSearchResult n0 name r
-        | (name, r) <- R.toList terms
+      | (name, r) <- R.toList terms
       ]
 
 -- | Sort a list of search results by name. If names are equal, fall back to comparing by reference (putting types

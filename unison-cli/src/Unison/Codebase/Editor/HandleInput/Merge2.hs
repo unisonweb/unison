@@ -27,8 +27,8 @@ import System.Environment (lookupEnv)
 import System.OsPath qualified
 import System.Process qualified as Process
 import Text.ANSI qualified as Text
-import Text.Builder qualified
-import Text.Builder qualified as Text (Builder)
+import TextBuilder (TextBuilder)
+import TextBuilder qualified
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
@@ -412,9 +412,9 @@ doMerge info = do
                 mergedFilename <- do
                   cwd <- liftIO getCurrentDirectory
                   pure $
-                    Text.Builder.run $
-                      Text.Builder.string cwd
-                        <> Text.Builder.char (System.OsPath.toChar System.OsPath.pathSeparator)
+                    TextBuilder.toText $
+                      TextBuilder.string cwd
+                        <> TextBuilder.char (System.OsPath.toChar System.OsPath.pathSeparator)
                         <> aliceFilenameSlug
                         <> "-"
                         <> bobFilenameSlug
@@ -506,21 +506,21 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
     preferred :: ProjectBranchName
     preferred =
       unsafeFrom @Text $
-        Text.Builder.run $
+        TextBuilder.toText $
           "merge-"
             <> mangleMergeSource mergeSourceAndTarget.bob
             <> "-into-"
             <> projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
 
-mangleMergeSource :: MergeSource -> Text.Builder
+mangleMergeSource :: MergeSource -> TextBuilder
 mangleMergeSource = \case
   MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> projectBranchNameToValidProjectBranchNameText branch.name
   MergeSource'RemoteProjectBranch remoteBranch -> "remote-" <> projectBranchNameToValidProjectBranchNameText remoteBranch.branchName
   MergeSource'RemoteLooseCode info -> manglePath info.path
   where
-    manglePath :: Path -> Text.Builder
+    manglePath :: Path -> TextBuilder
     manglePath =
-      Monoid.intercalateMap "-" (Text.Builder.text . NameSegment.toUnescapedText) . Path.toList
+      Monoid.intercalateMap "-" (TextBuilder.text . NameSegment.toUnescapedText) . Path.toList
 
 typecheckedUnisonFileToBranchAdds :: TypecheckedUnisonFile Symbol Ann -> [(Path, Branch0 m -> Branch0 m)]
 typecheckedUnisonFileToBranchAdds tuf = do
@@ -572,35 +572,35 @@ makeMergedFileContents sourceAndTarget fileContents =
           <> middleSlug
           <> foldMap line bob
           <> bobSlug
-    & Text.Builder.run
+    & TextBuilder.toText
   where
-    aliceSlug :: Text.Builder
+    aliceSlug :: TextBuilder
     aliceSlug =
-      "<<<<<<< " <> Text.Builder.text (into @Text sourceAndTarget.alice.branch) <> newline
+      "<<<<<<< " <> TextBuilder.text (into @Text sourceAndTarget.alice.branch) <> newline
 
-    middleSlug :: Text.Builder
+    middleSlug :: TextBuilder
     middleSlug = "=======\n"
 
-    bobSlug :: Text.Builder
+    bobSlug :: TextBuilder
     bobSlug =
       ">>>>>>> "
         <> ( case sourceAndTarget.bob of
                MergeSource'LocalProjectBranch bobProjectAndBranch ->
-                 Text.Builder.text (into @Text bobProjectAndBranch.branch.name)
+                 TextBuilder.text (into @Text bobProjectAndBranch.branch.name)
                MergeSource'RemoteProjectBranch bobRemoteBranch ->
-                 "remote " <> Text.Builder.text (into @Text bobRemoteBranch.branchName)
+                 "remote " <> TextBuilder.text (into @Text bobRemoteBranch.branchName)
                MergeSource'RemoteLooseCode info ->
                  case Path.toName info.path of
                    Nothing -> "<root>"
-                   Just name -> Text.Builder.text (Name.toText name)
+                   Just name -> TextBuilder.text (Name.toText name)
            )
         <> newline
 
-    line :: Text -> Text.Builder
+    line :: Text -> TextBuilder
     line s =
-      Text.Builder.text s <> newline
+      TextBuilder.text s <> newline
 
-    newline :: Text.Builder
+    newline :: TextBuilder
     newline = "\n"
 
 ------------------------------------------------------------------------------------------------------------------------

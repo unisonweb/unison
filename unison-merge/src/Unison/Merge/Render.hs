@@ -25,7 +25,7 @@ import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.PartialDeclNameLookup qualified as PartialDeclNameLookup
-import Unison.Prelude
+import Unison.Prelude hiding (unzip)
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED

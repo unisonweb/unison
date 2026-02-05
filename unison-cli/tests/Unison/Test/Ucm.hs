@@ -68,8 +68,10 @@ runTranscript :: Codebase -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) transcript = do
   let err e = fail $ "Parse error: \n" <> show e
       cbInit = case fmt of CodebaseFormat2 -> SC.init
-      isTest = True
-  Transcript.withRunner isTest Verbosity.Silent "Unison.Test.Ucm.runTranscript Invalid Version String" $
+  Transcript.withRunner
+    (Transcript.testConfig codebasePath)
+    Verbosity.Silent
+    "Unison.Test.Ucm.runTranscript Invalid Version String"
     \runner -> do
       result <- Codebase.Init.withOpenCodebase cbInit "transcript" codebasePath SC.DoLock SC.DontMigrate \codebase -> do
         Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
