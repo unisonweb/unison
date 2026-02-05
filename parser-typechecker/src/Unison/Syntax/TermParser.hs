@@ -401,10 +401,10 @@ parsePattern =
             fieldName <- Parser.recordFieldName
             _ <- reserved ":"
             fieldPattern <- parsePattern
-            pure (fieldName, fieldPattern)
+            pure (L.payload fieldName, fieldPattern)
       fields <- sepBy (reserved ",") field
       end <- closeBlock
-      pure (Syntax.Pattern.RecordLiteral (ann start <> ann end) fields)
+      pure (Syntax.Pattern.RecordLiteral (ann start <> ann end) (Map.fromList fields))
 
     -- Parse an "HQ-namey", which could either definitely be a nullary constructor (because it's either hash-only or
     -- hash-qualified or symboly), or either a variable or nullary constructor (because it's a wordy name-only). And if
@@ -461,10 +461,7 @@ bindConstructorsInPattern =
           <$> bindConstructorsInPattern1 lpat1
           <*> bindConstructorsInPattern1 lpat2
       Syntax.Pattern.RecordLiteral pos fields ->
-        (traverse . traverse) bindConstructorsInPattern1 fields
-          <&> fmap (first L.payload)
-          <&> Map.fromList
-          <&> Pattern.RecordLiteral pos
+        traverse bindConstructorsInPattern1 fields <&> Pattern.RecordLiteral pos
       Syntax.Pattern.SequenceLiteral pos pats -> Pattern.SequenceLiteral pos <$> traverse bindConstructorsInPattern1 pats
       Syntax.Pattern.SequenceOp pos lpat1 op lpat2 ->
         Pattern.SequenceOp pos

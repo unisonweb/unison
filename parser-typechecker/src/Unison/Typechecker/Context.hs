@@ -1742,7 +1742,6 @@ checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("check
 checkPattern scrutineeType p =
   case p of
     Pattern.RecordLiteral recordLoc fieldPatterns -> do
-      Debug.debugM Debug.Temp "Encountered recordliteral in checkPattern" fieldPatterns
       -- Create unification variables for each field in the pattern
       inferredFieldTypes <- lift $ for fieldPatterns \pat -> do
         fieldTypeV <- freshenVar Var.inferOther
@@ -1764,11 +1763,9 @@ checkPattern scrutineeType p =
                 That p -> lift . failWith $ PatternMatchedMissingField fieldName p scrutineeType
                 -- Both the type and pattern have a field; typecheck the pattern against the type.
                 These fieldTyp fieldPat -> do
-                  Debug.debugM Debug.Temp "Checking field pattern" (fieldName, fieldTyp, fieldPat)
                   Just <$> checkPattern fieldTyp fieldPat
             )
           <&> Wither.catMaybes
-      Debug.debugM Debug.Temp "Finished recordliteral in checkPattern" vs
       pure $ fold vs
     Pattern.Unbound _ -> pure []
     Pattern.Var loc -> do

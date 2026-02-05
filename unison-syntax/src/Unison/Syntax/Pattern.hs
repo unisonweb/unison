@@ -31,7 +31,7 @@ data Pattern v
   | -- There's unfortunately no syntactic difference between nullary constructors and variables,
     -- so we can't commit to one or the other yet.
     VarOrNullaryConstructor Ann !(Token Name)
-  | RecordLiteral Ann [(Token Text, Pattern v)]
+  | RecordLiteral Ann (Map Text (Pattern v))
   deriving stock (Show)
 
 instance Annotated (Pattern v) where
