@@ -463,13 +463,13 @@ putBLit _ (Map _) = exn [] "putBLit: impossible Map"
 putBLit _ (BigInt i) = putTag BigIntT <> putInteger i
 putBLit _ (BigNat n) = putTag BigNatT <> putNatural n
 
--- Serialize a Natural as a length-prefixed list of Word64 chunks (little-endian)
+-- Serialize a Natural as a length-prefixed list of Word64 chunks (big-endian)
 putNatural :: Natural -> Builder
 putNatural n = putLength (length chunks) <> foldMap BU.word64BE chunks
   where
     chunks = naturalToWord64s n
 
--- Convert a Natural to a list of Word64 chunks (least significant first)
+-- Convert a Natural to a list of Word64 chunks (most significant first)
 -- Uses accumulator for tail recursion
 naturalToWord64s :: Natural -> [Word64]
 naturalToWord64s = go []
@@ -484,7 +484,7 @@ getNatural = do
   chunks <- replicateM len getWord64be
   pure $ word64sToNatural chunks
 
--- Convert a list of Word64 chunks (most significant first after reversal) back to Natural
+-- Convert a list of Word64 chunks (most significant first) back to Natural
 word64sToNatural :: [Word64] -> Natural
 word64sToNatural = foldl' (\acc w -> acc `shiftL` 64 .|. fromIntegral w) 0
 
