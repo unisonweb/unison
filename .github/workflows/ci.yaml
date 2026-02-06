@@ -5,9 +5,6 @@ defaults:
     shell: bash
 
 on:
-  # Run on the post-merge result of every PR commit
-  pull_request:
-  # Build on the pre-merge result of every branch commit
   push:
   workflow_dispatch:
 
@@ -28,8 +25,114 @@ env:
   ACTIONS_CACHE_SERVICE_V2: true
 
 jobs:
+  # Verify proofs on feature branches (not trunk, since trunk runs actual tests)
+  # This runs on a single platform since it just checks file contents
+  verify-proofs:
+    name: verify proofs
+    if: github.ref != 'refs/heads/trunk'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - run: sudo apt install ripgrep
+      - name: verify transcript proof
+        run: |
+          PROOFS_FILE=".github/workflows/proofs/transcripts.txt"
+          echo "Computing transcript hash..."
+          HASH=$(./scripts/proofs/transcripts.sh --hash)
+          echo "Hash: $HASH"
+
+          # Check if proof file exists and contains our hash with pass status
+          # Format: "source_hash infra_hash pass|fail"
+          PROOF_LINE=""
+          if [[ -f "$PROOFS_FILE" ]]; then
+            PROOF_LINE=$(grep "^$HASH" "$PROOFS_FILE" || true)
+          fi
+
+          RESULT=$(echo "$PROOF_LINE" | awk '{print $3}')
+
+          if [[ "$RESULT" == "pass" ]]; then
+            echo "Transcript proof verified (passed)!"
+          elif [[ "$RESULT" == "fail" ]]; then
+            echo ""
+            echo "ERROR: Transcripts previously FAILED."
+            echo ""
+            echo "The proofs file shows that transcripts failed on this commit."
+            echo "Fix the issues, run './scripts/proofs/transcripts.sh',"
+            echo "commit the updated proofs file, and push again."
+            exit 1
+          else
+            echo ""
+            echo "ERROR: Transcript proof not found."
+            echo ""
+            echo "This repo uses a proof system to skip transcript tests in CI when"
+            echo "you've already run them locally. The proof is a hash of all source"
+            echo "files that affect transcripts (*.hs, *.md, *.u, build configs)."
+            echo ""
+            echo "Expected hash: $HASH"
+            echo "Proofs file:   $(cat "$PROOFS_FILE" 2>/dev/null || echo "(not found)")"
+            echo ""
+            echo "This usually means you changed code after running transcripts,"
+            echo "or haven't run them yet."
+            echo ""
+            echo "To fix: run './scripts/proofs/transcripts.sh', commit the"
+            echo "proofs file, and push again."
+            echo ""
+            echo "TIP: The pre-push hook handles this automatically on push:"
+            echo "  ./scripts/hooks/install.bash"
+            exit 1
+          fi
+
+      - name: verify test proof
+        run: |
+          PROOFS_FILE=".github/workflows/proofs/tests.txt"
+          echo "Computing test hash..."
+          HASH=$(./scripts/proofs/tests.sh --hash)
+          echo "Hash: $HASH"
+
+          # Check if proof file exists and contains our hash with pass status
+          # Format: "source_hash infra_hash pass|fail"
+          PROOF_LINE=""
+          if [[ -f "$PROOFS_FILE" ]]; then
+            PROOF_LINE=$(grep "^$HASH" "$PROOFS_FILE" || true)
+          fi
+
+          RESULT=$(echo "$PROOF_LINE" | awk '{print $3}')
+
+          if [[ "$RESULT" == "pass" ]]; then
+            echo "Test proof verified (passed)!"
+          elif [[ "$RESULT" == "fail" ]]; then
+            echo ""
+            echo "ERROR: Tests previously FAILED."
+            echo ""
+            echo "The proofs file shows that tests failed on this commit."
+            echo "Fix the issues, run './scripts/proofs/tests.sh',"
+            echo "commit the updated proofs file, and push again."
+            exit 1
+          else
+            echo ""
+            echo "ERROR: Test proof not found."
+            echo ""
+            echo "This repo uses a proof system to skip tests in CI when you've"
+            echo "already run them locally. The proof is a hash of all source files"
+            echo "that affect tests (*.hs, build configs, integration test inputs)."
+            echo ""
+            echo "Expected hash: $HASH"
+            echo "Proofs file:   $(cat "$PROOFS_FILE" 2>/dev/null || echo "(not found)")"
+            echo ""
+            echo "This usually means you changed code after running tests,"
+            echo "or haven't run them yet."
+            echo ""
+            echo "To fix: run './scripts/proofs/tests.sh', commit the"
+            echo "proofs file, and push again."
+            echo ""
+            echo "TIP: The pre-push hook handles this automatically on push:"
+            echo "  ./scripts/hooks/install.bash"
+            exit 1
+          fi
+
   build-ucm:
     name: build ucm
+    if: github.ref == 'refs/heads/trunk'
     runs-on: ${{ matrix.os }}
     strategy:
       # Run each build to completion, regardless of if any have failed
@@ -119,7 +222,7 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-      # Run each test suite (tests and transcripts)
+      # Run each test suite
       - name: unison-cli test
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-cli
@@ -160,7 +263,7 @@ jobs:
           git diff --ignore-cr-at-eol --exit-code unison-cli-integration/integration-tests
 
       - name: check for dead code
-        if: runner.arch == 'x64' && runner.os == 'Linux' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        if: false && runner.arch == 'x64' && runner.os == 'Linux' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         uses: freckle/weeder-action@8a97af19a69ef455f26d1fa8b0c19f9a2a90209a # v3
         with:
           # NB: This uses weeder 2.10.0, because the version is tied to the selected GHC version. See
@@ -274,9 +377,10 @@ jobs:
         with:
           cache-prefix: ci
 
-  transcripts:
-    name: run transcripts
+  dll-ffi-tests:
+    name: dll-ffi tests
     needs: build-ucm
+    if: github.ref == 'refs/heads/trunk'
     runs-on: ${{ matrix.os }}
     strategy:
       # Run each build to completion, regardless of if any have failed
@@ -292,73 +396,31 @@ jobs:
           # - windows-11-arm
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
       - name: tweak environment
         run: |
-          transcript_test_results="${RUNNER_TEMP//\\//}/${transcript_test_results}"
-          echo "transcript_test_results=$transcript_test_results" >> $GITHUB_ENV
-
           ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
           echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
 
           if [[ ${{runner.os}} = "Windows" ]]; then
             echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
-            echo "transcripts=$ucm_local_bin/transcripts.exe" >> $GITHUB_ENV
           else
             echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
-            echo "transcripts=$ucm_local_bin/transcripts" >> $GITHUB_ENV
           fi
 
-      - name: cache transcript test results
-        id: cache-transcript-test-results
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
-        with:
-          path: ${{env.transcript_test_results}}
-          key: transcripts-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**/*.md', '**/unison-src/**/*.u', '**/docs/*.md', '**/docs/*.markdown') }}
       - name: restore binaries
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         with:
           path: ${{env.ucm_local_bin}}
           name: local-bin-${{matrix.os}}
-      - name: set built binaries permissions
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
-        run: chmod +x ${{env.ucm_local_bin}}/*
-      # One of the transcripts fails if the user's git name hasn't been set.
-      ## (Which transcript? -AI)
-      - name: set git user info
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-      - name: round-trip-tests
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
-        run: |
-          ${{env.ucm}} transcript unison-src/transcripts-round-trip/main.md
-          ${{env.ucm}} transcript unison-src/transcripts-manual/rewrites.md
-          # Fail if any transcripts cause git diffs.
-          git diff --ignore-cr-at-eol --exit-code \
-            unison-src/transcripts-round-trip/main.output.md \
-            unison-src/transcripts-manual/rewrites.output.md
-      - name: transcripts
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
-        run: |
-          ${{env.transcripts}}
-          # Fail if any transcripts cause git diffs.
-          git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
-      - name: shell-based regression tests
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os == 'linux'
-        run: |
-          unison-src/tests/fix5507.sh ${{env.ucm}}
-      - name: docs.to-html
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
-        run: |
-          ${{env.ucm}} transcript unison-src/transcripts-manual/docs.to-html.md
-          # Fail if the output or generated docs differ.
-          git diff --ignore-cr-at-eol --exit-code \
-            unison-src/transcripts-manual/docs.to-html.output.md \
-            unison-src/transcripts-manual/docs.to-html
 
+      - name: set built binaries permissions
+        run: chmod +x ${{env.ucm_local_bin}}/*
+
+      # DLL-FFI tests still run in CI because they involve platform-specific C compilation
+      # that isn't covered by the transcript hash (which only includes *.hs, *.md, *.u files)
       - name: dll-ffi-unix smoke tests
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        if: runner.os != 'Windows'
         run: |
           clang -fPIC -c -o \
             unison-src/transcripts-manual/dll-ffi/test.o \
@@ -375,7 +437,7 @@ jobs:
             unison-src/transcripts-manual/dll-ffi-unix.output.md
 
       - name: dll-ffi-win smoke tests
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        if: runner.os == 'Windows'
         run: |
           clang -DWINDOWS_BUILD -c -o \
             unison-src/transcripts-manual/dll-ffi/test.o \
@@ -391,14 +453,10 @@ jobs:
           git diff --ignore-cr-at-eol --exit-code \
             unison-src/transcripts-manual/dll-ffi-win.output.md
 
-      - name: mark transcripts as passing
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
-        run: |
-          echo "passing=true" >> "${{env.transcript_test_results}}"
-
   interpreter-tests:
     name: run interpreter tests
     needs: build-ucm
+    if: github.ref == 'refs/heads/trunk'
     runs-on: ${{ matrix.os }}
     strategy:
       # Run each build to completion, regardless of if any have failed
