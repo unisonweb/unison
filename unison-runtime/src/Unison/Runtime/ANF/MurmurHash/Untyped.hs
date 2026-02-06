@@ -1,6 +1,5 @@
 module Unison.Runtime.ANF.MurmurHash.Untyped where
 
-import Data.Bits (shiftR)
 import Data.ByteString.Short qualified as SBS
 import Data.Digest.Murmur64
   ( Hash64,
@@ -26,6 +25,7 @@ import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type
 import Unison.Runtime.Referenced
+import Unison.Runtime.Serialize (naturalToWord64s)
 import Unison.Runtime.TypeTags (mapBinTag, mapTipTag)
 import Unison.Util.Bytes qualified as B
 import Unison.Util.EnumContainers qualified as EC
@@ -153,8 +153,7 @@ hash64AddDouble d = hash64AddInt i
 hash64AddInteger :: Integer -> Hash64 -> Hash64
 hash64AddInteger i h =
   let sign = if i >= 0 then 0 else 1
-      mag = abs i
-      chunks = integerToWord64s mag
+      chunks = naturalToWord64s (fromInteger (abs i))
    in foldl' (flip hash64Add) (hash64AddInt sign h) chunks
 
 -- Hash an arbitrary precision Natural by hashing as Word64 chunks
@@ -162,22 +161,6 @@ hash64AddNatural :: Natural -> Hash64 -> Hash64
 hash64AddNatural n h =
   let chunks = naturalToWord64s n
    in foldl' (flip hash64Add) h chunks
-
--- Convert Integer magnitude to Word64 chunks
--- Uses accumulator for tail recursion
-integerToWord64s :: Integer -> [Word64]
-integerToWord64s = go []
-  where
-    go !acc 0 = acc
-    go !acc m = go (fromIntegral (m `mod` (2 ^ (64 :: Int))) : acc) (m `shiftR` 64)
-
--- Convert Natural to Word64 chunks
--- Uses accumulator for tail recursion
-naturalToWord64s :: Natural -> [Word64]
-naturalToWord64s = go []
-  where
-    go !acc 0 = acc
-    go !acc m = go (fromIntegral (m `mod` (2 ^ (64 :: Int))) : acc) (m `shiftR` 64)
 
 hash64AddBLit :: (Show r) => HRefs r -> BLit r -> Hash64 -> Hash64
 hash64AddBLit rs = \case

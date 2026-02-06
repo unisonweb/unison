@@ -7,12 +7,9 @@ module Unison.Runtime.ANF.Serialize.ValueV5
 where
 
 import Control.Monad (replicateM)
-import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
 import Data.ByteString.Lazy qualified as L
-import Data.Word (Word64)
-import Numeric.Natural (Natural)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.Serialize.CodeV4
@@ -149,44 +146,6 @@ getCont =
         <*> getGroupRef
         <*> getCont
 {-# INLINEABLE getCont #-}
-
--- Serialize a Natural as a length-prefixed list of Word64 chunks
-putNatural :: Natural -> Builder
-putNatural n = putLength (length chunks) <> foldMap BU.word64BE chunks
-  where
-    chunks = naturalToWord64s n
-
--- Convert a Natural to a list of Word64 chunks (most significant first)
--- Uses accumulator for tail recursion
-naturalToWord64s :: Natural -> [Word64]
-naturalToWord64s = go []
-  where
-    go !acc 0 = acc
-    go !acc m = go (fromIntegral (m `mod` (2 ^ (64 :: Int))) : acc) (m `shiftR` 64)
-
--- Deserialize a Natural from a list of Word64 chunks
-getNatural :: (PrimBase m) => Get m Natural
-getNatural = do
-  len <- getLength
-  chunks <- replicateM len getWord64be
-  pure $ word64sToNatural chunks
-
--- Convert a list of Word64 chunks (most significant first) back to Natural
-word64sToNatural :: [Word64] -> Natural
-word64sToNatural = foldl' (\acc w -> acc `shiftL` 64 .|. fromIntegral w) 0
-
--- Serialize an Integer as a sign byte followed by the Natural magnitude
-putInteger :: Integer -> Builder
-putInteger n
-  | n >= 0 = BU.word8 0 <> putNatural (fromInteger n)
-  | otherwise = BU.word8 1 <> putNatural (fromInteger (abs n))
-
--- Deserialize an Integer
-getInteger :: (PrimBase m) => Get m Integer
-getInteger = do
-  sign <- getWord8
-  mag <- getNatural
-  pure $ if sign == 0 then toInteger mag else negate (toInteger mag)
 
 putBLit :: BLit RefNum -> Builder
 putBLit = \case

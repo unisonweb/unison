@@ -91,13 +91,15 @@ nested.serialization.roundtrip = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + checks                          : [Boolean] -> [Result]
   + getOrBug                        : Text -> Optional a -> a
   + Integer.serialization.roundtrip : '{IO, Exception} [Result]
   + Natural.serialization.roundtrip : '{IO, Exception} [Result]
   + nested.serialization.roundtrip  : '{IO, Exception} [Result]
   + roundtrip                       : a
                                       ->{IO, Exception} Boolean
+  ~ checks : [Boolean] -> [Result]
+
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

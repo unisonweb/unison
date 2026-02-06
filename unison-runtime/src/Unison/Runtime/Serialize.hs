@@ -2,8 +2,9 @@
 
 module Unison.Runtime.Serialize where
 
+import Control.Monad (replicateM)
 import Control.Monad.Primitive
-import Data.Bits (Bits, setBit, shiftR)
+import Data.Bits (Bits, setBit, shiftL, shiftR, (.|.))
 import Data.ByteString qualified as B
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
@@ -18,6 +19,7 @@ import Data.Primitive.Array
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Word (Word64, Word8)
+import Numeric.Natural (Natural)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash)
@@ -237,6 +239,43 @@ putByteArray :: PA.ByteArray -> Builder
 putByteArray a =
   putLength (PA.sizeofByteArray a)
     <> BU.shortByteString (PA.byteArrayToShortByteString a)
+
+-- Convert a Natural to a list of Word64 chunks (most significant first)
+naturalToWord64s :: Natural -> [Word64]
+naturalToWord64s = go []
+  where
+    go !acc 0 = acc
+    go !acc n = go (fromIntegral (n `mod` (2 ^ (64 :: Int))) : acc) (n `shiftR` 64)
+
+-- Convert a list of Word64 chunks (most significant first) back to Natural
+word64sToNatural :: [Word64] -> Natural
+word64sToNatural = foldl' (\acc w -> acc `shiftL` 64 .|. fromIntegral w) 0
+
+-- Serialize a Natural as a length-prefixed list of VarInt-encoded Word64 chunks
+putNatural :: Natural -> Builder
+putNatural n = putLength (length chunks) <> foldMap putVarInt chunks
+  where
+    chunks = naturalToWord64s n
+
+-- Deserialize a Natural from a list of VarInt-encoded Word64 chunks
+getNatural :: (PrimBase m) => Get m Natural
+getNatural = do
+  len <- getLength
+  chunks <- replicateM len getVarInt
+  pure $ word64sToNatural chunks
+
+-- Serialize an Integer as a sign byte followed by the Natural magnitude
+putInteger :: Integer -> Builder
+putInteger n
+  | n >= 0 = BU.word8 0 <> putNatural (fromInteger n)
+  | otherwise = BU.word8 1 <> putNatural (fromInteger (abs n))
+
+-- Deserialize an Integer
+getInteger :: (PrimBase m) => Get m Integer
+getInteger = do
+  sign <- getWord8
+  mag <- getNatural
+  pure $ if sign == 0 then toInteger mag else negate (toInteger mag)
 
 putArray :: (a -> Builder) -> PA.Array a -> Builder
 putArray putThing a = putLength sz <> go 0
