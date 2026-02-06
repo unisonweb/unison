@@ -15,6 +15,7 @@ import EasyTest qualified as EasyTest
 import Hedgehog hiding (Rec, Test, test)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
+import Numeric.Natural (Natural)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF
@@ -76,7 +77,31 @@ genBLit =
       Neg <$> genSmallWord64,
       Char <$> Gen.unicode,
       Float <$> Gen.double (Range.linearFrac 0 100),
-      Arr <$> genArray (Range.linear 0 4) genValue
+      Arr <$> genArray (Range.linear 0 4) genValue,
+      BigInt <$> genInteger,
+      BigNat <$> genNatural
+    ]
+
+-- | Generate arbitrary precision integers, including values larger than Int64
+genInteger :: Gen Integer
+genInteger =
+  Gen.choice
+    [ -- Small integers (fit in Int64)
+      Gen.integral (Range.linearFrom 0 (-2 ^ (63 :: Int)) (2 ^ (63 :: Int) - 1)),
+      -- Large positive integers (require arbitrary precision)
+      Gen.integral (Range.linear (2 ^ (64 :: Int)) (2 ^ (256 :: Int))),
+      -- Large negative integers
+      Gen.integral (Range.linear (negate (2 ^ (256 :: Int))) (negate (2 ^ (64 :: Int))))
+    ]
+
+-- | Generate arbitrary precision naturals, including values larger than Word64
+genNatural :: Gen Natural
+genNatural =
+  Gen.choice
+    [ -- Small naturals (fit in Word64)
+      Gen.integral (Range.linear 0 (2 ^ (64 :: Int) - 1)),
+      -- Large naturals (require arbitrary precision)
+      Gen.integral (Range.linear (2 ^ (64 :: Int)) (2 ^ (256 :: Int)))
     ]
 
 genValue :: Gen (Value Reference)

@@ -1891,6 +1891,8 @@ reflectValue0 rty rtm = goV0
       WrapMap m ->
         ANF.Map
           <$> traverse (\(k, v) -> (,) <$> goV k <*> goV v) (M.toList m)
+      WrapInteger i -> pure (ANF.BigInt i)
+      WrapNatural n -> pure (ANF.BigNat n)
       _ -> reflExn "foreign value"
 
 data ReflectExn = ReflectExn String deriving (Show)
@@ -2061,6 +2063,8 @@ reifyValue0Canon combs tys tms rty rtm = goV
     goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
+    goL (ANF.BigInt i) = pure $ encodeVal i
+    goL (ANF.BigNat n) = pure $ encodeVal n
 
 reifyValue0 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
@@ -2156,6 +2160,8 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
+    goL (ANF.BigInt i) = pure $ encodeVal i
+    goL (ANF.BigNat n) = pure $ encodeVal n
 
 #ifdef OPT_CHECK
 -- Assert that we don't allocate any 'Stack' objects in 'eval', since we expect GHC to always

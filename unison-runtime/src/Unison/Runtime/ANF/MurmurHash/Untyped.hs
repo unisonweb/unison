@@ -1,5 +1,6 @@
 module Unison.Runtime.ANF.MurmurHash.Untyped where
 
+import Data.Bits (shiftR)
 import Data.ByteString.Short qualified as SBS
 import Data.Digest.Murmur64
   ( Hash64,
@@ -12,6 +13,7 @@ import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Text qualified as DT
 import Data.Word
+import Numeric.Natural (Natural)
 import Unison.ABT.Normalized (pattern TAbs, pattern TAbss)
 import Unison.ConstructorReference
 import Unison.ConstructorType qualified as CT
@@ -147,6 +149,36 @@ hash64AddDouble d = hash64AddInt i
   where
     i = PA.indexByteArray (PA.byteArrayFromList [d]) 0
 
+-- Hash an arbitrary precision Integer by hashing sign + magnitude as Word64 chunks
+hash64AddInteger :: Integer -> Hash64 -> Hash64
+hash64AddInteger i h =
+  let sign = if i >= 0 then 0 else 1
+      mag = abs i
+      chunks = integerToWord64s mag
+   in foldl' (flip hash64Add) (hash64AddInt sign h) chunks
+
+-- Hash an arbitrary precision Natural by hashing as Word64 chunks
+hash64AddNatural :: Natural -> Hash64 -> Hash64
+hash64AddNatural n h =
+  let chunks = naturalToWord64s n
+   in foldl' (flip hash64Add) h chunks
+
+-- Convert Integer magnitude to Word64 chunks
+-- Uses accumulator for tail recursion
+integerToWord64s :: Integer -> [Word64]
+integerToWord64s = go []
+  where
+    go !acc 0 = acc
+    go !acc m = go (fromIntegral (m `mod` (2 ^ (64 :: Int))) : acc) (m `shiftR` 64)
+
+-- Convert Natural to Word64 chunks
+-- Uses accumulator for tail recursion
+naturalToWord64s :: Natural -> [Word64]
+naturalToWord64s = go []
+  where
+    go !acc 0 = acc
+    go !acc m = go (fromIntegral (m `mod` (2 ^ (64 :: Int))) : acc) (m `shiftR` 64)
+
 hash64AddBLit :: (Show r) => HRefs r -> BLit r -> Hash64 -> Hash64
 hash64AddBLit rs = \case
   Text tx ->
@@ -177,6 +209,10 @@ hash64AddBLit rs = \case
     hash64AddInt 13 `combine` hash64AddDouble d
   Map _ ->
     exn [] "hash64AddBLit: encountered Map, should be impossible"
+  BigInt i ->
+    hash64AddInt 14 `combine` hash64AddInteger i
+  BigNat n ->
+    hash64AddInt 15 `combine` hash64AddNatural n
 
 hash64AddCode :: (Show r) => HRefs r -> Code r -> Hash64 -> Hash64
 hash64AddCode rs (CodeRep sg _) = hash64AddGroup rs sg

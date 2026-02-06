@@ -5,9 +5,10 @@
 
 module Unison.Runtime.ANF.Serialize where
 
-import Control.Monad
+import Control.Monad (replicateM)
 import Control.Monad.ST (ST)
 import Control.Monad.State.Strict (StateT (..))
+import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
@@ -19,6 +20,7 @@ import Data.Map as Map (Map, fromDistinctAscList, fromList, lookup)
 import Data.Map.Strict.Internal (Map (..))
 import Data.Maybe (mapMaybe)
 import Data.Word (Word32, Word64)
+import Numeric.Natural (Natural)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Builtin.Decls (mapBin, mapRef, mapTip)
@@ -458,6 +460,46 @@ putBLit _ (Char c) = putTag CharT <> putChar c
 putBLit _ (Float d) = putTag FloatT <> putFloat d
 putBLit v (Arr a) = putTag ArrT <> putFoldable (putValue v) a
 putBLit _ (Map _) = exn [] "putBLit: impossible Map"
+putBLit _ (BigInt i) = putTag BigIntT <> putInteger i
+putBLit _ (BigNat n) = putTag BigNatT <> putNatural n
+
+-- Serialize a Natural as a length-prefixed list of Word64 chunks (little-endian)
+putNatural :: Natural -> Builder
+putNatural n = putLength (length chunks) <> foldMap BU.word64BE chunks
+  where
+    chunks = naturalToWord64s n
+
+-- Convert a Natural to a list of Word64 chunks (least significant first)
+-- Uses accumulator for tail recursion
+naturalToWord64s :: Natural -> [Word64]
+naturalToWord64s = go []
+  where
+    go !acc 0 = acc
+    go !acc n = go (fromIntegral (n `mod` (2 ^ (64 :: Int))) : acc) (n `shiftR` 64)
+
+-- Deserialize a Natural from a list of Word64 chunks
+getNatural :: (PrimBase m) => Get m Natural
+getNatural = do
+  len <- getLength
+  chunks <- replicateM len getWord64be
+  pure $ word64sToNatural chunks
+
+-- Convert a list of Word64 chunks (most significant first after reversal) back to Natural
+word64sToNatural :: [Word64] -> Natural
+word64sToNatural = foldl' (\acc w -> acc `shiftL` 64 .|. fromIntegral w) 0
+
+-- Serialize an Integer as a sign byte followed by the Natural magnitude
+putInteger :: Integer -> Builder
+putInteger n
+  | n >= 0 = BU.word8 0 <> putNatural (fromInteger n)
+  | otherwise = BU.word8 1 <> putNatural (fromInteger (abs n))
+
+-- Deserialize an Integer
+getInteger :: (PrimBase m) => Get m Integer
+getInteger = do
+  sign <- getWord8
+  mag <- getNatural
+  pure $ if sign == 0 then toInteger mag else negate (toInteger mag)
 
 -- special function for serializing a list of pairs as a Unison map.
 -- This allows us to avoid inflating the map to a unison value during
@@ -508,6 +550,8 @@ getBLit s@(v, fo) =
     CachedCodeT ->
       Code . flip CodeRep Cacheable <$> getGroup (valueToCode v, fo)
     MapT -> exn [] "getBLit: unsupported literal map"
+    BigIntT -> BigInt <$> getInteger
+    BigNatT -> BigNat <$> getNatural
 {-# SPECIALIZE getBLit :: DeserialIO (BLit Reference) #-}
 {-# SPECIALIZE getBLit :: DeserialST s (BLit Reference) #-}
 
