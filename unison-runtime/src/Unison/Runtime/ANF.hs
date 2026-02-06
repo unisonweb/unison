@@ -109,6 +109,7 @@ import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
 import Data.Text qualified as Text
+import Numeric.Natural (Natural)
 import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Blank (nameb)
@@ -137,7 +138,6 @@ import Unison.Util.Bytes (Bytes)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Text qualified as Util.Text
-import Numeric.Natural (Natural)
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq, unzip)
