@@ -36,6 +36,7 @@ import Network.MCP.Types (CallToolResult (CallToolResult))
 import Network.MCP.Types qualified as MCP
 import Unison.Prelude
 import UnliftIO qualified
+import UnliftIO.Environment (lookupEnv)
 
 type StaticResources = Map Text (MCP.Resource, MCP.ResourceContent)
 
@@ -101,9 +102,24 @@ doResources server staticResources = do
         pure . MCP.ReadResourceResult $ [content]
       _ -> pure $ MCP.ReadResourceResult []
 
+-- | Default timeout for MCP tool calls in seconds
+defaultMcpTimeoutSeconds :: Int
+defaultMcpTimeoutSeconds = 60
+
+-- | Get the MCP tool timeout in microseconds from UNISON_MCP_TIMEOUT env var.
+-- The env var is specified in seconds for user convenience.
+-- Defaults to 60 seconds if not set or invalid.
+getMcpTimeoutMicroseconds :: (MonadIO m) => m Int
+getMcpTimeoutMicroseconds = liftIO $ do
+  lookupEnv "UNISON_MCP_TIMEOUT" <&> \case
+    Just str -> maybe (defaultMcpTimeoutSeconds * 1_000_000) (* 1_000_000) (readMaybe str)
+    Nothing -> defaultMcpTimeoutSeconds * 1_000_000
+
 doTools :: (MonadUnliftIO m) => Server -> [Tool m] -> m ()
 doTools server tools = do
   runInIO <- askRunInIO
+  timeoutMicros <- getMcpTimeoutMicroseconds
+  let timeoutSeconds = timeoutMicros `div` 1_000_000
   let toolMap = Map.fromList (tools <&> (\tool -> (toolName tool, tool)))
   let mcpTools =
         tools <&> \(Tool {toolName, toolDescription, toolAnnotations, toolArgType}) ->
@@ -119,8 +135,8 @@ doTools server tools = do
       Just Tool {toolHandler} -> do
         case Aeson.fromJSON callToolArguments of
           Aeson.Success arg ->
-            UnliftIO.timeout (60 * 1_000_000) (toolHandler arg) >>= \case
-              Nothing -> pure $ errorToolResult $ "Tool '" <> callToolName <> "' timed out after 1 minute."
+            UnliftIO.timeout timeoutMicros (toolHandler arg) >>= \case
+              Nothing -> pure $ errorToolResult $ "Tool '" <> callToolName <> "' timed out after " <> Text.pack (show timeoutSeconds) <> " seconds."
               Just result -> pure result
           Aeson.Error err -> pure $ errorToolResult $ "Failed to parse arguments for tool '" <> callToolName <> "': " <> Text.pack err
       Nothing -> pure $ errorToolResult $ "Tool '" <> callToolName <> "' not found."
