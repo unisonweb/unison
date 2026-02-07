@@ -1014,6 +1014,7 @@ ioBuiltins =
     ("IO.seekHandle.impl.v3", handle --> smode --> int --> iof unit),
     ("IO.handlePosition.impl.v3", handle --> iof nat),
     ("IO.getEnv.impl.v1", text --> iof text),
+    ("IO.getEnvironment.impl.v1", unit --> iof (list (tuple [text, text]))),
     ("IO.getArgs.impl.v1", unit --> iof (list text)),
     ("IO.getBuffering.impl.v3", handle --> iof bmode),
     ("IO.setBuffering.impl.v3", handle --> bmode --> iof unit),

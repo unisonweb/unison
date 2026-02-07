@@ -54,6 +54,7 @@ data ForeignFunc
   | IO_setCurrentDirectory_impl_v3
   | IO_fileExists_impl_v3
   | IO_getEnv_impl_v1
+  | IO_getEnvironment_impl_v1
   | IO_getArgs_impl_v1
   | IO_isDirectory_impl_v3
   | IO_createDirectory_impl_v3
@@ -501,6 +502,7 @@ foreignFuncBuiltinName = \case
   IO_setCurrentDirectory_impl_v3 -> "IO.setCurrentDirectory.impl.v3"
   IO_fileExists_impl_v3 -> "IO.fileExists.impl.v3"
   IO_getEnv_impl_v1 -> "IO.getEnv.impl.v1"
+  IO_getEnvironment_impl_v1 -> "IO.getEnvironment.impl.v1"
   IO_getArgs_impl_v1 -> "IO.getArgs.impl.v1"
   IO_isDirectory_impl_v3 -> "IO.isDirectory.impl.v3"
   IO_createDirectory_impl_v3 -> "IO.createDirectory.impl.v3"

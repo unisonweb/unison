@@ -136,6 +136,7 @@ import System.Directory as SYS
 import System.Environment as SYS
   ( getArgs,
     getEnv,
+    getEnvironment,
   )
 import System.Exit as SYS (ExitCode (..))
 import System.FilePath (isPathSeparator)
@@ -335,6 +336,8 @@ foreignCallHelper = \case
   IO_setCurrentDirectory_impl_v3 -> mkForeignIOF setCurrentDirectory
   IO_fileExists_impl_v3 -> mkForeignIOF doesPathExist
   IO_getEnv_impl_v1 -> mkForeignIOF getEnv
+  IO_getEnvironment_impl_v1 -> mkForeignIOF $
+    \() -> getEnvironment
   IO_getArgs_impl_v1 -> mkForeignIOF $
     \() -> fmap Util.Text.pack <$> SYS.getArgs
   IO_isDirectory_impl_v3 -> mkForeignIOF doesDirectoryExist
