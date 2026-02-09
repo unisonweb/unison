@@ -85,7 +85,13 @@ handleShowDefinition outputLoc showDefinitionScope query = do
   let pped = PPED.biasTo (mapMaybe HQ.toName (List.NonEmpty.toList query)) unbiasedPPED
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch 10 names
-    Cli.runTransaction (Backend.definitionsByName env.codebase nameSearch includeCycles Names.IncludeSuffixes (toList query))
+    Cli.runTransaction $
+      Backend.definitionsByName
+        env.codebase
+        nameSearch
+        includeCycles
+        Names.IncludeSuffixes
+        (Set.fromList (List.NonEmpty.toList query))
   showDefinitions outputLoc pped terms types misses
   where
     suffixify =
@@ -107,11 +113,8 @@ handleShowDefinition outputLoc showDefinitionScope query = do
 showDefinitions ::
   OutputLocation ->
   PPED.PrettyPrintEnvDecl ->
-  (Map Reference.Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann))) ->
-  ( Map
-      Reference.Reference
-      (DisplayObject () (Decl Symbol Ann))
-  ) ->
+  Map Reference.Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
+  Map Reference.Reference (DisplayObject () (Decl Symbol Ann)) ->
   [HQ.HashQualified Name] ->
   Cli ()
 showDefinitions outputLoc pped terms types misses = do

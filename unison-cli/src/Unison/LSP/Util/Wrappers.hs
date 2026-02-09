@@ -5,6 +5,7 @@ import Control.Concurrent.STM
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Language.LSP.Protocol.Types qualified as LSP
@@ -44,7 +45,7 @@ editDefinitionByFQN fileURI fqn = do
     Right parsedFQN -> do
       pure parsedFQN
   Backend.DefinitionResults {termResults, typeResults} <- liftIO $ do
-    Codebase.runTransaction codebase $ Backend.definitionsByName codebase nameSearch Backend.IncludeCycles Names.ExactName [HQ.NameOnly parsedFQN]
+    Codebase.runTransaction codebase $ Backend.definitionsByName codebase nameSearch Backend.IncludeCycles Names.ExactName (Set.singleton (HQ.NameOnly parsedFQN))
   pped <- currentPPED
   toIO <- lift $ askRunInIO
   let appendText _fp rendered _aboveFold = toIO $ do
