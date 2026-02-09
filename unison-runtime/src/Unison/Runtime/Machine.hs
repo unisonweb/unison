@@ -385,7 +385,7 @@ exec _ _ !_activeThreads !stk !k cix (Prim2 THRO i j) = do
   where
     r = combRef cix
 exec env henv !_activeThreads !stk !k _ (Prim2 TRCE i j)
-  | sandboxed env = die [] "attempted to use sandboxed operation: trace"
+  | sandboxed env = pure (False, henv, stk, k)
   | otherwise = do
       tx <- peekOffBi stk i
       clo <- peekOff stk j
