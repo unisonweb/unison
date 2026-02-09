@@ -8,6 +8,7 @@ where
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State qualified as State
+import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
@@ -33,6 +34,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -59,8 +61,34 @@ import Unison.WatchKind qualified as WatchKind
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> List.NonEmpty (HQ.HashQualified Name) -> Cli ()
-handleShowDefinition outputLoc showDefinitionScope query = do
+handleShowDefinition outputLoc showDefinitionScope originalQuery = do
   env <- ask
+
+  -- Should we artificially add docs to this request? (e.g. `foo` -> `foo`, `foo.doc`)
+  let shouldAddDocs :: Bool
+      shouldAddDocs =
+        case outputLoc of
+          ConsoleLocation -> False
+          LatestFileLocation {} -> True
+          FileLocation {} -> True
+
+  -- Take the user's original query, de-dupe (unlikely that they repeated something), and maybe add docs per above.
+  let query :: Set (HQ.HashQualified Name)
+      query =
+        Foldable.foldl'
+          ( if shouldAddDocs
+              then \acc hqName ->
+                acc
+                  & Set.insert hqName
+                  & case hqName of
+                    HQ.NameOnly name
+                      | Name.lastSegment name /= NameSegment.docSegment ->
+                          Set.insert (HQ.NameOnly (Name.snoc name NameSegment.docSegment))
+                    _ -> id
+              else flip Set.insert
+          )
+          Set.empty
+          originalQuery
 
   let hasAbsoluteQuery = any (any Name.isAbsolute) query
   (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
@@ -82,8 +110,8 @@ handleShowDefinition outputLoc showDefinitionScope query = do
       currentNames <- Cli.currentNames
       let pped = PPED.makePPED (PPE.hqNamer 10 currentNames) (suffixify currentNames)
       pure (currentNames, pped)
-  let pped = PPED.biasTo (mapMaybe HQ.toName (List.NonEmpty.toList query)) unbiasedPPED
-  Backend.DefinitionResults terms types misses <- do
+  let pped = PPED.biasTo (mapMaybe HQ.toName (Set.toList query)) unbiasedPPED
+  Backend.DefinitionResults terms types misses0 <- do
     let nameSearch = NameSearch.makeNameSearch 10 names
     Cli.runTransaction $
       Backend.definitionsByName
@@ -91,7 +119,16 @@ handleShowDefinition outputLoc showDefinitionScope query = do
         nameSearch
         includeCycles
         Names.IncludeSuffixes
-        (Set.fromList (List.NonEmpty.toList query))
+        query
+  -- Removed missed docs that the user didn't ask for from `misses`
+  let misses =
+        if shouldAddDocs
+          then
+            -- Unlikely that both original query list and misses list are both very long, but make a set out of original
+            -- query anyway, to replace pathological O(n^2) with O(n log n)
+            let originalQuerySet = Set.fromList (List.NonEmpty.toList originalQuery)
+             in filter (`Set.member` originalQuerySet) misses0
+          else misses0
   showDefinitions outputLoc pped terms types misses
   where
     suffixify =
