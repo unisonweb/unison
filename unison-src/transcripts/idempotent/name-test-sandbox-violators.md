@@ -1,24 +1,37 @@
 ``` ucm :hide
-> builtins.merge
+> builtins.mergeio
 ```
 
 This passes, because the IO sandbox doesn't seem to apply to `test>` watch expressions.
 
 ``` unison
+toException : Either Failure r ->{Exception} r
+toException = cases
+  Left e -> Exception.raise e
+  Right a -> a
+
+printLine : Text ->{IO, Exception} ()
+printLine t =
+  stdOut = stdHandle StdOut
+  toException (putBytes.impl stdOut (toUtf8 t))
+  toException (putBytes.impl stdOut (toUtf8 "\n"))
+
 test> foo.test =
   x = 192
-  Debug.trace "x" x
+  coerceAbilities (do printLine "hello") ()
   [Ok "Passed"]
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + foo.test : [Result]
+  + foo.test    : [Result]
+  + printLine   : Text ->{IO, Exception} ()
+  + toException : Either Failure r ->{Exception} r
 
   Run `update` to apply these changes to your codebase.
 
-    2 |   x = 192
+    13 |   x = 192
     
     ✅ Passed Passed
 ```
@@ -52,7 +65,7 @@ This test which is essentially the same will fail, because it is never run with 
 bar.test : [Test.Result]
 bar.test =
   x = 42
-  Debug.trace "x" x
+  unsafe.coerceAbilities (do printLine "hello") ()
   [Ok "Passed"]
 ```
 
@@ -89,14 +102,12 @@ bar.test =
 
   Error while evaluating test `bar.test`:
 
-    💔💥
+    ❗️
     
-    I've encountered a call to builtin.bug with the following
-    value:
+    Sorry – I’ve encountered a Unison runtime error.
     
-      "pure code can't perform I/O"
+      Attempted to use disallowed builtin in sandboxed environment: IO.stdHandle
     
-    Stack trace:
-      #1k885m4e7g
-      #tnbpslc0n3
+    Please report it at
+    https://github.com/unisonweb/unison/issues/new/choose.
 ```
