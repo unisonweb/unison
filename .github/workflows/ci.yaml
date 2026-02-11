@@ -391,6 +391,16 @@ jobs:
           git diff --ignore-cr-at-eol --exit-code \
             unison-src/transcripts-manual/dll-ffi-win.output.md
 
+      - name: benchmark smoke tests
+        # benchmarks hang on Windows
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        run: |
+          ${{env.ucm}} transcript unison-src/transcripts-manual/benchmarks.md
+
+          # Fail if the output or generated docs differ.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/benchmarks.md
+
       - name: mark transcripts as passing
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         run: |

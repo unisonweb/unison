@@ -1,3 +1,0 @@
-
-main = do
-  timeit "List.filter" '(range 0 10000 |> List.filter (x -> Nat.mod x 3 == 0) |> List.size) 
