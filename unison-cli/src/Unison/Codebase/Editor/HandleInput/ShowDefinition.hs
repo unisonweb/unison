@@ -65,28 +65,18 @@ handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> List.NonEmpty (
 handleShowDefinition outputLoc showDefinitionScope originalQuery = do
   env <- ask
 
-  -- Should we artificially add docs to this request? (e.g. `foo` -> `foo`, `foo.doc`)
-  let shouldAddDocs :: Bool
-      shouldAddDocs =
-        case outputLoc of
-          ConsoleLocation -> False
-          LatestFileLocation {} -> True
-          FileLocation {} -> True
-
   -- Take the user's original query, de-dupe (unlikely that they repeated something), and maybe add docs per above.
   let query :: Set (HQ.HashQualified Name)
       query =
         Foldable.foldl'
-          ( if shouldAddDocs
-              then \acc hqName ->
-                acc
-                  & Set.insert hqName
-                  & case hqName of
-                    HQ.NameOnly name
-                      | Name.lastSegment name /= NameSegment.docSegment ->
-                          Set.insert (HQ.NameOnly (Name.snoc name NameSegment.docSegment))
-                    _ -> id
-              else flip Set.insert
+          ( \acc hqName ->
+              acc
+                & Set.insert hqName
+                & case hqName of
+                  HQ.NameOnly name
+                    | Name.lastSegment name /= NameSegment.docSegment ->
+                        Set.insert (HQ.NameOnly (Name.snoc name NameSegment.docSegment))
+                  _ -> id
           )
           Set.empty
           originalQuery
@@ -123,13 +113,10 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
         query
   -- Removed missed docs that the user didn't ask for from `misses`
   let misses =
-        if shouldAddDocs
-          then
-            -- Unlikely that both original query list and misses list are both very long, but make a set out of original
-            -- query anyway, to replace pathological O(n^2) with O(n log n)
-            let originalQuerySet = Set.fromList (List.NonEmpty.toList originalQuery)
-             in filter (`Set.member` originalQuerySet) misses0
-          else misses0
+        -- Unlikely that both original query list and misses list are both very long, but make a set out of original
+        -- query anyway, to replace pathological O(n^2) with O(n log n)
+        let originalQuerySet = Set.fromList (List.NonEmpty.toList originalQuery)
+         in filter (`Set.member` originalQuerySet) misses0
   showDefinitions outputLoc pped terms types misses
   where
     suffixify =
