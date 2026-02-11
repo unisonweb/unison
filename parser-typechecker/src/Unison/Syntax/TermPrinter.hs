@@ -427,7 +427,7 @@ pretty0
     where
       goNormal prec tm = pretty0 (ac prec Normal im doc) tm
       specialCases term go = do
-        prettyDoc2 a term >>= \case
+        prettyDoc2_ a term >>= \case
           Just d -> pure d
           Nothing -> notDoc go
         where
@@ -1938,13 +1938,23 @@ toBytes (App' (Builtin' "Bytes.fromList") (List' bs)) =
     go _ = Nothing
 toBytes _ = Nothing
 
-prettyDoc2 ::
+-- | Pretty-print a Doc2 (if the term is a Doc2). As a convenience, strips type annotation (if any).
+prettyDoc2 :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Maybe (Pretty SyntaxText)
+prettyDoc2 ppe =
+  \(stripAnn -> doc) ->
+    runPretty (avoidShadowing doc ppe) (prettyDoc2_ emptyAc (printAnnotate ppe doc))
+  where
+    stripAnn = \case
+      Ann' t _ -> t
+      t -> t
+
+prettyDoc2_ ::
   forall v m.
   (MonadPretty v m) =>
   AmbientContext ->
   Term3 v PrintAnnotation ->
   m (Maybe (Pretty SyntaxText))
-prettyDoc2 ac tm = do
+prettyDoc2_ ac tm = do
   env <- ask
   let brace p =
         if PP.isMultiLine p
