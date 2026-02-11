@@ -20,6 +20,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF
 import Unison.Runtime.ANF.Serialize
+import Unison.Runtime.Referenced (Referenced (..), dereference)
 import Unison.Runtime.Serialize.Get
 import Unison.Test.Gen
 import Unison.Util.Bytes qualified as Util.Bytes
@@ -32,7 +33,8 @@ test =
         checkParallel $
           Group
             "roundtrip"
-            [ ("value", valueRoundtrip)
+            [ ("value", valueRoundtrip),
+              ("value-v5", valueRoundtripV5)
             ]
     EasyTest.expect success
 
@@ -120,6 +122,16 @@ genValue = Gen.sized \n -> do
 valueRoundtrip :: Property
 valueRoundtrip =
   getPutRoundtrip (getValue . (,False)) putValue genValue
+
+valueRoundtripV5 :: Property
+valueRoundtripV5 =
+  property $ do
+    v <- forAll genValue
+    bytes <- evalIO $ toStrict <$> serializeValueWithVersion 5 (Plain v)
+    result <- evalIO $ deserializeValue bytes
+    case result of
+      Right rv -> dereference rv === v
+      Left e -> annotate e >> failure
 
 getPutRoundtrip ::
   (Eq a, Show a) =>
