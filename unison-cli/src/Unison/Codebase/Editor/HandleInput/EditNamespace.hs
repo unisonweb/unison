@@ -69,7 +69,7 @@ handleEditNamespace outputLoc paths0 = do
 
   (types, terms) <- Cli.runTransaction (getNamesForEdit codebase ppe allNamesToEdit)
   let misses = []
-  showDefinitions outputLoc ppe terms types misses
+  showDefinitions outputLoc (const True) ppe terms types misses
 
 -- | Get names "for edit": gets types and terms out the codebase as display objects, but is careful not to get an
 -- auto-generated record accessor term like `Foo.bar.set` if it's also getting the corresponding type `Foo`. This is

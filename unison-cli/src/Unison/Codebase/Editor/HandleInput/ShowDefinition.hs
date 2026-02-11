@@ -65,6 +65,10 @@ handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> List.NonEmpty (
 handleShowDefinition outputLoc showDefinitionScope originalQuery = do
   env <- ask
 
+  let originalQuerySet :: Set (HQ.HashQualified Name)
+      originalQuerySet =
+        Set.fromList (List.NonEmpty.toList originalQuery)
+
   -- Take the user's original query, de-dupe (unlikely that they repeated something), and maybe add docs per above.
   let query :: Set (HQ.HashQualified Name)
       query =
@@ -115,9 +119,8 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
   let misses =
         -- Unlikely that both original query list and misses list are both very long, but make a set out of original
         -- query anyway, to replace pathological O(n^2) with O(n log n)
-        let originalQuerySet = Set.fromList (List.NonEmpty.toList originalQuery)
-         in filter (`Set.member` originalQuerySet) misses0
-  showDefinitions outputLoc pped terms types misses
+        filter (`Set.member` originalQuerySet) misses0
+  showDefinitions outputLoc (`Set.member` originalQuerySet) pped terms types misses
   where
     suffixify =
       case outputLoc of
@@ -137,21 +140,21 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
 -- the desired behavior.
 showDefinitions ::
   OutputLocation ->
+  (HQ.HashQualified Name -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   [HQ.HashQualified Name] ->
   Cli ()
-showDefinitions outputLoc pped terms types misses = do
+showDefinitions outputLoc nameInOriginalQuery pped terms types misses = do
   Cli.Env {codebase, writeSource} <- ask
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
-    Nothing -> do
-      renderToConsole pped terms types
+    Nothing -> renderToConsole nameInOriginalQuery pped terms types
     Just (fp, relToFold) -> do
       mayTF <- use #latestTypecheckedFile
-      numRendered <- renderToFile codebase writeSource mayTF fp relToFold pped terms types
+      numRendered <- renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types
 
       when (numRendered > 0) do
         -- We set latestFile to be programmatically generated, if we
@@ -175,6 +178,7 @@ showDefinitions outputLoc pped terms types misses = do
             Just (path, _) -> Just (path, relToFold)
 
 renderCodePretty ::
+  (HQ.HashQualified Name -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Bool ->
   (TermReferenceId -> Bool) ->
@@ -183,7 +187,7 @@ renderCodePretty ::
   Defns (Set Symbol) (Set Symbol) ->
   -- Result is Nothing if nothing was rendered
   Maybe (Pretty Pretty.ColorText, Int)
-renderCodePretty pped isSourceFile isTest terms types excludeNames =
+renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types excludeNames =
   let -- Associate each term and type with their best unsuffixified name
       namedTerms :: Map (HQ.HashQualified Name) (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann))
       namedTerms =
@@ -258,6 +262,20 @@ renderCodePretty pped isSourceFile isTest terms types excludeNames =
               )
 
       -- And now we can add those docs back into `termsWithTheirDocs`, themselves without docs of course
+      --
+      -- Here's also where we end up using our magic "should include this" predicate from the sky. Here's the
+      -- motivation, by example:
+      --
+      -- 1. The user has `lib.base.List.sort` and `List.sort.doc` (you might think that's nuts but we have a transcript
+      --    that does this!)
+      -- 2. The user types `view List.sort`
+      -- 3. This gets auto-expanded to `view List.sort List.sort.doc`
+      -- 3. We therefore find `base.List.sort` and `List.sort.doc`
+      --
+      -- In this case, we have a doc with no associated definition (`List.sort.doc`), but the user didn't ask for it.
+      -- So, we probably shouldn't show it. This is also highlighting a potential issue with this "add .doc to
+      -- everything the user asked for" idea for this implementation. Perhaps instead we should do the normal query
+      -- the user asked for, and then chase down those things' docs in a follow-up.
       termsWithMaybeDocs1 ::
         Map
           (HQ.HashQualified Name)
@@ -266,6 +284,7 @@ renderCodePretty pped isSourceFile isTest terms types excludeNames =
           )
       termsWithMaybeDocs1 =
         docNamedTermsWithNoAssociatedDefinition
+          & Map.filterWithKey (\name _ -> nameInOriginalQuery name)
           & Map.map (,Nothing)
           & Map.union termsWithMaybeDocs
 
@@ -290,11 +309,12 @@ renderCodePretty pped isSourceFile isTest terms types excludeNames =
         $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)), length prettyTerms + length prettyTypes)
 
 renderToConsole ::
+  (HQ.HashQualified Name -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   Cli ()
-renderToConsole pped terms types = do
+renderToConsole nameInOriginalQuery pped terms types = do
   -- If we're writing to console we don't add test-watch syntax
   let isTest _ = False
   let isSourceFile = False
@@ -302,6 +322,7 @@ renderToConsole pped terms types = do
   let renderedCodePretty =
         fst
           <$> renderCodePretty
+            nameInOriginalQuery
             pped
             isSourceFile
             isTest
@@ -316,6 +337,7 @@ renderToConsole pped terms types = do
 renderToFile ::
   (MonadIO m, Monoid a) =>
   Codebase IO Symbol a ->
+  (HQ.HashQualified Name -> Bool) ->
   (Text -> Text -> Bool -> IO ()) ->
   Maybe (Either (UnisonFile.UnisonFile Symbol Ann) (UnisonFile.TypecheckedUnisonFile Symbol a)) ->
   FilePath ->
@@ -324,7 +346,7 @@ renderToFile ::
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   (m Int)
-renderToFile codebase writeSource mayTF fp relToFold pped terms types = do
+renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types = do
   -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
   -- already bound in the file
   let excludeNames =
@@ -357,7 +379,7 @@ renderToFile codebase writeSource mayTF fp relToFold pped terms types = do
         (Map.keysSet terms & Set.mapMaybe Reference.toId)
   let isTest r = Set.member r testRefs
   let isSourceFile = True
-  let mayRenderedCodePretty = renderCodePretty pped isSourceFile isTest terms types excludeNames
+  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types excludeNames
   case mayRenderedCodePretty of
     Just (renderedCodePretty, numRendered) -> do
       let (renderedCodeText) = Pretty.toPlain 80 renderedCodePretty

@@ -110,29 +110,9 @@ We can view it with `docs`, which shows the `Doc` value that is associated with 
 
 Note that if we view the source of the documentation, the various references are *not* expanded.
 
-```` ucm
+``` ucm
 > view List.take
 
   builtin lib.builtins.List.take :
     lib.builtins.Nat -> [a] -> [a]
-
-  List.take.doc : Doc2
-  List.take.doc =
-    use List take
-    {{
-    `List.take n xs` returns the first `n` elements of `xs`. (No
-    need to add line breaks manually. The display command will
-    do wrapping of text for you. Indent any lines where you
-    don't want it to do this.)
-    
-    # Examples:
-    
-      ```
-      take 0 [1, 2, 3, 4, 5]
-      ```
-      
-      ```
-      take 2 [1, 2, 3, 4, 5]
-      ```
-    }}
-````
+```
