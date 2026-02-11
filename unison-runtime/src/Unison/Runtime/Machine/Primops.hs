@@ -500,10 +500,7 @@ tltt stk r =
 {-# INLINE tltt #-}
 
 dbtx :: CCache p -> Stack -> Val -> IO ()
-dbtx env stk val
-  | sandboxed env =
-      die [] "attempted to use sandboxed operation: Debug.toText"
-  | otherwise = writeBack stk traced
+dbtx env stk val = writeBack stk traced
   where
     traced = case tracer env False val of
       NoTrace -> Nothing
