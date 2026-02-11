@@ -14,6 +14,7 @@ jobs:
   # This runs on a single platform since it just checks file contents
   verify-proofs:
     name: verify proofs
+    # Don't run on trunk 
     if: github.ref != 'refs/heads/trunk'
     runs-on: ubuntu-24.04
     steps:
@@ -38,32 +39,36 @@ jobs:
           if [[ "$RESULT" == "pass" ]]; then
             echo "Transcript proof verified (passed)!"
           elif [[ "$RESULT" == "fail" ]]; then
-            echo ""
-            echo "ERROR: Transcripts previously FAILED."
-            echo ""
-            echo "The proofs file shows that transcripts failed on this commit."
-            echo "Fix the issues, run './scripts/proofs/transcripts.sh',"
-            echo "commit the updated proofs file, and push again."
+            cat <<EOF
+
+          ERROR: Transcripts previously FAILED.
+
+          The proofs file shows that transcripts failed on this commit.
+          Fix the issues, run './scripts/proofs/transcripts.sh',
+          commit the updated proofs file, and push again.
+          EOF
             exit 1
           else
-            echo ""
-            echo "ERROR: Transcript proof not found."
-            echo ""
-            echo "This repo uses a proof system to skip transcript tests in CI when"
-            echo "you've already run them locally. The proof is a hash of all source"
-            echo "files that affect transcripts (*.hs, *.md, *.u, build configs)."
-            echo ""
-            echo "Expected hash: $HASH"
-            echo "Proofs file:   $(cat "$PROOFS_FILE" 2>/dev/null || echo "(not found)")"
-            echo ""
-            echo "This usually means you changed code after running transcripts,"
-            echo "or haven't run them yet."
-            echo ""
-            echo "To fix: run './scripts/proofs/transcripts.sh', commit the"
-            echo "proofs file, and push again."
-            echo ""
-            echo "TIP: The pre-push hook handles this automatically on push:"
-            echo "  ./scripts/hooks/install.bash"
+            cat <<EOF
+
+          ERROR: Transcript proof not found.
+
+          This repo uses a proof system to skip transcript tests in CI when
+          you've already run them locally. The proof is a hash of all source
+          files that affect transcripts (*.hs, *.md, *.u, build configs).
+
+          Expected hash: $HASH
+          Proofs file:   $(cat "$PROOFS_FILE" 2>/dev/null || echo "(not found)")
+
+          This usually means you changed code after running transcripts,
+          or haven't run them yet.
+
+          To fix: run './scripts/proofs/transcripts.sh', commit the
+          proofs file, and push again.
+
+          TIP: The pre-push hook handles this automatically on push:
+            ./scripts/hooks/install.bash
+          EOF
             exit 1
           fi
 
@@ -86,32 +91,36 @@ jobs:
           if [[ "$RESULT" == "pass" ]]; then
             echo "Test proof verified (passed)!"
           elif [[ "$RESULT" == "fail" ]]; then
-            echo ""
-            echo "ERROR: Tests previously FAILED."
-            echo ""
-            echo "The proofs file shows that tests failed on this commit."
-            echo "Fix the issues, run './scripts/proofs/tests.sh',"
-            echo "commit the updated proofs file, and push again."
+            cat <<EOF
+
+          ERROR: Tests previously FAILED.
+
+          The proofs file shows that tests failed on this commit.
+          Fix the issues, run './scripts/proofs/tests.sh',
+          commit the updated proofs file, and push again.
+          EOF
             exit 1
           else
-            echo ""
-            echo "ERROR: Test proof not found."
-            echo ""
-            echo "This repo uses a proof system to skip tests in CI when you've"
-            echo "already run them locally. The proof is a hash of all source files"
-            echo "that affect tests (*.hs, build configs, integration test inputs)."
-            echo ""
-            echo "Expected hash: $HASH"
-            echo "Proofs file:   $(cat "$PROOFS_FILE" 2>/dev/null || echo "(not found)")"
-            echo ""
-            echo "This usually means you changed code after running tests,"
-            echo "or haven't run them yet."
-            echo ""
-            echo "To fix: run './scripts/proofs/tests.sh', commit the"
-            echo "proofs file, and push again."
-            echo ""
-            echo "TIP: The pre-push hook handles this automatically on push:"
-            echo "  ./scripts/hooks/install.bash"
+            cat <<EOF
+
+          ERROR: Test proof not found.
+
+          This repo uses a proof system to skip tests in CI when you've
+          already run them locally. The proof is a hash of all source files
+          that affect tests (*.hs, build configs, integration test inputs).
+
+          Expected hash: $HASH
+          Proofs file:   $(cat "$PROOFS_FILE" 2>/dev/null || echo "(not found)")
+
+          This usually means you changed code after running tests,
+          or haven't run them yet.
+
+          To fix: run './scripts/proofs/tests.sh', commit the
+          proofs file, and push again.
+
+          TIP: The pre-push hook handles this automatically on push:
+            ./scripts/hooks/install.bash
+          EOF
             exit 1
           fi
 
