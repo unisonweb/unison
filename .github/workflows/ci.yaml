@@ -14,8 +14,8 @@ jobs:
   # This runs on a single platform since it just checks file contents
   verify-proofs:
     name: verify proofs
-    # Don't run on trunk 
-    if: github.ref != 'refs/heads/trunk'
+    # Don't run on trunk or in merge queue (merge queue runs actual tests)
+    if: github.ref != 'refs/heads/trunk' && github.event_name != 'merge_group'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
