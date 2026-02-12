@@ -175,6 +175,7 @@ amend_with_proofs() {
 
     git commit --amend --no-edit --no-verify
 
-    echo "🏁 Done."
+    echo "🏁 Done. Please run 'git push' again."
     echo ""
+    exit 1
 }
