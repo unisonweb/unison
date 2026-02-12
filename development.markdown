@@ -25,7 +25,7 @@ On startup, Unison prints a url for the codebase UI. If you did step 3 above, th
 There are some Git hooks provided by Unison. If you want to use them, you can run
 
 ``` bash
-./scripts/install-hooks.bash
+./scripts/hooks/install.bash
 ```
 
 ## Autoformatting your code with Ormolu
