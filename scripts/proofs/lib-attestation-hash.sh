@@ -77,3 +77,36 @@ compute_hash() {
         _list_files | _hash_files
     fi
 }
+
+# Check if attestation exists in the tracked proofs file.
+# Prints: pass, fail, or missing
+_check_attestation() {
+    local name="$1"
+    local proofs_file=".github/workflows/proofs/${name}.txt"
+    local hash
+    hash=$(compute_hash)
+
+    if [[ -f "$proofs_file" ]]; then
+        local result
+        result=$(grep "^$hash " "$proofs_file" 2>/dev/null | awk '{print $3}' || true)
+        if [[ "$result" == "pass" || "$result" == "fail" ]]; then
+            echo "$result"
+            return 0
+        fi
+    fi
+    echo "missing"
+}
+
+# Handle --hash and --check flags early, before the full attestation machinery.
+# Derives the attestation name from the calling script's filename.
+# Usage (in each proof script, after defining PATTERNS):
+#   source "$(dirname "$0")/lib-attestation-hash.sh"
+#   handle_flags "$@"
+handle_flags() {
+    local name
+    name=$(basename "${BASH_SOURCE[1]}" .sh)
+    case "${1:-}" in
+        --hash)  compute_hash "${2:-}"; exit 0 ;;
+        --check) _check_attestation "$name"; exit 0 ;;
+    esac
+}

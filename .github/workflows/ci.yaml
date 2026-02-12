@@ -6,6 +6,8 @@ defaults:
 
 on:
   push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
   merge_group:
   workflow_dispatch:
 
@@ -19,108 +21,32 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - run: sudo apt install ripgrep
+      - run: sudo apt-get install -y ripgrep
       - name: verify transcript proof
         run: |
-          PROOFS_FILE=".github/workflows/proofs/transcripts.txt"
-          echo "Computing transcript hash..."
-          HASH=$(./scripts/proofs/transcripts.sh --hash)
-          echo "Hash: $HASH"
-
-          # Check if proof file exists and contains our hash with pass status
-          # Format: "source_hash infra_hash pass|fail"
-          PROOF_LINE=""
-          if [[ -f "$PROOFS_FILE" ]]; then
-            PROOF_LINE=$(grep "^$HASH" "$PROOFS_FILE" || true)
-          fi
-
-          RESULT=$(echo "$PROOF_LINE" | awk '{print $3}')
-
+          RESULT=$(./scripts/proofs/transcripts.sh --check)
+          echo "Transcript proof: $RESULT"
           if [[ "$RESULT" == "pass" ]]; then
-            echo "Transcript proof verified (passed)!"
+            exit 0
           elif [[ "$RESULT" == "fail" ]]; then
-            cat <<EOF
-
-          ERROR: Transcripts previously FAILED.
-
-          The proofs file shows that transcripts failed on this commit.
-          Fix the issues, run './scripts/proofs/transcripts.sh',
-          commit the updated proofs file, and push again.
-          EOF
+            echo "::error::Transcripts previously FAILED. Fix and re-run './scripts/proofs/transcripts.sh'."
             exit 1
           else
-            cat <<EOF
-
-          ERROR: Transcript proof not found.
-
-          This repo uses a proof system to skip transcript tests in CI when
-          you've already run them locally. The proof is a hash of all source
-          files that affect transcripts (*.hs, *.md, *.u, build configs).
-
-          Expected hash: $HASH
-          Proofs file:   $(cat "$PROOFS_FILE" 2>/dev/null || echo "(not found)")
-
-          This usually means you changed code after running transcripts,
-          or haven't run them yet.
-
-          To fix: run './scripts/proofs/transcripts.sh', commit the
-          proofs file, and push again.
-
-          TIP: The pre-push hook handles this automatically on push:
-            ./scripts/hooks/install.bash
-          EOF
+            echo "::error::Transcript proof not found. Run './scripts/proofs/transcripts.sh', commit the proofs file, and push again."
             exit 1
           fi
 
       - name: verify test proof
         run: |
-          PROOFS_FILE=".github/workflows/proofs/tests.txt"
-          echo "Computing test hash..."
-          HASH=$(./scripts/proofs/tests.sh --hash)
-          echo "Hash: $HASH"
-
-          # Check if proof file exists and contains our hash with pass status
-          # Format: "source_hash infra_hash pass|fail"
-          PROOF_LINE=""
-          if [[ -f "$PROOFS_FILE" ]]; then
-            PROOF_LINE=$(grep "^$HASH" "$PROOFS_FILE" || true)
-          fi
-
-          RESULT=$(echo "$PROOF_LINE" | awk '{print $3}')
-
+          RESULT=$(./scripts/proofs/tests.sh --check)
+          echo "Test proof: $RESULT"
           if [[ "$RESULT" == "pass" ]]; then
-            echo "Test proof verified (passed)!"
+            exit 0
           elif [[ "$RESULT" == "fail" ]]; then
-            cat <<EOF
-
-          ERROR: Tests previously FAILED.
-
-          The proofs file shows that tests failed on this commit.
-          Fix the issues, run './scripts/proofs/tests.sh',
-          commit the updated proofs file, and push again.
-          EOF
+            echo "::error::Tests previously FAILED. Fix and re-run './scripts/proofs/tests.sh'."
             exit 1
           else
-            cat <<EOF
-
-          ERROR: Test proof not found.
-
-          This repo uses a proof system to skip tests in CI when you've
-          already run them locally. The proof is a hash of all source files
-          that affect tests (*.hs, build configs, integration test inputs).
-
-          Expected hash: $HASH
-          Proofs file:   $(cat "$PROOFS_FILE" 2>/dev/null || echo "(not found)")
-
-          This usually means you changed code after running tests,
-          or haven't run them yet.
-
-          To fix: run './scripts/proofs/tests.sh', commit the
-          proofs file, and push again.
-
-          TIP: The pre-push hook handles this automatically on push:
-            ./scripts/hooks/install.bash
-          EOF
+            echo "::error::Test proof not found. Run './scripts/proofs/tests.sh', commit the proofs file, and push again."
             exit 1
           fi
 
@@ -129,5 +55,7 @@ jobs:
     name: merge queue tests
     if: github.event_name == 'merge_group'
     uses: ./.github/workflows/test.yaml
+    with:
+      skip-attested-transcripts: true
     # transcripts-os defaults to linux only
     # dll-ffi-os defaults to all platforms

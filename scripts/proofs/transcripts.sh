@@ -36,12 +36,9 @@ PATTERNS=(
     '**/transcripts.sh'
 )
 
-# Handle --hash early, before sourcing other libraries
-if [[ "${1:-}" == "--hash" ]]; then
-    source "$(dirname "$0")/lib-attestation-hash.sh"
-    compute_hash "${2:-}"
-    exit 0
-fi
+# Handle --hash and --check early, before sourcing other libraries
+source "$(dirname "$0")/lib-attestation-hash.sh"
+handle_flags "$@"
 
 source "$(dirname "$0")/lib-attestation-randr.sh"
 attestation_setup "transcripts" "$@"
