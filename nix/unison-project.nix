@@ -47,9 +47,11 @@ in
       pkgs.cabal-install
       pkgs.cachix
       pkgs.gettext # for envsubst, used by unison-src/builtin-tests/interpreter-tests.sh
+      pkgs.git
       pkgs.hpack
       pkgs.jq # helpful when pushing to Cachix
       pkgs.ormolu
+      pkgs.ripgrep # used by lib-attestation-hash.sh
       pkgs.stack-wrapped
     ];
     devShellArgsModifier = args: args // {withHoogle = true;};

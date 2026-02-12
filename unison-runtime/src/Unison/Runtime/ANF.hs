@@ -109,6 +109,7 @@ import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
 import Data.Text qualified as Text
+import Numeric.Natural (Natural)
 import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Blank (nameb)
@@ -1655,6 +1656,9 @@ data BLit ref
   | Float Double
   | -- special cases for newer formats
     Map [(Value ref, Value ref)]
+  | -- arbitrary precision numbers
+    BigInt Integer
+  | BigNat Natural
   deriving (Show, Eq)
 
 groupVars :: ANFM v (Set v)
@@ -2312,6 +2316,8 @@ instance Referential BLit where
     Neg n -> Neg n
     Char c -> Char c
     Float f -> Float f
+    BigInt i -> BigInt i
+    BigNat n -> BigNat n
 
   foldMapRefs h = \case
     List vs -> foldMap (foldMapRefs h) vs
@@ -2340,6 +2346,8 @@ instance Referential BLit where
     Neg n -> pure $ Neg n
     Char c -> pure $ Char c
     Float f -> pure $ Float f
+    BigInt i -> pure $ BigInt i
+    BigNat n -> pure $ BigNat n
 
 groupTermLinks :: (Ord ref, Var v) => SuperGroup ref v -> [ref]
 groupTermLinks = Set.toList . foldGroupLinks f
