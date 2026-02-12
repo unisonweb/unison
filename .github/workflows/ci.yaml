@@ -59,3 +59,18 @@ jobs:
       skip-attested-transcripts: true
     # transcripts-os defaults to linux only
     # dll-ffi-os defaults to all platforms
+
+  # Single gate job for merge queue required checks.
+  # Set "merge queue gate" as the sole required status check in branch protection.
+  merge-queue-gate:
+    name: merge queue gate
+    if: github.event_name == 'merge_group' && !cancelled()
+    needs: [merge-queue-tests]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: check all jobs
+        run: |
+          if [[ "${{ needs.merge-queue-tests.result }}" != "success" ]]; then
+            echo "merge-queue-tests result: ${{ needs.merge-queue-tests.result }}"
+            exit 1
+          fi
