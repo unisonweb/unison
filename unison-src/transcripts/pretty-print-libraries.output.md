@@ -57108,6 +57108,9 @@ IO.doc =
     arguments.
     
     `` getEnv var `` gets the value of the environment variable named `var`.
+
+    `` getEnvironment `` gets the list of all environment variables and
+    their values.
   
   # System clocks
   
@@ -57806,6 +57809,17 @@ IO.getEnv.doc =
   }}
 
 -- builtin IO.getEnv.impl : Text ->{IO} Either Failure Text
+
+IO.getEnvironment : '{IO, Exception} [(Text, Text)]
+IO.getEnvironment _ = Either.toException getEnvironment.impl()
+
+IO.getEnvironment.doc : Doc
+IO.getEnvironment.doc =
+  {{
+  Get a list of all environment variables and their values.
+  }}
+
+-- builtin IO.getEnvironment.impl : '{IO} Either Failure [(Text, Text)]
 
 IO.Handle.BufferMode.doc : Doc
 IO.Handle.BufferMode.doc =

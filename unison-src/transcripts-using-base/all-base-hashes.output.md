@@ -4275,4 +4275,8 @@ This transcript is intended to make visible accidental changes to the hashing al
   1185. -- #lcmj2envm11lrflvvcl290lplhvbccv82utoej0lg0eomhmsf2vrv8af17k6if7ff98fp1b13rkseng3fng4stlr495c8dn3gn4k400
         |> : a -> (a ->{g} t) ->{g} t
         
+  1186.  -- ##IO.getEnvironment.impl.v1
+        builtin.io2.IO.getEnvironment.impl : '{IO} Either
+          Failure [(Text, Text)]
+
 ```

@@ -1083,6 +1083,8 @@ declareForeigns = do
 
   declareForeign Tracked 1 IO_getEnv_impl_v1
 
+  declareForeign Tracked 0 IO_getEnvironment_impl_v1
+
   declareForeign Tracked 0 IO_getArgs_impl_v1
 
   declareForeign Tracked 1 IO_isDirectory_impl_v3

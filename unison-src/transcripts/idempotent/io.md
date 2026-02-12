@@ -640,6 +640,39 @@ testGetEnv _ =
   Tip: Use view 1 to view the source of a test.
 ```
 
+### Read all environment variables
+
+``` unison :hide
+testGetEnvironment : '{io2.IO} [Result]
+testGetEnvironment _ =
+  find k kvs = List.filter (cases (x,y) -> x == k) kvs |> List.head
+  test = 'let
+    env = reraise (getEnvironment.impl ())
+    check "PATH environent variable should be set" (find "PATH" env |> isSome)
+    check "DOESNTEXIST didn't exist" (find "DOESNTEXIST" env |> isNone)
+  runTest test
+```
+
+``` ucm
+> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+> io.test testGetEnvironment
+
+    New test results:
+
+    1. testGetEnvironment   ◉ PATH environent variable should be set
+                            ◉ DOESNTEXIST didn't exist
+
+  ✅ 2 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+```
+
 ### Read command line args
 
 `runMeWithNoArgs`, `runMeWithOneArg`, and `runMeWithTwoArgs` raise exceptions
