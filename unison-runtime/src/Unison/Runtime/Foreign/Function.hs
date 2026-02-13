@@ -100,7 +100,7 @@ import Network.Socket as SYS
     sendBuf,
     socketPort,
   )
-import Network.TLS as TLS
+import Network.TLS as TLS hiding (HashAlgorithm (HashAlgorithm), defaultHooks)
 import Network.TLS.Extra.Cipher as Cipher
 import Network.UDP (UDPSocket)
 import Network.UDP as UDP
@@ -210,11 +210,6 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Util.Text.Pattern qualified as TPat
 import UnliftIO qualified
 
-withMutableByteArrayContents :: (PA.PrimBase m) => PA.MutableByteArray (PA.PrimState m) -> (Ptr Word8 -> m a) -> m a
-{-# INLINE withMutableByteArrayContents #-}
-withMutableByteArrayContents mba f =
-  PA.keepAlive mba (f . PA.mutableByteArrayContents)
-
 -- foreignCall is explicitly NOINLINE'd because it's a _huge_ chunk of code and negatively affects code caching.
 -- Because we're not inlining it, we need a wrapper using an explicitly unboxed Stack so we don't block the
 -- worker-wrapper optimizations in the main eval loop.
@@ -292,20 +287,23 @@ foreignCallHelper = \case
   IO_putBytes_impl_v3 -> mkForeignIOF $ \(h, bs) -> hPut h (Bytes.toArray bs)
   -- TODO: Use `PA.withMutableByteArrayContents` here once we have Data.Primitive v9.
   IO_fillBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
-    r <- checkBoundsPrim "IO.fillBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    sizeof <- PA.getSizeofMutableByteArray arr
+    r <- checkBoundsPrim "IO.fillBuf.impl.v1" sizeof n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-      Right _ -> withMutableByteArrayContents arr (\ptr -> hGetBuf h ptr (fromIntegral n))
+      Right _ -> PA.withMutableByteArrayContents arr (\ptr -> hGetBuf h ptr (fromIntegral n))
   IO_putBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
-    r <- checkBoundsPrim "IO.putBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    sizeof <- PA.getSizeofMutableByteArray arr
+    r <- checkBoundsPrim "IO.putBuf.impl.v1" sizeof n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-      Right _ -> withMutableByteArrayContents arr (\ptr -> hPutBuf h ptr (fromIntegral n))
+      Right _ -> PA.withMutableByteArrayContents arr (\ptr -> hPutBuf h ptr (fromIntegral n))
   IO_getBufSome_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
-    r <- checkBoundsPrim "IO.getBufSome.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    sizeof <- PA.getSizeofMutableByteArray arr
+    r <- checkBoundsPrim "IO.getBufSome.impl.v1" sizeof n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-      Right _ -> withMutableByteArrayContents arr (\ptr -> hGetBufSome h ptr (fromIntegral n))
+      Right _ -> PA.withMutableByteArrayContents arr (\ptr -> hGetBufSome h ptr (fromIntegral n))
   IO_systemTime_impl_v3 -> mkForeignIOF $
     \() -> getPOSIXTime
   IO_systemTimeMicroseconds_v1 -> mkForeign $
@@ -393,16 +391,18 @@ foreignCallHelper = \case
       maybe mempty Bytes.fromArray <$> SYS.recv hs n
   IO_socketSendBuf_impl_v1 -> mkForeignIOF $
     \(sk, buf, n) -> do
-      r <- checkBoundsPrim "IO.socketSendBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
+      sizeof <- PA.getSizeofMutableByteArray buf
+      r <- checkBoundsPrim "IO.socketSendBuf.impl.v1" sizeof n 0 . pure $ Right ()
       case r of
         Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-        Right _ -> withMutableByteArrayContents buf (\ptr -> SYS.sendBuf sk ptr (fromIntegral n))
+        Right _ -> PA.withMutableByteArrayContents buf (\ptr -> SYS.sendBuf sk ptr (fromIntegral n))
   IO_socketReceiveBuf_impl_v1 -> mkForeignIOF $
     \(sk, buf, n) -> do
-      r <- checkBoundsPrim "IO.socketReceiveBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
+      sizeof <- PA.getSizeofMutableByteArray buf
+      r <- checkBoundsPrim "IO.socketReceiveBuf.impl.v1" sizeof n 0 . pure $ Right ()
       case r of
         Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-        Right _ -> withMutableByteArrayContents buf (\ptr -> SYS.recvBuf sk ptr (fromIntegral n))
+        Right _ -> PA.withMutableByteArrayContents buf (\ptr -> SYS.recvBuf sk ptr (fromIntegral n))
   IO_kill_impl_v3 -> mkForeignIOF killThread
   IO_delay_impl_v3 -> mkForeignIOF customDelay
   IO_stdHandle -> mkForeign $
@@ -724,9 +724,11 @@ foreignCallHelper = \case
       let name = "MutableByteArray.copyTo!"
        in if l == 0
             then pure (Right ())
-            else
-              checkBoundsPrim name (PA.sizeofMutableByteArray dst) (doff + l) 0 $
-                checkBoundsPrim name (PA.sizeofMutableByteArray src) (soff + l) 0 $
+            else do
+              sizeofDst <- PA.getSizeofMutableByteArray dst
+              sizeofSrc <- PA.getSizeofMutableByteArray src
+              checkBoundsPrim name sizeofDst (doff + l) 0 $
+                checkBoundsPrim name sizeofSrc (soff + l) 0 $
                   Right
                     <$> PA.copyMutableByteArray @IO
                       dst
@@ -760,14 +762,15 @@ foreignCallHelper = \case
       pure . fromIntegral @Int @Word64 . PA.sizeofByteArray
   MutableByteArray_size ->
     mkForeign $
-      pure . fromIntegral @Int @Word64 . PA.sizeofMutableByteArray @PA.RealWorld
+      fmap (fromIntegral @Int @Word64) . PA.getSizeofMutableByteArray
   ImmutableByteArray_copyTo_force -> mkForeignExn $
     \(dst, doff, src, soff, l) ->
       let name = "ImmutableByteArray.copyTo!"
        in if l == 0
             then pure (Right ())
-            else
-              checkBoundsPrim name (PA.sizeofMutableByteArray dst) (doff + l) 0 $
+            else do
+              sizeofDst <- PA.getSizeofMutableByteArray dst
+              checkBoundsPrim name sizeofDst (doff + l) 0 $
                 checkBoundsPrim name (PA.sizeofByteArray src) (soff + l) 0 $
                   Right
                     <$> PA.copyByteArray @IO
@@ -881,13 +884,10 @@ foreignCallHelper = \case
     \(src, off, len) ->
       if len == 0
         then fmap Right . PA.unsafeFreezeByteArray =<< PA.newByteArray 0
-        else
-          checkBoundsPrim
-            "MutableByteArray.freeze"
-            (PA.sizeofMutableByteArray src)
-            (off + len)
-            0
-            $ Right <$> PA.freezeByteArray src (fromIntegral off) (fromIntegral len)
+        else do
+          sizeof <- PA.getSizeofMutableByteArray src
+          checkBoundsPrim "MutableByteArray.freeze" sizeof (off + len) 0 $
+            Right <$> PA.freezeByteArray src (fromIntegral off) (fromIntegral len)
   MutableArray_freeze -> mkForeignExn $
     \(src :: PA.MutableArray PA.RealWorld Val, off, len) ->
       if len == 0
@@ -900,7 +900,7 @@ foreignCallHelper = \case
             $ Right <$> PA.freezeArray src (fromIntegral off) (fromIntegral len)
   MutableByteArray_length ->
     mkForeign $
-      pure . PA.sizeofMutableByteArray @PA.RealWorld
+      PA.getSizeofMutableByteArray
   ImmutableByteArray_length ->
     mkForeign $
       pure . PA.sizeofByteArray
@@ -1683,8 +1683,9 @@ checkedIndex name (arr, w) =
     (Right <$> PA.indexArrayM arr (fromIntegral w))
 
 checkedRead8 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead8 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $
+checkedRead8 name (arr, i) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof i 1 $
     Right . fromIntegral <$> PA.readByteArray @Word8 arr j
   where
     j = fromIntegral i
@@ -1712,8 +1713,9 @@ checkedRead16 ::
   Text ->
   (PA.MutableByteArray RW, Word64) -> -- (array, byte offset)
   IO (Either Failure Word64)
-checkedRead16 byteOrder name (arr, iW) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 2 $ do
+checkedRead16 byteOrder name (arr, iW) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 2 $ do
     let !off = fromIntegral iW :: Int
     w <- uncheckedRead16 byteOrder arr off
     pure $ Right (fromIntegral w)
@@ -1723,8 +1725,9 @@ checkedRead24 ::
   Text ->
   (PA.MutableByteArray RW, Word64) ->
   IO (Either Failure Word64)
-checkedRead24 byteOrder name (arr, iW) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 3 $ do
+checkedRead24 byteOrder name (arr, iW) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 3 $ do
     let !off = fromIntegral iW :: Int
     w16 <- uncheckedRead16 byteOrder arr off
     w8 <- PA.readByteArray @Word8 arr (off + 2)
@@ -1753,15 +1756,17 @@ uncheckedRead32 byteOrder arr off = do
   pure (fixEndianness w)
 
 checkedRead32 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead32 byteOrder name (arr, iW) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 4 $ do
+checkedRead32 byteOrder name (arr, iW) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 4 $ do
     let !off = fromIntegral iW :: Int
     w <- uncheckedRead32 byteOrder arr off
     pure $ Right (fromIntegral w)
 
 checkedRead40 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead40 byteOrder name (arr, iW) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 5 $ do
+checkedRead40 byteOrder name (arr, iW) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 5 $ do
     let !off = fromIntegral iW :: Int
     w32 <- uncheckedRead32 byteOrder arr off
     w8 <- PA.readByteArray @Word8 arr (off + 4)
@@ -1772,8 +1777,9 @@ checkedRead40 byteOrder name (arr, iW) =
     pure $ Right result
 
 checkedRead64 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead64 byteOrder name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $ do
+checkedRead64 byteOrder name (arr, i) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof i 8 $ do
     let !off = fromIntegral i :: Int
         fixEndianness :: Word64 -> Word64
         fixEndianness w =
@@ -1788,16 +1794,18 @@ checkedRead64 byteOrder name (arr, i) =
     pure $ Right (fromIntegral (fixEndianness w))
 
 checkedWrite8 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite8 name (arr, i, v) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $ do
+checkedWrite8 name (arr, i, v) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof i 1 $ do
     PA.writeByteArray arr j (fromIntegral v :: Word8)
     pure (Right ())
   where
     j = fromIntegral i
 
 checkedWrite16 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite16 byteOrder name (arr, iW, v0) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 2 $ do
+checkedWrite16 byteOrder name (arr, iW, v0) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 2 $ do
     let !off = fromIntegral iW :: Int
         !vBE =
           if targetByteOrder == byteOrder
@@ -1814,8 +1822,9 @@ checkedWrite16 byteOrder name (arr, iW, v0) =
     pure (Right ())
 
 checkedWrite32 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite32 byteOrder name (arr, iW, v0) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 4 $ do
+checkedWrite32 byteOrder name (arr, iW, v0) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 4 $ do
     let !off = fromIntegral iW :: Int
         !vBE =
           if targetByteOrder == byteOrder
@@ -1832,8 +1841,9 @@ checkedWrite32 byteOrder name (arr, iW, v0) =
     pure (Right ())
 
 checkedWrite64 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite64 byteOrder name (arr, iW, v0) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 8 $ do
+checkedWrite64 byteOrder name (arr, iW, v0) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 8 $ do
     let !off = fromIntegral iW :: Int
         !vBE =
           if targetByteOrder == byteOrder
@@ -1947,12 +1957,26 @@ checkedIndex64 byteOrder name (arr, i) =
 
 -- JSON replacement implementations
 jsonNull, jsonTrue, jsonFalse :: Val
+jsonArr, jsonObj :: Seq Val -> Val
+-- Avro replacement implementations
+avroNull, avroTrue, avroFalse :: Val
+no'buf, line'buf, block'buf :: Closure
+read'mode, write'mode, append'mode, read'write'mode :: Closure
+absolute'seek, relative'seek, seek'from'end :: Closure
+std'in, std'out, std'err :: Closure
+-- Built at the same time to attempt to share references.
+functionReplacements, functionUnreplacements :: Map Reference Reference
+(functionReplacements, functionUnreplacements) =
+  (Map.fromList processed, Map.fromList $ swap <$> processed)
+  where
+    swap (x, y) = (y, x)
+    processed = process <$> functionReplacementList
 jsonNull = BoxedVal $ Enum Ty.jsonRef TT.jsonNullTag
 jsonTrue = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal True
 jsonFalse = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal False
 
-jsonArr, jsonObj :: Seq Val -> Val
 jsonArr sq = BoxedVal . Data1 Ty.jsonRef TT.jsonArrTag $ encodeVal sq
+
 jsonObj sq = BoxedVal . Data1 Ty.jsonRef TT.jsonObjTag $ encodeVal sq
 
 jsonNum :: TL.Text -> Val
@@ -2158,7 +2182,7 @@ emitJson :: Closure -> IO Text
 emitJson =
   evaluate . Util.Text.fromTextUnchunked . TB.toText . emitJson0
 
-emitJson0 :: Closure -> TB.StrictBuilder
+emitJson0 :: Closure -> TB.StrictTextBuilder
 emitJson0 = \case
   Enum _ t
     | TT.jsonNullTag == t -> TB.fromText "null"
@@ -2232,10 +2256,10 @@ emitJson0 = \case
             | ord c <= 31 = TB.fromText "\\u00" <> hexCode c
             | otherwise = TB.fromChar c
 
--- Avro replacement implementations
-avroNull, avroTrue, avroFalse :: Val
 avroNull = BoxedVal $ Enum Ty.avroRef TT.avroNullTag
+
 avroTrue = BoxedVal $ Data1 Ty.avroRef TT.avroBooleanTag $ BoolVal True
+
 avroFalse = BoxedVal $ Data1 Ty.avroRef TT.avroBooleanTag $ BoolVal False
 
 avroDecodeReadSchema :: Closure -> IO Avro.ReadSchema
@@ -3125,9 +3149,10 @@ encodeBufferMode (BlockBuffering Nothing) = block'buf
 encodeBufferMode (BlockBuffering (Just n)) =
   Data1 Ty.bufferModeRef TT.sizedBlockBufTag . NatVal $ fromIntegral n
 
-no'buf, line'buf, block'buf :: Closure
 no'buf = Enum Ty.bufferModeRef TT.noBufTag
+
 line'buf = Enum Ty.bufferModeRef TT.lineBufTag
+
 block'buf = Enum Ty.bufferModeRef TT.blockBufTag
 
 instance ForeignConvention BufferMode where
@@ -3153,10 +3178,12 @@ encodeIOMode WriteMode = write'mode
 encodeIOMode AppendMode = append'mode
 encodeIOMode ReadWriteMode = read'write'mode
 
-read'mode, write'mode, append'mode, read'write'mode :: Closure
 read'mode = Enum Ty.bufferModeRef TT.readModeTag
+
 write'mode = Enum Ty.bufferModeRef TT.writeModeTag
+
 append'mode = Enum Ty.bufferModeRef TT.appendModeTag
+
 read'write'mode = Enum Ty.bufferModeRef TT.readWriteModeTag
 
 instance ForeignConvention IOMode where
@@ -3180,9 +3207,10 @@ encodeSeekMode AbsoluteSeek = absolute'seek
 encodeSeekMode RelativeSeek = relative'seek
 encodeSeekMode SeekFromEnd = seek'from'end
 
-absolute'seek, relative'seek, seek'from'end :: Closure
 absolute'seek = Enum Ty.seekModeRef TT.seekAbsoluteTag
+
 relative'seek = Enum Ty.seekModeRef TT.seekRelativeTag
+
 seek'from'end = Enum Ty.seekModeRef TT.seekEndTag
 
 instance ForeignConvention SeekMode where
@@ -3208,9 +3236,10 @@ encodeStdHnd StdIn = std'in
 encodeStdHnd StdOut = std'out
 encodeStdHnd StdErr = std'err
 
-std'in, std'out, std'err :: Closure
 std'in = Enum Ty.stdHandleRef TT.stdInTag
+
 std'out = Enum Ty.stdHandleRef TT.stdOutTag
+
 std'err = Enum Ty.stdHandleRef TT.stdErrTag
 
 instance ForeignConvention StdHnd where
@@ -3533,14 +3562,6 @@ functionReplacementList =
       Bytes_read64be
     )
   ]
-
--- Built at the same time to attempt to share references.
-functionReplacements, functionUnreplacements :: Map Reference Reference
-(functionReplacements, functionUnreplacements) =
-  (Map.fromList processed, Map.fromList $ swap <$> processed)
-  where
-    swap (x, y) = (y, x)
-    processed = process <$> functionReplacementList
 
 -- Note: using index 0 right now. Generalize if ever replacing
 -- part of a mutually recursive group.

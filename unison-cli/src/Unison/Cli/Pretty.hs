@@ -60,7 +60,6 @@ import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, hum
 import Network.URI (URI)
 import Network.URI qualified as URI
 import U.Codebase.HashTags (CausalHash (..))
-import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Util.Base32Hex (Base32Hex)
@@ -99,7 +98,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectName, Semver (..))
-import Unison.Reference (Reference)
+import Unison.Reference (TermReference, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.SearchResultPrime qualified as SR'
@@ -305,7 +304,7 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
 
 prettyDeclTriple ::
   (Var v) =>
-  (HQ.HashQualified Name, Reference.Reference, DisplayObject () (DD.Decl v a)) ->
+  (HQ.HashQualified Name, TypeReference, DisplayObject () (DD.Decl v a)) ->
   Pretty
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
   BuiltinObject _ -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
@@ -315,7 +314,7 @@ prettyDeclTriple (name, _, displayDecl) = case displayDecl of
 prettyDeclPair ::
   (Var v) =>
   PPE.PrettyPrintEnv ->
-  (Reference, DisplayObject () (DD.Decl v a)) ->
+  (TypeReference, DisplayObject () (DD.Decl v a)) ->
   Pretty
 prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
 
@@ -324,7 +323,7 @@ prettyTermName ppe r =
   P.syntaxToColor $
     prettyHashQualified (PPE.termName ppe r)
 
-prettyTypeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
+prettyTypeName :: PPE.PrettyPrintEnv -> TypeReference -> Pretty
 prettyTypeName ppe r =
   P.syntaxToColor $
     prettyHashQualified (PPE.typeName ppe r)
@@ -400,7 +399,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     prettyTerms = Map.foldrWithKey (\k v -> (prettyTerm accessorNames k v :)) [] terms
     prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
 
-    prettyEffectDecl :: (v, (Reference.Id, DD.EffectDeclaration v a)) -> (a, P.Pretty P.ColorText)
+    prettyEffectDecl :: (v, (TypeReferenceId, DD.EffectDeclaration v a)) -> (a, P.Pretty P.ColorText)
     prettyEffectDecl (n, (r, et)) =
       ( DD.annotation . DD.toDataDecl $ et,
         st $
@@ -411,7 +410,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
             (hqv n)
             (Left et)
       )
-    prettyDataDecl :: (v, (Reference.Id, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, P.Pretty P.ColorText)
+    prettyDataDecl :: (v, (TypeReferenceId, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, P.Pretty P.ColorText)
     prettyDataDecl (n, (r, dt)) =
       (DD.annotation dt,) . st
         <$> DeclPrinter.prettyDeclW
@@ -452,7 +451,7 @@ prettyTerm ::
   PPED.PrettyPrintEnvDecl ->
   Bool {- whether we're printing to a source-file or not. -} ->
   Bool {- Whether the term is a test -} ->
-  (HQ.HashQualified Name, Reference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
+  (HQ.HashQualified Name, TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   P.Pretty SyntaxText
 prettyTerm pped isSourceFile isTest (n, r, dt) =
   case dt of
@@ -473,7 +472,7 @@ prettyTerm pped isSourceFile isTest (n, r, dt) =
         else txt
     ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE pped r
 
-prettyType :: PPED.PrettyPrintEnvDecl -> (HQ.HashQualified Name, Reference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText
+prettyType :: PPED.PrettyPrintEnvDecl -> (HQ.HashQualified Name, TypeReference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText
 prettyType pped (n, r, dt) =
   case dt of
     MissingObject r -> missingDefinitionMsg n r

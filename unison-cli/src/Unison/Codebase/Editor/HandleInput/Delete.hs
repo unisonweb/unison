@@ -14,7 +14,7 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
-import Text.Builder qualified
+import TextBuilder qualified
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import Unison.Cli.Monad (Cli)
@@ -207,7 +207,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
           ( ProjectUtils.findTemporaryBranchName
               projectAndBranch.project.projectId
               ( ("update-" <> projectBranchNameToValidProjectBranchNameText projectAndBranch.branch.name)
-                  & Text.Builder.run
+                  & TextBuilder.toText
                   & unsafeFrom @Text
               )
           )

@@ -11,62 +11,52 @@
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    haskellNix.url = "github:input-output-hk/haskell.nix";
-    nixpkgs.follows = "haskellNix/nixpkgs-unstable";
-    nixpkgs-release.url = "github:NixOS/nixpkgs/release-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-25.11-darwin";
+    stacklock2nix.url = "github:cdepillabout/stacklock2nix/v5.2.1";
     systems.follows = "flake-utils/systems";
   };
 
   outputs = {
     flake-utils,
-    haskellNix,
     nixpkgs,
-    nixpkgs-release,
     self,
     systems,
+    stacklock2nix,
   }:
     flake-utils.lib.eachSystem (import systems)
     (system: let
       versions = import ./nix/versions.nix {inherit (nixpkgs) lib;};
-      pkgs = import nixpkgs {
-        inherit system;
-        inherit (haskellNix) config;
-        overlays = [
-          haskellNix.overlay
-          (import ./nix/dependencies.nix {nixpkgs = nixpkgs-release;})
-        ];
-      };
-      unison-project = import ./nix/unison-project.nix {
-        inherit (nixpkgs) lib;
-        inherit (pkgs) haskell-nix;
-      };
-      haskell-nix-flake = import ./nix/haskell-nix-flake.nix {
-        inherit pkgs unison-project versions;
-        inherit (nixpkgs) lib;
-      };
-      renameAttrs = fn:
-        nixpkgs.lib.mapAttrs' (name: value: {
-          inherit value;
-          name = fn name;
-        });
+      pkgs = nixpkgs.legacyPackages.${system}.appendOverlays [
+        stacklock2nix.overlay
+        (import ./nix/dependencies.nix)
+      ];
+      unisonProject = import ./nix/unison-project.nix {inherit pkgs;};
+      unisonPkgs = builtins.listToAttrs (map (pkg: {
+          name = pkg.pname;
+          value = pkg;
+        })
+        (unisonProject.localPkgsSelector unisonProject.pkgSet));
     in
-      assert pkgs.stack.version == versions.stack; {
+      ## These ensure that our version files reflect the versions we actually use in Nix. In future: generate the
+      ## version files _from_ Nix.
+      assert pkgs.cabal-install.version == versions.cabal;
+      assert pkgs.haskell-language-server.version == versions.hls;
+      assert pkgs.hpack.version == versions.hpack;
+      assert pkgs.ormolu.version == versions.ormolu;
+      assert pkgs.stack.version == versions.stack;
+      assert pkgs.haskellPackages.weeder.version == versions.weeder; {
         packages =
-          renameAttrs (name: "component-${name}") haskell-nix-flake.packages
-          // renameAttrs (name: "docker-${name}") (import ./nix/docker.nix {
-            inherit pkgs;
-            haskell-nix = haskell-nix-flake.packages;
-          })
+          unisonPkgs
           // {
-            default = haskell-nix-flake.defaultPackage;
+            default = unisonPkgs.unison-cli-main;
+            docker-ucm = pkgs.callPackage ./nix/docker.nix {inherit unisonPkgs;};
             all = pkgs.symlinkJoin {
               name = "all";
               paths = let
-                all-other-packages =
-                  builtins.attrValues (builtins.removeAttrs self.packages."${system}" [
-                    "all"
-                    "docker-ucm" # this package doesn’t produce a directory
-                  ]);
+                all-other-packages = builtins.attrValues (builtins.removeAttrs self.packages."${system}" [
+                  "all"
+                  "docker-ucm" # this package doesn’t produce a directory
+                ]);
                 devshell-inputs =
                   builtins.concatMap
                   (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs)
@@ -76,15 +66,7 @@
             };
           };
 
-        apps =
-          renameAttrs (name: "component-${name}") haskell-nix-flake.apps
-          // {default = self.apps."${system}"."component-unison-cli-main:exe:unison";};
-
-        devShells =
-          renameAttrs (name: "cabal-${name}") haskell-nix-flake.devShells
-          // {default = self.devShells."${system}".cabal-local;};
-
-        checks = renameAttrs (name: "component-${name}") haskell-nix-flake.checks;
+        devShells.default = unisonProject.devShell;
 
         formatter = pkgs.alejandra;
       });

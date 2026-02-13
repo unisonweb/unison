@@ -325,17 +325,17 @@ toSlurpResult uf requestedVar involvedVars fileNames codebaseNames selfStatuses 
               then SR.AddAliases aliasesOfNew
               else SR.UpdateAliases aliasesOfOld aliasesOfNew
           )
-          | (n, r@Referent.Ref {}) <- Rel.toList namesFromFile,
-            -- All the refs whose names include `n`, and are not `r`
-            let refs = Set.delete r $ Rel.lookupDom n existingNames
-                aliasesOfNew =
-                  Set.delete n $
-                    Rel.lookupRan r existingNames
-                aliasesOfOld =
-                  Set.delete n . Rel.dom $
-                    Rel.restrictRan existingNames refs,
-            not (null aliasesOfNew && null aliasesOfOld),
-            Set.notMember (Name.toVar n) dups
+        | (n, r@Referent.Ref {}) <- Rel.toList namesFromFile,
+          -- All the refs whose names include `n`, and are not `r`
+          let refs = Set.delete r $ Rel.lookupDom n existingNames
+              aliasesOfNew =
+                Set.delete n $
+                  Rel.lookupRan r existingNames
+              aliasesOfOld =
+                Set.delete n . Rel.dom $
+                  Rel.restrictRan existingNames refs,
+          not (null aliasesOfNew && null aliasesOfOld),
+          Set.notMember (Name.toVar n) dups
         ]
 
     termAliases :: Map Symbol SR.Aliases

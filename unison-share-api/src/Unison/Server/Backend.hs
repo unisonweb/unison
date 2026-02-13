@@ -607,9 +607,11 @@ hqNameQuery ::
   Codebase m v Ann ->
   NameSearch Sqlite.Transaction ->
   Names.SearchType ->
-  [HQ.HashQualified Name] ->
+  Set (HQ.HashQualified Name) ->
   Sqlite.Transaction QueryResult
-hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqs = do
+hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqsSet = do
+  let hqs = Set.toList hqsSet
+
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hashes, hqnames) = partitionEithers (map HQ'.fromHQ hqs)
   -- Find the terms with those hashes.
@@ -634,7 +636,7 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqs = do
         (\(sh, tps) -> mkTypeResult sh <$> toList tps) <$> typeRefs
 
   -- Now do the actual name query
-  resultss <- for hqnames (\name -> liftA2 (<>) (applySearch typeSearch searchType name) (applySearch termSearch searchType name))
+  resultss <- for hqnames \name -> liftA2 (<>) (applySearch typeSearch searchType name) (applySearch termSearch searchType name)
   let (misses, hits) =
         zipWith
           ( \hqname results ->
@@ -646,8 +648,8 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqs = do
       -- Handle query misses correctly
       missingRefs =
         [ HQ.HashOnly x
-          | x <- hashes,
-            isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
+        | x <- hashes,
+          isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
         ]
       -- Gather the results
       results =
@@ -1033,7 +1035,7 @@ definitionsByName ::
   NameSearch Sqlite.Transaction ->
   IncludeCycles ->
   Names.SearchType ->
-  [HQ.HashQualified Name] ->
+  Set (HQ.HashQualified Name) ->
   Sqlite.Transaction DefinitionResults
 definitionsByName codebase nameSearch includeCycles searchType query = do
   QueryResult misses results <- hqNameQuery codebase nameSearch searchType query

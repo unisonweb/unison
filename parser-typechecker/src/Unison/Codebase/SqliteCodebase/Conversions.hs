@@ -439,26 +439,26 @@ causalbranch1to2 (V1.Branch.Branch c) =
         doTerms s =
           Map.fromList
             [ (ns, m2)
-              | ns <- toList . Relation.ran $ V1.Star2.d1 s,
-                let m2 =
-                      Map.fromList
-                        [ (referent1to2 r, pure md)
-                          | r <- toList . Relation.lookupRan ns $ V1.Star2.d1 s,
-                            let md = V2.Branch.MdValues . Set.map reference1to2 . Relation.lookupDom r $ V1.Star2.d2 s
-                        ]
+            | ns <- toList . Relation.ran $ V1.Star2.d1 s,
+              let m2 =
+                    Map.fromList
+                      [ (referent1to2 r, pure md)
+                      | r <- toList . Relation.lookupRan ns $ V1.Star2.d1 s,
+                        let md = V2.Branch.MdValues . Set.map reference1to2 . Relation.lookupDom r $ V1.Star2.d2 s
+                      ]
             ]
 
         doTypes :: V1.Branch.Star V1.Reference.Reference NameSegment -> Map NameSegment (Map V2.Reference.Reference (m V2.Branch.MdValues))
         doTypes s =
           Map.fromList
             [ (ns, m2)
-              | ns <- toList . Relation.ran $ V1.Star2.d1 s,
-                let m2 =
-                      Map.fromList
-                        [ (reference1to2 r, pure md)
-                          | r <- toList . Relation.lookupRan ns $ V1.Star2.d1 s,
-                            let md = V2.Branch.MdValues . Set.map reference1to2 . Relation.lookupDom r $ V1.Star2.d2 s
-                        ]
+            | ns <- toList . Relation.ran $ V1.Star2.d1 s,
+              let m2 =
+                    Map.fromList
+                      [ (reference1to2 r, pure md)
+                      | r <- toList . Relation.lookupRan ns $ V1.Star2.d1 s,
+                        let md = V2.Branch.MdValues . Set.map reference1to2 . Relation.lookupDom r $ V1.Star2.d2 s
+                      ]
             ]
 
         doPatches :: Map NameSegment (PatchHash, m V1.Patch) -> Map NameSegment (PatchHash, m V2.Branch.Patch)

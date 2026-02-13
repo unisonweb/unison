@@ -35,7 +35,7 @@ import Unison.Var qualified as Var
 import UnliftIO qualified
 
 -- | Hover help handler
-hoverHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentHover -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentHover) -> Lsp ()) -> Lsp ()
+hoverHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentHover -> (Either (Msg.TResponseError m) (Msg.MessageResult 'Msg.Method_TextDocumentHover) -> Lsp ()) -> Lsp ()
 hoverHandler m respond = do
   respond . Right . maybe (InR Null) InL =<< runMaybeT do
     let pos = (m ^. params . position)

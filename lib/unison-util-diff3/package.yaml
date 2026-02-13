@@ -1,0 +1,62 @@
+name: unison-util-diff3
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2026 Unison Computing, PBC and contributors
+
+library:
+  source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_prelude
+  dependencies:
+    - Diff
+    - base
+
+tests:
+  util-diff3-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_diff3
+    dependencies:
+      - base
+      - containers
+      - directory
+      - filepath
+      - text
+      - unison-prelude
+      - unison-util-diff3
+    main: Main.hs
+    source-dirs: test
+
+ghc-options:
+  -Wall
+
+default-extensions:
+  - BangPatterns
+  - BlockArguments
+  - ConstraintKinds
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - NumericUnderscores
+  - OverloadedLabels
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - ViewPatterns

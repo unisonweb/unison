@@ -13,7 +13,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
 import Data.Text qualified as Text
-import Data.Text.Utf16.Rope qualified as Rope
+import Data.Text.Utf16.Rope.Mixed qualified as Rope
 import Language.LSP.Logging qualified as LSP
 import Language.LSP.Protocol.Lens (HasCharacter (character), HasParams (params), HasTextDocument (textDocument), HasUri (uri))
 import Language.LSP.Protocol.Lens qualified as LSP
@@ -22,6 +22,7 @@ import Language.LSP.Protocol.Types
 import Language.LSP.VFS as VFS hiding (character)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
+import Unison.LSP.VFS.CompletionPrefix as VFS
 import Unison.Prelude
 import Unison.Syntax.Lexer qualified as Lexer
 import UnliftIO

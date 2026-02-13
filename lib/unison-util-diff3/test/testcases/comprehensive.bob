@@ -1,0 +1,15 @@
+foo : Nat -> Nat ->{IO} Nat
+foo x y =
+  -- begin doing stuff
+  -- new comment
+  log x
+  -- compute y
+  y = x + 1
+  -- i do like turtles
+  -- compute z
+  z = 0;
+  -- output stuff
+  display y
+  print z
+  -- done!
+  y

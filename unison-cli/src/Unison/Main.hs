@@ -518,9 +518,8 @@ runTranscripts' version progName transcriptDir markdownFiles = do
       SC.BlockUntilLock
       (SC.MigrateAutomatically SC.Backup SC.Vacuum)
       \(_, codebasePath, theCodebase) -> do
-        let isTest = False
         Transcript.withRunner
-          isTest
+          Transcript.defaultConfig
           Verbosity.Verbose
           (Version.gitDescribeWithDate version)
           \runTranscript -> do

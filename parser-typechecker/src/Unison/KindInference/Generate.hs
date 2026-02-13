@@ -31,6 +31,7 @@ import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Util.Recursion
 import Unison.Var (Type (User), Var (typed), freshIn)
+import Prelude hiding (unzip)
 
 --------------------------------------------------------------------------------
 -- Constraints arising from Types
