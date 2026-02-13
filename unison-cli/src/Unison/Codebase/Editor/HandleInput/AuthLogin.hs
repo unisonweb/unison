@@ -55,9 +55,10 @@ ucmOAuthClientID = "ucm"
 ensureAuthenticatedWithCodeserver :: CodeserverURI -> Cli UserInfo
 ensureAuthenticatedWithCodeserver codeserverURI = do
   Cli.Env {credentialManager} <- ask
-  getCodeserverCredentials credentialManager (codeserverIdFromCodeserverURI codeserverURI) >>= \case
-    Right (CodeserverCredentials {userInfo}) -> pure userInfo
-    Left _ -> authLogin codeserverURI
+  either (const $ authLogin codeserverURI) (\CodeserverCredentials {userInfo} -> pure userInfo)
+    <=< liftIO
+    . getCodeserverCredentials credentialManager
+    $ codeserverIdFromCodeserverURI codeserverURI
 
 -- | Direct the user through an authentication flow with the given server and store the credentials in the provided
 -- credential manager.

@@ -1,0 +1,387 @@
+name: test
+
+# Reusable workflow for running tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      transcripts-os:
+        description: JSON array of OSes for transcripts
+        type: string
+        default: '["ubuntu-24.04"]'
+      dll-ffi-os:
+        description: JSON array of OSes for dll-ffi tests
+        type: string
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-latest","windows-2025"]'
+      interpreter-tests-os:
+        description: JSON array of OSes for interpreter tests
+        type: string
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-latest"]'
+      skip-attested-transcripts:
+        description: Skip transcripts if proof attestation is valid
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check out (defaults to github.ref)
+        type: string
+      transcripts-os:
+        description: JSON array of OSes for transcripts
+        type: string
+        default: '["ubuntu-24.04"]'
+      dll-ffi-os:
+        description: JSON array of OSes for dll-ffi tests
+        type: string
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-latest","windows-2025"]'
+      interpreter-tests-os:
+        description: JSON array of OSes for interpreter tests (excludes windows by default)
+        type: string
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-latest"]'
+      skip-attested-transcripts:
+        description: Skip transcripts if proof attestation is valid
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  ucm_local_bin: ucm-local-bin
+
+jobs:
+  check-proofs:
+    name: check proofs
+    if: inputs.skip-attested-transcripts
+    runs-on: ubuntu-24.04
+    outputs:
+      transcripts-attested: ${{ steps.check.outputs.attested }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - run: sudo apt-get install -y ripgrep
+      - name: check transcript proof
+        id: check
+        run: |
+          RESULT=$(./scripts/proofs/transcripts.sh --check)
+          echo "Transcript proof: $RESULT"
+          if [[ "$RESULT" == "pass" ]]; then
+            echo "attested=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$RESULT" == "fail" ]]; then
+            echo "::error::Transcripts previously failed for this hash"
+            exit 1
+          else
+            echo "attested=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-ucm:
+    name: build ucm (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ${{ fromJSON(inputs.dll-ffi-os) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: tweak environment
+        run: |
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
+            echo "transcripts=$ucm_local_bin/transcripts.exe" >> $GITHUB_ENV
+          else
+            echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
+            echo "transcripts=$ucm_local_bin/transcripts" >> $GITHUB_ENV
+          fi
+
+      - name: cache ucm binaries
+        id: cache-ucm-binaries
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
+        with:
+          path: ${{env.ucm_local_bin}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/test.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs', '**/unison-cli-integration/integration-tests/IntegrationTests/*')}}
+
+      - name: restore stack caches
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        id: restore-stack-caches
+        uses: unisonweb/actions/stack/cache/restore@main
+        with:
+          cache-prefix: ci
+
+      - name: install stack
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        uses: unisonweb/actions/stack/install@main
+        with:
+          stack-version: 3.7.1
+
+      - name: build dependencies
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: |
+          stack --version
+          tries=1
+          if [[ ${{matrix.os}} = "windows-"* ]]; then
+            tries=5
+          fi
+
+          for (( i = 0; i < $tries; i++ )); do
+              stack build --fast --only-dependencies --test --bench && break;
+          done
+
+      - name: build
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: |
+          stack build \
+            --fast \
+            --test \
+            --no-run-tests \
+            --local-bin-path ${{env.ucm_local_bin}} \
+            --copy-bins
+
+      - name: set git user info
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: unison-cli test
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-cli
+
+      - name: unison-core tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-core
+
+      - name: unison-parser-typechecker tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-parser-typechecker
+
+      - name: unison-sqlite tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-sqlite
+
+      - name: unison-syntax tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-syntax
+
+      - name: unison-util-bytes tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-util-bytes
+
+      - name: unison-util-cache tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-util-cache
+
+      - name: unison-util-relation tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-util-relation
+
+      - name: cli-integration-tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: |
+          stack exec cli-integration-tests
+          git diff --ignore-cr-at-eol --exit-code unison-cli-integration/integration-tests
+
+      - name: save built binaries
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          path: ${{ env.ucm_local_bin }}
+          name: local-bin-${{ matrix.os }}
+          if-no-files-found: error
+
+      - name: save stack caches
+        if: |
+          !cancelled()
+            && steps.restore-stack-caches.outputs.cache-hit != 'true'
+            && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        uses: unisonweb/actions/stack/cache/save@main
+        with:
+          cache-prefix: ci
+
+  transcripts:
+    name: transcripts (${{ matrix.os }})
+    needs: [build-ucm, check-proofs]
+    if: |
+      !cancelled()
+        && needs.build-ucm.result == 'success'
+        && needs.check-proofs.outputs.transcripts-attested != 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ${{ fromJSON(inputs.transcripts-os) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: tweak environment
+        run: |
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
+            echo "transcripts=$ucm_local_bin/transcripts.exe" >> $GITHUB_ENV
+          else
+            echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
+            echo "transcripts=$ucm_local_bin/transcripts" >> $GITHUB_ENV
+          fi
+
+      - name: restore binaries
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
+        with:
+          path: ${{env.ucm_local_bin}}
+          name: local-bin-${{ matrix.os }}
+
+      - name: set built binaries permissions
+        run: chmod +x ${{env.ucm_local_bin}}/*
+
+      - name: set git user info
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: round-trip tests
+        run: |
+          ${{env.ucm}} transcript unison-src/transcripts-round-trip/main.md
+          ${{env.ucm}} transcript unison-src/transcripts-manual/rewrites.md
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-round-trip/main.output.md \
+            unison-src/transcripts-manual/rewrites.output.md
+
+      - name: transcripts
+        run: |
+          ${{env.transcripts}}
+          git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
+
+      - name: docs.to-html
+        run: |
+          ${{env.ucm}} transcript unison-src/transcripts-manual/docs.to-html.md
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/docs.to-html.output.md \
+            unison-src/transcripts-manual/docs.to-html
+
+      - name: fix5507 regression test
+        run: |
+          ${{env.ucm}} transcript unison-src/tests/fix5507.md
+          ${{env.ucm}} run.compiled fix5507.uc
+
+  dll-ffi:
+    name: dll-ffi (${{ matrix.os }})
+    needs: build-ucm
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ${{ fromJSON(inputs.dll-ffi-os) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: tweak environment
+        run: |
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
+          else
+            echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
+          fi
+
+      - name: restore binaries
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
+        with:
+          path: ${{env.ucm_local_bin}}
+          name: local-bin-${{matrix.os}}
+
+      - name: set built binaries permissions
+        run: chmod +x ${{env.ucm_local_bin}}/*
+
+      - name: dll-ffi-unix smoke tests
+        if: runner.os != 'Windows'
+        run: |
+          clang -fPIC -c -o \
+            unison-src/transcripts-manual/dll-ffi/test.o \
+            unison-src/transcripts-manual/dll-ffi/test.c
+
+          clang -shared -o \
+            unison-src/transcripts-manual/dll-ffi/libtest.so \
+            unison-src/transcripts-manual/dll-ffi/test.o
+
+          ${{env.ucm}} transcript unison-src/transcripts-manual/dll-ffi-unix.md
+
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/dll-ffi-unix.output.md
+
+      - name: dll-ffi-win smoke tests
+        if: runner.os == 'Windows'
+        run: |
+          clang -DWINDOWS_BUILD -c -o \
+            unison-src/transcripts-manual/dll-ffi/test.o \
+            unison-src/transcripts-manual/dll-ffi/test.c
+
+          clang -DWINDOWS_BUILD -shared -o \
+            unison-src/transcripts-manual/dll-ffi/libtest.dll \
+            unison-src/transcripts-manual/dll-ffi/test.o
+
+          ${{env.ucm}} transcript unison-src/transcripts-manual/dll-ffi-win.md
+
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/dll-ffi-win.output.md
+
+  interpreter-tests:
+    name: interpreter-tests (${{ matrix.os }})
+    needs: build-ucm
+    runs-on: ${{ matrix.os }}
+    env:
+      runtime_tests_version: "@unison/runtime-tests/releases/0.0.6"
+      runtime_tests_codebase: "~/.cache/unisonlanguage/runtime-tests.unison"
+    strategy:
+      matrix:
+        os: ${{ fromJSON(inputs.interpreter-tests-os) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: tweak environment
+        run: |
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
+          else
+            echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
+          fi
+
+      - name: look up hash for runtime tests
+        run: echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
+
+      - name: cache testing codebase
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
+        with:
+          path: ${{ env.runtime_tests_codebase }}
+          key: runtime-tests-codebase-${{env.runtime_tests_causalhash}}
+          restore-keys: runtime-tests-codebase-
+
+      - name: restore binaries
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
+        with:
+          path: ${{env.ucm_local_bin}}
+          name: local-bin-${{ matrix.os }}
+
+      - name: set binaries permissions
+        run: chmod +x ${{env.ucm_local_bin}}/*
+
+      - name: interpreter tests
+        run: |
+          UNISON_MIGRATION=auto unison-src/builtin-tests/interpreter-tests.sh ${{ env.ucm }}
+          cat unison-src/builtin-tests/interpreter-tests.output.md
+          git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md

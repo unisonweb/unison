@@ -32,6 +32,7 @@ import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Prelude hiding (unzip)
 
 lookupTerm :: HQ.HashQualified Name -> Names -> [Referent]
 lookupTerm hq parseNames = Set.toList (Names.lookupHQTerm Names.IncludeSuffixes hq parseNames)

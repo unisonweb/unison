@@ -13,7 +13,7 @@ import Data.List.NonEmpty.Extra qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Text.Builder qualified as TB
+import TextBuilder qualified as TB
 import U.Core.ABT qualified as ABT
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as Decl
@@ -229,7 +229,7 @@ data TextReplacement = TextReplacement
 -- >>> applyFormatUpdates replacements txt
 -- "mary had a little lambo, which was white as snow\nand everywhere that mary went the people stared"
 applyTextReplacements :: [TextReplacement] -> Text -> Text
-applyTextReplacements replacements inputText = applyTextReplacementsHelper relativeOffsets (Text.lines inputText) & TB.run
+applyTextReplacements replacements inputText = applyTextReplacementsHelper relativeOffsets (Text.lines inputText) & TB.toText
   where
     tupleReplacements :: [(Int, Int, Maybe Text)]
     tupleReplacements =
@@ -262,9 +262,9 @@ relativizeOffsets xs =
 
 -- | Apply a list of range replacements to a list of lines, returning the result.
 --
--- >>> applyTextReplacementsHelper [(0, 1, Nothing), (0, 4, Just "1"), (0, 2, Nothing), (1, 3, Just "2"), (0, 5, Nothing), (1, 10, Just "3")] ["abcdefghijk", "lmnopqrstuv", "wxyz", "1234567890"] & TB.run
+-- >>> applyTextReplacementsHelper [(0, 1, Nothing), (0, 4, Just "1"), (0, 2, Nothing), (1, 3, Just "2"), (0, 5, Nothing), (1, 10, Just "3")] ["abcdefghijk", "lmnopqrstuv", "wxyz", "1234567890"] & TB.toText
 -- "a1fg2opqrs3\n1234567890"
-applyTextReplacementsHelper :: [(Int, Int, Maybe Text)] -> [Text] -> TB.Builder
+applyTextReplacementsHelper :: [(Int, Int, Maybe Text)] -> [Text] -> TB.TextBuilder
 applyTextReplacementsHelper [] ls = TB.intercalate "\n" (TB.text <$> ls)
 applyTextReplacementsHelper _ [] = mempty
 applyTextReplacementsHelper ((0, col, r) : rest) (l : ls) =

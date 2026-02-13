@@ -8,11 +8,11 @@ import Data.Digest.Murmur64
     hash64,
     hash64AddInt,
   )
-import Data.List as List (foldl')
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Text qualified as DT
 import Data.Word
+import Numeric.Natural (Natural)
 import Unison.ABT.Normalized (pattern TAbs, pattern TAbss)
 import Unison.ConstructorReference
 import Unison.ConstructorType qualified as CT
@@ -25,6 +25,7 @@ import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type
 import Unison.Runtime.Referenced
+import Unison.Runtime.Serialize (naturalToWord64s)
 import Unison.Runtime.TypeTags (mapBinTag, mapTipTag)
 import Unison.Util.Bytes qualified as B
 import Unison.Util.EnumContainers qualified as EC
@@ -148,6 +149,19 @@ hash64AddDouble d = hash64AddInt i
   where
     i = PA.indexByteArray (PA.byteArrayFromList [d]) 0
 
+-- Hash an arbitrary precision Integer by hashing sign + magnitude as Word64 chunks
+hash64AddInteger :: Integer -> Hash64 -> Hash64
+hash64AddInteger i h =
+  let sign = if i >= 0 then 0 else 1
+      chunks = naturalToWord64s (fromInteger (abs i))
+   in foldl' (flip hash64Add) (hash64AddInt sign h) chunks
+
+-- Hash an arbitrary precision Natural by hashing as Word64 chunks
+hash64AddNatural :: Natural -> Hash64 -> Hash64
+hash64AddNatural n h =
+  let chunks = naturalToWord64s n
+   in foldl' (flip hash64Add) h chunks
+
 hash64AddBLit :: (Show r) => HRefs r -> BLit r -> Hash64 -> Hash64
 hash64AddBLit rs = \case
   Text tx ->
@@ -178,6 +192,10 @@ hash64AddBLit rs = \case
     hash64AddInt 13 `combine` hash64AddDouble d
   Map _ ->
     exn [] "hash64AddBLit: encountered Map, should be impossible"
+  BigInt i ->
+    hash64AddInt 14 `combine` hash64AddInteger i
+  BigNat n ->
+    hash64AddInt 15 `combine` hash64AddNatural n
 
 hash64AddCode :: (Show r) => HRefs r -> Code r -> Hash64 -> Hash64
 hash64AddCode rs (CodeRep sg _) = hash64AddGroup rs sg

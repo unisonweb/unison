@@ -23,13 +23,14 @@ import System.FilePath
 import System.IO.CodePage (withCP65001)
 import System.IO.Silently (silence)
 import Text.Megaparsec qualified as MP
-import Unison.Codebase.Init (withTemporaryUcmCodebase)
+import Unison.Codebase.Init (withNewUcmCodebaseOrExit)
 import Unison.Codebase.SqliteCodebase qualified as SC
-import Unison.Codebase.Transcript.Parser as Transcript
-import Unison.Codebase.Transcript.Runner as Transcript
+import Unison.Codebase.Transcript.Parser qualified as Transcript
+import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
 import Unison.Util.Timing
+import UnliftIO qualified
 import UnliftIO.STM qualified as STM
 
 data TestConfig = TestConfig
@@ -59,14 +60,15 @@ testBuilder ::
   Test ()
 testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript = time (Text.pack transcript) $ do
   scope transcript do
+    let debugName = "transcript"
     outputs <-
-      io $ withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock \codebase ->
-        let isTest = True
-         in Transcript.withRunner isTest Verbosity.Silent "TODO: pass version here" \runTranscript ->
-              for files \filePath -> do
-                transcriptSrc <- BS.readFile $ inputDir </> filePath
-                out <- silence $ runTranscript filePath transcriptSrc codebase
-                pure (filePath, out)
+      io $ UnliftIO.withSystemTempDirectory debugName \tempDir ->
+        withNewUcmCodebaseOrExit SC.init Verbosity.Silent debugName tempDir SC.DoLock \codebase ->
+          Transcript.withRunner (Transcript.testConfig (tempDir </> "credentials.json")) Verbosity.Silent "TODO: pass version here" \runTranscript ->
+            for files \filePath -> do
+              transcriptSrc <- BS.readFile $ inputDir </> filePath
+              out <- silence $ runTranscript filePath transcriptSrc codebase
+              pure (filePath, out)
     for_ outputs \case
       (filePath, Left err) -> do
         let outputFile = outputDir </> outputFileForTranscript filePath

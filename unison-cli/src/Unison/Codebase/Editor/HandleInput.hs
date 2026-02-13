@@ -183,6 +183,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import UnliftIO.Directory qualified as Directory
+import Prelude hiding (unzip)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -1064,12 +1065,12 @@ _searchBranchPrefix b n = case Path.split (Path.fromName n) of
 searchResultsFor :: Names -> [Referent] -> [Reference] -> [SearchResult]
 searchResultsFor ns terms types =
   [ SR.termSearchResult ns name ref
-    | ref <- terms,
-      name <- toList (Names.namesForReferent ns ref)
+  | ref <- terms,
+    name <- toList (Names.namesForReferent ns ref)
   ]
     <> [ SR.typeSearchResult ns name ref
-         | ref <- types,
-           name <- toList (Names.namesForReference ns ref)
+       | ref <- types,
+         name <- toList (Names.namesForReference ns ref)
        ]
 
 searchBranchScored ::

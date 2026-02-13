@@ -13,16 +13,16 @@ test =
             [ scope
                 (Var.nameStr v)
                 (expect $ Var.universallyQuantifyIfFree @Symbol v)
-              | v <-
-                  [ Var.inferAbility,
-                    Var.inferInput,
-                    Var.inferOutput,
-                    Var.inferPatternPureE,
-                    Var.inferPatternPureV,
-                    Var.inferPatternBindE,
-                    Var.inferPatternBindV,
-                    Var.inferTypeConstructor,
-                    Var.inferTypeConstructorArg
-                  ]
+            | v <-
+                [ Var.inferAbility,
+                  Var.inferInput,
+                  Var.inferOutput,
+                  Var.inferPatternPureE,
+                  Var.inferPatternPureV,
+                  Var.inferPatternBindE,
+                  Var.inferPatternBindV,
+                  Var.inferTypeConstructor,
+                  Var.inferTypeConstructorArg
+                ]
             ]
       ]

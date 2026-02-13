@@ -167,8 +167,9 @@ putBLit = \case
   Char c -> putTag CharT <> putChar c
   Float d -> putTag FloatT <> putFloat d
   Arr a -> putTag ArrT <> putFoldable putValue a
-  Map m ->
-    putTag MapT <> putMapping putValue putValue m
+  Map m -> putTag MapT <> putMapping putValue putValue m
+  BigInt i -> putTag BigIntT <> putInteger i
+  BigNat n -> putTag BigNatT <> putNatural n
 
 getBLit :: (PrimBase m) => Get m (BLit RefNum)
 getBLit =
@@ -189,6 +190,8 @@ getBLit =
     ArrT -> Arr <$> getArray getValue
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
     MapT -> Map <$> getMapping getValue getValue
+    BigIntT -> BigInt <$> getInteger
+    BigNatT -> BigNat <$> getNatural
 {-# INLINEABLE getBLit #-}
 
 putValueWithHeader ::

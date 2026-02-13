@@ -21,8 +21,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          # - ubuntu-24.04 disabling this because it's been failing for a while
-          # - ubuntu-24.04-arm https://github.com/unisonweb/unison/issues/5789
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
           - macos-15-intel
           - macos-latest
     steps:

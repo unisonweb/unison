@@ -60,24 +60,24 @@ names = Names terms types
       Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs)
         <> Rel.fromList
           [ (Name.unsafeParseVar vc, Referent.Con (ConstructorReference (R.DerivedId r) cid) ct)
-            | (ct, (_, (r, decl))) <-
-                ((CT.Data,) <$> builtinDataDecls)
-                  <> ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls),
-              ((_, vc, _), cid) <- DD.constructors' decl `zip` [0 ..]
+          | (ct, (_, (r, decl))) <-
+              ((CT.Data,) <$> builtinDataDecls)
+                <> ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls),
+            ((_, vc, _), cid) <- DD.constructors' decl `zip` [0 ..]
           ]
         <> Rel.fromList
           [ (Name.unsafeParseVar v, Referent.Ref (R.DerivedId i))
-            | (v, i) <- Map.toList TD.builtinTermsRef
+          | (v, i) <- Map.toList TD.builtinTermsRef
           ]
     types =
       Rel.fromList builtinTypes
         <> Rel.fromList
           [ (Name.unsafeParseVar v, R.DerivedId r)
-            | (v, (r, _)) <- builtinDataDecls
+          | (v, (r, _)) <- builtinDataDecls
           ]
         <> Rel.fromList
           [ (Name.unsafeParseVar v, R.DerivedId r)
-            | (v, (r, _)) <- builtinEffectDecls
+          | (v, (r, _)) <- builtinEffectDecls
           ]
 
 -- note: this function is really for deciding whether `r` is a term or type,
@@ -122,7 +122,7 @@ builtinTermsByType :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByType =
   Rel.fromList
     [ (H.typeToReference ty, Referent.Ref r)
-      | (r, ty) <- Map.toList termRefTypes
+    | (r, ty) <- Map.toList termRefTypes
     ]
 
 -- a relation whose domain is types and whose range is builtin terms that mention that type
@@ -915,14 +915,14 @@ builtinsSrc =
     ++
     -- avoid name conflicts with Universal == < > <= >=
     [ Rename (t <> "." <> old) (t <> "." <> new)
-      | t <- ["Int", "Nat", "Float", "Text"],
-        (old, new) <-
-          [ ("==", "eq"),
-            ("<", "lt"),
-            ("<=", "lteq"),
-            (">", "gt"),
-            (">=", "gteq")
-          ]
+    | t <- ["Int", "Nat", "Float", "Text"],
+      (old, new) <-
+        [ ("==", "eq"),
+          ("<", "lt"),
+          ("<=", "lteq"),
+          (">", "gt"),
+          (">=", "gteq")
+        ]
     ]
     ++ moveUnder "io2" ioBuiltins
     ++ moveUnder "io2" mvarBuiltins
@@ -1275,6 +1275,15 @@ a --> b = Type.arrow () a b
 infixr 9 -->
 
 io, iof :: Type -> Type
+socket, threadId, handle, phandle, unit :: Type
+udpSocket, udpListenSocket, udpClientSockAddr :: Type
+tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type
+fmode, bmode, smode, stdhandle :: Type
+int, nat, bytes, text, boolean, float, char, integer, natural :: Type
+anyt, code, value, termLink :: Type
+stm, tvar, pat :: Type -> Type
+-- Smaller sized types for FFI API
+nat8, nat16, nat32, int8, int16, int32, float32 :: Type
 io = Type.effect1 () (Type.builtinIO ())
 iof = io . eithert failure
 
@@ -1320,66 +1329,91 @@ ffiSpec t = Type.ref () Type.ffiSpecRef `app` t
 dll :: Type
 dll = Type.ref () Type.ffiDllRef
 
-socket, threadId, handle, phandle, unit :: Type
 socket = Type.socket ()
+
 threadId = Type.threadId ()
+
 handle = Type.fileHandle ()
+
 phandle = Type.processHandle ()
+
 unit = DD.unitType ()
 
-udpSocket, udpListenSocket, udpClientSockAddr :: Type
 udpSocket = Type.udpSocket ()
+
 udpListenSocket = Type.udpListenSocket ()
+
 udpClientSockAddr = Type.udpClientSockAddr ()
 
-tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type
 tls = Type.ref () Type.tlsRef
+
 tlsClientConfig = Type.ref () Type.tlsClientConfigRef
+
 tlsServerConfig = Type.ref () Type.tlsServerConfigRef
+
 tlsSignedCert = Type.ref () Type.tlsSignedCertRef
+
 tlsPrivateKey = Type.ref () Type.tlsPrivateKeyRef
+
 tlsVersion = Type.ref () Type.tlsVersionRef
+
 tlsCipher = Type.ref () Type.tlsCipherRef
 
-fmode, bmode, smode, stdhandle :: Type
 fmode = DD.fileModeType ()
+
 bmode = DD.bufferModeType ()
+
 smode = DD.seekModeType ()
+
 stdhandle = DD.stdHandleType ()
 
-int, nat, bytes, text, boolean, float, char, integer, natural :: Type
 int = Type.int ()
+
 nat = Type.nat ()
+
 bytes = Type.bytes ()
+
 text = Type.text ()
+
 boolean = Type.boolean ()
+
 float = Type.float ()
+
 char = Type.char ()
+
 integer = Type.ref () Type.integerRef
+
 natural = Type.ref () Type.naturalRef
 
--- Smaller sized types for FFI API
-nat8, nat16, nat32, int8, int16, int32, float32 :: Type
 nat8 = Type.ref () Type.nat8Ref
+
 nat16 = Type.ref () Type.nat16Ref
+
 nat32 = Type.ref () Type.nat32Ref
+
 int8 = Type.ref () Type.int8Ref
+
 int16 = Type.ref () Type.int16Ref
+
 int32 = Type.ref () Type.int32Ref
+
 float32 = Type.ref () Type.float32Ref
 
 ptr :: Type -> Type
 ptr t = Type.ref () Type.ffiPtrRef `app` t
 
-anyt, code, value, termLink :: Type
 anyt = Type.ref () Type.anyRef
+
 code = Type.code ()
+
 value = Type.value ()
+
 termLink = Type.termLink ()
 
-stm, tvar, pat :: Type -> Type
 stm = Type.effect1 () (Type.ref () Type.stmRef)
+
 tvar a = Type.ref () Type.tvarRef `app` a
+
 pat a = Type.ref () Type.patternRef `app` a
 
 charClass :: Type

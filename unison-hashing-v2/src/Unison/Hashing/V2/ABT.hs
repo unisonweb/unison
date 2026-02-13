@@ -17,7 +17,7 @@ module Unison.Hashing.V2.ABT
 where
 
 import Control.Exception (throw)
-import Data.List hiding (cycle, find)
+import Data.List hiding (cycle, find, unzip)
 import Data.List qualified as List (sort)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NEL
@@ -28,7 +28,7 @@ import Unison.Hash (Hash)
 import Unison.Hashing.V2.Tokenizable (Hashable1, hash1)
 import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Prelude
-import Prelude hiding (abs, cycle)
+import Prelude hiding (abs, cycle, unzip)
 
 data HashingWarning
   = -- | two or more component elements can not be completely ordered with respect to one another

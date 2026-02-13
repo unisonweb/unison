@@ -3,7 +3,7 @@
 module Unison.Test.Util.Text where
 
 import Control.Monad
-import Data.List (foldl', unfoldr)
+import Data.List (unfoldr)
 import Data.Text qualified as T
 import EasyTest
 import Unison.Util.Rope qualified as R

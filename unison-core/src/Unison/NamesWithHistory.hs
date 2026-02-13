@@ -238,6 +238,6 @@ lookupHQPattern ::
 lookupHQPattern searchType hq ctt names =
   Set.fromList
     [ r
-      | Referent.Con r ct <- toList $ lookupHQTerm searchType hq names,
-        ct == ctt
+    | Referent.Con r ct <- toList $ lookupHQTerm searchType hq names,
+      ct == ctt
     ]

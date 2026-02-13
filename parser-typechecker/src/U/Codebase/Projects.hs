@@ -38,7 +38,6 @@ inferDependencyMounts =
           -- Note, we only do this on children nested at least one level deep
           -- to avoid treating project roots as their own self-referential dependency
           -- mounts. Mount paths must not be empty.
-
             bool
               (map (first . Path.resolve $ Path.singleton seg) <$> inferDependencyMounts childBranch)
               (pure [(Path.singleton seg, Causal.valueHash child)])
