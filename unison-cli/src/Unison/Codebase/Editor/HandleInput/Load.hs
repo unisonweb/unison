@@ -103,79 +103,85 @@ loadUnisonFile sourceName text = do
   let newPpe = PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 newNames) (PPE.suffixifyByHash newNames))
   pp <- Cli.getCurrentProjectPath
 
-  maybeUpdateOrUpgradeBranchParentCausalHash <-
-    if pp.branch.isUpdate || pp.branch.isUpgrade
+  -- If we're on an update, upgrade, or merge branch, we have special logic to render changes relative to the parent
+  -- branch (in a merge branch, that's the branch we're merging into). This is because, on these branches, dependents
+  -- have been pulled out of the underlying namespace and put into the scratch file (so that we can support deleting
+  -- things). Without this special logic, all of these things would be classified as new definitions.
+
+  maybeSpecialBranchParentCausalHash <-
+    if pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge
       then case pp.branch.parentBranchId of
         Nothing -> pure Nothing
         Just parentBranchId ->
           Just <$> Cli.runTransaction (Queries.expectProjectBranchHeadHash pp.project.projectId parentBranchId)
       else pure Nothing
 
-  case maybeUpdateOrUpgradeBranchParentCausalHash of
-    Nothing -> do
-      slurpEntries <-
-        Cli.runTransaction do
-          terms <-
-            slurpTerms
-              env.codebase
-              unisonFile
-              False
-              (Relation.domain oldNames.terms)
-              (Relation.domain unisonFileNames.terms)
-          types <-
-            slurpTypes
-              env.codebase
-              unisonFile
-              False
-              (Relation.domain oldNames.types)
-              (Relation.domain unisonFileNames.types)
-          pure Defns {terms, types}
+  (oldPpe, slurpEntries, existingTerms) <-
+    case maybeSpecialBranchParentCausalHash of
+      Nothing -> do
+        slurpEntries <-
+          Cli.runTransaction do
+            terms <-
+              slurpTerms
+                env.codebase
+                unisonFile
+                False
+                (Relation.domain oldNames.terms)
+                (Relation.domain unisonFileNames.terms)
+            types <-
+              slurpTypes
+                env.codebase
+                unisonFile
+                False
+                (Relation.domain oldNames.types)
+                (Relation.domain unisonFileNames.types)
+            pure Defns {terms, types}
 
-      let aliases :: Map Referent (NESet Name)
-          aliases =
-            getTermAliases oldNames.terms slurpEntries.terms
+        pure
+          ( PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 oldNames) (PPE.suffixifyByHash oldNames)),
+            slurpEntries,
+            oldNames.terms
+          )
+      Just specialBranchParentCausalHash -> do
+        specialBranchParent <- liftIO (Codebase.expectBranchForHash env.codebase specialBranchParentCausalHash)
+        let specialBranchParent0 = Branch.head specialBranchParent
+        let specialBranchParentNames = Branch.toNames specialBranchParent0
+        let specialBranchParentLocalNames = Branch.toNames (Branch.deleteLibdeps specialBranchParent0)
+        let specialBranchLocalNames =
+              Names.shadowing unisonFileNames (Branch.toNames (Branch.deleteLibdeps oldBranch0))
 
-      let oldPpe =
-            PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 oldNames) (PPE.suffixifyByHash oldNames))
+        slurpEntries <-
+          Cli.runTransaction do
+            terms <-
+              slurpTerms
+                env.codebase
+                unisonFile
+                True
+                (Relation.domain specialBranchParentLocalNames.terms)
+                (Relation.domain specialBranchLocalNames.terms)
+            types <-
+              slurpTypes
+                env.codebase
+                unisonFile
+                False
+                (Relation.domain specialBranchParentLocalNames.types)
+                (Relation.domain specialBranchLocalNames.types)
+            pure Defns {terms, types}
 
-      Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases)
-    Just updateOrUpgradeBranchParentCausalHash -> do
-      updateOrUpgradeBranchParent <- liftIO (Codebase.expectBranchForHash env.codebase updateOrUpgradeBranchParentCausalHash)
-      let updateOrUpgradeBranchParent0 = Branch.head updateOrUpgradeBranchParent
-      let updateOrUpgradeBranchParentNames = Branch.toNames updateOrUpgradeBranchParent0
-      let updateOrUpgradeBranchParentLocalNames = Branch.toNames (Branch.deleteLibdeps updateOrUpgradeBranchParent0)
-      let updateOrUpgradeBranchLocalNames =
-            Names.shadowing unisonFileNames (Branch.toNames (Branch.deleteLibdeps oldBranch0))
-
-      slurpEntries <-
-        Cli.runTransaction do
-          terms <-
-            slurpTerms
-              env.codebase
-              unisonFile
-              True
-              (Relation.domain updateOrUpgradeBranchParentLocalNames.terms)
-              (Relation.domain updateOrUpgradeBranchLocalNames.terms)
-          types <-
-            slurpTypes
-              env.codebase
-              unisonFile
-              False
-              (Relation.domain updateOrUpgradeBranchParentLocalNames.types)
-              (Relation.domain updateOrUpgradeBranchLocalNames.types)
-          pure Defns {terms, types}
-
-      let aliases :: Map Referent (NESet Name)
-          aliases =
-            getTermAliases updateOrUpgradeBranchParentNames.terms slurpEntries.terms
-
-      let oldPpe =
-            PPED.suffixifiedPPE $
+        pure
+          ( PPED.suffixifiedPPE $
               PPED.makePPED
-                (PPE.hqNamer 10 updateOrUpgradeBranchParentNames)
-                (PPE.suffixifyByHash updateOrUpgradeBranchParentNames)
+                (PPE.hqNamer 10 specialBranchParentNames)
+                (PPE.suffixifyByHash specialBranchParentNames),
+            slurpEntries,
+            specialBranchParentNames.terms
+          )
 
-      Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases)
+  let aliases :: Map Referent (NESet Name)
+      aliases =
+        getTermAliases existingTerms slurpEntries.terms
+
+  Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases pp.branch.isMerge)
 
   when (not . null $ UF.watchComponents unisonFile) do
     Timing.time "evaluating watches" do
