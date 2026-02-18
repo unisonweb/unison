@@ -4,6 +4,7 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UnboxedTuples #-}
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
 
 module Unison.Runtime.Machine
   ( ActiveThreads,

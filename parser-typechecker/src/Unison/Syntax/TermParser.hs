@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
 
 module Unison.Syntax.TermParser
   ( binding,

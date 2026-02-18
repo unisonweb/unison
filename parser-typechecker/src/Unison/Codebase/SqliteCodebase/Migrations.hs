@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiWayIf #-}
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
 
 module Unison.Codebase.SqliteCodebase.Migrations where
 

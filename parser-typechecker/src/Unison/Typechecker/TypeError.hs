@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
 
 module Unison.Typechecker.TypeError where
 

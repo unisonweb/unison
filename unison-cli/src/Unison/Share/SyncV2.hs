@@ -1,4 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
 
 module Unison.Share.SyncV2
   ( syncFromFile,

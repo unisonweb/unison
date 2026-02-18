@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
+
 module Unison.Util.List where
 
 import Data.List qualified as List

@@ -73,7 +73,6 @@ program-options
   ghc-options:
     -Wall
     -Werror
-    -Wwarn=x-partial
     -Wno-missing-pattern-synonym-signatures
     -Wno-name-shadowing
     -Wno-type-defaults

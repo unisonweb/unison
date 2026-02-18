@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
+
 module Unison.Codebase.Editor.HandleInput.MoveTo (handleMoveTo) where
 
 import Data.List.NonEmpty (NonEmpty)

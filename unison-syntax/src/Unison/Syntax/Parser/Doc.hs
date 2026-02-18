@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
+
 -- | The parser for Unison’s @Doc@ syntax.
 --
 --   This is completely independent of the Unison language, and requires a couple parsers to be passed in to then

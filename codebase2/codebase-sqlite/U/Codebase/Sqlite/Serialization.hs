@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
 
 module U.Codebase.Sqlite.Serialization
   ( decomposeBranchFormat,

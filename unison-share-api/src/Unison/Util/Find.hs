@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
+
 module Unison.Util.Find
   ( fuzzyFinder,
     simpleFuzzyFinder,

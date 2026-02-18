@@ -1,6 +1,7 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wwarn=x-partial #-}
 
 module Unison.CommandLine.OutputMessages where
 
