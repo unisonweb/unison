@@ -14,6 +14,7 @@ module Unison.Util.Recursion
     Cofix (..),
     XNor (..),
     cycle,
+    takeExactly,
   )
 where
 
@@ -148,3 +149,19 @@ instance Steppable (Seq a) (XNor a) where
     Both a b -> a :<| b
 
 instance Recursive (Seq a) (XNor a)
+
+instance Steppable Word Maybe where
+  project = \case
+    0 -> Nothing
+    n -> pure $ n - 1
+  embed = maybe 0 (+ 1)
+
+instance Recursive Word Maybe
+
+takeNext :: (Steppable s ((,) a)) => Maybe (s -> [a]) -> s -> [a]
+takeNext Nothing _ = []
+takeNext (Just f) s = uncurry (:) $ f <$> project s
+
+-- | Since this operates on infinite sequences, we can always take the requested number of elements.
+takeExactly :: (Steppable s ((,) a)) => Word -> s -> [a]
+takeExactly = cata takeNext
