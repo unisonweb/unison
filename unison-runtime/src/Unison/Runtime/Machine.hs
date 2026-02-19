@@ -4,7 +4,6 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# OPTIONS_GHC -Wwarn=x-partial #-}
 
 module Unison.Runtime.Machine
   ( ActiveThreads,
@@ -35,6 +34,7 @@ import Control.Monad.State.Strict
 import Data.Atomics qualified as Atomic
 import Data.HashMap.Lazy qualified as HM
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Sq
@@ -1580,7 +1580,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
     -- check for missing references
-    let arities = fmap (head . ANF.arities) int <> builtinArities
+    let arities = fmap (NE.head . ANF.arities) int <> builtinArities
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities)
         combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> (Word64, EnumMap Word64 Comb)
         combinate n (r, g) = (n, emitCombs rns r n g)
