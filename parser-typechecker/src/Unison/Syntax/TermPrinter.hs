@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wwarn=x-partial #-}
-
 module Unison.Syntax.TermPrinter
   ( emptyAc,
     pretty,
@@ -25,6 +23,10 @@ import Data.Char (isPrint)
 import Data.Foldable qualified as Foldable
 import Data.List hiding (unsnoc, unzip)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.NonEmpty.Extra ((|:))
+import Data.List.NonEmpty.Extra qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
@@ -468,7 +470,7 @@ pretty0
                             -- Only render infix operators as a table
                             -- if there's more than one of the same
                             -- operator in a row.
-                            Just (apps@(_ : _ : _), lastArg) -> do
+                            Just (apps@(_ :| _ : _), lastArg) -> do
                               prettyLast <- pretty0 (ac (fromMaybe (InfixOp Highest) prec) Normal im doc) lastArg
                               prettyApps <- binaryApps apps prettyLast
                               pure $ paren (p > fromMaybe (InfixOp Lowest) prec) prettyApps
@@ -488,10 +490,10 @@ pretty0
                     Term3 v PrintAnnotation -> Bool
                   ) ->
                   Maybe
-                    ( [ ( Term3 v PrintAnnotation,
+                    ( NonEmpty
+                        ( Term3 v PrintAnnotation,
                           Term3 v PrintAnnotation
-                        )
-                      ],
+                        ),
                       Term3 v PrintAnnotation
                     )
                 unBinaryAppsPred' (t, isInfix) =
@@ -505,8 +507,8 @@ pretty0
                           let inChain g = isInfix g && (g == f)
                               l = unBinaryAppsPred' (x, inChain)
                            in case l of
-                                Just (as, xLast) -> Just ((xLast, f) : as, y)
-                                Nothing -> Just ([(x, f)], y)
+                                Just (as, xLast) -> Just (NonEmpty.cons (xLast, f) as, y)
+                                Nothing -> Just (pure (x, f), y)
                         Nothing -> Nothing
 
                 -- Render a binary infix operator sequence, like [(a2, f2), (a1, f1)],
@@ -515,29 +517,27 @@ pretty0
                 -- produce any backticks.  We build the result out from the right,
                 -- starting at `f2`.
                 binaryApps ::
-                  [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)] ->
+                  NonEmpty (Term3 v PrintAnnotation, Term3 v PrintAnnotation) ->
                   Pretty SyntaxText ->
                   m (Pretty SyntaxText)
                 binaryApps xs last =
                   do
-                    let xs' = reverse xs
-                    psh <- join <$> traverse (uncurry (r (InfixOp Lowest))) (take 1 xs')
-                    pst <- join <$> traverse (uncurry (r (InfixOp Highest))) (drop 1 xs')
-                    let ps = psh <> pst
-                    let unbroken = PP.spaced (ps <> [last])
-                        broken = PP.hang (head ps) . PP.column2 . psCols $ tail ps <> [last]
+                    let (h :| t) = NonEmpty.reverse xs
+                    psh :| pshs <- uncurry (r (InfixOp Lowest)) h
+                    pst <- join . fmap toList <$> traverse (uncurry (r (InfixOp Highest))) t
+                    let ps = psh :| pshs <> pst
+                    let unbroken = PP.spaced (NonEmpty.snoc ps last)
+                        broken = PP.hang psh . PP.column2 . toList . psCols $ NonEmpty.tail ps |: last
                     pure (unbroken `PP.orElse` broken)
                   where
-                    psCols ps = case take 2 ps of
-                      [x, y] -> (x, y) : psCols (drop 2 ps)
-                      [x] -> [(x, "")]
-                      [] -> []
-                      _ -> undefined
+                    psCols ps = case ps of
+                      x :| [] -> pure (x, "")
+                      x :| y : [] -> pure (x, y)
+                      x :| y : z : zs -> NonEmpty.cons (x, y) . psCols $ z :| zs
                     r p a f =
-                      sequenceA
-                        [ pretty0 (ac (if isBlock a then Top else fromMaybe p (termPrecedence f)) Normal im doc) a,
-                          pretty0 (AmbientContext Application Normal Infix im doc False) f
-                        ]
+                      traverse (uncurry pretty0) $
+                        (ac (if isBlock a then Top else fromMaybe p (termPrecedence f)) Normal im doc, a)
+                          :| [(AmbientContext Application Normal Infix im doc False, f)]
             case (term, binaryOpsPred) of
               (DD.Doc, _)
                 | doc == MaybeDoc ->
@@ -1495,10 +1495,9 @@ calcImports im tm = (im', render $ getUses result)
     usages' = usages $ annotation tm
     -- Keep only names P.S where there is no other Q with Q.S also used in this scope.
     uniqueness :: Map Suffix (Map Prefix Int) -> Map Suffix (Prefix, Int)
-    uniqueness m =
-      m
-        |> Map.filter (\ps -> Map.size ps == 1)
-        |> Map.map (head . Map.toList)
+    uniqueness = Map.mapMaybe \inner -> case Map.toList inner of
+      [a] -> pure a
+      _ -> Nothing
     -- Keep only names where the number of usages in this scope
     --   - is > 1, or
     --   - is 1, and S is an infix operator.
@@ -2161,6 +2160,13 @@ toDocEval _ _ = Nothing
 --
 -- See https://github.com/unisonweb/unison/issues/2238
 _oldDocEval, _oldDocEvalInline :: Reference
+toDocExample, toDocExampleBlock :: (Var v) => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocSource,
+  toDocFoldedSource ::
+    (Var v) =>
+    PrettyPrintEnv ->
+    Term3 v PrintAnnotation ->
+    Maybe [(Either Reference Referent, [Referent])]
 _oldDocEval = Reference.unsafeFromText "#m2bmkdos2669tt46sh2gf6cmb4td5le8lcqnmsl9nfaqiv7s816q8bdtjdbt98tkk11ejlesepe7p7u8p0asu9758gdseffh0t78m2o"
 _oldDocEvalInline = Reference.unsafeFromText "#7pjlvdu42gmfvfntja265dmi08afk08l54kpsuu55l9hq4l32fco2jlrm8mf2jbn61esfsi972b6e66d9on4i5bkmfchjdare1v5npg"
 
@@ -2180,8 +2186,8 @@ toDocEvalInline ppe (App' (Ref' r) (DDelay' tm))
   | r == _oldDocEvalInline = Just tm
 toDocEvalInline _ _ = Nothing
 
-toDocExample, toDocExampleBlock :: (Var v) => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
 toDocExample = toDocExample' ".docExample"
+
 toDocExampleBlock = toDocExample' ".docExampleBlock"
 
 toDocExample' :: (Var v) => Text -> PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
@@ -2264,13 +2270,8 @@ toDocSource' suffix ppe (App' (Ref' r) (List' tms))
         _ -> Nothing
 toDocSource' _ _ _ = Nothing
 
-toDocSource,
-  toDocFoldedSource ::
-    (Var v) =>
-    PrettyPrintEnv ->
-    Term3 v PrintAnnotation ->
-    Maybe [(Either Reference Referent, [Referent])]
 toDocSource = toDocSource' ".docSource"
+
 toDocFoldedSource = toDocSource' ".docFoldedSource"
 
 toDocSignatureInline :: (Var v) => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Referent
