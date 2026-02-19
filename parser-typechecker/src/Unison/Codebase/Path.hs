@@ -58,7 +58,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty, toList)
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
 import Unison.Util.List qualified as List
-import Unison.Util.Recursion (Recursive, XNor, cata, embed)
+import Unison.Util.Recursion (Recursive, Steppable, XNor, cata, embed)
 
 -- | A `Path` is an internal structure representing some namespace in the codebase.
 --
@@ -70,9 +70,11 @@ newtype Path = Path {toSeq :: Seq NameSegment}
 instance From Path Text where
   from = toText
 
+instance Steppable Path (XNor NameSegment) where
+  embed = Path . embed . fmap toSeq
+
 instance Recursive Path (XNor NameSegment) where
   cata φ = cata φ . toSeq
-  embed = Path . embed . fmap toSeq
 
 -- | Meant for use mostly in doc-tests where it's
 -- sometimes convenient to specify paths as lists.
@@ -87,9 +89,11 @@ newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord, Show)
 instance From Absolute Text where
   from = toText
 
+instance Steppable Absolute (XNor NameSegment) where
+  embed = Absolute . embed . fmap unabsolute
+
 instance Recursive Absolute (XNor NameSegment) where
   cata φ = cata φ . unabsolute
-  embed = Absolute . embed . fmap unabsolute
 
 absPath_ :: Lens' Absolute Path
 absPath_ = lens unabsolute (\_ new -> Absolute new)

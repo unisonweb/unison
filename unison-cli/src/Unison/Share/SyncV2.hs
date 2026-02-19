@@ -1,5 +1,4 @@
 {-# LANGUAGE ApplicativeDo #-}
-{-# OPTIONS_GHC -Wwarn=x-partial #-}
 
 module Unison.Share.SyncV2
   ( syncFromFile,
@@ -26,6 +25,7 @@ import Data.Conduit.List qualified as CL
 import Data.Conduit.Zlib qualified as C
 import Data.Foldable qualified as Foldable
 import Data.Graph qualified as Graph
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Set qualified as Set
@@ -67,6 +67,7 @@ import Unison.SyncV2.API qualified as SyncV2
 import Unison.SyncV2.Types (DependencyType (..))
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Recursion (Cofix, cycle, futu, project)
 import Unison.Util.Servant.CBOR
 import Unison.Util.Servant.CBOR qualified as CBOR
 import Unison.Util.Timing qualified as Timing
@@ -75,6 +76,7 @@ import UnliftIO qualified as IO
 import UnliftIO.Async qualified as Async
 import UnliftIO.Concurrent (threadDelay)
 import UnliftIO.STM qualified as STM
+import Prelude hiding (cycle)
 
 type Stream i o = ConduitT i o StreamM ()
 
@@ -682,12 +684,13 @@ withStreamProgress hasDownload action = do
       UnliftIO.withAsync (go spinnerVar spinnerChars) \_ -> do
         action spinnerVar
       where
-        spinnerChars = cycle "⣷⣯⣟⡿⢿⣻⣽⣾" :: String
-        go :: (MonadUnliftIO m) => UnliftIO.TVar Text -> String -> m ()
+        spinnerChars = futu cycle $ Text.singleton <$> '⣷' :| "⣯⣟⡿⢿⣻⣽⣾"
+        go :: (MonadUnliftIO m) => UnliftIO.TVar Text -> Cofix ((,) Text) -> m ()
         go spinnerVar spinner = do
           threadDelay 500000
-          UnliftIO.atomically $ UnliftIO.writeTVar spinnerVar (Text.singleton $ head spinner)
-          go spinnerVar (tail spinner)
+          let (h, t) = project spinner
+          UnliftIO.atomically $ UnliftIO.writeTVar spinnerVar h
+          go spinnerVar t
 
 -- * Conduit helpers
 
