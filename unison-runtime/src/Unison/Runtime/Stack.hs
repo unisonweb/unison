@@ -190,7 +190,6 @@ import Data.Atomics qualified as Atomic
 import Data.Bits (clearBit)
 import Data.Char qualified as Char
 import Data.Functor.Classes (Eq1 (..), Ord1 (..))
-import Data.HashMap.Strict (HashMap)
 import Data.IORef (IORef)
 import Data.Map.Strict.Internal (Map (..))
 import Data.Ord (comparing)
@@ -403,8 +402,7 @@ unboxedTypeTagFromInt = \case
   3 -> NatTag
   _ -> error "intToUnboxedTypeTag: invalid tag"
 
--- TODO: Should replace the HashMap with an EnumMap over FieldRefs
-type RecordValMap = HashMap Text Val
+type RecordValMap = EnumMap FieldRef Val
 
 data GClosure comb
   = GPAp

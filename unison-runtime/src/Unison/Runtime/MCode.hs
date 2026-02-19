@@ -10,6 +10,7 @@ module Unison.Runtime.MCode
   ( Args' (..),
     Args (..),
     FieldTags (..),
+    FieldRef (..),
     RefNums (..),
     MLit (..),
     GInstr (..),
@@ -51,15 +52,20 @@ module Unison.Runtime.MCode
   )
 where
 
+import Control.Monad.Reader
+import Control.Monad.State.Strict
+import Control.Monad.Writer.CPS
 import Data.Bifoldable (Bifoldable (..))
-import Data.Bifunctor (Bifunctor, bimap, first)
+import Data.Bifunctor (Bifunctor, bimap, first, second)
 import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
+import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Map.Strict qualified as M
 import Data.Primitive.PrimArray
 import Data.Primitive.PrimArray qualified as PA
+import Data.Semigroup (Max (..))
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -101,6 +107,7 @@ import Unison.Runtime.ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
+import Unison.Util.BiMap (BiMap)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
@@ -293,6 +300,10 @@ argsToArgs' = \case
 {-# INLINEABLE argsToArgs' #-}
 
 newtype FieldTags = FieldTags (PrimArray Word64)
+  deriving (Show, Eq, Ord)
+
+-- | Efficient mapping for record field names
+newtype FieldRef = FieldRef Word64
   deriving (Show, Eq, Ord)
 
 argsToLists :: Args -> [Int]
@@ -564,8 +575,7 @@ data GInstr comb
     -- It may be a subset of the fields, so the RecordRef may not match
     -- that of the record in the closure.
     RecUnpack
-      -- TODO: replace with fieldRefs
-      !(Vector Text.Text {- fields to unpack -})
+      !(Vector FieldRef {- fields to unpack -})
       !Int {- index of record on boxed stack -}
   | -- Which fields to pack each arg into
     -- TODO: Do we need this? I think we should just generate ANF
@@ -962,40 +972,58 @@ instance Applicative Counted where
   pure = C 0
   C s0 f <*> C s1 x = C (max s0 s1) (f x)
 
+instance Monad Counted where
+  C s0 x >>= f =
+    let C s1 y = f x
+     in C (max s0 s1) y
+
+newtype RecordFieldMappings
+  = RecordFieldMappings (FieldRef {- next unassigned ref -}, BiMap Text FieldRef {- mapping from field name to field ref -})
+
 newtype Emit a
-  = EM (Word64 -> (EC.EnumMap Word64 Comb, Counted a))
+  = EM (StateT RecordFieldMappings (ReaderT Word64 (Writer (EC.EnumMap Word64 Comb, Max Int))) a)
   deriving (Functor)
 
 runEmit :: Word64 -> Emit a -> EC.EnumMap Word64 Comb
-runEmit w (EM e) = fst $ e w
+runEmit w (EM e) =
+  e
+    & flip evalStateT (RecordFieldMappings (FieldRef 0, mempty))
+    & flip runReaderT w
+    & execWriter
+    & fst
 
 instance Applicative Emit where
-  pure = EM . pure . pure . pure
-  EM ef <*> EM ex = EM $ (liftA2 . liftA2) (<*>) ef ex
+  pure = EM . pure
+  EM ef <*> EM ex = EM $ ef <*> ex
 
 counted :: Counted a -> Emit a
-counted = EM . pure . pure
+counted (C n a) = tell n *> pure a
 
-onCount :: (Counted a -> Counted b) -> Emit a -> Emit b
-onCount f (EM e) = EM $ fmap f <$> e
+onCount :: (Int -> Int) -> Emit a -> Emit a
+onCount f (EM e) = EM $ censor (second $ coerce f) e
 
 letIndex :: Word16 -> Word64 -> Word64
 letIndex l c = c .|. fromIntegral l
 
 record :: Ctx v -> Word16 -> Emit Section -> Emit (Word64, Comb)
-record ctx l (EM es) = EM $ \c ->
-  let (m, C sz s) = es c
-      na = countCtx0 0 ctx
+record ctx l (EM es) = EM do
+  c <- ask
+  (s, (_m, Max sz)) <- listen es
+  let na = countCtx0 0 ctx
       n = letIndex l c
       comb = Lam na sz s
-   in (EC.mapInsert n comb m, C sz (n, comb))
+  tell (EC.mapSingleton n comb, 0)
+  pure $ (n, comb)
 
 recordTop :: [v] -> Word16 -> Emit Section -> Emit ()
-recordTop vs l (EM e) = EM $ \c ->
-  let (m, C sz s) = e c
-      na = length vs
+recordTop vs l (EM e) = EM do
+  c <- ask
+  (s, (_m, Max sz)) <- listen e
+  let na = length vs
       n = letIndex l c
-   in (EC.mapInsert n (Lam na sz s) m, C sz ())
+      lam = Lam na sz s
+  tell (EC.mapSingleton n lam, 0)
+  pure ()
 
 -- Counts the stack space used by a context and annotates a value
 -- with it.
@@ -1024,7 +1052,10 @@ emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd)) =
     $ emitSection rns grpr grpn rec (ctx vs ccs) bd
 
 addCount :: Int -> Emit a -> Emit a
-addCount i = onCount $ \(C sz x) -> C (sz + i) x
+addCount i (EM m) = EM $ do
+  (a, (_m, Max n)) <- listen m
+  tell (mempty, Max $ n + i)
+  pure a
 
 -- Emit a machine code section from an ANF term
 emitSection ::

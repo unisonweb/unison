@@ -437,7 +437,7 @@ exec _ henv !_activeThreads !stk !k _ (RecUnpack desiredFields recIndex) = do
     RecordG _valRecRef vals -> do
       let seg =
             V.toList desiredFields
-              <&> (\f -> vals HM.! f)
+              <&> (\f -> vals EC.! f)
               -- TODO: Can we speed this up somehow?
               & segFromList
       stk' <- dumpSeg stk seg S
