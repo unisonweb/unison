@@ -7,6 +7,7 @@ import Control.Lens
 import Control.Monad.Reader (asks, local)
 import Data.Foldable (foldlM)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -73,7 +74,8 @@ file = do
     & List.multimap
     & Map.toList
     & mapMaybe \case
-      (name, decls@(_ : _ : _)) -> Just (name, map ann decls)
+      -- TODO: `NonEmpty` can probably be pushed deeper here, but for now, `toList`.
+      (name, decls@(_ :| _ : _)) -> Just (name, toList $ ann <$> decls)
       _ -> Nothing
     & \case
       [] -> pure ()
@@ -289,7 +291,7 @@ validateUnisonFile ::
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
   [(v, Ann, Term v Ann)] ->
-  Map WatchKind [(v, Ann, Term v Ann)] ->
+  Map WatchKind (NonEmpty (v, Ann, Term v Ann)) ->
   P v m (UnisonFile v Ann)
 validateUnisonFile datas effects terms watches =
   checkForDuplicateTermsAndConstructors datas effects terms watches
@@ -303,7 +305,7 @@ checkForDuplicateTermsAndConstructors ::
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
   [(v, Ann, Term v Ann)] ->
-  Map WatchKind [(v, Ann, Term v Ann)] ->
+  Map WatchKind (NonEmpty (v, Ann, Term v Ann)) ->
   P v m (UnisonFile v Ann)
 checkForDuplicateTermsAndConstructors datas effects terms watches = do
   when (not . null $ duplicates) $ do
@@ -318,7 +320,8 @@ checkForDuplicateTermsAndConstructors datas effects terms watches = do
       { dataDeclarationsId = datas,
         effectDeclarationsId = effects,
         terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
-        watches
+        -- TODO: `NonEmpty` can probably be pushed deeper here, but for now, `toList`.
+        watches = toList <$> watches
       }
   where
     effectDecls :: [DataDeclaration v Ann]

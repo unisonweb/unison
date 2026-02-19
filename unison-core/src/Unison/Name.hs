@@ -422,9 +422,8 @@ preferShallowLibDepth = \case
     let byPriority = List.multimap (map (first minLibs) rs)
         minLibs [] = NamePriorityOne ()
         minLibs ns = minimum (map (nameLocationPriority . classifyNameLocation) ns)
-     in case Map.lookup (NamePriorityOne ()) byPriority <|> Map.lookup (NamePriorityTwo ()) byPriority of
-          Nothing -> Set.fromList (map snd rs)
-          Just rs -> Set.fromList rs
+     in Set.fromList . maybe (snd <$> rs) toList $
+          Map.lookup (NamePriorityOne ()) byPriority <|> Map.lookup (NamePriorityTwo ()) byPriority
 
 data NameLocation
   = NameLocation'Local -- outside lib

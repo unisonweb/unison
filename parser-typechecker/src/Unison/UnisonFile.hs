@@ -46,6 +46,7 @@ import Control.Lens
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Map.Merge.Strict qualified as Map
+import Data.Semigroup (sconcat)
 import Data.Set qualified as Set
 import Data.Vector qualified as Vector
 import Unison.ABT qualified as ABT
@@ -379,7 +380,7 @@ dependencies file =
 
 discardTypes :: (Ord v) => TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes (TypecheckedUnisonFileId datas effects terms watches _) =
-  let watches' = g . mconcat <$> List.multimap watches
+  let watches' = g . sconcat <$> List.multimap watches
       g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]
    in UnisonFileId (coerce datas) (coerce effects) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches'
 

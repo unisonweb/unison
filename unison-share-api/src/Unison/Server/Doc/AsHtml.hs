@@ -9,6 +9,7 @@ import Control.Monad.Writer.Class qualified as Writer
 import Control.Monad.Writer.Lazy (runWriterT)
 import Data.Char qualified as Char
 import Data.List (intersperse)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe
@@ -187,10 +188,10 @@ toText sep doc =
         . map (toText sep)
 
 data SideContent
-  = FrontMatterContent (Map Text [Text])
+  = FrontMatterContent (Map Text (NonEmpty Text))
   | TooltipContent (Html ())
 
-newtype FrontMatterData = FrontMatterData (Map Text [Text])
+newtype FrontMatterData = FrontMatterData (Map Text (NonEmpty Text))
 
 toHtml :: Map Referent Name -> Doc -> (FrontMatterData, Html ())
 toHtml docNamesByRef document =

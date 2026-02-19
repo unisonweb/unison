@@ -26,7 +26,8 @@ module Unison.NamesWithHistory
   )
 where
 
-import Data.List.Extra (nubOrd)
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty.Extra (nubOrd)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference)
@@ -100,8 +101,8 @@ push n0 ns = unionLeft0 n1 ns
         suffixNs = Names (R.fromList uniqueTerms) (R.fromList uniqueTypes)
         terms' = List.multimap [(n, ref) | (n0, ref) <- R.toList (terms ns), n <- Name.suffixes n0]
         types' = List.multimap [(n, ref) | (n0, ref) <- R.toList (types ns), n <- Name.suffixes n0]
-        uniqueTerms = [(n, ref) | (n, nubOrd -> [ref]) <- Map.toList terms']
-        uniqueTypes = [(n, ref) | (n, nubOrd -> [ref]) <- Map.toList types']
+        uniqueTerms = [(n, ref) | (n, nubOrd -> ref :| []) <- Map.toList terms']
+        uniqueTypes = [(n, ref) | (n, nubOrd -> ref :| []) <- Map.toList types']
 
 -- Find all types whose name has a suffix matching the provided `HashQualified`,
 -- returning types with relative names if they exist, and otherwise
