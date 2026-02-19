@@ -39,7 +39,6 @@ import Unison.Runtime.MCode
   )
 import Unison.Runtime.Referenced (RefNum (..))
 import Unison.Runtime.Serialize.Get as Get
-import Unison.Runtime.TypeTags (FieldTag (..))
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 import Prelude hiding (getChar)
