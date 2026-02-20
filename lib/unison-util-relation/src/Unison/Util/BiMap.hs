@@ -5,6 +5,8 @@ module Unison.Util.BiMap
     fromList,
     fromMap,
     toList,
+    toMapL,
+    toMapR,
     lookupL,
     lookupR,
     union,
@@ -56,6 +58,12 @@ fromMap f =
 
 toList :: BiMap k v -> [(k, v)]
 toList (BiMap f _) = Map.toList f
+
+toMapL :: BiMap k v -> Map.Map k v
+toMapL (BiMap f _) = f
+
+toMapR :: BiMap k v -> Map.Map v k
+toMapR (BiMap _ b) = b
 
 lookupL :: (Ord k) => k -> BiMap k v -> Maybe v
 lookupL k (BiMap f _) = Map.lookup k f

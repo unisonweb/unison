@@ -35,6 +35,7 @@ module Unison.Runtime.MCode
     GBranch (..),
     Branch,
     RBranch,
+    RecordFieldMappings (..),
     emitCombs,
     emitComb,
     resolveCombs,
@@ -56,7 +57,7 @@ import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Writer.CPS
 import Data.Bifoldable (Bifoldable (..))
-import Data.Bifunctor (Bifunctor, bimap, first, second)
+import Data.Bifunctor (Bifunctor, bimap, first)
 import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
@@ -918,7 +919,7 @@ emitCombs ::
   Reference ->
   Word64 ->
   SuperGroup Reference v ->
-  EnumMap Word64 Comb
+  (EnumMap Word64 Comb, BiMap ANF.FieldName FieldRef)
 emitCombs rns grpr grpn (Rec grp ent) =
   emitComb rns grpr grpn rec (0, ent) <> aux
   where
@@ -980,7 +981,9 @@ instance Monad Counted where
      in C (max s0 s1) y
 
 data RecordFieldMappings
-  = RecordFieldMappings (FieldRef {- next unassigned ref -}) (BiMap Text.Text FieldRef {- mapping from field name to field ref -})
+  = RecordFieldMappings
+      (FieldRef {- next unassigned ref -})
+      (BiMap Text.Text FieldRef {- mapping from field name to field ref -})
 
 -- | Note that the Ord instance for Field Refs is arbitrary and not tied to the field name Ord instance.
 convertFieldNamesToRefs :: (Traversable f) => f ANF.FieldName -> Emit (f FieldRef)
@@ -996,19 +999,16 @@ newtype Emit a
   = EM (StateT RecordFieldMappings (ReaderT Word64 (Writer (EC.EnumMap Word64 Comb, Max Int))) a)
   deriving newtype (Functor, Applicative, Monad, MonadReader Word64, MonadWriter (EC.EnumMap Word64 Comb, Max Int), MonadState RecordFieldMappings)
 
-runEmit :: Word64 -> Emit a -> EC.EnumMap Word64 Comb
-runEmit w (EM e) =
+runEmit :: Word64 -> RecordFieldMappings -> Emit a -> (EC.EnumMap Word64 Comb, RecordFieldMappings)
+runEmit w rfm (EM e) =
   e
-    & flip evalStateT (RecordFieldMappings (FieldRef 0) mempty)
+    & flip runStateT rfm
     & flip runReaderT w
-    & execWriter
-    & fst
+    & runWriter
+    & \((_a, rfm), (em, _n)) -> (em, rfm)
 
 counted :: Counted a -> Emit a
 counted (C n a) = tell (mempty, Max n) *> pure a
-
-onCount :: (Int -> Int) -> Emit a -> Emit a
-onCount f (EM e) = EM $ censor (second $ coerce f) e
 
 letIndex :: Word16 -> Word64 -> Word64
 letIndex l c = c .|. fromIntegral l
@@ -1051,11 +1051,12 @@ emitComb ::
   RefNums ->
   Reference ->
   Word64 ->
+  RecordFieldMappings ->
   RCtx v ->
   (Word64, SuperNormal Reference v) ->
-  EC.EnumMap Word64 Comb
-emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd)) =
-  runEmit n
+  (EC.EnumMap Word64 Comb, RecordFieldMappings)
+emitComb rns grpr grpn rec rfm (n, Lambda ccs (TAbss vs bd)) =
+  runEmit n rfm
     . recordTop vs 0
     $ emitSection rns grpr grpn rec (ctx vs ccs) bd
 

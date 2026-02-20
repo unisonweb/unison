@@ -21,6 +21,7 @@ import GHC.Event (getSystemTimerManager, registerTimeout)
 #else
 import System.CPUTime
 #endif
+import Control.Monad.State.Strict
 import Unison.Builtin.Decls (ioFailureRef)
 import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
@@ -194,7 +195,8 @@ data CCache prof = CCache
     refTm :: TVar (M.Map Reference Word64),
     refTy :: TVar (M.Map Reference Word64),
     recordRefs :: TVar (BiMap ANF.RecordSchema ANF.RecordRef),
-    sandbox :: TVar (M.Map Reference (Set Reference))
+    sandbox :: TVar (M.Map Reference (Set Reference)),
+    recordFieldMappings :: TVar RecordFieldMappings
   }
 
 refNumsTm :: CCache prof -> IO (M.Map Reference Word64)
@@ -226,6 +228,7 @@ baseCCache sandboxed = do
     <*> newTVarIO builtinTypeNumbering
     <*> newTVarIO builtinFieldNumbering
     <*> newTVarIO baseSandboxInfo
+    <*> newTVarIO rfm
   where
     builtinFieldNumbering = mempty
     cacheableCombs = mempty
@@ -237,11 +240,22 @@ baseCCache sandboxed = do
 
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
 
+    initRFM :: RecordFieldMappings
+    initRFM = RecordFieldMappings (FieldRef 0) mempty
     srcCombs :: EnumMap Word64 Combs
-    srcCombs =
-      numberedTermLookup
-        & mapWithKey
-          (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
+    rfm :: RecordFieldMappings
+    (srcCombs, rfm) =
+      flip runState initRFM $
+        ( numberedTermLookup
+            & traverseWithKey
+              ( \k v -> do
+                  let r = builtinTermBackref ! k
+                  rfm' <- get
+                  let (ec, rfm'') = emitComb @Symbol rns r k rfm' mempty (0, v)
+                  put rfm''
+                  pure ec
+              )
+        )
     combs :: EnumMap Word64 MCombs
     combs =
       srcCombs
