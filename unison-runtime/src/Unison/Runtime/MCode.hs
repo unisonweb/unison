@@ -69,6 +69,7 @@ import Data.Semigroup (Max (..))
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Traversable (for)
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Data.Void (Void, absurd)
@@ -108,6 +109,7 @@ import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
 import Unison.Util.BiMap (BiMap)
+import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
@@ -304,7 +306,7 @@ newtype FieldTags = FieldTags (PrimArray Word64)
 
 -- | Efficient mapping for record field names
 newtype FieldRef = FieldRef Word64
-  deriving (Show, Eq, Ord)
+  deriving newtype (Show, Eq, Ord, Enum)
 
 argsToLists :: Args -> [Int]
 argsToLists = \case
@@ -977,27 +979,33 @@ instance Monad Counted where
     let C s1 y = f x
      in C (max s0 s1) y
 
-newtype RecordFieldMappings
-  = RecordFieldMappings (FieldRef {- next unassigned ref -}, BiMap Text FieldRef {- mapping from field name to field ref -})
+data RecordFieldMappings
+  = RecordFieldMappings (FieldRef {- next unassigned ref -}) (BiMap Text.Text FieldRef {- mapping from field name to field ref -})
+
+-- | Note that the Ord instance for Field Refs is arbitrary and not tied to the field name Ord instance.
+convertFieldNamesToRefs :: (Traversable f) => f ANF.FieldName -> Emit (f FieldRef)
+convertFieldNamesToRefs names = for names \name -> do
+  RecordFieldMappings next m <- get
+  case BiMap.lookupL name m of
+    Just fr -> pure fr
+    Nothing -> do
+      put $ RecordFieldMappings (succ next) (BiMap.insert name next m)
+      pure next
 
 newtype Emit a
   = EM (StateT RecordFieldMappings (ReaderT Word64 (Writer (EC.EnumMap Word64 Comb, Max Int))) a)
-  deriving (Functor)
+  deriving newtype (Functor, Applicative, Monad, MonadReader Word64, MonadWriter (EC.EnumMap Word64 Comb, Max Int), MonadState RecordFieldMappings)
 
 runEmit :: Word64 -> Emit a -> EC.EnumMap Word64 Comb
 runEmit w (EM e) =
   e
-    & flip evalStateT (RecordFieldMappings (FieldRef 0, mempty))
+    & flip evalStateT (RecordFieldMappings (FieldRef 0) mempty)
     & flip runReaderT w
     & execWriter
     & fst
 
-instance Applicative Emit where
-  pure = EM . pure
-  EM ef <*> EM ex = EM $ ef <*> ex
-
 counted :: Counted a -> Emit a
-counted (C n a) = tell n *> pure a
+counted (C n a) = tell (mempty, Max n) *> pure a
 
 onCount :: (Int -> Int) -> Emit a -> Emit a
 onCount f (EM e) = EM $ censor (second $ coerce f) e
@@ -1135,7 +1143,8 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
         <$> emitDataMatching r rns grpr grpn rec ctx cs df
   | Just (i, BX) <- ctxResolve ctx v,
     MatchRec (ANF.RecordSchema fields) (TAbss vs bd) <- bs = do
-      let instr = RecUnpack (V.fromList $ Set.toList fields) i
+      fieldRefs <- convertFieldNamesToRefs (V.fromList $ Set.toList fields)
+      let instr = RecUnpack fieldRefs i
       let newCtx = pushCtx (zip vs (repeat BX {- these are ignored -})) ctx
       Ins instr <$> emitSection rns grpr grpn rec newCtx bd
   | Just (i, BX) <- ctxResolve ctx v,
