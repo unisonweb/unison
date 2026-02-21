@@ -4,7 +4,7 @@
 # =============================================================================
 #
 # USAGE:
-#   ./scripts/check.sh [--verbose|-v] [--dry-run|-n]
+#   ./scripts/check.sh [--force] [--verbose|-v] [--dry-run|-n]
 #
 # This script runs all the checks needed before pushing:
 #   1. Unit tests and integration tests (with proof caching)
@@ -24,10 +24,12 @@ set -euo pipefail
 SCRIPTDIR="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
 
 # Parse arguments
+FORCE=false
 VERBOSE=false
 DRY_RUN=false
 for arg in "$@"; do
     case "$arg" in
+        --force) FORCE=true ;;
         --verbose|-v) VERBOSE=true ;;
         --dry-run|-n) DRY_RUN=true ;;
     esac
@@ -37,6 +39,7 @@ cd "$SCRIPTDIR/.."
 
 # Build args for sub-scripts
 ARGS=("--summary")
+[[ "$FORCE" == "true" ]] && ARGS+=("--force")
 [[ "$VERBOSE" == "true" ]] && ARGS+=("--verbose")
 [[ "$DRY_RUN" == "true" ]] && ARGS+=("--dry-run")
 

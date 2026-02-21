@@ -1,2 +1,2 @@
 #!/bin/sh
-./scripts/proofs/tests.sh
+./scripts/proofs/tests.sh "$@"

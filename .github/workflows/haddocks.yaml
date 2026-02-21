@@ -1,5 +1,9 @@
 name: Haddocks
 
+concurrency:
+  group: haddocks
+  cancel-in-progress: true
+
 defaults:
   run:
     working-directory: unison
