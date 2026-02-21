@@ -1,3 +1,5 @@
+# Builds and publishes a rolling dev build after each merge to trunk.
+# No tests currently — relies on the merge queue having already tested the code.
 name: pre-release
 run-name: pre-release ${{github.ref_name}}
 
