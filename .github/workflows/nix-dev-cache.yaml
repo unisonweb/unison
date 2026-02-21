@@ -1,5 +1,9 @@
 name: Nix development cache
 
+concurrency:
+  group: nix-dev-cache-${{ github.ref_name }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:

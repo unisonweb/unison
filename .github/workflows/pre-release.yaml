@@ -3,6 +3,11 @@
 name: pre-release
 run-name: pre-release ${{github.ref_name}}
 
+# Cancel earlier builds if we restart the workflow on a new commit.
+concurrency:
+  group: pre-release-${{ github.ref_name }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 defaults:
   run:
     shell: bash
