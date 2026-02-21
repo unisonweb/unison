@@ -5,9 +5,7 @@ defaults:
     shell: bash
 
 on:
-  push:
-    branches-ignore:
-      - 'gh-readonly-queue/**'
+  pull_request:
   merge_group:
   workflow_dispatch:
 
@@ -16,11 +14,12 @@ jobs:
   # This runs on a single platform since it just checks file contents
   verify-proofs:
     name: verify proofs
-    # Don't run on trunk or in merge queue (merge queue runs actual tests)
-    if: github.ref != 'refs/heads/trunk' && github.event_name != 'merge_group'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - run: sudo apt-get install -y ripgrep
       - name: verify transcript proof
         run: |
@@ -60,8 +59,8 @@ jobs:
     # transcripts-os defaults to linux only
     # dll-ffi-os defaults to all platforms
 
-  # Single gate job for merge queue required checks.
-  # Set "merge queue gate" as the sole required status check in branch protection.
+  # Single gate job for merge queue required checks, since `merge-queue-tests` is a matrix 
+  # and we want to require all of them to pass before landing.
   merge-queue-gate:
     name: merge queue gate
     if: github.event_name == 'merge_group' && !cancelled()
