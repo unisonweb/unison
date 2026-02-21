@@ -1,3 +1,6 @@
+# Runs the full test suite on all platforms, then builds and publishes a tagged release.
+# Triggered by scripts/make-release.sh, which also creates the git tag and kicks off
+# the Homebrew release.
 name: release
 
 run-name: release ${{inputs.version}}

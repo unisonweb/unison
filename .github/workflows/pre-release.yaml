@@ -1,5 +1,12 @@
+# Builds and publishes a rolling dev build after each merge to trunk.
+# No tests currently — relies on the merge queue having already tested the code.
 name: pre-release
 run-name: pre-release ${{github.ref_name}}
+
+# Cancel earlier builds if we restart the workflow on a new commit.
+concurrency:
+  group: pre-release-${{ github.ref_name }}-${{ github.event_name }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -7,11 +14,8 @@ defaults:
 
 on:
   # run on each merge to `trunk`
-  workflow_run:
-    workflows: ["CI"]
+  push:
     branches: [trunk]
-    types:
-      - completed
 
   # run manually
   workflow_dispatch:
