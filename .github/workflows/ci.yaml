@@ -6,20 +6,16 @@ defaults:
 
 on:
   pull_request:
-  merge_group:
   workflow_dispatch:
 
 jobs:
-  # Verify proofs on feature branches (not trunk, since trunk runs actual tests)
-  # This runs on a single platform since it just checks file contents
-  verify-proofs:
-    name: verify proofs
-    if: github.event_name == 'pull_request'
+  verify-transcripts:
+    name: verify transcripts proof
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - run: sudo apt-get install -y ripgrep
       - name: verify transcript proof
         run: |
@@ -35,6 +31,14 @@ jobs:
             exit 1
           fi
 
+  verify-tests:
+    name: verify tests proof
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - run: sudo apt-get install -y ripgrep
       - name: verify test proof
         run: |
           RESULT=$(./scripts/proofs/tests.sh --check)
@@ -49,27 +53,18 @@ jobs:
             exit 1
           fi
 
-  # Run tests in merge queue to validate before landing on trunk
-  merge-queue-tests:
-    name: merge queue tests
-    if: github.event_name == 'merge_group'
-    uses: ./.github/workflows/test.yaml
-    with:
-      skip-attested-transcripts: true
-    # transcripts-os defaults to linux only
-    # dll-ffi-os defaults to all platforms
-
-  # Single gate job for merge queue required checks, since `merge-queue-tests` is a matrix 
-  # and we want to require all of them to pass before landing.
-  merge-queue-gate:
-    name: merge queue gate
-    if: github.event_name == 'merge_group' && !cancelled()
-    needs: [merge-queue-tests]
+  verify-proofs:
+    name: verify proofs
+    needs: [verify-transcripts, verify-tests]
     runs-on: ubuntu-24.04
     steps:
-      - name: check all jobs
+      - name: check all proofs
         run: |
-          if [[ "${{ needs.merge-queue-tests.result }}" != "success" ]]; then
-            echo "merge-queue-tests result: ${{ needs.merge-queue-tests.result }}"
+          if [[ "${{ needs.verify-transcripts.result }}" != "success" ]]; then
+            echo "verify-transcripts: ${{ needs.verify-transcripts.result }}"
+            exit 1
+          fi
+          if [[ "${{ needs.verify-tests.result }}" != "success" ]]; then
+            echo "verify-tests: ${{ needs.verify-tests.result }}"
             exit 1
           fi

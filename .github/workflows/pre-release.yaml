@@ -14,11 +14,8 @@ defaults:
 
 on:
   # run on each merge to `trunk`
-  workflow_run:
-    workflows: ["CI"]
+  push:
     branches: [trunk]
-    types:
-      - completed
 
   # run manually
   workflow_dispatch:
