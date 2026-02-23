@@ -38,10 +38,10 @@ import Data.Kind (Type)
 import Data.Text qualified as Text
 import Data.Text.Read qualified as Text (decimal)
 import Data.These (These (..))
-import Text.Builder qualified
-import Text.Builder qualified as Text (Builder)
 import Text.Megaparsec qualified as Megaparsec
 import Text.Megaparsec.Char qualified as Megaparsec
+import TextBuilder (TextBuilder)
+import TextBuilder qualified
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.Prelude
 import Witch
@@ -59,18 +59,18 @@ projectNameParser = do
     asum
       [ do
           user <- userSlugParser
-          pure (Text.Builder.char '@' <> user <> Text.Builder.char '/'),
+          pure (TextBuilder.char '@' <> user <> TextBuilder.char '/'),
         pure mempty
       ]
   projectSlug <- projectSlugParser
   hasTrailingSlash <- isJust <$> optional (Megaparsec.char '/')
-  pure (UnsafeProjectName (Text.Builder.run (userSlug <> projectSlug)), hasTrailingSlash)
+  pure (UnsafeProjectName (TextBuilder.toText (userSlug <> projectSlug)), hasTrailingSlash)
   where
-    projectSlugParser :: Megaparsec.Parsec Void Text Text.Builder
+    projectSlugParser :: Megaparsec.Parsec Void Text TextBuilder
     projectSlugParser = do
       c0 <- Megaparsec.satisfy isStartChar
       c1 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || Char.isDigit c || c == '-')
-      pure (Text.Builder.char c0 <> Text.Builder.text c1)
+      pure (TextBuilder.char c0 <> TextBuilder.text c1)
       where
         isStartChar :: Char -> Bool
         isStartChar c =
@@ -83,19 +83,19 @@ newProjectNameParser = do
     asum
       [ do
           user <- userSlugParser
-          pure (Text.Builder.char '@' <> user <> Text.Builder.char '/'),
+          pure (TextBuilder.char '@' <> user <> TextBuilder.char '/'),
         pure mempty
       ]
   projectSlug <- projectSlugParser
   hasTrailingSlash <- isJust <$> optional (Megaparsec.char '/')
-  pure (UnsafeProjectName (Text.Builder.run (userSlug <> projectSlug)), hasTrailingSlash)
+  pure (UnsafeProjectName (TextBuilder.toText (userSlug <> projectSlug)), hasTrailingSlash)
   where
-    projectSlugParser :: Megaparsec.Parsec Void Text Text.Builder
+    projectSlugParser :: Megaparsec.Parsec Void Text TextBuilder
     projectSlugParser = do
       name <- Megaparsec.takeWhile1P Nothing \c -> Char.isAsciiLower c || Char.isAsciiUpper c || Char.isDigit c || c == '-' || c == '_'
       when (name == "p" || name == "code") do
         fail ("Project cannot be named 'code' or 'p'")
-      pure (Text.Builder.text name)
+      pure (TextBuilder.text name)
 
 isValidNewProjectName :: ProjectName -> Bool
 isValidNewProjectName (UnsafeProjectName projectName) =
@@ -146,11 +146,11 @@ prependUserSlugToProjectName userSlug (UnsafeProjectName projectName) =
     else fromMaybe (UnsafeProjectName projectName) (fst <$> Megaparsec.parseMaybe projectNameParser newProjectName)
   where
     newProjectName =
-      Text.Builder.run $
-        Text.Builder.char '@'
-          <> Text.Builder.text userSlug
-          <> Text.Builder.char '/'
-          <> Text.Builder.text projectName
+      TextBuilder.toText $
+        TextBuilder.char '@'
+          <> TextBuilder.text userSlug
+          <> TextBuilder.char '/'
+          <> TextBuilder.text projectName
 
 instance From ProjectBranchName Text
 
@@ -165,27 +165,27 @@ projectBranchNameParser allowLeadingSlash =
 -- An internal type that captures the structure of a project branch name after parsing. 'classifyProjectBranchName' is
 -- how a user can recover this structure for the few cases it's relevant (e.g. during push)
 data StructuredProjectBranchName
-  = StructuredProjectBranchName'Contributor !Text.Builder !Text.Builder
+  = StructuredProjectBranchName'Contributor !TextBuilder !TextBuilder
   | StructuredProjectBranchName'DraftRelease !Semver
   | StructuredProjectBranchName'Release !Semver
-  | StructuredProjectBranchName'NothingSpecial !Text.Builder
+  | StructuredProjectBranchName'NothingSpecial !TextBuilder
 
 unstructureStructuredProjectName :: StructuredProjectBranchName -> ProjectBranchName
 unstructureStructuredProjectName =
-  UnsafeProjectBranchName . Text.Builder.run . \case
+  UnsafeProjectBranchName . TextBuilder.toText . \case
     StructuredProjectBranchName'Contributor user name ->
-      Text.Builder.char '@' <> user <> Text.Builder.char '/' <> name
+      TextBuilder.char '@' <> user <> TextBuilder.char '/' <> name
     StructuredProjectBranchName'DraftRelease ver -> "releases/drafts/" <> unstructureSemver ver
     StructuredProjectBranchName'Release ver -> "releases/" <> unstructureSemver ver
     StructuredProjectBranchName'NothingSpecial name -> name
   where
-    unstructureSemver :: Semver -> Text.Builder
+    unstructureSemver :: Semver -> TextBuilder
     unstructureSemver (Semver x y z) =
-      Text.Builder.decimal x
-        <> Text.Builder.char '.'
-        <> Text.Builder.decimal y
-        <> Text.Builder.char '.'
-        <> Text.Builder.decimal z
+      TextBuilder.decimal x
+        <> TextBuilder.char '.'
+        <> TextBuilder.decimal y
+        <> TextBuilder.char '.'
+        <> TextBuilder.decimal z
 
 structuredProjectBranchNameParser :: Bool -> Megaparsec.Parsec Void Text StructuredProjectBranchName
 structuredProjectBranchNameParser allowLeadingSlash = do
@@ -216,11 +216,11 @@ structuredProjectBranchNameParser allowLeadingSlash = do
   Megaparsec.notFollowedBy (Megaparsec.char '/')
   pure branch
   where
-    branchSlugParser :: Megaparsec.Parsec Void Text Text.Builder
+    branchSlugParser :: Megaparsec.Parsec Void Text TextBuilder
     branchSlugParser = do
       c0 <- Megaparsec.satisfy isStartChar
       c1 <- Megaparsec.takeWhileP Nothing (\c -> isStartChar c || Char.isDigit c || c == '-')
-      pure (Text.Builder.char c0 <> Text.Builder.text c1)
+      pure (TextBuilder.char c0 <> TextBuilder.text c1)
       where
         isStartChar :: Char -> Bool
         isStartChar c =
@@ -232,12 +232,12 @@ data Semver
 
 instance From Semver Text where
   from (Semver x y z) =
-    (Text.Builder.run . fold)
-      [ Text.Builder.decimal x,
-        Text.Builder.char '.',
-        Text.Builder.decimal y,
-        Text.Builder.char '.',
-        Text.Builder.decimal z
+    (TextBuilder.toText . fold)
+      [ TextBuilder.decimal x,
+        TextBuilder.char '.',
+        TextBuilder.decimal y,
+        TextBuilder.char '.',
+        TextBuilder.decimal z
       ]
 
 instance TryFrom Text Semver where
@@ -304,7 +304,7 @@ classifyProjectBranchName :: ProjectBranchName -> ProjectBranchNameKind
 classifyProjectBranchName (UnsafeProjectBranchName branchName) =
   case Megaparsec.parseMaybe (structuredProjectBranchNameParser False) branchName of
     Just (StructuredProjectBranchName'Contributor user name) ->
-      ProjectBranchNameKind'Contributor (Text.Builder.run user) (UnsafeProjectBranchName (Text.Builder.run name))
+      ProjectBranchNameKind'Contributor (TextBuilder.toText user) (UnsafeProjectBranchName (TextBuilder.toText name))
     Just (StructuredProjectBranchName'DraftRelease ver) -> ProjectBranchNameKind'DraftRelease ver
     Just (StructuredProjectBranchName'Release ver) -> ProjectBranchNameKind'Release ver
     Just (StructuredProjectBranchName'NothingSpecial _name) -> ProjectBranchNameKind'NothingSpecial
@@ -325,35 +325,35 @@ projectBranchNameUserSlug (UnsafeProjectBranchName branchName) =
 
 -- | Mangle a project branch name into a text fragment that is itself a valid project branch name.
 --
--- >>> Text.Builder.run (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "@arya/topic"))
+-- >>> TextBuilder.toText (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "@arya/topic"))
 -- "arya-topic"
 --
--- >>> Text.Builder.run (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "releases/drafts/1.2.3"))
+-- >>> TextBuilder.toText (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "releases/drafts/1.2.3"))
 -- "releases-drafts-1-2-3"
 --
--- >>> Text.Builder.run (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "releases/1.2.3"))
+-- >>> TextBuilder.toText (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "releases/1.2.3"))
 -- "releases-1-2-3"
 --
--- >>> Text.Builder.run (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "topic"))
+-- >>> TextBuilder.toText (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "topic"))
 -- "topic"
-projectBranchNameToValidProjectBranchNameText :: ProjectBranchName -> Text.Builder
+projectBranchNameToValidProjectBranchNameText :: ProjectBranchName -> TextBuilder
 projectBranchNameToValidProjectBranchNameText name =
   case classifyProjectBranchName name of
     ProjectBranchNameKind'Contributor user name1 ->
-      Text.Builder.text user
-        <> Text.Builder.char '-'
+      TextBuilder.text user
+        <> TextBuilder.char '-'
         <> projectBranchNameToValidProjectBranchNameText name1
     ProjectBranchNameKind'DraftRelease semver -> "releases-drafts-" <> mangleSemver semver
     ProjectBranchNameKind'Release semver -> "releases-" <> mangleSemver semver
-    ProjectBranchNameKind'NothingSpecial -> Text.Builder.text (into @Text name)
+    ProjectBranchNameKind'NothingSpecial -> TextBuilder.text (into @Text name)
   where
-    mangleSemver :: Semver -> Text.Builder
+    mangleSemver :: Semver -> TextBuilder
     mangleSemver (Semver x y z) =
-      Text.Builder.decimal x
-        <> Text.Builder.char '-'
-        <> Text.Builder.decimal y
-        <> Text.Builder.char '-'
-        <> Text.Builder.decimal z
+      TextBuilder.decimal x
+        <> TextBuilder.char '-'
+        <> TextBuilder.decimal y
+        <> TextBuilder.char '-'
+        <> TextBuilder.decimal z
 
 -- | A project branch name, or the latest release of its project.
 data ProjectBranchNameOrLatestRelease
@@ -379,10 +379,10 @@ projectBranchSpecifierParser = \case
 
 instance From (ProjectAndBranch ProjectName ProjectBranchName) Text where
   from (ProjectAndBranch project branch) =
-    Text.Builder.run $
-      Text.Builder.text (into @Text project)
-        <> Text.Builder.char '/'
-        <> Text.Builder.text (into @Text branch)
+    TextBuilder.toText $
+      TextBuilder.text (into @Text project)
+        <> TextBuilder.char '/'
+        <> TextBuilder.text (into @Text branch)
 
 -- | Sometimes, it's convenient (to users) if we defer interpreting certain names (like "foo") as a project name or
 -- branch name, instead leaving it up to a command handler to handle the ambiguity.
@@ -440,12 +440,12 @@ projectAndBranchNamesParser2 = do
 instance From (These ProjectName ProjectBranchName) Text where
   from = \case
     This project1 -> into @Text project1
-    That branch1 -> Text.Builder.run (Text.Builder.char '/' <> Text.Builder.text (into @Text branch1))
+    That branch1 -> TextBuilder.toText (TextBuilder.char '/' <> TextBuilder.text (into @Text branch1))
     These project1 branch1 ->
-      Text.Builder.run $
-        Text.Builder.text (into @Text project1)
-          <> Text.Builder.char '/'
-          <> Text.Builder.text (into @Text branch1)
+      TextBuilder.toText $
+        TextBuilder.text (into @Text project1)
+          <> TextBuilder.char '/'
+          <> TextBuilder.text (into @Text branch1)
 
 instance TryFrom Text (These ProjectName ProjectBranchName) where
   tryFrom =
@@ -494,10 +494,10 @@ instance From (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) Text wher
   from = \case
     ProjectAndBranch project Nothing -> into @Text project
     ProjectAndBranch project (Just branch) ->
-      Text.Builder.run $
-        Text.Builder.text (into @Text project)
-          <> Text.Builder.char '/'
-          <> Text.Builder.text (into @Text branch)
+      TextBuilder.toText $
+        TextBuilder.text (into @Text project)
+          <> TextBuilder.char '/'
+          <> TextBuilder.text (into @Text branch)
 
 instance TryFrom Text (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) where
   tryFrom =
@@ -535,10 +535,10 @@ instance From (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) Text wher
   from = \case
     ProjectAndBranch Nothing branch -> into @Text branch
     ProjectAndBranch (Just project) branch ->
-      Text.Builder.run $
-        Text.Builder.text (into @Text project)
-          <> Text.Builder.char '/'
-          <> Text.Builder.text (into @Text branch)
+      TextBuilder.toText $
+        TextBuilder.text (into @Text project)
+          <> TextBuilder.char '/'
+          <> TextBuilder.text (into @Text branch)
 
 instance TryFrom Text (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) where
   tryFrom =
@@ -570,13 +570,13 @@ branchWithOptionalProjectParser =
 -- slug       = @ start-char char* /
 -- start-char = alpha
 -- char       = alpha | digit | -
-userSlugParser :: Megaparsec.Parsec Void Text Text.Builder.Builder
+userSlugParser :: Megaparsec.Parsec Void Text TextBuilder
 userSlugParser = do
   _ <- Megaparsec.char '@'
   c0 <- Megaparsec.satisfy Char.isAlpha
   c1 <- Megaparsec.takeWhileP Nothing (\c -> Char.isAlpha c || Char.isDigit c || c == '-')
   _ <- Megaparsec.char '/'
-  pure (Text.Builder.char c0 <> Text.Builder.text c1)
+  pure (TextBuilder.char c0 <> TextBuilder.text c1)
 
 ----
 

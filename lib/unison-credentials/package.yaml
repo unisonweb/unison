@@ -10,6 +10,7 @@ dependencies:
   - bytestring
   - containers
   - crypton
+  - exceptions
   - filepath
   - jose
   - text

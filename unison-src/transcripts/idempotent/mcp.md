@@ -925,3 +925,114 @@ RESPONSE:
   }
 
 ```
+
+## create-branch
+
+### Create branch from current context
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "create-branch",
+      "arguments": {
+        "projectName": "scratch",
+        "newBranchName": "from-current",
+        "sourceType": "current"
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done. I've created the from-current branch based off of reflog-test.\\n\\nTip: To merge your work back into the reflog-test branch, first `switch /reflog-test` then `merge /from-current`.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
+
+### Create empty branch
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "create-branch",
+      "arguments": {
+        "projectName": "scratch",
+        "newBranchName": "empty-branch",
+        "sourceType": "empty"
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done. I've created an empty branch scratch/empty-branch.\\n\\nTip: Use `merge /somebranch` to initialize this branch.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
+
+### Create branch from existing branch
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "create-branch-x",
+      "arguments": {
+        "projectName": "scratch",
+        "newBranchName": "from-main",
+        "sourceType": "branch",
+        "sourceBranchName": "main"
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "Tool 'create-branch-x' not found.",
+                  "type": "text"
+              }
+          ],
+          "isError": true
+      }
+  }
+
+```

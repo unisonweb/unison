@@ -4,28 +4,24 @@ SCRIPTDIR="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
 
 source "$SCRIPTDIR/check-version.bash"
 
-if version-equals weeder "2.8.0"; then
+if version-equals weeder "2.10.0"; then
     ## We `cd` so Weeder can find all the files.
     cd "$SCRIPTDIR/.."
-    ## Weeder gets confused by HIE files in the Direnv cache, but doesn’t let us exclude a directory from HIE search
-    ## (ocharles/weeder#201). So this enumerates the directories we _do_ want to search.
-    ##
-    ## TODO: Populate the `--hie-directory` list with something like
-    ##       `find . -type d -name ".stack-work" -exec dirname "{}" \;` to keep it from going stale.
-    weeder \
-        --require-hs-files --no-default-fields \
-        --hie-directory ./codebase2 \
-        --hie-directory ./lib \
-        --hie-directory ./parser-typechecker \
-        --hie-directory ./unison-cli \
-        --hie-directory ./unison-cli-integration \
-        --hie-directory ./unison-cli-main \
-        --hie-directory ./unison-core \
-        --hie-directory ./unison-hashing-v2 \
-        --hie-directory ./unison-merge \
-        --hie-directory ./unison-runtime \
-        --hie-directory ./unison-share-api \
-        --hie-directory ./unison-share-projects-api \
-        --hie-directory ./unison-syntax \
-        --hie-directory ./yaks
+
+    ## This works around multiple issues:
+    ## - enumerating directories lets us avoid HIE files in other places (like the Direnv cache), since there’s no way
+    ##   to exclude directories (ocharles/weeder#201)
+    ## - having ‘.stack-work’ in the explicit path avoids a bug in Weeder where it wouldn’t search through hidden
+    ##   directories (ocharles/weeder#190)
+    ## - including the GHC version filters HIE files from other builds (like those in the GitHub CI caches after a GHC
+    ##   upgrade)
+    hie_dirs=()
+    dir_file=$(mktemp --tmpdir weeder-hie-dirs.XXXXXX)
+    find . -type d -name '.stack-work' >"${dir_file}"
+    while IFS= read -r dir; do
+        hie_dirs+=("--hie-directory" "${dir}"/dist/*/ghc-9.10.3)
+    done <"${dir_file}"
+    rm "${dir_file}"
+
+    weeder --require-hs-files --no-default-fields "${hie_dirs[@]}"
 fi

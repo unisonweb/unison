@@ -1,15 +1,16 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
 module Unison.Auth.CredentialManager
   ( saveCredentials,
     CredentialManager,
     globalCredentialManager,
+    newCredentialManager,
     getCodeserverCredentials,
     getOrCreatePersonalKey,
     isExpired,
   )
 where
 
+import Control.Concurrent.MVar (MVar, modifyMVar, newMVar)
+import Control.Monad.Catch (MonadMask)
 import Control.Monad.Trans.Except
 import Data.Map qualified as Map
 import Data.Time.Clock (addUTCTime, diffUTCTime, getCurrentTime)
@@ -23,23 +24,27 @@ import Unison.Share.Types (CodeserverId)
 import UnliftIO qualified
 
 -- | A 'CredentialManager' knows how to load, save, and cache credentials.
+--
 -- It's thread-safe and safe for use across multiple UCM clients.
--- Note: Currently the in-memory cache is _not_ updated if a different UCM updates
--- the credentials file, however this shouldn't pose any problems, since auth will still
--- be refreshed if we encounter any auth failures on requests.
-newtype CredentialManager = CredentialManager (UnliftIO.MVar (Maybe Credentials {- Credentials may or may not be initialized -}))
+--
+-- __Note__: Currently the in-memory cache is _not_ updated if a different UCM updates the credentials file, however
+--           this shouldn't pose any problems, since auth will still be refreshed if we encounter any auth failures on
+--           requests.
+data CredentialManager = CredentialManager
+  { credsVar :: MVar (Maybe Credentials),
+    file :: FilePath
+  }
 
 -- | A global CredentialManager instance/singleton.
 globalCredentialManager :: CredentialManager
-globalCredentialManager = unsafePerformIO do
-  CredentialManager <$> UnliftIO.newMVar Nothing
+globalCredentialManager = unsafePerformIO $ newCredentialManager Nothing
 {-# NOINLINE globalCredentialManager #-}
 
 -- | Fetches the user's personal key from the active profile, if it exists.
 -- Otherwise it creates a new personal key, saves it to the active profile, and returns it.
-getOrCreatePersonalKey :: (MonadUnliftIO m) => CredentialManager -> m PersonalPrivateKey
+getOrCreatePersonalKey :: CredentialManager -> IO PersonalPrivateKey
 getOrCreatePersonalKey credMan = do
-  modifyCredentials credMan \creds@(Credentials {activeProfile, personalKeys}) -> do
+  modifyCredentials credMan \creds@(Credentials {activeProfile, personalKeys}) ->
     case Map.lookup activeProfile personalKeys of
       Just pk -> pure (creds, pk)
       Nothing -> do
@@ -47,36 +52,42 @@ getOrCreatePersonalKey credMan = do
         pure (creds {personalKeys = Map.insert activeProfile pk personalKeys}, pk)
 
 -- | Saves credentials to the active profile.
-saveCredentials :: (UnliftIO.MonadUnliftIO m) => CredentialManager -> CodeserverId -> CodeserverCredentials -> m ()
+saveCredentials :: CredentialManager -> CodeserverId -> CodeserverCredentials -> IO ()
 saveCredentials credManager aud creds = do
-  void . modifyCredentials credManager $ \cf -> pure (setCodeserverCredentials aud creds cf, ())
+  modifyCredentials credManager $ pure . (,()) . setCodeserverCredentials aud creds
 
 -- | Atomically update the credential storage file, and update the in-memory cache.
-modifyCredentials :: (UnliftIO.MonadUnliftIO m) => CredentialManager -> (Credentials -> m (Credentials, r)) -> m r
-modifyCredentials (CredentialManager credsVar) f = do
-  UnliftIO.modifyMVar credsVar $ \_ -> do
-    (creds, r) <- CF.atomicallyModifyCredentialsFile (f >=> \(creds', r') -> pure (creds', (creds', r')))
-    pure (Just creds, r)
+modifyCredentials :: (MonadMask m, UnliftIO.MonadUnliftIO m) => CredentialManager -> (Credentials -> m (Credentials, r)) -> m r
+modifyCredentials (CredentialManager {credsVar, file}) f =
+  UnliftIO.modifyMVar credsVar . const $
+    first pure <$> CF.atomicallyModifyCredentialsFile (fmap (\(creds', r') -> (creds', (creds', r'))) . f) file
 
-readCredentials :: (UnliftIO.MonadUnliftIO m) => CredentialManager -> m Credentials
-readCredentials (CredentialManager credsVar) = do
-  UnliftIO.modifyMVar credsVar $ \mayCreds -> case mayCreds of
-    Just creds -> pure (mayCreds, creds)
+readCredentials :: CredentialManager -> IO Credentials
+readCredentials (CredentialManager {credsVar, file}) =
+  modifyMVar credsVar $ \case
+    Just creds -> pure (pure creds, creds)
     Nothing -> do
-      creds <- CF.atomicallyModifyCredentialsFile \c -> pure (c, c)
-      pure (Just creds, creds)
+      creds <- CF.atomicallyModifyCredentialsFile (\c -> pure (c, c)) file
+      pure (pure creds, creds)
 
-getCodeserverCredentials :: (MonadIO m) => CredentialManager -> CodeserverId -> m (Either CredentialFailure CodeserverCredentials)
+getCodeserverCredentials :: CredentialManager -> CodeserverId -> IO (Either CredentialFailure CodeserverCredentials)
 getCodeserverCredentials credMan aud = runExceptT do
-  creds <- liftIO $ readCredentials credMan
+  creds <- lift $ readCredentials credMan
   codeserverCreds <- except (Auth.getCodeserverCredentials aud creds)
   lift (isExpired codeserverCreds) >>= \case
     True -> throwE (ReauthRequired aud)
     False -> pure codeserverCreds
 
+newCredentialManager :: Maybe FilePath -> IO CredentialManager
+newCredentialManager mfile = do
+  file <- maybe CF.getCredentialJSONFilePath pure mfile
+  credentials <- CF.atomicallyModifyCredentialsFile (\c -> pure (c, c)) file
+  credsVar <- newMVar $ pure credentials
+  pure CredentialManager {credsVar, file}
+
 -- | Checks whether CodeserverCredentials are expired.
-isExpired :: (MonadIO m) => CodeserverCredentials -> m Bool
-isExpired CodeserverCredentials {fetchTime, tokens = Tokens {expiresIn}} = liftIO do
+isExpired :: CodeserverCredentials -> IO Bool
+isExpired CodeserverCredentials {fetchTime, tokens = Tokens {expiresIn}} = do
   now <- getCurrentTime
   let expTime = addUTCTime expiresIn fetchTime
   let remainingTime = diffUTCTime expTime now

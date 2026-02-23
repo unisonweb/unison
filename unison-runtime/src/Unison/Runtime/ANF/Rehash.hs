@@ -6,7 +6,7 @@ import Data.ByteArray (convert)
 import Data.ByteString (cons)
 import Data.ByteString.Lazy (toChunks)
 import Data.Graph as Gr
-import Data.List (foldl', nub, sortBy)
+import Data.List (nub, sortBy)
 import Data.Map.Strict qualified as Map
 import Data.Ord (comparing)
 import Data.Set qualified as Set

@@ -1,7 +1,11 @@
 name: Contributor signed CONTRIBUTORS.markdown
 
+# Apparently, to make a check required for either pull_request or merge_group, 
+# we need to run the check for both events, and then exclude steps or jobs
+# as needed.
 on:
   pull_request:
+  merge_group:
 
 jobs:
   check-contributor:
@@ -11,6 +15,7 @@ jobs:
       with:
           sparse-checkout: CONTRIBUTORS.markdown
     - name: Look for @${{github.event.pull_request.user.login}} in CONTRIBUTORS.markdown
+      if: github.event_name == 'pull_request'
       shell: bash
       run: |
         echo "If this step fails, make sure you've added yourself to CONTRIBUTORS.markdown"

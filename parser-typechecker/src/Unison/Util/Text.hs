@@ -6,7 +6,7 @@ module Unison.Util.Text where
 
 import Data.Digest.Murmur64 (Hash64, Hashable64 (..))
 import Data.Foldable (toList)
-import Data.List (foldl', unfoldr)
+import Data.List (unfoldr)
 import Data.List qualified as L
 import Data.String (IsString (..))
 import Data.Text qualified as T

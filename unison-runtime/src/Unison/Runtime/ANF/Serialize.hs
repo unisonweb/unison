@@ -5,7 +5,7 @@
 
 module Unison.Runtime.ANF.Serialize where
 
-import Control.Monad
+import Control.Monad (replicateM)
 import Control.Monad.ST (ST)
 import Control.Monad.State.Strict (StateT (..))
 import Data.ByteString (ByteString)
@@ -458,6 +458,8 @@ putBLit _ (Char c) = putTag CharT <> putChar c
 putBLit _ (Float d) = putTag FloatT <> putFloat d
 putBLit v (Arr a) = putTag ArrT <> putFoldable (putValue v) a
 putBLit _ (Map _) = exn [] "putBLit: impossible Map"
+putBLit _ (BigInt i) = putTag BigIntT <> putInteger i
+putBLit _ (BigNat n) = putTag BigNatT <> putNatural n
 
 -- special function for serializing a list of pairs as a Unison map.
 -- This allows us to avoid inflating the map to a unison value during
@@ -508,6 +510,8 @@ getBLit s@(v, fo) =
     CachedCodeT ->
       Code . flip CodeRep Cacheable <$> getGroup (valueToCode v, fo)
     MapT -> exn [] "getBLit: unsupported literal map"
+    BigIntT -> BigInt <$> getInteger
+    BigNatT -> BigNat <$> getNatural
 {-# SPECIALIZE getBLit :: DeserialIO (BLit Reference) #-}
 {-# SPECIALIZE getBLit :: DeserialST s (BLit Reference) #-}
 

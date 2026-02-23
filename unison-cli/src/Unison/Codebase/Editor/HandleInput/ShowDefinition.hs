@@ -8,6 +8,7 @@ where
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State qualified as State
+import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
@@ -26,13 +27,14 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
+import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..), ShowDefinitionScope (..))
 import Unison.Codebase.Editor.Output
 import Unison.DataDeclaration (Decl)
-import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -40,7 +42,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Reference (Reference, TermReferenceId)
+import Unison.Reference (TermReference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend qualified as Backend
@@ -48,6 +50,7 @@ import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.NamePrinter (SyntaxText)
+import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UnisonFile
@@ -59,8 +62,28 @@ import Unison.WatchKind qualified as WatchKind
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> List.NonEmpty (HQ.HashQualified Name) -> Cli ()
-handleShowDefinition outputLoc showDefinitionScope query = do
+handleShowDefinition outputLoc showDefinitionScope originalQuery = do
   env <- ask
+
+  let originalQuerySet :: Set (HQ.HashQualified Name)
+      originalQuerySet =
+        Set.fromList (List.NonEmpty.toList originalQuery)
+
+  -- Take the user's original query, de-dupe (unlikely that they repeated something), and maybe add docs per above.
+  let query :: Set (HQ.HashQualified Name)
+      query =
+        Foldable.foldl'
+          ( \acc hqName ->
+              acc
+                & Set.insert hqName
+                & case hqName of
+                  HQ.NameOnly name
+                    | Name.lastSegment name /= NameSegment.docSegment ->
+                        Set.insert (HQ.NameOnly (Name.snoc name NameSegment.docSegment))
+                  _ -> id
+          )
+          Set.empty
+          originalQuery
 
   let hasAbsoluteQuery = any (any Name.isAbsolute) query
   (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
@@ -82,11 +105,22 @@ handleShowDefinition outputLoc showDefinitionScope query = do
       currentNames <- Cli.currentNames
       let pped = PPED.makePPED (PPE.hqNamer 10 currentNames) (suffixify currentNames)
       pure (currentNames, pped)
-  let pped = PPED.biasTo (mapMaybe HQ.toName (List.NonEmpty.toList query)) unbiasedPPED
-  Backend.DefinitionResults terms types misses <- do
+  let pped = PPED.biasTo (mapMaybe HQ.toName (Set.toList query)) unbiasedPPED
+  Backend.DefinitionResults terms types misses0 <- do
     let nameSearch = NameSearch.makeNameSearch 10 names
-    Cli.runTransaction (Backend.definitionsByName env.codebase nameSearch includeCycles Names.IncludeSuffixes (toList query))
-  showDefinitions outputLoc pped terms types misses
+    Cli.runTransaction $
+      Backend.definitionsByName
+        env.codebase
+        nameSearch
+        includeCycles
+        Names.IncludeSuffixes
+        query
+  -- Removed missed docs that the user didn't ask for from `misses`
+  let misses =
+        -- Unlikely that both original query list and misses list are both very long, but make a set out of original
+        -- query anyway, to replace pathological O(n^2) with O(n log n)
+        filter (`Set.member` originalQuerySet) misses0
+  showDefinitions outputLoc (`Set.member` originalQuerySet) pped terms types misses
   where
     suffixify =
       case outputLoc of
@@ -106,24 +140,21 @@ handleShowDefinition outputLoc showDefinitionScope query = do
 -- the desired behavior.
 showDefinitions ::
   OutputLocation ->
+  (HQ.HashQualified Name -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
-  (Map Reference.Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann))) ->
-  ( Map
-      Reference.Reference
-      (DisplayObject () (Decl Symbol Ann))
-  ) ->
+  Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   [HQ.HashQualified Name] ->
   Cli ()
-showDefinitions outputLoc pped terms types misses = do
+showDefinitions outputLoc nameInOriginalQuery pped terms types misses = do
   Cli.Env {codebase, writeSource} <- ask
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
-    Nothing -> do
-      renderToConsole pped terms types
+    Nothing -> renderToConsole nameInOriginalQuery pped terms types
     Just (fp, relToFold) -> do
       mayTF <- use #latestTypecheckedFile
-      numRendered <- renderToFile codebase writeSource mayTF fp relToFold pped terms types
+      numRendered <- renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types
 
       when (numRendered > 0) do
         -- We set latestFile to be programmatically generated, if we
@@ -147,28 +178,143 @@ showDefinitions outputLoc pped terms types misses = do
             Just (path, _) -> Just (path, relToFold)
 
 renderCodePretty ::
+  (HQ.HashQualified Name -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Bool ->
   (TermReferenceId -> Bool) ->
-  Map Reference.TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
-  Map Reference (DisplayObject () (Decl Symbol Ann)) ->
+  Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   Defns (Set Symbol) (Set Symbol) ->
   -- Result is Nothing if nothing was rendered
-  (Maybe (Pretty Pretty.ColorText, Int))
-renderCodePretty pped isSourceFile isTest terms types excludeNames =
-  let prettyTypes = prettyTypeDisplayObjects pped types excludeNames.types
-      prettyTerms = prettyTermDisplayObjects pped isSourceFile isTest terms excludeNames.terms
+  Maybe (Pretty Pretty.ColorText, Int)
+renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types excludeNames =
+  let -- Associate each term and type with their best unsuffixified name
+      namedTerms :: Map (HQ.HashQualified Name) (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+      namedTerms =
+        nameTerms pped.unsuffixifiedPPE excludeNames.terms terms
+
+      namedTypes :: Map (HQ.HashQualified Name) (TypeReference, DisplayObject () (Decl Symbol Ann))
+      namedTypes =
+        nameTypes pped.unsuffixifiedPPE excludeNames.types types
+
+      -- Partition those into two groups: those that end in a .doc segment, and those that don't
+      -- Note that the doc-named terms aren't necessarily docs (though they they likely all are)
+      docNamedTerms :: Map (HQ.HashQualified Name) (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+      notDocNamedTerms :: Map (HQ.HashQualified Name) (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+      (docNamedTerms, notDocNamedTerms) =
+        Map.partitionWithKey
+          ( \hqName _ ->
+              case hqName of
+                HQ.NameOnly name -> Name.lastSegment name == NameSegment.docSegment
+                _ -> False
+          )
+          namedTerms
+
+      -- Define a helper that resolves a name like `foo.bar` to its rendered doc at `foo.bar.doc` (if there is one)
+      lookupDocForName :: HQ.HashQualified Name -> Maybe (Pretty SyntaxText)
+      lookupDocForName hqName = do
+        name <- HQ.asNameOnly hqName
+        (_, DisplayObject.UserObject docTerm) <-
+          Map.lookup (HQ.NameOnly (Name.snoc name NameSegment.docSegment)) docNamedTerms
+        TermPrinter.prettyDoc2 pped.suffixifiedPPE docTerm
+
+      -- For each of the not-doc terms, e.g. foo.bar, pair with its doc, i.e. foo.bar.doc (if it's there)
+      termsWithMaybeDocs ::
+        Map
+          (HQ.HashQualified Name)
+          ( (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
+            Maybe (Pretty SyntaxText)
+          )
+      termsWithMaybeDocs =
+        notDocNamedTerms & Map.mapWithKey \name term ->
+          (term, lookupDocForName name)
+
+      -- Same for types - pair with their docs as well
+      typesWithMaybeDocs ::
+        Map
+          (HQ.HashQualified Name)
+          ( (TypeReference, DisplayObject () (Decl Symbol Ann)),
+            Maybe (Pretty SyntaxText)
+          )
+      typesWithMaybeDocs =
+        namedTypes & Map.mapWithKey \name typ ->
+          (typ, lookupDocForName name)
+
+      -- Now we can identify all of the doc-named things that didn't get paired up with a type or term. Very commonly,
+      -- these will be due to the user simply having asked for the doc of something but not its term, e.g.
+      -- `edit foo.doc`. We might also have doc-named things that just aren't docs.
+      docNamedTermsWithNoAssociatedDefinition ::
+        Map (HQ.HashQualified Name) (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+      docNamedTermsWithNoAssociatedDefinition =
+        let namesOfDocsAssociatedWithDefns :: Map (HQ.HashQualified Name) (defn, Maybe doc) -> Set (HQ.HashQualified Name)
+            namesOfDocsAssociatedWithDefns =
+              Map.foldlWithKey'
+                ( \acc name -> \case
+                    (_, Just _) -> Set.insert ((`Name.snoc` NameSegment.docSegment) <$> name) acc
+                    _ -> acc
+                )
+                Set.empty
+         in Map.withoutKeys
+              docNamedTerms
+              ( Set.union
+                  (namesOfDocsAssociatedWithDefns termsWithMaybeDocs)
+                  (namesOfDocsAssociatedWithDefns typesWithMaybeDocs)
+              )
+
+      -- And now we can add those docs back into `termsWithTheirDocs`, themselves without docs of course
+      --
+      -- Here's also where we end up using our magic "should include this" predicate from the sky. Here's the
+      -- motivation, by example:
+      --
+      -- 1. The user has `lib.base.List.sort` and `List.sort.doc` (you might think that's nuts but we have a transcript
+      --    that does this!)
+      -- 2. The user types `view List.sort`
+      -- 3. This gets auto-expanded to `view List.sort List.sort.doc`
+      -- 3. We therefore find `base.List.sort` and `List.sort.doc`
+      --
+      -- In this case, we have a doc with no associated definition (`List.sort.doc`), but the user didn't ask for it.
+      -- So, we probably shouldn't show it. This is also highlighting a potential issue with this "add .doc to
+      -- everything the user asked for" idea for this implementation. Perhaps instead we should do the normal query
+      -- the user asked for, and then chase down those things' docs in a follow-up.
+      termsWithMaybeDocs1 ::
+        Map
+          (HQ.HashQualified Name)
+          ( (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
+            Maybe (Pretty SyntaxText)
+          )
+      termsWithMaybeDocs1 =
+        docNamedTermsWithNoAssociatedDefinition
+          & Map.filterWithKey (\name _ -> nameInOriginalQuery name)
+          & Map.map (,Nothing)
+          & Map.union termsWithMaybeDocs
+
+      prettyTypes :: [Pretty SyntaxText]
+      prettyTypes =
+        typesWithMaybeDocs
+          & Map.toList
+          & List.sortBy (\(n0, _) (n1, _) -> Name.compareAlphabetical n0 n1)
+          & map \(name, ((ref, typ), maybeDoc)) ->
+            maybe mempty (<> Pretty.newline) maybeDoc
+              <> Pretty.prettyType pped (name, ref, typ)
+
+      prettyTerms :: [Pretty SyntaxText]
+      prettyTerms =
+        termsWithMaybeDocs1
+          & Map.toList
+          & List.sortBy (\(n0, _) (n1, _) -> Name.compareAlphabetical n0 n1)
+          & map \(name, ((ref, term), maybeDoc)) ->
+            maybe mempty (<> Pretty.newline) maybeDoc
+              <> Pretty.prettyTerm pped isSourceFile (maybe False isTest (Reference.toId ref)) (name, ref, term)
    in NEL.nonEmpty (prettyTypes ++ prettyTerms)
         $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)), length prettyTerms + length prettyTypes)
 
 renderToConsole ::
+  (HQ.HashQualified Name -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
-  Map
-    Reference.TermReference
-    (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
-  Map Reference (DisplayObject () (Decl Symbol Ann)) ->
+  Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   Cli ()
-renderToConsole pped terms types = do
+renderToConsole nameInOriginalQuery pped terms types = do
   -- If we're writing to console we don't add test-watch syntax
   let isTest _ = False
   let isSourceFile = False
@@ -176,6 +322,7 @@ renderToConsole pped terms types = do
   let renderedCodePretty =
         fst
           <$> renderCodePretty
+            nameInOriginalQuery
             pped
             isSourceFile
             isTest
@@ -190,15 +337,16 @@ renderToConsole pped terms types = do
 renderToFile ::
   (MonadIO m, Monoid a) =>
   Codebase IO Symbol a ->
+  (HQ.HashQualified Name -> Bool) ->
   (Text -> Text -> Bool -> IO ()) ->
   Maybe (Either (UnisonFile.UnisonFile Symbol Ann) (UnisonFile.TypecheckedUnisonFile Symbol a)) ->
   FilePath ->
   RelativeToFold ->
   PPED.PrettyPrintEnvDecl ->
-  Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
-  Map Reference (DisplayObject () (Decl Symbol Ann)) ->
+  Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   (m Int)
-renderToFile codebase writeSource mayTF fp relToFold pped terms types = do
+renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types = do
   -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
   -- already bound in the file
   let excludeNames =
@@ -231,7 +379,7 @@ renderToFile codebase writeSource mayTF fp relToFold pped terms types = do
         (Map.keysSet terms & Set.mapMaybe Reference.toId)
   let isTest r = Set.member r testRefs
   let isSourceFile = True
-  let mayRenderedCodePretty = renderCodePretty pped isSourceFile isTest terms types excludeNames
+  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types excludeNames
   case mayRenderedCodePretty of
     Just (renderedCodePretty, numRendered) -> do
       let (renderedCodeText) = Pretty.toPlain 80 renderedCodePretty
@@ -242,44 +390,44 @@ renderToFile codebase writeSource mayTF fp relToFold pped terms types = do
       pure numRendered
     Nothing -> pure 0
 
-prettyTypeDisplayObjects ::
-  PPED.PrettyPrintEnvDecl ->
-  (Map Reference (DisplayObject () (DD.Decl Symbol Ann))) ->
+-- | `nameTerms ppe excludeNames terms` keys each term in `terms` by its best name in `ppe`, but terms whose best name
+-- is in the set `exclude` are thrown away.
+nameTerms ::
+  PPE.PrettyPrintEnv ->
   Set Symbol ->
-  [Pretty SyntaxText]
-prettyTypeDisplayObjects pped types excludeNames =
-  types
-    & Map.toList
-    & mapMaybe
-      ( \(ref, dt) -> do
-          let hqName = PPE.typeName unsuffixifiedPPE ref
-          whenJust (HQ.toName hqName) \name ->
-            guard (Set.notMember (Name.toVar name) excludeNames)
-          Just (hqName, ref, dt)
-      )
-    & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-    & map (Pretty.prettyType pped)
-  where
-    unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+  Map TermReference term ->
+  Map (HQ.HashQualified Name) (TermReference, term)
+nameTerms ppe =
+  nameDefns (PPE.termName ppe . Referent.Ref)
 
-prettyTermDisplayObjects ::
-  PPED.PrettyPrintEnvDecl ->
-  Bool ->
-  (TermReferenceId -> Bool) ->
-  (Map Reference.TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann))) ->
+-- | `nameTypes ppe excludeNames types` keys each type in `types` by its best name in `ppe`, but types whose best name
+-- is in the set `exclude` are thrown away.
+nameTypes ::
+  PPE.PrettyPrintEnv ->
   Set Symbol ->
-  [Pretty SyntaxText]
-prettyTermDisplayObjects pped isSourceFile isTest terms excludeNames =
-  terms
-    & Map.toList
-    & mapMaybe
-      ( \(ref, dt) -> do
-          let hqName = PPE.termName unsuffixifiedPPE (Referent.Ref ref)
-          whenJust (HQ.toName hqName) \name ->
-            guard (Set.notMember (Name.toVar name) excludeNames)
-          Just (hqName, ref, dt)
-      )
-    & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-    & map (\t -> Pretty.prettyTerm pped isSourceFile (fromMaybe False . fmap isTest . Reference.toId $ (t ^. _2)) t)
+  Map TypeReference typ ->
+  Map (HQ.HashQualified Name) (TypeReference, typ)
+nameTypes ppe =
+  nameDefns (PPE.typeName ppe)
+
+nameDefns ::
+  forall defn ref.
+  (ref -> HQ.HashQualified Name) ->
+  Set Symbol ->
+  Map ref defn ->
+  Map (HQ.HashQualified Name) (ref, defn)
+nameDefns toName exclude =
+  Map.foldlWithKey' f Map.empty
   where
-    unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+    f ::
+      Map (HQ.HashQualified Name) (ref, defn) ->
+      ref ->
+      defn ->
+      Map (HQ.HashQualified Name) (ref, defn)
+    f acc ref term =
+      case HQ.toName hqName of
+        Just name | Set.member (Name.toVar name) exclude -> acc
+        _ -> Map.insert hqName (ref, term) acc
+      where
+        hqName =
+          toName ref

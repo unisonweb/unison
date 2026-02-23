@@ -121,7 +121,7 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
             liftIO (Text.putStrLn $ "\nAbout to run test:" <> ("\n" <> P.toPlain 80 testName))
           Cli.respond $ TestIncrementalOutputStart fqnPPE (n, total) r
           --                        v don't cache; test cache populated below
-          tm' <- Cli.time ("\n" <> P.toPlain 80 testName) $ RuntimeUtils.evalPureUnison fqnPPE False tm
+          tm' <- Cli.time ("\n" <> P.toPlain 80 testName) $ RuntimeUtils.evalUnisonTermE Sandboxed fqnPPE False tm
           case tm' of
             Left e -> do
               Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r False

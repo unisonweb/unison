@@ -1,6 +1,6 @@
 ## Building with Nix
 
-__NB__: It is important that the Unison Nix cache is trusted when building, otherwise you will likely end up building hundreds of packages, including GHC itself.
+__NB__: It’ll speed things up if the Unison Nix cache is trusted when building, otherwise you’ll likely end up building hundreds of packages Haskell packages.
 
 The recommended way to do this is to add the public key and URL for the cache to your system’s Nix configuration. /etc/nix/nix.conf should have lines similar to
 ```conf
@@ -29,50 +29,41 @@ nix.settings.trusted-substituters = ["https://unison.cachix.org"];
 ```
 and run `sudo nixos-rebuild switch` afterward.
 
-It is _not_ recommended to add your user to `trusted-users`. This _can_ make enabling flake configurations simpler (like the Unison Nix cache here), but [it is equivalent to giving that user root access (without need for sudo)](https://nix.dev/manual/nix/2.23/command-ref/conf-file.html#conf-trusted-users).
+It’s _not_ recommended to add your user to `trusted-users`. This _can_ make enabling flake configurations simpler (like the Unison Nix cache here), but [it’s equivalent to giving that user root access (without need for sudo)](https://nix.dev/manual/nix/2.23/command-ref/conf-file.html#conf-trusted-users).
 
 ## Building package components with nix
 
 ### Build the unison executable
+
 ```shell
 nix build
 ```
 
-### Build a specific component
-This is specified with the normal
-`<package>:<component-type>:<component-name>` triple.
+### Build a specific package
 
-Some examples:
 ```shell
-nix build '.#component-unison-cli:lib:unison-cli'
-nix build '.#component-unison-syntax:test:syntax-tests'
-nix build '.#component-unison-cli:exe:transcripts'
+nix build '.#unison-cli-integration'
+nix build '.#unison-syntax'
+nix build '.#unison-cli'
 ```
 
 ### Development environments
 
-#### Get into a development environment for building with stack
+#### Get into a development environment for building with Stack or Cabal
 This gets you into a development environment with the preferred
 versions of the compiler and other development tools. These
 include:
 
-- ghc
-- stack
-- ormolu
+- Cabal
+- GHC
 - haskell-language-server
+- hpack
+- Ormolu
+- Stack
+- Weeder
 
 ```shell
 nix develop
-```
-
-#### Get into a development environment for building with cabal
-This gets you into a development environment with the preferred
-versions of the compiler and other development tools. Additionally,
-all non-local haskell dependencies (including profiling dependencies)
-are provided in the nix shell.
-
-```shell
-nix develop '.#cabal-local'
 ```
 
 #### Get into a development environment for building a specific package
@@ -82,17 +73,17 @@ all haskell dependencies of this package are provided by the nix shell
 (including profiling dependencies).
 
 ```shell
-nix develop '.#cabal-<package-name>'
+nix develop '.#<package-name>'
 ```
 
 for example:
 
 ```shell
-nix develop '.#cabal-unison-cli'
+nix develop '.#unison-cli'
 ```
 or
 ```shell
-nix develop '.#cabal-unison-parser-typechecker'
+nix develop '.#unison-parser-typechecker'
 ```
 
 This is useful if you wanted to profile a package. For example, if you
@@ -101,7 +92,7 @@ shells, cd into its directory, then run the program with
 profiling.
 
 ```shell
-nix develop '.#cabal-unison-parser-typechecker'
+nix develop '.#unison-parser-typechecker'
 cd unison-cli
 cabal run --enable-profiling unison-cli-main:exe:unison -- +RTS -p
 ```
@@ -113,7 +104,7 @@ There is [a cache for Unison artifacts on Cachix](https://unison.cachix.org). It
 1. to keep an up-to-date development environment for Unison contributors and
 2. to maintain built versions of the last few releases.
 
-Correspondingly, CI automatically updates the cache on merges to trunk (to satisfy the first use case) and on release tags to mostly satisfy the second.
+Correspondingly, CI automatically updates the cache on merges to trunk (to satisfy the first use case) and on release tags (to mostly satisfy the second).
 
 ### updating when the development environment changes
 

@@ -1807,9 +1807,12 @@ foo = "alice and bobs foo"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + foo : Text
+  ~ foo : Text
 
-  Run `update` to apply these changes to your codebase.
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase and
+  complete the merge, or `cancel` to cancel the merge.
 ```
 
 ``` ucm
@@ -3241,10 +3244,8 @@ type Bar = MkBar Foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + type Bar
-  + type Foo
-
-  Run `update` to apply these changes to your codebase.
+  Run `update` to apply these changes to your codebase and
+  complete the merge, or `cancel` to cancel the merge.
 ```
 
 ``` ucm
@@ -3381,9 +3382,8 @@ type Foo = Bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + type Foo
-
-  Run `update` to apply these changes to your codebase.
+  Run `update` to apply these changes to your codebase and
+  complete the merge, or `cancel` to cancel the merge.
 ```
 
 ``` ucm
@@ -3515,9 +3515,12 @@ type Foo = Bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + type Foo
+  ~ type Foo
 
-  Run `update` to apply these changes to your codebase.
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase and
+  complete the merge, or `cancel` to cancel the merge.
 ```
 
 ``` ucm
@@ -3662,9 +3665,12 @@ type Foo = Bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + type Foo
+  ~ type Foo
 
-  Run `update` to apply these changes to your codebase.
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase and
+  complete the merge, or `cancel` to cancel the merge.
 ```
 
 ``` ucm

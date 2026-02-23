@@ -224,7 +224,7 @@ generateRandomProjectNames = do
           "witty",
           "wondrous",
           "zestful"
-          ]
+        ]
       noun <-
         [ "alpaca",
           "armadillo",
@@ -312,7 +312,7 @@ generateRandomProjectNames = do
           "wombat",
           "yak",
           "zebra"
-          ]
+        ]
 
       pure (adjective <> "-" <> noun)
 

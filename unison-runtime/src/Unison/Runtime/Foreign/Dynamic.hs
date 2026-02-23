@@ -38,7 +38,8 @@ data CSpec = CSpec
     ffSpec :: !FFSpec
   }
 
-data CDynFunc = forall a.
+data CDynFunc
+  = forall a.
   CDynFunc
   { cName :: String,
     cSpec :: {-# UNPACK #-} !CSpec,

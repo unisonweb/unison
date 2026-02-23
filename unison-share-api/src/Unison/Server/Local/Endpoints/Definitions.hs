@@ -162,7 +162,7 @@ getDefinitionDependentsEndpoint _rt codebase projectAndBranch hqn mayWidth = do
     let rootBranch0WithoutLibdeps = Branch.deleteLibdeps rootBranch0
     let namesWithoutLibdeps = Branch.toNames $ Branch.deleteLibdeps rootBranch0
     let nameSearch = makeNameSearch hqLength namesWithoutLibdeps
-    QueryResult {hits} <- lift $ Backend.hqNameQuery codebase nameSearch ExactName [hqn]
+    QueryResult {hits} <- lift $ Backend.hqNameQuery codebase nameSearch ExactName (Set.singleton hqn)
 
     let defs =
           hits & foldMap \case
@@ -225,7 +225,7 @@ getDefinitionDependenciesEndpoint _rt codebase projectAndBranch hqn mayWidth = d
     let rootBranch0 = Branch.head rootBranch
     let names = Branch.toNames rootBranch0
     let nameSearch = makeNameSearch hqLength names
-    QueryResult {hits} <- lift $ Backend.hqNameQuery codebase nameSearch ExactName [hqn]
+    QueryResult {hits} <- lift $ Backend.hqNameQuery codebase nameSearch ExactName (Set.singleton hqn)
 
     let defs =
           hits & foldMap \case

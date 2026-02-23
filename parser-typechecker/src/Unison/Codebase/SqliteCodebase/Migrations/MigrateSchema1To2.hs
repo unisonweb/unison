@@ -81,7 +81,7 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Set qualified as Set
-import Prelude hiding (log)
+import Prelude hiding (log, unzip)
 
 verboseOutput :: Bool
 verboseOutput =

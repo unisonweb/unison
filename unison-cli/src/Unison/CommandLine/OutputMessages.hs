@@ -172,6 +172,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+import Prelude hiding (unzip)
 
 reportBugURL :: Pretty
 reportBugURL = "https://github.com/unisonweb/unison/issues/new"
@@ -1039,20 +1040,19 @@ notifyUser dir issueFn = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
                   : ""
                   : [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
-                      | (v, b) <- bindings
+                    | (v, b) <- bindings
                     ]
             prettyWatches =
               P.sep
                 "\n\n"
                 [ watchPrinter fileContents ppe ann kind evald isCacheHit
-                  | (ann, kind, evald, isCacheHit) <-
-                      sortOn (\(a, _, _, _) -> a) . toList $ watches
+                | (ann, kind, evald, isCacheHit) <-
+                    sortOn (\(a, _, _, _) -> a) . toList $ watches
                 ]
          in -- todo: use P.nonempty
             pure $
@@ -1083,7 +1083,7 @@ notifyUser dir issueFn = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  Typechecked oldPpe newPpe slurpEntries aliases -> do
+  Typechecked oldPpe newPpe slurpEntries aliases isMergeBranch -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -1265,16 +1265,25 @@ notifyUser dir issueFn = \case
                                  & (\acc -> foldr (\(name, _, _) -> f name) acc newTerms)
                                  & (\acc -> foldr (\(name, _, _, _, _) -> f name) acc updatedTerms)
                       in if Set.null addsAndUpdatesInLib
-                           then
-                             P.wrap
-                               ( "Run"
-                                   <> makeExample' IP.update
-                                   <> "to apply these changes to your codebase."
-                               )
+                           then runUpdateMessage
                            else P.warnCallout (modifyingLibNotAllowed addsAndUpdatesInLib)
                    )
             ]
-        else "No changes found."
+        else
+          if isMergeBranch
+            then runUpdateMessage
+            else "No changes found."
+    where
+      runUpdateMessage =
+        P.wrap $
+          "Run"
+            <> makeExample' IP.update
+            <> if isMergeBranch
+              then
+                "to apply these changes to your codebase and complete the merge, or"
+                  <> makeExample' IP.cancelInputPattern
+                  <> "to cancel the merge."
+              else "to apply these changes to your codebase."
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -4200,13 +4209,13 @@ listOfDefinitions' fscope ppe detailed results =
     --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
     termsWithMissingTypes =
       [ (name, Reference.idToShortHash r)
-        | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results
+      | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results
       ]
     missingTypes =
       nubOrdOn snd $
         [(name, r) | SR'.Tp name (MissingObject r) _ _ <- results]
           <> [ (name, Reference.toShortHash r)
-               | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results
+             | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results
              ]
     missingBuiltins =
       results >>= \case
@@ -4360,7 +4369,7 @@ prettyDiff diff =
                     P.column2 $
                       (P.hiBlack "Original name", P.hiBlack "New name(s)")
                         : [ (prettyName n, P.sep " " (prettyName <$> ns))
-                            | (n, ns) <- copied
+                          | (n, ns) <- copied
                           ]
                 ]
             else mempty

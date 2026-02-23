@@ -31,6 +31,7 @@ module Unison.MCP.Types
     DeleteNamespaceToolArguments (..),
     ReflogToolArguments (..),
     HistoryToolArguments (..),
+    CreateBranchToolArguments (..),
     toToolName,
     fromToolName,
   )
@@ -104,6 +105,7 @@ data ToolKind
   | DiffUpdateTool
   | ReflogTool
   | HistoryTool
+  | CreateBranchTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -137,7 +139,8 @@ kindNameMapping =
       (DeleteNamespaceTool, "delete-namespace"),
       (DiffUpdateTool, "diff-update"),
       (ReflogTool, "reflog"),
-      (HistoryTool, "history")
+      (HistoryTool, "history"),
+      (CreateBranchTool, "create-branch")
     ]
 
 data ProjectDefinitionNameArgument = ProjectDefinitionNameArgument
@@ -1038,6 +1041,61 @@ instance FromJSON HistoryToolArguments where
     limit <- o .:? "limit"
     diffLimit <- o .:? "diffLimit"
     pure $ HistoryToolArguments {projectContext, startHash, limit, diffLimit}
+
+-- | Arguments for the create-branch tool
+data CreateBranchToolArguments = CreateBranchToolArguments
+  { projectName :: ProjectName,
+    newBranchName :: ProjectBranchName,
+    sourceType :: Text, -- "current" | "empty" | "branch"
+    sourceBranchProject :: Maybe ProjectName,
+    sourceBranchName :: Maybe ProjectBranchName
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema CreateBranchToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The name of the project to create the branch in, e.g. `@unison/base` or `@ceedubs/json`" :: Text)
+                  ],
+              "newBranchName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The name for the new branch, e.g. `feature/my-feature` or `develop`" :: Text)
+                  ],
+              "sourceType"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "enum" .= (["current", "empty", "branch"] :: [Text]),
+                    "description" .= ("The source for the new branch: 'current' creates from current context, 'empty' creates an empty branch, 'branch' creates from an existing branch specified by sourceBranchProject and sourceBranchName" :: Text)
+                  ],
+              "sourceBranchProject"
+                .= object
+                  [ "type" .= ["string" :: Text, "null"],
+                    "description" .= ("When sourceType is 'branch', the project containing the source branch. Optional - defaults to the target project if not specified." :: Text)
+                  ],
+              "sourceBranchName"
+                .= object
+                  [ "type" .= ["string" :: Text, "null"],
+                    "description" .= ("When sourceType is 'branch', the name of the source branch to copy from." :: Text)
+                  ]
+            ],
+        "required" .= ["projectName", "newBranchName", "sourceType" :: Text]
+      ]
+
+instance FromJSON CreateBranchToolArguments where
+  parseJSON = withObject "CreateBranchToolArguments" $ \o -> do
+    projectName <- UnsafeProjectName <$> o .: "projectName"
+    newBranchName <- UnsafeProjectBranchName <$> o .: "newBranchName"
+    sourceType <- o .: "sourceType"
+    sourceBranchProject <- fmap UnsafeProjectName <$> o .:? "sourceBranchProject"
+    sourceBranchName <- fmap UnsafeProjectBranchName <$> o .:? "sourceBranchName"
+    pure $ CreateBranchToolArguments {projectName, newBranchName, sourceType, sourceBranchProject, sourceBranchName}
 
 nameKindMapping :: Map Text ToolKind
 nameKindMapping =

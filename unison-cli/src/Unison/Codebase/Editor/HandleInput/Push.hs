@@ -10,7 +10,7 @@ import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text as Text
 import Data.These (These (..))
 import System.Console.Regions qualified as Console.Regions
-import Text.Builder qualified
+import TextBuilder qualified
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -267,11 +267,11 @@ deriveRemoteBranchName userHandle localBranchName =
     ProjectBranchNameKind'NothingSpecial
       | localBranchName == defaultBranchName -> localBranchName
       | otherwise ->
-          (UnsafeProjectBranchName . Text.Builder.run . fold)
-            [ Text.Builder.char '@',
-              Text.Builder.text userHandle,
-              Text.Builder.char '/',
-              Text.Builder.text (into @Text localBranchName)
+          (UnsafeProjectBranchName . TextBuilder.toText . fold)
+            [ TextBuilder.char '@',
+              TextBuilder.text userHandle,
+              TextBuilder.char '/',
+              TextBuilder.text (into @Text localBranchName)
             ]
 
 -- What are we pushing, a project branch or loose code?

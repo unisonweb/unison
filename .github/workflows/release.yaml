@@ -1,3 +1,6 @@
+# Runs the full test suite on all platforms, then builds and publishes a tagged release.
+# Triggered by scripts/make-release.sh, which also creates the git tag and kicks off
+# the Homebrew release.
 name: release
 
 run-name: release ${{inputs.version}}
@@ -15,8 +18,16 @@ on:
         type: string
 
 jobs:
+  run-tests:
+    name: run tests
+    uses: ./.github/workflows/test.yaml
+    with:
+      # Run transcripts on all platforms for releases
+      transcripts-os: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-latest","windows-2025"]'
+
   bundle-ucm:
     name: build and bundle ucm
+    needs: run-tests
     uses: ./.github/workflows/bundle-ucm.yaml
     with:
       ref: ${{github.ref}}

@@ -1,2 +1,2 @@
 #!/bin/sh
-stack build --fast --test
+./scripts/proofs/tests.sh "$@"

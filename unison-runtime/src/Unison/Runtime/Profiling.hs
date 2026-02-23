@@ -2,7 +2,6 @@ module Unison.Runtime.Profiling where
 
 import Control.Concurrent
 import Control.Concurrent.STM
-import Data.Foldable
 import Data.Map.Strict qualified as M
 import Data.Word
 import Unison.Codebase.Runtime.Profile

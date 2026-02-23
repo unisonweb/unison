@@ -104,7 +104,7 @@ where
 import Control.Lens (Lens', lens, (%%~))
 import Control.Monad.State (MonadState, evalState, get, put, runState)
 import Data.Foldable qualified as Foldable
-import Data.List hiding (cycle, find)
+import Data.List hiding (cycle, find, unzip)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Core.ABT
@@ -137,7 +137,7 @@ import U.Core.ABT qualified
 import U.Core.ABT.Var (Var (freshIn))
 import Unison.Prelude
 import Unison.Util.Components qualified as Components
-import Prelude hiding (abs, cycle)
+import Prelude hiding (abs, cycle, unzip)
 
 abt_ :: Lens' (Term f v a) (ABT f v (Term f v a))
 abt_ = lens out setter

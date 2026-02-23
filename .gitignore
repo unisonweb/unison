@@ -37,3 +37,6 @@ dist-newstyle
 # Nix
 result
 result-transcripts
+
+# Local verification proofs (see run-*-and-record.sh)
+.local-proofs/

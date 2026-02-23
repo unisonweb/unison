@@ -103,12 +103,13 @@ import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Functor.Compose (Compose (..))
-import Data.List hiding (and, or)
+import Data.List hiding (and, or, unsnoc, unzip)
 import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
 import Data.Text qualified as Text
+import Numeric.Natural (Natural)
 import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Blank (nameb)
@@ -139,7 +140,7 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
-import Prelude hiding (abs, and, or, seq)
+import Prelude hiding (abs, and, or, seq, unzip)
 
 closure :: (Var v) => Map v (Set v, Set v) -> Map v (Set v)
 closure m0 = trace (snd <$> m0)
@@ -496,8 +497,8 @@ groupFloater rec vbs = do
   cvs <- gets ctxVars
   let shadows =
         [ (v, freshFloat cvs v)
-          | (v, _) <- vbs,
-            Set.member v cvs
+        | (v, _) <- vbs,
+          Set.member v cvs
         ]
       shadowMap = Map.fromList shadows
       rn v = Map.findWithDefault v v shadowMap
@@ -1655,6 +1656,9 @@ data BLit ref
   | Float Double
   | -- special cases for newer formats
     Map [(Value ref, Value ref)]
+  | -- arbitrary precision numbers
+    BigInt Integer
+  | BigNat Natural
   deriving (Show, Eq)
 
 groupVars :: ANFM v (Set v)
@@ -2312,6 +2316,8 @@ instance Referential BLit where
     Neg n -> Neg n
     Char c -> Char c
     Float f -> Float f
+    BigInt i -> BigInt i
+    BigNat n -> BigNat n
 
   foldMapRefs h = \case
     List vs -> foldMap (foldMapRefs h) vs
@@ -2340,6 +2346,8 @@ instance Referential BLit where
     Neg n -> pure $ Neg n
     Char c -> pure $ Char c
     Float f -> pure $ Float f
+    BigInt i -> pure $ BigInt i
+    BigNat n -> pure $ BigNat n
 
 groupTermLinks :: (Ord ref, Var v) => SuperGroup ref v -> [ref]
 groupTermLinks = Set.toList . foldGroupLinks f
@@ -2694,8 +2702,9 @@ prettyBranches ind bs = case bs of
   MatchNumeric _ bs df ->
     maybe id (\e -> prettyCase ind (showString "_") e id) df
       . foldr (uncurry $ prettyCase ind . shows) id (mapToList bs)
-      -- _ -> error "prettyBranches: todo"
   where
+    -- _ -> error "prettyBranches: todo"
+
     -- prettyReq :: Reference -> CTag -> ShowS
     prettyReq r c =
       showString "REQ("

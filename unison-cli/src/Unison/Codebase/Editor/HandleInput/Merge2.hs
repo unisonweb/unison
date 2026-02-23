@@ -17,8 +17,6 @@ where
 
 import Control.Lens (mapped, (?=), _1)
 import Control.Monad.Reader (ask)
-import Data.Algorithm.Diff qualified as Diff
-import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Semialign (zipWith)
 import Data.Set qualified as Set
@@ -29,8 +27,8 @@ import System.Environment (lookupEnv)
 import System.OsPath qualified
 import System.Process qualified as Process
 import Text.ANSI qualified as Text
-import Text.Builder qualified
-import Text.Builder qualified as Text (Builder)
+import TextBuilder (TextBuilder)
+import TextBuilder qualified
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
@@ -105,6 +103,7 @@ import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, defnsAreEmpty)
+import Unison.Util.Diff3 qualified as Diff3
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -413,9 +412,9 @@ doMerge info = do
                 mergedFilename <- do
                   cwd <- liftIO getCurrentDirectory
                   pure $
-                    Text.Builder.run $
-                      Text.Builder.string cwd
-                        <> Text.Builder.char (System.OsPath.toChar System.OsPath.pathSeparator)
+                    TextBuilder.toText $
+                      TextBuilder.string cwd
+                        <> TextBuilder.char (System.OsPath.toChar System.OsPath.pathSeparator)
                         <> aliceFilenameSlug
                         <> "-"
                         <> bobFilenameSlug
@@ -435,11 +434,7 @@ doMerge info = do
                       env.writeSource name contents True
                     env.writeSource
                       mergedFilename
-                      ( makeMergedFileContents
-                          mergeSourceAndTarget
-                          fileContents.alice
-                          fileContents.bob
-                      )
+                      (makeMergedFileContents mergeSourceAndTarget fileContents)
                       True
                     let createProcess = (Process.shell (Text.unpack mergetool)) {Process.delegate_ctlc = True}
                     Process.withCreateProcess createProcess \_ _ _ -> Process.waitForProcess
@@ -511,21 +506,21 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
     preferred :: ProjectBranchName
     preferred =
       unsafeFrom @Text $
-        Text.Builder.run $
+        TextBuilder.toText $
           "merge-"
             <> mangleMergeSource mergeSourceAndTarget.bob
             <> "-into-"
             <> projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
 
-mangleMergeSource :: MergeSource -> Text.Builder
+mangleMergeSource :: MergeSource -> TextBuilder
 mangleMergeSource = \case
   MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> projectBranchNameToValidProjectBranchNameText branch.name
   MergeSource'RemoteProjectBranch remoteBranch -> "remote-" <> projectBranchNameToValidProjectBranchNameText remoteBranch.branchName
   MergeSource'RemoteLooseCode info -> manglePath info.path
   where
-    manglePath :: Path -> Text.Builder
+    manglePath :: Path -> TextBuilder
     manglePath =
-      Monoid.intercalateMap "-" (Text.Builder.text . NameSegment.toUnescapedText) . Path.toList
+      Monoid.intercalateMap "-" (TextBuilder.text . NameSegment.toUnescapedText) . Path.toList
 
 typecheckedUnisonFileToBranchAdds :: TypecheckedUnisonFile Symbol Ann -> [(Path, Branch0 m -> Branch0 m)]
 typecheckedUnisonFileToBranchAdds tuf = do
@@ -564,52 +559,48 @@ typecheckedUnisonFileToBranchAdds tuf = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Making file with conflict markers
 
-makeMergedFileContents :: MergeSourceAndTarget -> Text -> Text -> Text
-makeMergedFileContents sourceAndTarget aliceContents bobContents =
-  let f :: (Text.Builder, Diff.Diff Text) -> Diff.Diff Text -> (Text.Builder, Diff.Diff Text)
-      f (acc, previous) line =
-        case (previous, line) of
-          (Diff.Both {}, Diff.Both bothLine _) -> go (Text.Builder.text bothLine)
-          (Diff.Both {}, Diff.First aliceLine) -> go (aliceSlug <> Text.Builder.text aliceLine)
-          (Diff.Both {}, Diff.Second bobLine) -> go (aliceSlug <> middleSlug <> Text.Builder.text bobLine)
-          (Diff.First {}, Diff.Both bothLine _) -> go (middleSlug <> bobSlug <> Text.Builder.text bothLine)
-          (Diff.First {}, Diff.First aliceLine) -> go (Text.Builder.text aliceLine)
-          (Diff.First {}, Diff.Second bobLine) -> go (middleSlug <> Text.Builder.text bobLine)
-          (Diff.Second {}, Diff.Both bothLine _) -> go (bobSlug <> Text.Builder.text bothLine)
-          (Diff.Second {}, Diff.First aliceLine) -> go (bobSlug <> aliceSlug <> Text.Builder.text aliceLine)
-          (Diff.Second {}, Diff.Second bobLine) -> go (Text.Builder.text bobLine)
-        where
-          go content =
-            let !acc1 = acc <> content <> newline
-             in (acc1, line)
-   in Diff.getDiff (Text.lines aliceContents) (Text.lines bobContents)
-        & List.foldl' f (mempty @Text.Builder, Diff.Both Text.empty Text.empty)
-        & fst
-        & Text.Builder.run
+makeMergedFileContents :: MergeSourceAndTarget -> Merge.ThreeWay Text -> Text
+makeMergedFileContents sourceAndTarget fileContents =
+  Diff3.diff3 (Text.lines fileContents.lca) (Text.lines fileContents.alice) (Text.lines fileContents.bob)
+    & foldMap \case
+      Diff3.Hunk hunk -> foldMap line hunk
+      Diff3.Conflict lca alice bob ->
+        aliceSlug
+          <> foldMap line alice
+          <> middleSlug
+          <> foldMap line lca
+          <> middleSlug
+          <> foldMap line bob
+          <> bobSlug
+    & TextBuilder.toText
   where
-    aliceSlug :: Text.Builder
+    aliceSlug :: TextBuilder
     aliceSlug =
-      "<<<<<<< " <> Text.Builder.text (into @Text sourceAndTarget.alice.branch) <> newline
+      "<<<<<<< " <> TextBuilder.text (into @Text sourceAndTarget.alice.branch) <> newline
 
-    middleSlug :: Text.Builder
+    middleSlug :: TextBuilder
     middleSlug = "=======\n"
 
-    bobSlug :: Text.Builder
+    bobSlug :: TextBuilder
     bobSlug =
       ">>>>>>> "
         <> ( case sourceAndTarget.bob of
                MergeSource'LocalProjectBranch bobProjectAndBranch ->
-                 Text.Builder.text (into @Text bobProjectAndBranch.branch.name)
+                 TextBuilder.text (into @Text bobProjectAndBranch.branch.name)
                MergeSource'RemoteProjectBranch bobRemoteBranch ->
-                 "remote " <> Text.Builder.text (into @Text bobRemoteBranch.branchName)
+                 "remote " <> TextBuilder.text (into @Text bobRemoteBranch.branchName)
                MergeSource'RemoteLooseCode info ->
                  case Path.toName info.path of
                    Nothing -> "<root>"
-                   Just name -> Text.Builder.text (Name.toText name)
+                   Just name -> TextBuilder.text (Name.toText name)
            )
         <> newline
 
-    newline :: Text.Builder
+    line :: Text -> TextBuilder
+    line s =
+      TextBuilder.text s <> newline
+
+    newline :: TextBuilder
     newline = "\n"
 
 ------------------------------------------------------------------------------------------------------------------------
