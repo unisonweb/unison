@@ -1616,10 +1616,16 @@ cacheAdd0 recSchemas ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
     let newRecSchemaMap = BM.fromList $ zip (Set.toList newRecSchemas) (ANF.RecordRef <$> [nrs ..])
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
     rrLookup <- updateMap newRecSchemaMap (recordRefs cc)
-    oldRfms@(RecordFieldMappings _ rfmBM) <- readTVar (recordFieldMappings cc)
+    oldRfms@(RecordFieldMappings _ existingRfmsBM) <- readTVar (recordFieldMappings cc)
+    let recFields =
+          BM.toList rrLookup
+            <&> fst
+            & foldMap (\(ANF.RecordSchema flds) -> flds)
+            & Set.toList
+    let currentRFMs = flip execState oldRfms (convertFieldNamesToRefs recFields)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
-        lookupRN fn = fromMaybe (error $ "cacheAdd0: missing reference for FieldName: " ++ show fn) $ BM.lookupL fn rfmBM
+        lookupRN (RecordFieldMappings _ rfmBM) fn = fromMaybe (error $ "cacheAdd0: missing reference for FieldName: " <> show fn <> " in map: " <> (show (rfmBM <> existingRfmsBM)) <> " and schemas: " <> show rrLookup) $ BM.lookupL fn (rfmBM <> existingRfmsBM)
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup) lookupRN
         combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings (Word64, EnumMap Word64 Comb)
         combinate n (r, g) = (n,) <$> emitCombs rns r n g
@@ -1639,7 +1645,7 @@ cacheAdd0 recSchemas ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
       let (emittedCombs, newRFMs) =
             zipWith combinate [ntm ..] (M.toList opt)
               & sequenceA
-              & flip runState oldRfms
+              & flip runState currentRFMs
           unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
           unresolvedNewCombs =
             emittedCombs

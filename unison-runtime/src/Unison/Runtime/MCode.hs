@@ -36,6 +36,7 @@ module Unison.Runtime.MCode
     Branch,
     RBranch,
     RecordFieldMappings (..),
+    convertFieldNamesToRefs,
     emitCombs,
     emitComb,
     resolveCombs,
@@ -711,7 +712,7 @@ data RefNums = RN
     -- Map record schemas into their runtime reference
     recNum :: ANF.RecordSchema -> ANF.RecordRef,
     -- Map record field names into their runtime reference
-    recField :: ANF.FieldName -> FieldRef
+    recField :: RecordFieldMappings -> ANF.FieldName -> FieldRef
   }
 
 emptyRNs :: RefNums
@@ -993,7 +994,7 @@ data RecordFieldMappings
   deriving stock (Show, Eq, Ord)
 
 -- | Note that the Ord instance for Field Refs is arbitrary and not tied to the field name Ord instance.
-convertFieldNamesToRefs :: (Traversable f) => f ANF.FieldName -> Emit (f FieldRef)
+convertFieldNamesToRefs :: (MonadState RecordFieldMappings m, Traversable f) => f ANF.FieldName -> m (f FieldRef)
 convertFieldNamesToRefs names = for names \name -> do
   RecordFieldMappings next m <- get
   case BiMap.lookupL name m of
@@ -1125,8 +1126,9 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
     . VArgV
     $ countBlock ctx
 emitSection rns grpr grpn rec ctx (TApp f args) =
-  emitClosures grpr grpn rec ctx args $ \ctx as ->
-    countCtx ctx $ emitFunction rns grpr grpn rec ctx f as
+  emitClosures grpr grpn rec ctx args $ \ctx as -> do
+    rfm <- get
+    countCtx ctx $ emitFunction rns rfm grpr grpn rec ctx f as
 emitSection rns grpr grpn rec ctx (TLocal v bo)
   | Just (i, BX) <- ctxResolve ctx v =
       Ins (InLocal i)
@@ -1237,6 +1239,7 @@ emitSection _ _ _ _ _ tm =
 emitFunction ::
   (Var v) =>
   RefNums ->
+  RecordFieldMappings ->
   Reference ->
   Word64 -> -- self combinator number
   RCtx v -> -- recursive binding group
@@ -1244,14 +1247,14 @@ emitFunction ::
   Func Reference v ->
   Args ->
   Section
-emitFunction _ grpr grpn rec ctx (FVar v) as
+emitFunction _ _rfms grpr grpn rec ctx (FVar v) as
   | Just (i, BX) <- ctxResolve ctx v =
       App False (Stk i) as
   | Just j <- rctxResolve rec v =
       let cix = CIx grpr grpn j
        in App False (Env cix cix) as
   | otherwise = emitSectionVErr v
-emitFunction rns _grpr _ _ _ (FComb r) as
+emitFunction rns _rfms _grpr _ _ _ (FComb r) as
   | Just k <- anum rns r,
     countArgs as == k -- exactly saturated call
     =
@@ -1262,19 +1265,19 @@ emitFunction rns _grpr _ _ _ (FComb r) as
   where
     n = cnum rns r
     cix = CIx r n 0
-emitFunction rns _grpr _ _ _ (FCon r t) as =
+emitFunction rns _rfms _grpr _ _ _ (FCon r t) as =
   Ins (Pack r (packTags rt t) as)
     . Yield
     $ VArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitFunction rns _grpr _ _ _ (FRec rs@(ANF.RecordSchema fields)) as =
-  Ins (RecPack recRef (V.fromList . fmap (recField rns) $ Set.toList fields) as)
+emitFunction rns rfms _grpr _ _ _ (FRec rs@(ANF.RecordSchema fields)) as =
+  Ins (RecPack recRef (V.fromList . fmap (recField rns rfms) $ Set.toList fields) as)
     . Yield
     $ VArg1 0
   where
     recRef = recNum rns rs
-emitFunction rns _grpr _ _ _ (FReq r e) as =
+emitFunction rns _rfms _grpr _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
   -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have
   -- more than 2^16 types.
@@ -1284,11 +1287,11 @@ emitFunction rns _grpr _ _ _ (FReq r e) as =
   where
     a = dnum rns r
     rt = toEnum . fromIntegral $ a
-emitFunction _ _grpr _ _ ctx (FCont k) as
+emitFunction _ _rfms _grpr _ _ ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
   | otherwise = internalBug [] $ "emitFunction: continuations are boxed"
-emitFunction _ _grpr _ _ _ (FPrim _) _ =
+emitFunction _ _rfms _grpr _ _ _ (FPrim _) _ =
   internalBug [] "emitFunction: impossible"
 
 countBlock :: Ctx v -> Int
@@ -1351,8 +1354,9 @@ emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
   fmap (Ins . Pack r (packTags rt n) $ emitArgs grpn ctx args)
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs@(ANF.RecordSchema fields)) args) =
-  fmap (Ins . RecPack (recNum rns rs) (V.fromList . fmap (recField rns) $ Set.toList fields) $ emitArgs grpn ctx args)
+emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs@(ANF.RecordSchema fields)) args) = \es -> do
+  rfm <- get
+  fmap (Ins . RecPack (recNum rns rs) (V.fromList . fmap (recField rns rfm) $ Set.toList fields) $ emitArgs grpn ctx args) es
 emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
 emitLet _ _ _ _ _ _ ctx (TDiscard v)

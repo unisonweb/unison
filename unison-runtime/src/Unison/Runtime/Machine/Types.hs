@@ -348,7 +348,7 @@ codeValidate ::
 codeValidate cc tml = do
   rty0 <- readTVarIO (refTy cc)
   fty <- readTVarIO (freshTy cc)
-  (RecordFieldMappings _ rfmsBM) <- readTVarIO (recordFieldMappings cc)
+  (RecordFieldMappings _ existingRfmsBM) <- readTVarIO (recordFieldMappings cc)
   recRefs <- readTVarIO (recordRefs cc)
   let f b r
         | b, M.notMember r rty0 = S.singleton r
@@ -362,7 +362,7 @@ codeValidate cc tml = do
   rtm0 <- readTVarIO (refTm cc)
   let rs = fst <$> tml
       rtm = rtm0 `M.union` M.fromList (zip rs [ftm ..])
-      lookupFR fn = fromMaybe (error $ "Missing FieldRef for FieldName: " <> show fn) $ BM.lookupL fn rfmsBM
+      lookupFR (RecordFieldMappings _ rfmsBM) fn = fromMaybe (error $ "Missing FieldRef for FieldName: " <> show fn) $ BM.lookupL fn (rfmsBM <> existingRfmsBM)
       rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (recordRefLookup recRefs') lookupFR
       combinate (n, (r, g)) = evaluate $ emitCombs rns r n g
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
