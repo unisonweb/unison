@@ -53,9 +53,10 @@ module Unison.Runtime.MCode
   )
 where
 
+import Control.Monad.RWS
 import Control.Monad.Reader
 import Control.Monad.State.Strict
-import Control.Monad.Writer.CPS
+import Control.Monad.Trans.Writer.CPS (WriterT, runWriterT)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bifunctor (Bifunctor, bimap, first)
 import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
@@ -112,6 +113,7 @@ import Unison.Runtime.InternalError (internalBug)
 import Unison.Util.BiMap (BiMap)
 import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.EnumContainers as EC
+import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
 
@@ -303,11 +305,11 @@ argsToArgs' = \case
 {-# INLINEABLE argsToArgs' #-}
 
 newtype FieldTags = FieldTags (PrimArray Word64)
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord)
 
 -- | Efficient mapping for record field names
 newtype FieldRef = FieldRef Word64
-  deriving newtype (Show, Eq, Ord, Enum)
+  deriving newtype (Show, Eq, Ord, Enum, EnumKey)
 
 argsToLists :: Args -> [Int]
 argsToLists = \case
@@ -919,14 +921,16 @@ emitCombs ::
   Reference ->
   Word64 ->
   SuperGroup Reference v ->
-  (EnumMap Word64 Comb, BiMap ANF.FieldName FieldRef)
-emitCombs rns grpr grpn (Rec grp ent) =
-  emitComb rns grpr grpn rec (0, ent) <> aux
+  State RecordFieldMappings (EnumMap Word64 Comb)
+emitCombs rns grpr grpn (Rec grp ent) = do
+  es <- emitComb rns grpr grpn rec (0, ent)
+  auxEs <- aux
+  pure $ es <> auxEs
   where
     (rvs, cmbs) = unzip grp
     ixs = map (`shiftL` 16) [1 ..]
     rec = M.fromList $ zip rvs ixs
-    aux = foldMap (emitComb rns grpr grpn rec) (zip ixs cmbs)
+    aux = foldMapM (emitComb rns grpr grpn rec) (zip ixs cmbs)
 
 -- | lazily replace all references to combinators with the combinators themselves,
 -- tying the knot recursively when necessary.
@@ -984,6 +988,7 @@ data RecordFieldMappings
   = RecordFieldMappings
       (FieldRef {- next unassigned ref -})
       (BiMap Text.Text FieldRef {- mapping from field name to field ref -})
+  deriving stock (Show, Eq, Ord)
 
 -- | Note that the Ord instance for Field Refs is arbitrary and not tied to the field name Ord instance.
 convertFieldNamesToRefs :: (Traversable f) => f ANF.FieldName -> Emit (f FieldRef)
@@ -996,16 +1001,15 @@ convertFieldNamesToRefs names = for names \name -> do
       pure next
 
 newtype Emit a
-  = EM (StateT RecordFieldMappings (ReaderT Word64 (Writer (EC.EnumMap Word64 Comb, Max Int))) a)
+  = EM ((ReaderT Word64 (WriterT (EC.EnumMap Word64 Comb, Max Int) (State RecordFieldMappings))) a)
   deriving newtype (Functor, Applicative, Monad, MonadReader Word64, MonadWriter (EC.EnumMap Word64 Comb, Max Int), MonadState RecordFieldMappings)
 
-runEmit :: Word64 -> RecordFieldMappings -> Emit a -> (EC.EnumMap Word64 Comb, RecordFieldMappings)
-runEmit w rfm (EM e) =
+runEmit :: Word64 -> Emit a -> State RecordFieldMappings (EC.EnumMap Word64 Comb)
+runEmit w (EM e) =
   e
-    & flip runStateT rfm
     & flip runReaderT w
-    & runWriter
-    & \((_a, rfm), (em, _n)) -> (em, rfm)
+    & runWriterT
+    <&> \(_a, (ec, _)) -> ec
 
 counted :: Counted a -> Emit a
 counted (C n a) = tell (mempty, Max n) *> pure a
@@ -1051,12 +1055,11 @@ emitComb ::
   RefNums ->
   Reference ->
   Word64 ->
-  RecordFieldMappings ->
   RCtx v ->
   (Word64, SuperNormal Reference v) ->
-  (EC.EnumMap Word64 Comb, RecordFieldMappings)
-emitComb rns grpr grpn rec rfm (n, Lambda ccs (TAbss vs bd)) =
-  runEmit n rfm
+  State RecordFieldMappings (EC.EnumMap Word64 Comb)
+emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd)) =
+  runEmit n
     . recordTop vs 0
     $ emitSection rns grpr grpn rec (ctx vs ccs) bd
 

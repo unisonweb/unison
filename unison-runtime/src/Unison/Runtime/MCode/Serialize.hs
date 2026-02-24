@@ -235,7 +235,7 @@ putInstr = \case
   (Info s) -> putTag InfoT <> putString s
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
   (RecPack rr fields args) -> putTag RecPackT <> putRecordRef rr <> putFoldable putText fields <> putArgs args
-  (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putText fields <> pInt recIndex
+  (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putFieldRef fields <> pInt recIndex
   (Lit l) -> putTag LitT <> putLit l
   (Print i) -> putTag PrintT <> pInt i
   (Reset s nh ah) ->
@@ -286,7 +286,7 @@ getInstr =
     KeepAliveT -> KeepAlive <$> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
     RecPackT -> RecPack <$> getRecordRef <*> getVector getText <*> getArgs
-    RecUnpackT -> RecUnpack <$> getVector getText <*> gInt
+    RecUnpackT -> RecUnpack <$> getVector getFieldRef <*> gInt
 
 data ArgsT
   = ZArgsT
@@ -329,6 +329,12 @@ getArgs =
     ArgRT -> VArgR <$> gInt <*> gInt
     ArgNT -> VArgN <$> getIntArr
     ArgVT -> VArgV <$> gInt
+
+putFieldRef :: FieldRef -> Builder
+putFieldRef (FieldRef r) = putVarInt r
+
+getFieldRef :: (PrimBase m) => Get m FieldRef
+getFieldRef = FieldRef <$> getVarInt
 
 -- getRecordRef :: (PrimBase m) => Get m RecordRef
 -- getRecordRef = RecordRef <$> getWord64be

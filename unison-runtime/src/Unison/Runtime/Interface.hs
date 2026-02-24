@@ -37,7 +37,7 @@ where
 import Control.Concurrent.STM as STM
 import Control.Exception (fromException, tryJust)
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Data.Bitraversable (bitraverse)
 import Data.ByteString qualified as B
 import Data.ByteString.Builder (Builder)
@@ -129,6 +129,7 @@ import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Type
 import Unison.Util.BiMap qualified as BM
+import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty as P
@@ -499,9 +500,9 @@ checkCacheability cl ctx (r, sg) =
       t -> or t
 
 decompileCtx ::
-  BM.BiMap RecordSchema RecordRef -> EnumMap Word64 Reference -> EvalCtx -> Val -> DecompResult Symbol
-decompileCtx rsLookup crs ctx val = do
-  decompile (flip BM.lookupR rsLookup) ib (backReferenceTm crs fr ir dt) val
+  RecordFieldMappings -> EnumMap Word64 Reference -> EvalCtx -> Val -> DecompResult Symbol
+decompileCtx (RecordFieldMappings _ frBiMap) crs ctx val = do
+  decompile (\fr -> fromMaybe (error $ "Missing FieldRef: " <> show fr) . flip BM.lookupR frBiMap $ fr) ib (backReferenceTm crs fr ir dt) val
   where
     ib = intermedToBase ctx
     fr = floatRemap ctx
@@ -806,9 +807,9 @@ evalInContext ::
 evalInContext ppe ctx prof activeThreads w = do
   r <- newIORef (boxedVal BlackHole)
   crs <- readTVarIO (combRefs $ ccache ctx)
-  rsLookup <- readTVarIO $ recordRefs $ ccache ctx
+  rfms <- readTVarIO $ recordFieldMappings $ ccache ctx
   let hook = watchHook r
-      decom = decompileCtx rsLookup crs ctx
+      decom = decompileCtx rfms crs ctx
       mkResponse errs =
         if Set.null errs
           then EmptyResponse
@@ -849,10 +850,10 @@ executeMainComb init cc = do
   where
     contextualizeErr re = do
       crs <- readTVarIO (combRefs cc)
-      rsLookup <- readTVarIO $ recordRefs cc
+      RecordFieldMappings _ rfms <- readTVarIO $ recordFieldMappings cc
       let ctx = cacheContext cc
           decom =
-            decompile (flip BM.lookupR rsLookup) (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
+            decompile (\fr -> fromMaybe (error $ "Missing FieldRef: " <> show fr) . flip BM.lookupR rfms $ fr) (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
               decompTm ctx
       pure $ RuntimeExn (pure (mempty, id, decom)) re
 
@@ -955,10 +956,10 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty r
 
 putRecordFieldMappings :: RecordFieldMappings -> Builder
 putRecordFieldMappings (RecordFieldMappings next rfm) =
-  putVarInt next <> putMap putText putFieldRef (BiMap.toMap rfm)
+  putFieldRef next <> putMap putText putFieldRef (BiMap.toMapL rfm)
 
 getRecordFieldMappings :: (PrimBase m) => Get m RecordFieldMappings
-getRecordFieldMappings = RecordFieldMappings <$> getVarInt <*> getMap getText getField
+getRecordFieldMappings = RecordFieldMappings <$> getFieldRef <*> (BiMap.fromMap <$> getMap getText getFieldRef)
 
 putFieldRef :: FieldRef -> Builder
 putFieldRef (FieldRef w) = putVarInt w
@@ -991,7 +992,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
-restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm) = do
+restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm@(RecordFieldMappings _ oldRFMs)) = do
   cc <-
     CCache sandboxed debugText ()
       <$> newTVarIO srcCombs
@@ -1025,7 +1026,7 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm
   where
     decom =
       decompile
-        (\rr -> BM.lookupR rr recSchemas)
+        (\fr -> fromMaybe (error $ "Missing FieldRef" <> show fr) $ BM.lookupR fr oldRFMs)
         (const Nothing)
         (backReferenceTm crs mempty mempty mempty)
     debugText fancy c = case decom c of
@@ -1048,10 +1049,7 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm
         ( numberedTermLookup
             & traverseWithKey
               ( \k v -> do
-                  rfm' <- get
-                  let (ec, rfm'') = emitComb @Symbol rns (rf k) k rfm' mempty (0, v)
-                  put rfm''
-                  pure ec
+                  emitComb @Symbol rns (rf k) k mempty (0, v)
               )
         )
     srcCombs :: EnumMap Word64 Combs
@@ -1305,21 +1303,21 @@ prettyRuntimeExn' ppe backmap decom issueFn = \case
                   | otherwise = ""
                 name = P.syntaxToColor . prettyHashQualified . PPE.termName ppe $ RF.Ref rf
 
-prettyRuntimeExn :: (Applicative f) => (RecordRef -> Maybe RecordSchema) -> (Word -> f (Pretty P.ColorText)) -> RuntimeExn -> f (Pretty P.ColorText)
-prettyRuntimeExn rsLookup = prettyRuntimeExn' mempty id (decompile rsLookup pure \_ _ -> Nothing)
+prettyRuntimeExn :: (Applicative f) => (FieldRef -> Text) -> (Word -> f (Pretty P.ColorText)) -> RuntimeExn -> f (Pretty P.ColorText)
+prettyRuntimeExn rfLookup = prettyRuntimeExn' mempty id (decompile rfLookup pure \_ _ -> Nothing)
 
 -- |
 --
 --  __NB__: The only reason this is in the unison-runtime package is because it’s used in the tests. Otherwise it should move to unison-cli.
 prettyError ::
   (Applicative f) =>
-  (RecordRef -> Maybe RecordSchema) ->
+  (FieldRef -> Text) ->
   -- | A function for displaying unisonweb/unison issue numbers (for example,
   --   `Unison.CommandLine.OutputMessages.showIssueUrl`).
   (Word -> f (Pretty P.ColorText)) ->
   Error ->
   f (Pretty P.ColorText)
-prettyError rsLookup issueFn = \case
+prettyError rfLookup issueFn = \case
   UnstructuredError text -> pure $ P.text text
   CompileExn (CE _ issues err) -> do
     issueMessage <- formatIssues issueFn issues
@@ -1332,7 +1330,7 @@ prettyError rsLookup issueFn = \case
           issueMessage
         ]
   RuntimeExn ctx re ->
-    maybe (prettyRuntimeExn rsLookup) (\(ppe, backmapRef, decom) -> prettyRuntimeExn' ppe backmapRef decom) ctx issueFn re
+    maybe (prettyRuntimeExn rfLookup) (\(ppe, backmapRef, decom) -> prettyRuntimeExn' ppe backmapRef decom) ctx issueFn re
   RuntimePanic ppe decom (Panic msg mval) ->
     pure . P.callout panicIcon . P.linesNonEmpty $
       [ P.wrap "The program halted with a runtime panic:",

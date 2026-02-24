@@ -91,6 +91,7 @@ library:
     - temporary
     - text
     - template-haskell
+    - transformers
     - inspection-testing
     - time
     - tls

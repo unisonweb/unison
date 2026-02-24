@@ -250,10 +250,7 @@ baseCCache sandboxed = do
             & traverseWithKey
               ( \k v -> do
                   let r = builtinTermBackref ! k
-                  rfm' <- get
-                  let (ec, rfm'') = emitComb @Symbol rns r k rfm' mempty (0, v)
-                  put rfm''
-                  pure ec
+                  emitComb @Symbol rns r k mempty (0, v)
               )
         )
     combs :: EnumMap Word64 MCombs

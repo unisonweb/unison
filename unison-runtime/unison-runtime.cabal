@@ -159,6 +159,7 @@ library
     , text
     , time
     , tls
+    , transformers
     , unison-codebase-sqlite
     , unison-core
     , unison-core1
