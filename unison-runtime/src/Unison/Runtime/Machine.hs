@@ -33,7 +33,6 @@ import Control.Lens
 import Control.Monad.State.Strict
 import Data.Atomics qualified as Atomic
 import Data.HashMap.Lazy qualified as HM
-import Data.HashMap.Lazy qualified as HMS
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
@@ -1120,14 +1119,14 @@ buildData !stk !r !t (VArgV i) = do
 {-# INLINE buildData #-}
 
 -- | Pack some number of args into a record data type of the provided ref/tag type.
-buildRec :: Stack -> ANF.RecordRef -> V.Vector Text.Text -> Args -> IO Closure
+buildRec :: Stack -> ANF.RecordRef -> V.Vector FieldRef -> Args -> IO Closure
 buildRec !stk rr fields args = do
   -- TODO: Add more cases like buildData for efficiency
   seg <- augSeg I stk nullSeg (Just $ argsToArgs' args)
   let valMap =
         segToList seg
           & zip (V.toList fields)
-          & HMS.fromList
+          & EC.mapFromList
   pure $ RecordG rr valMap
 {-# INLINE buildRec #-}
 
@@ -1617,11 +1616,13 @@ cacheAdd0 recSchemas ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
     let newRecSchemaMap = BM.fromList $ zip (Set.toList newRecSchemas) (ANF.RecordRef <$> [nrs ..])
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
     rrLookup <- updateMap newRecSchemaMap (recordRefs cc)
+    oldRfms@(RecordFieldMappings _ rfmBM) <- readTVar (recordFieldMappings cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
-        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup)
-        combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> (Word64, EnumMap Word64 Comb)
-        combinate n (r, g) = (n, emitCombs rns r n g)
+        lookupRN fn = fromMaybe (error $ "cacheAdd0: missing reference for FieldName: " ++ show fn) $ BM.lookupL fn rfmBM
+        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup) lookupRN
+        combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings (Word64, EnumMap Word64 Comb)
+        combinate n (r, g) = (n,) <$> emitCombs rns r n g
     let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
     let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
     let newCacheableCombs =
@@ -1634,13 +1635,17 @@ cacheAdd0 recSchemas ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
               )
             & EC.setFromList
     newCombRefs <- updateMap combRefUpdates (combRefs cc)
-    (unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
-      let unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
+    (newRFMs, unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
+      let (emittedCombs, newRFMs) =
+            zipWith combinate [ntm ..] (M.toList opt)
+              & sequenceA
+              & flip runState oldRfms
+          unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
           unresolvedNewCombs =
-            absurdCombs
-              . sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs
-              . mapFromList
-              $ zipWith combinate [ntm ..] (M.toList opt)
+            emittedCombs
+              & mapFromList
+              & sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs
+              & absurdCombs
           (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
             EC.mapToList unresolvedNewCombs & foldMap \(w, gcombs) ->
               if EC.member w newCacheableCombs
@@ -1649,10 +1654,11 @@ cacheAdd0 recSchemas ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
           newCombs :: EnumMap Word64 MCombs
           newCombs = resolveCombs (Just oldCombs) $ unresolvedNewCombs
           updatedCombs = newCombs <> oldCombs
-       in ((unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs), updatedCombs)
+       in ((newRFMs, unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs), updatedCombs)
     nsc <- updateMap unresolvedNewCombs (srcCombs cc)
     nsn <- updateMap (M.fromList sands) (sandbox cc)
     ncc <- updateMap newCacheableCombs (cacheableCombs cc)
+    writeTVar (recordFieldMappings cc) newRFMs
     -- Now that the code cache is primed with everything we need,
     -- we can pre-evaluate the top-level constants.
     pure $ int `seq` rtm `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` (unresolvedCacheableCombs, unresolvedNonCacheableCombs)
@@ -1965,22 +1971,23 @@ reifyValue cc val = do
       combs <- readTVar (combs cc)
       rtm <- readTVar (refTm cc)
       recRefLookup <- readTVar (recordRefs cc)
+      rfms <- readTVar (recordFieldMappings cc)
       case S.toList $ S.filter (`M.notMember` rtm) tmLinks of
         [] -> do
           newTy <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
-          pure . Right $ (combs, newTy, rtm, recRefLookup)
+          pure . Right $ (combs, newTy, rtm, recRefLookup, rfms)
         l -> pure (Left l)
   traverse (\rfs -> reifyValue1 rfs val) erc
 
 reifyValue1 ::
-  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings) ->
   Referenced ANF.Value ->
   IO Val
 reifyValue1 tup (Plain v) = reifyValue0 tup v
-reifyValue1 (combs, rty0, rtm0, rrLookup) (WithRefs tys tms v) = do
+reifyValue1 (combs, rty0, rtm0, rrLookup, rfms) (WithRefs tys tms v) = do
   let rty = HM.fromList . mapMaybe procTypeRefs $ zip [0 ..] tys
       rtm = HM.fromList . mapMaybe procTermRefs $ zip [0 ..] tms
-  reifyValue0Canon combs tys tms rty rtm rrLookup v
+  reifyValue0Canon combs tys tms rty rtm rrLookup rfms v
   where
     procTypeRefs (i, r) = (RefNum i,) <$> M.lookup r rty0
     procTermRefs (i, r) =
@@ -1994,9 +2001,10 @@ reifyValue0Canon ::
   HM.HashMap RefNum Word64 ->
   HM.HashMap RefNum Word64 ->
   BM.BiMap ANF.RecordSchema ANF.RecordRef ->
+  RecordFieldMappings ->
   ANF.Value RefNum ->
   IO Val
-reifyValue0Canon combs tys tms rty rtm rrLookup = goV
+reifyValue0Canon combs tys tms rty rtm rrLookup (RecordFieldMappings _ rfmsBM) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
 
@@ -2059,9 +2067,9 @@ reifyValue0Canon combs tys tms rty rtm rrLookup = goV
         Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
       vals' <- goVs vals
       let fieldMap =
-            -- TODO: Maybe need to reverse seg here?
             zip (Set.toList fields) (segToList vals')
-              & HMS.fromList
+              <&> first (\fn -> fromMaybe (error $ "Missing FieldRef for name " <> show fn) $ BM.lookupL fn rfmsBM)
+              & EC.mapFromList
 
       pure $ boxedVal $ RecordG rref fieldMap
     goV (ANF.Cont vs k) = do
@@ -2122,10 +2130,10 @@ reifyValue0Canon combs tys tms rty rtm rrLookup = goV
     goL (ANF.BigNat n) = pure $ encodeVal n
 
 reifyValue0 ::
-  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings) ->
   ANF.Value Reference ->
   IO Val
-reifyValue0 (combs, rty, rtm, rrLookup) = goV
+reifyValue0 (combs, rty, rtm, rrLookup, RecordFieldMappings _ rfms) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
@@ -2169,7 +2177,8 @@ reifyValue0 (combs, rty, rtm, rrLookup) = goV
       let fieldMap =
             -- TODO: Maybe need to reverse seg here?
             zip (Set.toList fields) (segToList vals')
-              & HMS.fromList
+              <&> first (\fr -> fromMaybe (error $ "Missing FieldRef " <> show fr) $ BM.lookupL fr rfms)
+              & EC.mapFromList
 
       pure $ boxedVal $ RecordG rref fieldMap
     goV (ANF.Cont vs k) = do

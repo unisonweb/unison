@@ -573,7 +573,7 @@ data GInstr comb
   | -- Pack a record type into a closure and place it on the stack.
     RecPack
       !ANF.RecordRef
-      !(Vector Text.Text)
+      !(Vector FieldRef)
       -- values to pack
       !Args
   | -- Unpack a set of fields from a record on the boxed stack.
@@ -709,11 +709,13 @@ data RefNums = RN
     -- anum maps combinator references to their main arity
     anum :: Reference -> Maybe Int,
     -- Map record schemas into their runtime reference
-    recNum :: ANF.RecordSchema -> ANF.RecordRef
+    recNum :: ANF.RecordSchema -> ANF.RecordRef,
+    -- Map record field names into their runtime reference
+    recField :: ANF.FieldName -> FieldRef
   }
 
 emptyRNs :: RefNums
-emptyRNs = RN mt mt (const Nothing) mt
+emptyRNs = RN mt mt (const Nothing) mt mt
   where
     mt _ = internalBug [] "RefNums: empty"
 
@@ -987,7 +989,7 @@ instance Monad Counted where
 data RecordFieldMappings
   = RecordFieldMappings
       (FieldRef {- next unassigned ref -})
-      (BiMap Text.Text FieldRef {- mapping from field name to field ref -})
+      (BiMap ANF.FieldName FieldRef {- mapping from field name to field ref -})
   deriving stock (Show, Eq, Ord)
 
 -- | Note that the Ord instance for Field Refs is arbitrary and not tied to the field name Ord instance.
@@ -1267,7 +1269,7 @@ emitFunction rns _grpr _ _ _ (FCon r t) as =
   where
     rt = toEnum . fromIntegral $ dnum rns r
 emitFunction rns _grpr _ _ _ (FRec rs@(ANF.RecordSchema fields)) as =
-  Ins (RecPack recRef (V.fromList $ Set.toList fields) as)
+  Ins (RecPack recRef (V.fromList . fmap (recField rns) $ Set.toList fields) as)
     . Yield
     $ VArg1 0
   where
@@ -1350,7 +1352,7 @@ emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
   where
     rt = toEnum . fromIntegral $ dnum rns r
 emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs@(ANF.RecordSchema fields)) args) =
-  fmap (Ins . RecPack (recNum rns rs) (V.fromList $ Set.toList fields) $ emitArgs grpn ctx args)
+  fmap (Ins . RecPack (recNum rns rs) (V.fromList . fmap (recField rns) $ Set.toList fields) $ emitArgs grpn ctx args)
 emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
 emitLet _ _ _ _ _ _ ctx (TDiscard v)
