@@ -174,7 +174,7 @@ main version = do
         Run (RunFromSymbol mainName) args -> do
           getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
             RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
-              let rsLookup _rr = Nothing
+              let rsLookup rn = "<unknown-field-" <> tShow rn <> ">"
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError =<< RTI.prettyError rsLookup fetchIssueFromGitHub err
                 Right () -> pure ()
@@ -237,7 +237,7 @@ main version = do
                     noOpCheckForChanges
                     CommandLine.ShouldNotWatchFiles
         Run (RunCompiled file) args -> do
-          let rsLookup _rr = Nothing
+          let rsLookup rn = "<unknown-field-" <> tShow rn <> ">"
           BS.readFile file >>= \bs ->
             try (RTI.decodeStandalone bs) >>= \case
               Left re -> do
@@ -260,7 +260,7 @@ main version = do
               Right (Right (v, rf, combIx, sto))
                 | not vmatch -> mismatchMsg
                 | otherwise -> do
-                    let rsLookup _rr = Nothing
+                    let rsLookup rn = "<unknown-field-" <> tShow rn <> ">"
                     withArgs args (RTI.runStandalone False sto combIx) >>= \case
                       Left err -> exitError =<< RTI.prettyError rsLookup fetchIssueFromGitHub err
                       Right () -> pure ()
