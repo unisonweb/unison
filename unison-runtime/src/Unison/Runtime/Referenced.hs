@@ -134,29 +134,33 @@ resolveRef :: Bool -> Reference -> Canonize RefNum
 resolveRef isTy = resolveRef0 "resolveRef" isTy
 
 resolveRef0 :: String -> Bool -> Reference -> Canonize RefNum
-resolveRef0 funName isTy r = StateT \st@(CST canon tym tmm tys tms) ->
-  let look r = lookup r (if isTy then tym else tmm)
-   in categorize canon r >>= \case
-        Canonical ->
-          look r >>= \case
-            Just rn -> pure (rn, st)
-            Nothing -> errmsg
-        Novel canon -> do
-          tym <- if isTy then insert r rn tym else pure tym
-          tmm <- if isTy then pure tmm else insert r rn tmm
-          tys <- pure $ if isTy then tys |> r else tys
-          tms <- pure $ if isTy then tms else tms |> r
-          pure (rn, CST canon tym tmm tys tms)
-          where
-            rn
-              | isTy = RefNum (length tys)
-              | otherwise = RefNum (length tms)
-        Equivalent s canon ->
-          look s >>= \case
-            Just rn -> pure (rn, st {canon = canon})
-            Nothing -> errmsg
-  where
-    errmsg = error $ funName ++ ": inconsistent canonization state"
+resolveRef0 _funName isTy r = StateT \case
+  st@(CST canon tym tmm tys tms) ->
+    categorize canon r >>= \case
+      Canonical ->
+        look r >>= \case
+          Just rn -> pure (rn, st)
+          Nothing -> updated r canon
+      Novel canon -> updated r canon
+      Equivalent s canon ->
+        look s >>= \case
+          Just rn -> pure (rn, st {canon = canon})
+          Nothing -> updated s canon
+    where
+      look r = lookup r (if isTy then tym else tmm)
+
+      updated s canon = do
+        tym <- if isTy then insert s rn tym else pure tym
+        tmm <- if isTy then pure tmm else insert s rn tmm
+        tys <- pure $ if isTy then tys |> s else tys
+        tms <- pure $ if isTy then tms else tms |> s
+        pure (rn, CST canon tym tmm tys tms)
+        where
+          rn
+            | isTy = RefNum (length tys)
+            | otherwise = RefNum (length tms)
+      {-# INLINE updated #-}
+
 
 -- Given a reference traversal, canonicalizes the references in a
 -- value. The operation is presented as a state transformation, so
