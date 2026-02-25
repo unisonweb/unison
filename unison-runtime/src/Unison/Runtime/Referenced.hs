@@ -161,7 +161,6 @@ resolveRef0 _funName isTy r = StateT \case
             | otherwise = RefNum (length tms)
       {-# INLINE updated #-}
 
-
 -- Given a reference traversal, canonicalizes the references in a
 -- value. The operation is presented as a state transformation, so
 -- that it can hook into a larger canonicalization procedure. The
