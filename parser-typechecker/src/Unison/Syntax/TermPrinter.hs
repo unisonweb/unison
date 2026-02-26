@@ -778,14 +778,18 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
   Pattern.RecordLiteral _loc fields -> do
     let (renderedFields, vs') =
           fields
-            & Map.foldMapWithKey
-              ( \fieldName pat ->
-                  let (renderedPat, vs'') = prettyPattern n c Bottom vs' pat
+            & Map.toList
+            & flip
+              foldl'
+              ([], vs)
+              ( \(acc, currentVS) (fieldName, p) ->
+                  let (renderedPat, tailVS) = do
+                        prettyPattern n c Bottom currentVS p
                       renderedField =
                         fmt (S.RecordFieldName fieldName) (PP.text fieldName)
                           <> fmt S.RecordFieldValueColon ": "
                           <> renderedPat
-                   in ([renderedField], vs'')
+                   in (acc <> [renderedField], tailVS)
               )
      in ( PP.group
             ( PP.surroundCommas
