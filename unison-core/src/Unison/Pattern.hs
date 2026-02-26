@@ -97,7 +97,7 @@ instance Show (Pattern loc) where
   show (Constructor _ (ConstructorReference r i) ps) =
     "Constructor " <> unwords [show r, show i, show ps]
   show (RecordLiteral _ ps) =
-    "RecordLiteral " <> intercalate ", " (fmap (\(k, v) -> show k <> ": " <> show v) $ Map.toList ps)
+    "RecordLiteral {" <> intercalate ", " (fmap (\(k, v) -> show k <> ": " <> show v) $ Map.toList ps) <> "}"
   show (As _ p) = "As " <> show p
   show (EffectPure _ k) = "EffectPure " <> show k
   show (EffectBind _ (ConstructorReference r i) ps k) =

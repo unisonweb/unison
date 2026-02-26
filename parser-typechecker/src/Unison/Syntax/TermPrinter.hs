@@ -64,6 +64,7 @@ import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
 import Unison.Type qualified as Type
 import Unison.Util.Bytes qualified as Bytes
+import Unison.Util.List qualified as List
 import Unison.Util.Monoid (foldMapM, intercalateMap, intercalateMapM)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
 import Unison.Util.Pretty qualified as PP
@@ -861,14 +862,24 @@ groupCases ::
   (Ord v) =>
   [MatchCase' () (Term3 v ann)] ->
   [([Pattern ()], [v], [(Maybe (Term3 v ann), ([v], Term3 v ann))])]
-groupCases = \cases
-  [] -> []
-  ms@((p1, _, AbsN' vs1 _) : _) -> go (p1, vs1) [] ms
+groupCases ms =
+  ms
+    & List.groupMap
+      ( \case
+          (p, g, AbsN' vs body) -> ((p, vs), (g, body))
+      )
+    & foldMap \((p, vs), guardRows) ->
+      [(p, vs, second (vs,) <$> toList guardRows)]
   where
-    go (p0, vs0) acc [] = [(p0, vs0, reverse acc)]
-    go (p0, vs0) acc ms@((p1, g1, AbsN' vs body) : tl)
-      | p0 == p1 && vs == vs0 = go (p0, vs0) ((g1, (vs, body)) : acc) tl
-      | otherwise = (p0, vs0, reverse acc) : groupCases ms
+
+-- case Debug.debug Debug.Temp "groupCases: ms" ms of
+-- [] -> []
+-- ms@((p1, _, AbsN' vs1 _) : _) -> go (p1, vs1) [] ms
+
+-- go (p0, vs0) acc [] = [(p0, vs0, reverse acc)]
+-- go (p0, vs0) acc ms@((p1, g1, AbsN' vs body) : tl)
+--   | p0 == p1 && vs == vs0 = go (p0, vs0) ((g1, (vs, body)) : acc) tl
+--   | otherwise = (p0, vs0, reverse acc) : groupCases ms
 
 printCase ::
   forall m v.

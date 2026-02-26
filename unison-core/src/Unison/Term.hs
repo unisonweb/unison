@@ -1657,6 +1657,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   TypeLink x == TypeLink y = x == y
   Constructor r == Constructor r2 = r == r2
   Request r == Request r2 = r == r2
+  Record fields == Record fields2 = fields == fields2
   Handle h b == Handle h2 b2 = h == h2 && b == b2
   App f a == App f2 a2 = f == f2 && a == a2
   Ann e t == Ann e2 t2 = e == e2 && t == t2
