@@ -775,16 +775,16 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
           tail_vs
         )
   Pattern.RecordLiteral _loc fields -> do
-    let (renderedFields, vs) =
+    let (renderedFields, vs') =
           fields
             & Map.foldMapWithKey
               ( \fieldName pat ->
-                  let (renderedPat, vs) = prettyPattern n c Bottom vs pat
+                  let (renderedPat, vs'') = prettyPattern n c Bottom vs' pat
                       renderedField =
                         fmt (S.RecordFieldName fieldName) (PP.text fieldName)
                           <> fmt S.RecordFieldValueColon ": "
                           <> renderedPat
-                   in ([renderedField], vs)
+                   in ([renderedField], vs'')
               )
      in ( PP.group
             ( PP.surroundCommas
@@ -792,7 +792,7 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
                 (fmt S.DelimiterChar "}")
                 (map (PP.indentNAfterNewline 2) renderedFields)
             ),
-          vs
+          vs'
         )
   Pattern.As _ pat ->
     case vs of
