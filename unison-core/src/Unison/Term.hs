@@ -1707,8 +1707,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
       go _ (Record fields) =
         showParen
           True
-          ( s "{" <> shows fields <> s " }"
-          )
+          (s "{" <> shows fields <> s " }")
       go _ (Match scrutinee cases) =
         showParen
           True

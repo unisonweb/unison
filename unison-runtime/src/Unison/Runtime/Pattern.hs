@@ -712,12 +712,12 @@ compile dataspec ctx m@(PM (r : rs))
   | PReq rfs <- ty =
       match () (var () v) $
         [ buildCasePure dataspec ctx tup
-          | tup <- splitMatrixOnData v Nothing [(-1, 1)] m
+        | tup <- splitMatrixOnData v Nothing [(-1, 1)] m
         ]
           ++ [ buildDataCase dataspec rf True cons ctx tup
-               | rf <- Set.toList rfs,
-                 Right cons <- [lookupAbil rf dataspec],
-                 tup <- splitMatrixOnData v (Just rf) (numberCons cons) m
+             | rf <- Set.toList rfs,
+               Right cons <- [lookupAbil rf dataspec],
+               tup <- splitMatrixOnData v (Just rf) (numberCons cons) m
              ]
   | PRec recSchema <- ty =
       match () (var () v) $

@@ -1,7 +1,7 @@
 module Unison.Hashing.V2.Type
   ( Type,
     TypeF (..),
-    FieldBehavior(..),
+    FieldBehavior (..),
     bindExternal,
     bindReferences,
 

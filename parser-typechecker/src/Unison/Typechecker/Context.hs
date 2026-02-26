@@ -2966,16 +2966,16 @@ equate0 t (Type.Var' (TypeVar.Existential b v))
       instantiateL b v t
 equate0 (Type.Effects' es1) (Type.Effects' es2) =
   equateAbilities es1 es2
-equate0 r1@(Type.Record' _fb1 fields1) r2@(Type.Record' _fb2 fields2)
-  = do
-  Align.align fields1 fields2
-    & Map.traverseWithKey
-      ( \fieldName -> \case
-          This fieldType -> failWith $ MissingRecordField fieldName fieldType r2 r1
-          That fieldType -> failWith $ MissingRecordField fieldName fieldType r1 r2
-          These t1 t2 -> equate t1 t2
-      )
-    & void
+equate0 r1@(Type.Record' _fb1 fields1) r2@(Type.Record' _fb2 fields2) =
+  do
+    Align.align fields1 fields2
+      & Map.traverseWithKey
+        ( \fieldName -> \case
+            This fieldType -> failWith $ MissingRecordField fieldName fieldType r2 r1
+            That fieldType -> failWith $ MissingRecordField fieldName fieldType r1 r2
+            These t1 t2 -> equate t1 t2
+        )
+      & void
 equate0 y1 y2 = do
   subtype y1 y2
   y1 <- applyM y1

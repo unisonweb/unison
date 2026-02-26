@@ -2732,9 +2732,10 @@ prettyBranches ind bs = case bs of
         id
         (mapToList $ snd <$> bs)
   MatchRec (RecordSchema rs) bd ->
-    let fields = Set.toList rs
-                & Text.intercalate ", "
-                & Text.unpack
+    let fields =
+          Set.toList rs
+            & Text.intercalate ", "
+            & Text.unpack
      in prettyCase ind (showString "REC{" . showString fields . showString "}") bd id
   MatchRequest bs df ->
     foldr

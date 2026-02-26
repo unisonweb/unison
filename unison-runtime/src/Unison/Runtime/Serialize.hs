@@ -3,7 +3,6 @@
 module Unison.Runtime.Serialize where
 
 import Control.Monad (replicateM)
-import Unison.Runtime.TypeTags (FieldTag (..))
 import Control.Monad.Primitive
 import Data.Bits (Bits, setBit, shiftL, shiftR, (.|.))
 import Data.ByteString qualified as B
@@ -39,6 +38,7 @@ import Unison.Runtime.MCode
   )
 import Unison.Runtime.Referenced (RefNum (..))
 import Unison.Runtime.Serialize.Get as Get
+import Unison.Runtime.TypeTags (FieldTag (..))
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 import Prelude hiding (getChar)

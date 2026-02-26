@@ -373,8 +373,7 @@ getSingleTerm = getABT getSymbol getUnit getF
         21 -> Term.TypeLink <$> getReference
         22 ->
           getList
-            ( (,) <$> getText <*> getChild
-            )
+            ((,) <$> getText <*> getChild)
             <&> Term.Record . Map.fromList
         tag -> unknownTag "getSingleTerm" tag
       where
