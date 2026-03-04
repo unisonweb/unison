@@ -10,7 +10,7 @@ import Debug.RecoverRTTI qualified as RTTI
 import U.Core.ABT.Var (Var (freshIn))
 import Unison.Debug qualified as Debug
 import Unison.Prelude
-import Unison.Util.Recursion
+import Unison.Util.Recursion (Recursive, Steppable, embed, project)
 import Prelude hiding (abs, cycle)
 
 data ABT f v r
@@ -28,9 +28,11 @@ data Term f v a = Term {freeVars :: Set v, annotation :: a, out :: ABT f v (Term
 data Term' f v a x = Term' {freeVars' :: Set v, annotation' :: a, out' :: ABT f v x}
   deriving (Functor)
 
-instance (Functor f) => Recursive (Term f v a) (Term' f v a) where
+instance (Functor f) => Steppable (Term f v a) (Term' f v a) where
   embed (Term' vs a abt) = Term vs a abt
   project (Term vs a abt) = Term' vs a abt
+
+instance (Functor f) => Recursive (Term f v a) (Term' f v a)
 
 instance (Foldable f, Functor f, forall a. (Eq a) => Eq (f a), Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable

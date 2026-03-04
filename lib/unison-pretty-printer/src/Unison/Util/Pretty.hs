@@ -740,7 +740,7 @@ leftJustify rows =
     (ss, as) = unzip rows
 
 align ::
-  (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> [Pretty s]
+  (Foldable f, Functor f) => (LL.ListLike s Char, IsString s) => f (Pretty s, Pretty s) -> f (Pretty s)
 align rows = (((uncurry (<>)) <$>) . align') (second Just <$> rows)
 
 -- [("foo", Just "bar")
@@ -757,18 +757,17 @@ align rows = (((uncurry (<>)) <$>) . align') (second Just <$> rows)
 -- component.  The second component has whitespace added after its
 -- newlines, again sufficient to line it up in a second column.
 align' ::
+  (Foldable f, Functor f) =>
   (LL.ListLike s Char, IsString s) =>
-  [(Pretty s, Maybe (Pretty s))] ->
-  [(Pretty s, Pretty s)]
+  f (Pretty s, Maybe (Pretty s)) ->
+  f (Pretty s, Pretty s)
 align' rows = alignedRows
   where
-    col0Width = foldl' max 0 [preferredWidth col1 | (col1, Just _) <- rows] + 1
+    col0Width = foldr max 0 [preferredWidth col1 | (col1, Just _) <- toList rows] + 1
     alignedRows =
-      [ case col1 of
-          Just s -> (rightPad col0Width col0, indentNAfterNewline col0Width s)
-          Nothing -> (col0, mempty)
-      | (col0, col1) <- rows
-      ]
+      fmap
+        (\(col0, col1) -> maybe (col0, mempty) ((rightPad col0Width col0,) . indentNAfterNewline col0Width) col1)
+        rows
 
 text :: (IsString s) => Text -> Pretty s
 text t = fromString (Text.unpack t)

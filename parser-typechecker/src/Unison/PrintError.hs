@@ -1818,7 +1818,7 @@ renderParseErrors s = \case
     go' (P.ErrorCustom e) = go e
     errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
     go :: Parser.Error v -> (Pretty ColorText, [Range])
-    -- UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
+    -- UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe (NonEmpty (L.Token Name)))
     go (Parser.PatternArityMismatch expected actual loc) = (msg, ranges)
       where
         ranges = maybeToList $ rangeForAnnotated loc

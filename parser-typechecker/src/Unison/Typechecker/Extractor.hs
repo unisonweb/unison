@@ -3,6 +3,7 @@ module Unison.Typechecker.Extractor where
 import Control.Monad.Reader
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NE
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Unison.Blank qualified as B
@@ -118,29 +119,27 @@ instance Ord (DistinctRanged a) where
   DistinctRanged _ l r <= DistinctRanged _ l' r' =
     l < l' || (l == l' && r <= r')
 
--- todo: this could return NonEmpty
-some :: forall n a. SubseqExtractor' n a -> SubseqExtractor' n [a]
+some :: forall n a. SubseqExtractor' n a -> SubseqExtractor' n (NonEmpty a)
 some xa = SubseqExtractor' $ \note ->
   let as :: [Ranged a]
       as = runSubseq xa note
    in -- Given a list of subseqs [Ranged a], find the adjacent groups [Ranged [a]].
       -- `Pure`s arguably can't be adjacent; not sure what to do with them. Currently ignored.
-      fmap reverse <$> go Set.empty as
+      fmap NE.reverse <$> go Set.empty as
   where
     fromDistinct (DistinctRanged a l r) = Ranged a l r
-    go :: Set (DistinctRanged [a]) -> [Ranged a] -> [Ranged [a]]
-    go seen [] = fmap fromDistinct . toList $ seen
+    go :: Set (DistinctRanged (NonEmpty a)) -> [Ranged a] -> [Ranged (NonEmpty a)]
+    go seen [] = fromDistinct <$> toList seen
     go seen (rh@(Ranged h start end) : t) =
-      let seen' :: Set (DistinctRanged [a])
-          seen' =
-            Set.fromList . join . fmap (toList . consRange rh) . toList $ seen
-       in go (Set.insert (DistinctRanged [h] start end) seen `Set.union` seen') t
+      let seen' :: Set (DistinctRanged (NonEmpty a))
+          seen' = Set.fromList . mapMaybe (consRange rh) $ toList seen
+       in go (Set.insert (DistinctRanged (pure h) start end) seen `Set.union` seen') t
     go seen (Pure _ : t) = go seen t
 
-    consRange :: Ranged a -> DistinctRanged [a] -> Maybe (DistinctRanged [a])
+    consRange :: Ranged a -> DistinctRanged (NonEmpty a) -> Maybe (DistinctRanged (NonEmpty a))
     consRange new group@(DistinctRanged as start' _) =
       if isAdjacent group new
-        then Just (DistinctRanged (get new : as) start' (end new))
+        then Just (DistinctRanged (NE.cons (get new) as) start' (end new))
         else Nothing
 
     -- Returns true if inputs are adjacent Ranged regions

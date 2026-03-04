@@ -435,7 +435,7 @@ lexemes' :: P () -> P [Token Lexeme]
 lexemes' eof =
   -- NB: `postLex` requires the token stream to start with an `Open`, otherwise it can’t create a `BlockTree`, so this
   --     adds one, runs `postLex`, then removes it.
-  fmap (tail . postLex . (Token (Open "fake") mempty mempty :)) $
+  fmap (drop 1 . postLex . (Token (Open "fake") mempty mempty :)) $
     local (const $ initialEnv "DUMMY") do
       p <- lexemes $ [] <$ eof
       -- deals with a final "unclosed" block at the end of `p`)

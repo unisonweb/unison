@@ -5,6 +5,8 @@ module Unison.Codebase.SqliteCodebase.Migrations where
 import Control.Concurrent.MVar
 import Control.Concurrent.STM (TVar)
 import Control.Monad.Reader
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.NonEmpty.Extra ((|:))
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -163,7 +165,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
         personalKey <- CredMan.getOrCreatePersonalKey credMan
         let migs = migrations personalKey regionVar getDeclType termBuffer declBuffer root
         -- The highest schema that this ucm knows how to migrate to.
-        let highestKnownSchemaVersion = fst . head $ Map.toDescList migs
+        let highestKnownSchemaVersion = NonEmpty.head $ (fst <$> Map.toDescList migs) |: 1
         currentSchemaVersion <- Sqlite.runTransaction conn Q.schemaVersion
         when (currentSchemaVersion > highestKnownSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral currentSchemaVersion)
         backupCodebaseIfNecessary backupStrategy localOrRemote conn currentSchemaVersion highestKnownSchemaVersion root

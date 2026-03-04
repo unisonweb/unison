@@ -1,6 +1,6 @@
 module Unison.Codebase.Editor.HandleInput.MoveTo (handleMoveTo) where
 
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Unison.Cli.Monad (Cli)
@@ -46,9 +46,7 @@ handleMoveTo sources dest' description = do
       (conflicting, nonConflicting) = Map.partition (\srcs -> length srcs > 1) byFinalSegment
 
   -- Report invalid sources (paths that can't be split, like the root)
-  when (not (null invalidSources)) $
-    Cli.respond $
-      Output.MoveNothingFound (head invalidSources)
+  maybe (pure ()) (Cli.respond . Output.MoveNothingFound . NE.head) $ nonEmpty invalidSources
 
   -- Process non-conflicting sources
   let nonConflictingSources :: [(Path.Path', NameSegment)]

@@ -9,6 +9,8 @@ module Unison.Util.Find
 where
 
 import Data.List qualified as List
+import Data.List.NonEmpty (nonEmpty)
+import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as Text
 -- http://www.serpentine.com/blog/2007/02/27/a-haskell-regular-expression-tutorial/
 -- https://www.stackage.org/haddock/lts-13.9/regex-base-0.93.2/Text-Regex-Base-Context.html -- re-exported by TDFA
@@ -105,9 +107,8 @@ fuzzyFindMatchArray query items render =
           text = Text.pack string
           matches = RE.matchOnce regex string
           addContext matches =
-            let highlighted = highlight P.bold text . tail . toList $ matches
-             in (matches, (a, highlighted))
-       in addContext <$> matches
+            fmap ((matches,) . (a,) . highlight P.bold text . NE.tail) . nonEmpty $ toList matches
+       in addContext =<< matches
     -- regex "Foo" = "(\\F).*(\\o).*(\\o)"
     regex :: RE.Regex
     regex =

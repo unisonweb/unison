@@ -9,6 +9,7 @@ import Control.Monad.State qualified as State
 import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Sequence qualified as Sequence
@@ -163,9 +164,7 @@ bindNames unsafeVarToName nameToVar localVars namespace =
   -- across all calls to `bindNames` with different terms
   \term -> do
     let freeTmVars = ABT.freeVarOccurrences localVars term
-        freeTyVars =
-          [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations term), a <- as
-          ]
+        freeTyVars = [(v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations term), a <- toList as]
 
         okTm :: (v, a) -> Maybe (v, ResolvesTo Referent)
         okTm (v, _) =
@@ -338,7 +337,7 @@ freeVars = ABT.freeVars
 freeTypeVars :: (Ord vt) => Term' vt v a -> Set vt
 freeTypeVars t = Map.keysSet $ freeTypeVarAnnotations t
 
-freeTypeVarAnnotations :: (Ord vt) => Term' vt v a -> Map vt [a]
+freeTypeVarAnnotations :: (Ord vt) => Term' vt v a -> Map vt (NonEmpty a)
 freeTypeVarAnnotations e = multimap $ go Set.empty e
   where
     go bound tm = case tm of
@@ -891,10 +890,10 @@ lam spanAnn (bindingAnn, v) body = ABT.tm' spanAnn (Lam (ABT.abs' bindingAnn v b
 
 -- | Add a lambda with a list of arguments.
 lam' ::
-  (Ord v) =>
+  (Ord v, Foldable f) =>
   -- | Annotation of the whole lambda
   a ->
-  [(a {- Annotation of the arg binding -}, v)] ->
+  f (a {- Annotation of the arg binding -}, v) ->
   Term2 vt at ap v a ->
   Term2 vt at ap v a
 lam' a vs body = foldr (lam a) body vs
@@ -962,7 +961,7 @@ letRec' isTop bindings body =
     [((a, v), b) | (v, a, b) <- bindings]
     body
 
--- Prepend a binding to form a (bigger) let rec. Useful when
+-- | Prepend a binding to form a (bigger) let rec. Useful when
 -- building up a block incrementally using a right fold.
 --
 -- For example:
@@ -975,10 +974,14 @@ letRec' isTop bindings body =
 --   let rec x = 42; y = "hi" in (x,y)
 consLetRec ::
   (Ord v) =>
-  Bool -> -- isTop parameter
-  a -> -- annotation for overall let rec
-  (a, v, Term' vt v a) -> -- the binding
-  Term' vt v a -> -- the body
+  -- | isTop parameter
+  Bool ->
+  -- | annotation for overall let rec
+  a ->
+  -- | the binding
+  (a, v, Term' vt v a) ->
+  -- | the body
+  Term' vt v a ->
   Term' vt v a
 consLetRec isTop a (ab, vb, b) body = case body of
   LetRecNamedAnnotated' _ bs body -> letRec isTop a (((ab, vb), b) : bs) body
@@ -988,7 +991,7 @@ letRec ::
   forall v vt a.
   (Ord v) =>
   Bool ->
-  -- Annotation spanning the full let rec
+  -- | Annotation spanning the full let rec
   a ->
   [((a, v), Term' vt v a)] ->
   Term' vt v a ->

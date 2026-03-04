@@ -4,6 +4,7 @@ import Control.Monad
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable
 import Data.Functor
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
 import Data.OpenApi (ToSchema)
 import Data.Set qualified as Set
@@ -112,7 +113,7 @@ data RenderedSpecialForm
   | Embed SyntaxText
   | EmbedInline SyntaxText
   | Video [MediaSource] (Map Text Text)
-  | FrontMatter (Map Text [Text])
+  | FrontMatter (Map Text (NonEmpty Text))
   | LaTeXInline Text
   | Svg Text
   | RenderError (RenderError SyntaxText)
@@ -134,7 +135,7 @@ data EvaluatedSpecialForm v
   | EEmbed (Term v ())
   | EEmbedInline (Term v ())
   | EVideo [MediaSource] (Map Text Text)
-  | EFrontMatter (Map Text [Text])
+  | EFrontMatter (Map Text (NonEmpty Text))
   | ELaTeXInline Text
   | ESvg Text
   | ERenderError (RenderError (Term v ()))

@@ -2,7 +2,8 @@
 
 module Unison.Typechecker.TypeError where
 
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NE
 import Unison.ABT qualified as ABT
 import Unison.KindInference (KindError)
 import Unison.Pattern (Pattern)
@@ -321,7 +322,7 @@ generalMismatch = do
       firstLastSubtype =
         subtypes >>= \case
           [] -> empty
-          l -> pure (head l, last l)
+          h : t -> pure (h, NE.last $ h :| t)
   n <- Ex.errorNote
   mismatchSite <- Ex.innermostTerm
   ((foundLeaf, expectedLeaf), (foundType, expectedType)) <- firstLastSubtype
@@ -399,8 +400,8 @@ existentialMismatch0 em getExpectedLoc = do
   mismatchSite <- Ex.innermostTerm
   ([foundType, expectedType], expectedLoc) <- Ex.unique $ do
     Ex.pathStart
-    subtypes@(_ : _) <- Ex.some Ex.inSubtype
-    let (foundType, expectedType) = last subtypes
+    subtypes <- Ex.some Ex.inSubtype
+    let (foundType, expectedType) = NE.last subtypes
     void $ Ex.some Ex.inCheck
     expectedLoc <- getExpectedLoc
     pure (Type.cleanups [foundType, expectedType], expectedLoc)
@@ -468,7 +469,7 @@ applyingFunction = do
     Ex.pathStart
     -- todo: make a new extrator for (some inSubtype) that pulls out the head and tail and nothing in between?
     (found, expected, leafs) <- inSubtypes
-    arg <- fst . head <$> Ex.some Ex.inCheck
+    arg <- fst . NE.head <$> Ex.some Ex.inCheck
     (_, _, argIndex) <- Ex.inSynthesizeApp
     (typeVars, f, ft, _args) <- Ex.inFunctionCall
     let go :: v -> Maybe (v, C.Type v loc)
@@ -504,7 +505,6 @@ inSubtypes ::
 inSubtypes = do
   subtypes <- Ex.some Ex.inSubtype
   let ((found, expected), leaves) = case subtypes of
-        [] -> error "unpossible: Ex.some should only succeed on nonnull output"
-        [(found, expected)] -> ((found, expected), Nothing)
-        _ -> (last subtypes, Just $ head subtypes)
+        h :| [] -> (h, Nothing)
+        _ -> (NE.last subtypes, Just $ NE.head subtypes)
   pure (found, expected, leaves)

@@ -90,6 +90,7 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Containers.ListUtils (nubOrdOn)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -943,8 +944,8 @@ docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
             DocHtml.toHtml docNamesByRef doc
 
           frontMatterToYaml = fmap \case
-            [v] -> Yaml.String v
-            vs -> Yaml.array $ Yaml.String <$> vs
+            v :| [] -> Yaml.String v
+            vs -> Yaml.array . toList $ Yaml.String <$> vs
 
           frontmatterTxt =
             if Map.null frontmatter

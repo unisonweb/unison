@@ -186,11 +186,11 @@ fmt = PP.withSyntax
 
 -- todo: provide sample output in comment
 prettySignaturesCT ::
-  (Var v) =>
+  (Traversable f, Var v) =>
   PrettyPrintEnv ->
-  [(Referent, HashQualified Name, Type v a)] ->
-  [Pretty ColorText]
-prettySignaturesCT ppe ts = map PP.syntaxToColor $ prettySignaturesST ppe ts
+  f (Referent, HashQualified Name, Type v a) ->
+  f (Pretty ColorText)
+prettySignaturesCT ppe = fmap PP.syntaxToColor . prettySignaturesST ppe
 
 prettySignaturesCTCollapsed ::
   (Var v) =>
@@ -203,10 +203,10 @@ prettySignaturesCTCollapsed ppe ts =
     $ prettySignaturesCT ppe ts
 
 prettySignaturesST ::
-  (Var v) =>
+  (Traversable f, Var v) =>
   PrettyPrintEnv ->
-  [(Referent, HashQualified Name, Type v a)] ->
-  [Pretty SyntaxText]
+  f (Referent, HashQualified Name, Type v a) ->
+  f (Pretty SyntaxText)
 prettySignaturesST ppe ts =
   PP.align . runPretty ppe $ traverse (\(r, hq, typ) -> (name r hq,) <$> sig typ) ts
   where

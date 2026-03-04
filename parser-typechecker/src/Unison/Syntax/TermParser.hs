@@ -51,6 +51,7 @@ import Unison.Prelude
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Syntax.Lexer (some')
 import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
@@ -194,19 +195,19 @@ match = do
   pure $ Term.match anns scrutinee cases
 
 matchCases :: (Monad m, Var v) => P v m [(Int, Term.MatchCase Ann (Term v Ann))]
-matchCases = sepBy semi matchCase <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c <- cs]
+matchCases = join . fmap (toList . sequenceA) <$> sepBy semi matchCase
 
--- Returns the arity of the pattern and the `MatchCase`. Examples:
+-- | Returns the arity of the pattern and the `MatchCase`. Examples:
 --
---   (a, b) -> a - b -- arity 1
---   foo, hd +: tl -> foo tl -- arity 2
+-- > (a, b) -> a - b -- arity 1
+-- > foo, hd +: tl -> foo tl -- arity 2
 --
 -- Cases with arity greater than 1 are desugared to matching on tuples,
 -- so the following are parsed the same:
 --
 --   42, x -> ...
 --   (42, x) -> ...
-matchCase :: forall m v. (Monad m, Var v) => P v m (Int, [Term.MatchCase Ann (Term v Ann)])
+matchCase :: forall m v. (Monad m, Var v) => P v m (Int, NonEmpty (Term.MatchCase Ann (Term v Ann)))
 matchCase = do
   pats <- sepBy1 (label "\",\"" $ reserved ",") (parsePattern >>= bindConstructorsInPattern)
   let boundVars0 = concatMap snd pats
@@ -217,7 +218,7 @@ matchCase = do
         pats -> foldr pair (unit (ann . last $ pats)) pats
       unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
       pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2]
-  let guardedBlocks = label "pattern guard" . some $ do
+  let guardedBlocks = label "pattern guard" . some' $ do
         _ <- reserved "|"
         guard <-
           asum
@@ -230,7 +231,7 @@ matchCase = do
         (_openAnn, _spanAnn, t) <- layoutBlock "->"
         pure (Nothing, t)
   -- a pattern's RHS is either one or more guards, or a single unguarded block.
-  guardsAndBlocks <- guardedBlocks <|> (pure @[] <$> unguardedBlock)
+  guardsAndBlocks <- guardedBlocks <|> (pure <$> unguardedBlock)
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
   let mk (guard, t) = Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t)
   pure $ (length pats, mk <$> guardsAndBlocks)
@@ -562,11 +563,11 @@ bindConstructorsInPattern =
                   | otherwise -> Just (Set.findMin refs)
 
 lam :: (Var v) => TermP v m -> TermP v m
-lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved "->") <*> p
+lam p = label "lambda" $ mkLam <$> P.try (some' prefixDefinitionName <* reserved "->") <*> p
   where
     mkLam vs b =
       let annotatedArgs = vs <&> \v -> (ann v, L.payload v)
-       in Term.lam' (ann (head vs) <> ann b) annotatedArgs b
+       in Term.lam' (ann (NonEmpty.head vs) <> ann b) annotatedArgs b
 
 letBlock, handle, ifthen :: (Monad m, Var v) => TermP v m
 letBlock = label "let" $ do
@@ -902,10 +903,9 @@ force = P.label "force" $ P.try do
   pure $ DD.forceTerm (ann fn <> ann close) (tok <> ann close) fn
 
 term4 :: (Monad m, Var v) => TermP v m
-term4 = f <$> some termLeaf
+term4 = f <$> some' termLeaf
   where
-    f (func : args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
-    f [] = error "'some' shouldn't produce an empty list"
+    f (func :| args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
 
 data InfixParse v
   = InfixOp (L.Token (HQ.HashQualified Name)) (Term v Ann) (InfixParse v) (InfixParse v)
@@ -1146,7 +1146,7 @@ importp = do
     optional $
       fmap Right importWordyId
         <|> fmap Left importSymbolyId
-  suffixes <- optional (some (importRelativeWordyId <|> importRelativeSymbolyId))
+  suffixes <- optional (some' (importRelativeWordyId <|> importRelativeSymbolyId))
   case (prefix, suffixes) of
     (Nothing, _) -> P.customFailure $ UseEmpty kw
     (Just prefix@(Left _), _) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
@@ -1155,7 +1155,7 @@ importp = do
       names <- asks names
       pure $ Names.expandWildcardImport (L.payload prefix) names
     (Just (Right prefix), Just suffixes) -> pure do
-      suffix <- L.payload <$> suffixes
+      suffix <- L.payload <$> toList suffixes
       pure (suffix, Name.joinDot (L.payload prefix) suffix)
 
 data BlockElement v

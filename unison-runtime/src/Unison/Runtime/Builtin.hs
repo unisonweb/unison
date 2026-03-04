@@ -25,6 +25,7 @@ module Unison.Runtime.Builtin
 where
 
 import Control.Monad.State.Strict (State, execState, modify)
+import Data.List (genericReplicate)
 import Data.Map qualified as Map
 import Data.Set (insert)
 import Data.Set qualified as Set
@@ -43,84 +44,67 @@ import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
+import Unison.Util.Recursion (Cofix, ana, project, takeExactly)
 import Unison.Util.Text qualified as Util.Text
 import Unison.Var
 
-freshes :: (Var v) => Int -> [v]
-freshes = freshes' mempty
+freshes :: (Var v) => Cofix ((,) v)
+freshes = ana freshes' mempty
 
-freshes' :: (Var v) => Set v -> Int -> [v]
-freshes' avoid0 = go avoid0 []
-  where
-    go _ vs 0 = vs
-    go avoid vs n =
-      let v = freshIn avoid $ typed ANFBlank
-       in go (insert v avoid) (v : vs) (n - 1)
+freshes' :: (Var v) => Set v -> (v, Set v)
+freshes' avoid =
+  let v = freshIn avoid $ typed ANFBlank
+   in (v, insert v avoid)
 
 class Fresh t where fresh :: t
 
 fresh1 :: (Var v) => v
-fresh1 = head $ freshes 1
+fresh1 = fst $ project freshes
 
 instance (Var v) => Fresh (v, v) where
   fresh = (v1, v2)
     where
-      [v1, v2] = freshes 2
+      [v1, v2] = takeExactly 2 freshes
 
 instance (Var v) => Fresh (v, v, v) where
   fresh = (v1, v2, v3)
     where
-      [v1, v2, v3] = freshes 3
+      [v1, v2, v3] = takeExactly 3 freshes
 
 instance (Var v) => Fresh (v, v, v, v) where
   fresh = (v1, v2, v3, v4)
     where
-      [v1, v2, v3, v4] = freshes 4
+      [v1, v2, v3, v4] = takeExactly 4 freshes
 
 instance (Var v) => Fresh (v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5)
     where
-      [v1, v2, v3, v4, v5] = freshes 5
+      [v1, v2, v3, v4, v5] = takeExactly 5 freshes
 
 instance (Var v) => Fresh (v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6)
     where
-      [v1, v2, v3, v4, v5, v6] = freshes 6
+      [v1, v2, v3, v4, v5, v6] = takeExactly 6 freshes
 
 instance (Var v) => Fresh (v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7)
     where
-      [v1, v2, v3, v4, v5, v6, v7] = freshes 7
+      [v1, v2, v3, v4, v5, v6, v7] = takeExactly 7 freshes
 
 instance (Var v) => Fresh (v, v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7, v8)
     where
-      [v1, v2, v3, v4, v5, v6, v7, v8] = freshes 8
+      [v1, v2, v3, v4, v5, v6, v7, v8] = takeExactly 8 freshes
 
 instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9)
     where
-      [v1, v2, v3, v4, v5, v6, v7, v8, v9] = freshes 9
+      [v1, v2, v3, v4, v5, v6, v7, v8, v9] = takeExactly 9 freshes
 
 instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10)
     where
-      [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10] = freshes 10
-
-instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v, v, v) where
-  fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11)
-    where
-      [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11] = freshes 11
-
-instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v, v, v, v, v) where
-  fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13)
-    where
-      [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13] = freshes 13
-
-instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v, v, v, v, v, v) where
-  fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14)
-    where
-      [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14] = freshes 14
+      [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10] = takeExactly 10 freshes
 
 fls, tru :: (Var v) => ANormal Reference v
 fls = TCon Ty.booleanRef 0 []
@@ -130,21 +114,23 @@ left, right :: (Var v) => v -> ANormal Reference v
 left x = TCon Ty.eitherRef (fromIntegral Ty.eitherLeftId) [x]
 right x = TCon Ty.eitherRef (fromIntegral Ty.eitherRightId) [x]
 
-unop0 :: (Var v) => Int -> ([v] -> ANormal ref v) -> SuperNormal ref v
+unop0 :: (Var v) => Word -> ([v] -> ANormal ref v) -> SuperNormal ref v
 unop0 n f =
   Lambda [BX]
     . TAbss [x0]
-    $ f xs
+    . f
+    $ x0 : xs
   where
-    xs@(x0 : _) = freshes (1 + n)
+    (x0, xs) = takeExactly n <$> project freshes
 
-binop0 :: (Var v) => Int -> ([v] -> ANormal ref v) -> SuperNormal ref v
+binop0 :: (Var v) => Word -> ([v] -> ANormal ref v) -> SuperNormal ref v
 binop0 n f =
   Lambda [BX, BX]
     . TAbss [x0, y0]
-    $ f xs
+    . f
+    $ x0 : y0 : xs
   where
-    xs@(x0 : y0 : _) = freshes (2 + n)
+    (x0, (y0, xs)) = fmap (takeExactly n) . project <$> project freshes
 
 unop :: (Var v) => POp -> SuperNormal ref v
 unop pop =
@@ -689,13 +675,13 @@ exnCase stack1 stack2 stack3 any fail =
 direct :: ForeignOp
 direct instr = ([], TFOp instr [])
 
-argNDirect :: Int -> ForeignOp
+argNDirect :: Word -> ForeignOp
 argNDirect n instr =
-  (replicate n BX,)
+  (genericReplicate n BX,)
     . TAbss args
     $ TFOp instr args
   where
-    args = freshes n
+    args = takeExactly n freshes
 
 --  () -> a
 --
@@ -917,7 +903,7 @@ declareForeignWrap sand wrap func =
 
 declareForeign ::
   Sandbox ->
-  Int ->
+  Word ->
   ForeignFunc ->
   FDecl Symbol ()
 declareForeign sand arity func = declareForeignWrap sand wrap func

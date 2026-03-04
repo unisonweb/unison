@@ -426,7 +426,7 @@ unmarkVisiting :: (Var v) => UVar v loc -> M.State (OccCheckState v loc) ()
 unmarkVisiting x = M.modify \st ->
   st
     { visitingSet = Set.delete x (visitingSet st),
-      visitingStack = tail (visitingStack st),
+      visitingStack = drop 1 (visitingStack st),
       solvedSet = Set.insert x (solvedSet st)
     }
 

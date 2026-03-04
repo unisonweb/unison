@@ -72,14 +72,14 @@ type Tree ident code = Cofree (Top code (Leaves ident code)) Ann
 data ParsingEnv = ParsingEnv
   { -- | Use a stack to remember the parent section and allow docSections within docSections.
     -- - 1 means we are inside a # Heading 1
-    parentSections :: [Int],
+    parentSections :: NonEmpty Int,
     -- | 4 means we are inside a list starting at the fourth column
     parentListColumn :: Int
   }
   deriving (Show)
 
 initialEnv :: ParsingEnv
-initialEnv = ParsingEnv [0] 0
+initialEnv = ParsingEnv (pure 0) 0
 
 doc ::
   (Ord e, P.MonadParsec e String m) =>
@@ -462,11 +462,12 @@ section ::
   R.ReaderT ParsingEnv m (Top code (Leaves ident code) (Tree ident code))
 section ident code docClose = do
   ns <- R.asks parentSections
-  hashes <- lift $ P.try $ lit (replicate (head ns) '#') *> P.takeWhile1P Nothing (== '#') <* sp docClose
+  let prevLevel = NonEmpty.head ns
+  hashes <- lift $ P.try $ lit (replicate prevLevel '#') *> P.takeWhile1P Nothing (== '#') <* sp docClose
   title <- lift $ paragraph ident code docClose <* CP.space
-  let m = length hashes + head ns
+  let m = length hashes + prevLevel
   body <-
-    R.local (\env -> env {parentSections = m : tail ns}) $
+    R.local (\env -> env {parentSections = m :| NonEmpty.tail ns}) $
       P.many (wrap (sectionElem ident code docClose) <* CP.space)
   pure $ Section title body
 
@@ -587,4 +588,4 @@ trimAroundDelimiters txt =
   where
     dropTrailingNewline = \case
       [] -> []
-      (x : xs) -> NonEmpty.init (x NonEmpty.:| xs)
+      (x : xs) -> NonEmpty.init (x :| xs)

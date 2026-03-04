@@ -3435,7 +3435,7 @@ unsafePrettyTermResultSig' ::
   Pretty
 unsafePrettyTermResultSig' ppe = \case
   SR'.TermResult' name (Just typ) r _aliases ->
-    head (TypePrinter.prettySignaturesCT ppe [(r, name, typ)])
+    NEList.head . TypePrinter.prettySignaturesCT ppe $ pure (r, name, typ)
   _ -> error "Don't pass Nothing"
 
 renderNameConflicts :: Int -> Names -> Numbered Pretty
@@ -4668,9 +4668,8 @@ prettyConflictExample ((_seg, srcs) : _) dest =
   case srcs of
     [] -> []
     [_] -> [] -- Only one item, no conflict (shouldn't happen)
-    (_ : rest) ->
+    (_ : secondPath : _) ->
       let -- Get the parent path of the second item (the one to rename)
-          secondPath = head rest
           parentPath = case Path.split secondPath of
             Just (parent, _) -> parent
             Nothing -> secondPath

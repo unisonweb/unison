@@ -8,6 +8,7 @@ import Data.ByteString.Lazy (toChunks)
 import Data.Graph as Gr
 import Data.List (nub, sortBy)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (listToMaybe)
 import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -79,8 +80,9 @@ rehashSCC scc
   | checkSCC scc = (refreps, newSGs)
   where
     ps = sortBy (comparing fst) $ flattenSCC scc
-    sample = case fst $ head ps of
-      Derived h _ -> h
+    -- TODO: `flattenSCC1` in containers 0.8 (GHC 9.14) will at least eliminate the `Maybe` here.
+    sample = case listToMaybe ps of
+      Just (Derived h _, _) -> h
       _ -> error "rehashSCC: impossible"
     bss = fmap (uncurry serializeGroupForRehash) ps
     digest =

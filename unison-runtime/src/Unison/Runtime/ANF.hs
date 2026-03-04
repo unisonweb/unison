@@ -104,6 +104,7 @@ import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or, unsnoc, unzip)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Set qualified as Set
@@ -1541,8 +1542,8 @@ arity (Lambda ccs _) = length ccs
 -- Yields the numbers of arguments directly accepted by the
 -- combinators in a group. The main entry is the first element, and
 -- local bindings follow in their original order.
-arities :: SuperGroup ref v -> [Int]
-arities (Rec bs e) = arity e : fmap (arity . snd) bs
+arities :: SuperGroup ref v -> NonEmpty Int
+arities (Rec bs e) = arity e :| fmap (arity . snd) bs
 
 -- Checks if two SuperGroups are equivalent up to renaming. The rest
 -- of the structure must match on the nose. If the two groups are not

@@ -796,7 +796,7 @@ decomposeComponent = do
         let bytes = BS.drop start $ BS.take end componentBytes
         either fail (pure . pure) $ runGetS split bytes
       split = (,) <$> getLocalIds <*> getRemainingByteString
-  Monoid.foldMapM get1 (zip offsets (tail offsets))
+  Monoid.foldMapM get1 (zip offsets (drop 1 offsets))
 
 recomposeTermFormat :: (MonadPut m) => TermFormat.SyncTermFormat -> m ()
 recomposeTermFormat = \case
