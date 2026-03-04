@@ -2,6 +2,8 @@ module Unison.Test.UnisonSources where
 
 import Control.Exception (throwIO)
 import Control.Lens.Tuple (_5)
+import Data.List.NonEmpty (nonEmpty)
+import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Text (unpack)
 import Data.Text qualified as Text
@@ -131,11 +133,11 @@ resultTest rt uf filepath = do
         (crash . Text.unpack . PrintError.renderParseErrorAsANSI 80 values)
         ( \tm -> do
             -- compare the watch expression from the .u with the expr in .ur
-            let watchResult = head (view _5 <$> Map.elems watches)
-                tm' = Term.letRec' False (bindings <&> \(sym, tm) -> (sym, (), tm)) watchResult
+            let watchResult = NE.head <$> nonEmpty (view _5 <$> Map.elems watches)
+                tm' = Term.letRec' False (bindings <&> \(sym, tm) -> (sym, (), tm)) <$> watchResult
             -- note . show $ tm'
             -- note . show $ Term.amap (const ()) tm
-            expectEqual tm' (Term.amap (const ()) tm)
+            expectEqual tm' (pure $ Term.amap (const ()) tm)
         )
         . runIdentity
         $ Parsers.parseTerm values parsingEnv
