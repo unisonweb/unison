@@ -239,7 +239,10 @@ test =
       tError "0xFF_",
       tError "0xFF__FF",
       tError "0o77_",
-      tError "0b1010_"
+      tError "0b1010_",
+      -- Underscore followed by non-digit is rejected (not parsed as two tokens)
+      tError "1_x",
+      tError "1_e3"
     ]
 
 t :: String -> [Lexeme] -> Test ()

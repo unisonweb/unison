@@ -518,31 +518,32 @@ lexemes eof =
             Left _ -> err start (InvalidBytesLiteral $ "0xs" <> s)
             Right bs -> pure (Bytes bs)
         otherbase = octal <|> hex <|> binary
-        octal = do
+        octal = otherBase "0o" 8 "octal digit" isOctDigit InvalidOctalLiteral
+        hex = otherBase "0x" 16 "hexadecimal digit" isHexDigit InvalidHexLiteral
+        binary = otherBase "0b" 2 "binary digit" isBinDigit InvalidBinaryLiteral
+
+        otherBase :: String -> Int -> String -> (Char -> Bool) -> Err -> P Lexeme
+        otherBase prefix base label isValidDigit errType = do
           start <- posP
-          commitAfter2 sign (lit "0o") $ \sign _ ->
-            fmap (num sign) (P.try $ digitsToInteger 8 <$> digitsWithUnderscores "octal digit" isOctDigit) <|> err start InvalidOctalLiteral
-        hex = do
-          start <- posP
-          commitAfter2 sign (lit "0x") $ \sign _ ->
-            fmap (num sign) (P.try $ digitsToInteger 16 <$> digitsWithUnderscores "hexadecimal digit" isHexDigit) <|> err start InvalidHexLiteral
-        binary = do
-          start <- posP
-          commitAfter2 sign (lit "0b") $ \sign _ ->
-            fmap (num sign) (P.try $ digitsToInteger 2 <$> digitsWithUnderscores "binary digit" (\c -> c == '0' || c == '1')) <|> err start InvalidBinaryLiteral
+          commitAfter2 sign (lit prefix) $ \sign _ ->
+            fmap (num sign) (P.try $ digitsToInteger base <$> digitsWithUnderscores label isValidDigit)
+              <|> err start errType
 
         num :: Maybe String -> Integer -> Lexeme
         num sign n = Numeric (fromMaybe "" sign <> show n)
         sign = P.optional (lit "+" <|> lit "-")
 
+        isBinDigit :: Char -> Bool
+        isBinDigit c = c == '0' || c == '1'
+
         digitsWithUnderscores :: String -> (Char -> Bool) -> P String
         digitsWithUnderscores label isValidDigit = do
           first <- P.takeWhile1P (Just label) isValidDigit
           rest <- many (char '_' *> P.takeWhile1P (Just label) isValidDigit)
-          pure $ first <> concat rest
+          pure $ mconcat $ first : rest
 
         digitsToInteger :: Int -> String -> Integer
-        digitsToInteger base = foldl' (\acc c -> acc * fromIntegral base + fromIntegral (digitToInt c)) 0
+        digitsToInteger base = foldl' (\acc c -> acc * toInteger base + toInteger (digitToInt c)) 0
 
     hash = Hash <$> P.try shortHashP
 
