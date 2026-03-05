@@ -207,7 +207,31 @@ test =
       t "{foo\n,bar}" [Open "{", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
       t "{foo\n ,bar}" [Open "{", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
       t "[foo\n,bar]" [Open "[", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
-      t "[foo\n ,bar]" [Open "[", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close]
+      t "[foo\n ,bar]" [Open "[", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
+      -- Underscore separators in numeric literals (#2228)
+      -- Decimal integers
+      t "1_000" [Numeric "1000"],
+      t "+1_000" [Numeric "+1000"],
+      t "-1_000" [Numeric "-1000"],
+      t "1_000_000" [Numeric "1000000"],
+      -- Floats
+      t "1_000.5" [Numeric "1000.5"],
+      t "1_000.000_001" [Numeric "1000.000001"],
+      -- Scientific notation
+      t "1_000e1_0" [Numeric "1000e10"],
+      t "1_000.5e1_0" [Numeric "1000.5e10"],
+      t "1_000.5E1_0" [Numeric "1000.5e10"],
+      t "+1_000.5e1_0" [Numeric "+1000.5e10"],
+      t "-1_000.5e-1_0" [Numeric "-1000.5e-10"],
+      -- Hex
+      t "0xFF_FF" [Numeric "65535"],
+      t "+0xFF_FF" [Numeric "+65535"],
+      t "-0xFF_FF" [Numeric "-65535"],
+      -- Octal
+      t "0o77_77" [Numeric "4095"],
+      -- Binary
+      t "0b1010_0101" [Numeric "165"],
+      t "+0b1010_0101" [Numeric "+165"]
     ]
 
 t :: String -> [Lexeme] -> Test ()

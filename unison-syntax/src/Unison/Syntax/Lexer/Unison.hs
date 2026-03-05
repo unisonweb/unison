@@ -30,7 +30,7 @@ where
 
 import Control.Lens qualified as Lens
 import Control.Monad.State qualified as S
-import Data.Char (isAlphaNum, isDigit, isSpace, ord, toLower)
+import Data.Char (digitToInt, isAlphaNum, isDigit, isHexDigit, isOctDigit, isSpace, ord, toLower)
 import Data.Foldable qualified as Foldable
 import Data.Functor.Classes (Show1 (..), showsPrec1)
 import Data.List qualified as List
@@ -492,21 +492,21 @@ lexemes eof =
 
     numeric = bytes <|> otherbase <|> float <|> intOrNat
       where
-        intOrNat = P.try $ num <$> sign <*> LP.decimal
+        intOrNat = P.try $ num <$> sign <*> (digitsToInteger 10 <$> digitsWithUnderscores "decimal digit" isDigit)
         float = do
-          _ <- P.try (P.lookAhead (sign >> (LP.decimal :: P Int) >> (char '.' <|> char 'e' <|> char 'E'))) -- commit after this
+          _ <- P.try (P.lookAhead (sign >> digitsWithUnderscores "decimal digit" isDigit >> (char '.' <|> char 'e' <|> char 'E'))) -- commit after this
           start <- posP
           sign <- fromMaybe "" <$> sign
-          base <- P.takeWhile1P (Just "base") isDigit
+          base <- digitsWithUnderscores "base" isDigit
           decimals <-
             P.optional $
               let missingFractional = err start (MissingFractional $ base <> ".")
-               in liftA2 (<>) (lit ".") (P.takeWhile1P (Just "decimals") isDigit <|> missingFractional)
+               in liftA2 (<>) (lit ".") (digitsWithUnderscores "decimals" isDigit <|> missingFractional)
           exp <- P.optional $ do
             e <- map toLower <$> (lit "e" <|> lit "E")
             sign <- fromMaybe "" <$> optional (lit "+" <|> lit "-")
             let missingExp = err start (MissingExponent $ base <> fromMaybe "" decimals <> e <> sign)
-            exp <- P.takeWhile1P (Just "exponent") isDigit <|> missingExp
+            exp <- digitsWithUnderscores "exponent" isDigit <|> missingExp
             pure $ e <> sign <> exp
           pure $ Numeric (sign <> base <> fromMaybe "" decimals <> fromMaybe "" exp)
 
@@ -521,19 +521,28 @@ lexemes eof =
         octal = do
           start <- posP
           commitAfter2 sign (lit "0o") $ \sign _ ->
-            fmap (num sign) LP.octal <|> err start InvalidOctalLiteral
+            fmap (num sign) (digitsToInteger 8 <$> digitsWithUnderscores "octal digit" isOctDigit) <|> err start InvalidOctalLiteral
         hex = do
           start <- posP
           commitAfter2 sign (lit "0x") $ \sign _ ->
-            fmap (num sign) LP.hexadecimal <|> err start InvalidHexLiteral
+            fmap (num sign) (digitsToInteger 16 <$> digitsWithUnderscores "hexadecimal digit" isHexDigit) <|> err start InvalidHexLiteral
         binary = do
           start <- posP
           commitAfter2 sign (lit "0b") $ \sign _ ->
-            fmap (num sign) LP.binary <|> err start InvalidBinaryLiteral
+            fmap (num sign) (digitsToInteger 2 <$> digitsWithUnderscores "binary digit" (\c -> c == '0' || c == '1')) <|> err start InvalidBinaryLiteral
 
         num :: Maybe String -> Integer -> Lexeme
         num sign n = Numeric (fromMaybe "" sign <> show n)
         sign = P.optional (lit "+" <|> lit "-")
+
+        digitsWithUnderscores :: String -> (Char -> Bool) -> P String
+        digitsWithUnderscores label isValidDigit = do
+          first <- P.takeWhile1P (Just label) isValidDigit
+          rest <- many (P.try (char '_' *> P.takeWhile1P (Just label) isValidDigit))
+          pure $ first <> concat rest
+
+        digitsToInteger :: Int -> String -> Integer
+        digitsToInteger base = foldl' (\acc c -> acc * fromIntegral base + fromIntegral (digitToInt c)) 0
 
     hash = Hash <$> P.try shortHashP
 
