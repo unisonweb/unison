@@ -249,7 +249,13 @@ test =
       tError "1_.2",
       tError "1._2",
       tError "1e_2",
-      tError "1_e2"
+      tError "1_e2",
+      -- Underscore after exponent sign is rejected
+      tError "1e+_2",
+      tError "1e-_2",
+      -- Leading zeros with underscores
+      t "0_1" [Numeric "1"],
+      t "007" [Numeric "7"]
     ]
 
 t :: String -> [Lexeme] -> Test ()
