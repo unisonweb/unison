@@ -521,15 +521,15 @@ lexemes eof =
         octal = do
           start <- posP
           commitAfter2 sign (lit "0o") $ \sign _ ->
-            fmap (num sign) (digitsToInteger 8 <$> digitsWithUnderscores "octal digit" isOctDigit) <|> err start InvalidOctalLiteral
+            fmap (num sign) (P.try $ digitsToInteger 8 <$> digitsWithUnderscores "octal digit" isOctDigit) <|> err start InvalidOctalLiteral
         hex = do
           start <- posP
           commitAfter2 sign (lit "0x") $ \sign _ ->
-            fmap (num sign) (digitsToInteger 16 <$> digitsWithUnderscores "hexadecimal digit" isHexDigit) <|> err start InvalidHexLiteral
+            fmap (num sign) (P.try $ digitsToInteger 16 <$> digitsWithUnderscores "hexadecimal digit" isHexDigit) <|> err start InvalidHexLiteral
         binary = do
           start <- posP
           commitAfter2 sign (lit "0b") $ \sign _ ->
-            fmap (num sign) (digitsToInteger 2 <$> digitsWithUnderscores "binary digit" (\c -> c == '0' || c == '1')) <|> err start InvalidBinaryLiteral
+            fmap (num sign) (P.try $ digitsToInteger 2 <$> digitsWithUnderscores "binary digit" (\c -> c == '0' || c == '1')) <|> err start InvalidBinaryLiteral
 
         num :: Maybe String -> Integer -> Lexeme
         num sign n = Numeric (fromMaybe "" sign <> show n)
@@ -538,7 +538,7 @@ lexemes eof =
         digitsWithUnderscores :: String -> (Char -> Bool) -> P String
         digitsWithUnderscores label isValidDigit = do
           first <- P.takeWhile1P (Just label) isValidDigit
-          rest <- many (P.try (char '_' *> P.takeWhile1P (Just label) isValidDigit))
+          rest <- many (char '_' *> P.takeWhile1P (Just label) isValidDigit)
           pure $ first <> concat rest
 
         digitsToInteger :: Int -> String -> Integer

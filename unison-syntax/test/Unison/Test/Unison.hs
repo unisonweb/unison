@@ -231,7 +231,15 @@ test =
       t "0o77_77" [Numeric "4095"],
       -- Binary
       t "0b1010_0101" [Numeric "165"],
-      t "+0b1010_0101" [Numeric "+165"]
+      t "+0b1010_0101" [Numeric "+165"],
+      -- Trailing and consecutive underscores are rejected
+      tError "1_",
+      tError "1__2",
+      tError "1_000_",
+      tError "0xFF_",
+      tError "0xFF__FF",
+      tError "0o77_",
+      tError "0b1010_"
     ]
 
 t :: String -> [Lexeme] -> Test ()
@@ -249,6 +257,18 @@ t s expected = case toList . preParse $ lexer filename s of
               crash "actual != expected"
   where
     filename = "test case"
+
+tError :: String -> Test ()
+tError s = scope s $ case toList . preParse $ lexer filename s of
+  ts
+    | any isErr ts -> ok
+    | otherwise -> do
+        note $ "expected error but got: " ++ show (payload <$> ts)
+        crash "expected error"
+  where
+    filename = "test case"
+    isErr (Token (Err _) _ _) = True
+    isErr _ = False
 
 simpleSymbolyId :: Text -> Lexeme
 simpleSymbolyId =
