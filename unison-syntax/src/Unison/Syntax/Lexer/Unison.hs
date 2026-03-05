@@ -518,12 +518,12 @@ lexemes eof =
             Left _ -> err start (InvalidBytesLiteral $ "0xs" <> s)
             Right bs -> pure (Bytes bs)
         otherbase = octal <|> hex <|> binary
-        octal = otherBase "0o" 8 "octal digit" isOctDigit InvalidOctalLiteral
-        hex = otherBase "0x" 16 "hexadecimal digit" isHexDigit InvalidHexLiteral
-        binary = otherBase "0b" 2 "binary digit" isBinDigit InvalidBinaryLiteral
+        octal = baseWithPrefix "0o" 8 "octal digit" isOctDigit InvalidOctalLiteral
+        hex = baseWithPrefix "0x" 16 "hexadecimal digit" isHexDigit InvalidHexLiteral
+        binary = baseWithPrefix "0b" 2 "binary digit" isBinDigit InvalidBinaryLiteral
 
-        otherBase :: String -> Int -> String -> (Char -> Bool) -> Err -> P Lexeme
-        otherBase prefix base label isValidDigit errType = do
+        baseWithPrefix :: String -> Int -> String -> (Char -> Bool) -> Err -> P Lexeme
+        baseWithPrefix prefix base label isValidDigit errType = do
           start <- posP
           commitAfter2 sign (lit prefix) $ \sign _ ->
             fmap (num sign) (P.try $ digitsToInteger base <$> digitsWithUnderscores label isValidDigit)
