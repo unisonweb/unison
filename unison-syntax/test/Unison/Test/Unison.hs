@@ -244,7 +244,12 @@ test =
       tError "1_x",
       tError "1_e3",
       -- Underscore immediately after base prefix is rejected
-      tError "0x_FF"
+      tError "0x_FF",
+      -- Underscore adjacent to period or exponent marker is rejected
+      tError "1_.2",
+      tError "1._2",
+      tError "1e_2",
+      tError "1_e2"
     ]
 
 t :: String -> [Lexeme] -> Test ()
