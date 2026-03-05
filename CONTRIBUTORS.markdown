@@ -98,3 +98,4 @@ The format for this list: name, GitHub handle
 * Nic Luciano (@kn0ll)
 * Maurice Scheffmacher (@MauScheff)
 * ChanningWalton (@channingwalton)
+* Taylor Fausak (@tfausak)
