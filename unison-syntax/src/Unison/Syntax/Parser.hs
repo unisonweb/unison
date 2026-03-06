@@ -230,6 +230,8 @@ data Error v
   | FloatPattern Ann
   | -- Bound the same variable twice
     DuplicateBinders Ann Ann v
+  | -- | Pattern found in function declaration head (e.g. `f [] = ...`)
+    PatternInFunctionDeclaration Ann
   deriving (Show, Eq, Ord)
 
 tokenToPair :: L.Token a -> (Ann, a)
