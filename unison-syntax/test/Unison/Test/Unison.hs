@@ -260,6 +260,8 @@ test =
       -- Underscore separators in bytes literals
       t "0xs01_ef" [Bytes (Bytes.fromWord8s [0x01, 0xef])],
       t "0xsAA_BB_CC" [Bytes (Bytes.fromWord8s [0xaa, 0xbb, 0xcc])],
+      -- Underscores between hex digits within a byte
+      t "0xs1_2" [Bytes (Bytes.fromWord8s [0x12])],
       -- Regression: bytes without underscores still work
       t "0xs01ef" [Bytes (Bytes.fromWord8s [0x01, 0xef])],
       -- Regression: empty bytes literal still works
