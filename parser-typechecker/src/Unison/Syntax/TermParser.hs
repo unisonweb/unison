@@ -1073,6 +1073,7 @@ binding = label "binding" do
   let isPatternToken :: L.Lexeme -> Bool
       isPatternToken = \case
         L.Open "[" -> True -- list pattern, e.g. []
+        L.Open "(" -> True -- tuple or constructor pattern, e.g. (a, b) or (Just x)
         L.Numeric _ -> True -- numeric literal, e.g. 42
         L.Textual _ -> True -- text literal, e.g. "hello"
         L.Character _ -> True -- char literal, e.g. ?x
