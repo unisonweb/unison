@@ -128,8 +128,9 @@ x = 0xsf -- odd number of hex chars in a bytes literal
 
       1 | x = 0xsf -- odd number of hex chars in a bytes literal
 
-  I was expecting an even number of hexidecimal characters (one
-  of 0123456789abcdefABCDEF) after the 0xs.
+  I was expecting an even number of hexadecimal characters (one
+  of 0123456789abcdefABCDEF) after the 0xs. Underscores may be
+  used as separators between hex digits (e.g. 0xsAA_BB).
 ```
 
 ``` unison :error
@@ -139,12 +140,19 @@ x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  This bytes literal isn't valid syntax: 0xsnotvalidhexchars
+  It looks like this function call:
 
       1 | x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 
-  I was expecting an even number of hexidecimal characters (one
-  of 0123456789abcdefABCDEF) after the 0xs.
+
+  is being applied to 2 arguments, but it has the type
+
+    [Nat] -> Bytes
+
+  which only accepts 1 argument.
+
+  Maybe you applied the function to too many arguments?
+
 ```
 
 ### Layout errors

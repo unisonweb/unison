@@ -137,5 +137,6 @@ test-suite syntax-tests
     , unison-core1
     , unison-prelude
     , unison-syntax
+    , unison-util-bytes
     , unison-util-recursion
   default-language: Haskell2010

@@ -5,6 +5,7 @@ import EasyTest
 import Unison.Prelude
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (unsafeParseText)
 import Unison.Syntax.Lexer.Unison
+import Unison.Util.Bytes qualified as Bytes
 
 test :: Test ()
 test =
@@ -255,7 +256,18 @@ test =
       tError "1e-_2",
       -- Leading zeros with underscores
       t "0_1" [Numeric "1"],
-      t "007" [Numeric "7"]
+      t "007" [Numeric "7"],
+      -- Underscore separators in bytes literals
+      t "0xs01_ef" [Bytes (Bytes.fromWord8s [0x01, 0xef])],
+      t "0xsAA_BB_CC" [Bytes (Bytes.fromWord8s [0xaa, 0xbb, 0xcc])],
+      -- Regression: bytes without underscores still work
+      t "0xs01ef" [Bytes (Bytes.fromWord8s [0x01, 0xef])],
+      -- Regression: empty bytes literal still works
+      t "0xs" [Bytes (Bytes.fromWord8s [])],
+      -- Invalid bytes with underscores
+      tError "0xs01_",
+      tError "0xs01__ef",
+      tError "0xs_01"
     ]
 
 t :: String -> [Lexeme] -> Test ()
