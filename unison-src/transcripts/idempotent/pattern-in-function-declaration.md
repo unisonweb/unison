@@ -21,9 +21,8 @@ isEmpty [] = true
     
     Use `case` in the function body instead. For example:
     
-        isEmpty as = case as of
-          [] -> true
-          _ -> false
+        isEmpty arg = case arg of
+          ... -> ...
 ```
 
 ## With a type signature
@@ -47,9 +46,8 @@ isEmpty [] = true
     
     Use `case` in the function body instead. For example:
     
-        isEmpty as = case as of
-          [] -> true
-          _ -> false
+        isEmpty arg = case arg of
+          ... -> ...
 ```
 
 ## Numeric literal pattern
@@ -72,7 +70,6 @@ factorial 0 = 1
     
     Use `case` in the function body instead. For example:
     
-        isEmpty as = case as of
-          [] -> true
-          _ -> false
+        factorial arg = case arg of
+          ... -> ...
 ```

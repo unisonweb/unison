@@ -1849,9 +1849,10 @@ renderParseErrors s = \case
                     <> "an acceptable error bound of the expected value.",
                 annotatedAsErrorSite s loc
               ]
-    go (Parser.PatternInFunctionDeclaration loc) = (msg, ranges)
+    go (Parser.PatternInFunctionDeclaration funcName loc) = (msg, ranges)
       where
         ranges = maybeToList $ rangeForAnnotated loc
+        name = renderVar funcName
         msg =
           Pr.indentN 2 . Pr.callout "😶" $
             Pr.lines
@@ -1868,9 +1869,8 @@ renderParseErrors s = \case
                 "",
                 Pr.indentN 4 . Pr.blue $
                   Pr.lines
-                    [ "isEmpty as = case as of",
-                      "  [] -> true",
-                      "  _ -> false"
+                    [ name <> " arg = case arg of",
+                      "  ... -> ..."
                     ]
               ]
     go (Parser.UseEmpty tok) = (msg, ranges)

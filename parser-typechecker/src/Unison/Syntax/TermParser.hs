@@ -1089,15 +1089,15 @@ binding = label "binding" do
             -- We only check the prefix form here (not infix like `x + foo 8`),
             -- and we verify that an `=` follows (before a statement boundary)
             -- to avoid false positives for expressions like `(Nat.+) 1`.
-            nextTok <- P.try do
-              _ <- prefixLhs
+            (name, nextTok) <- P.try do
+              (_, name, _) <- prefixLhs
               nextTok <- peekAny
               guard (isPatternToken (L.payload nextTok))
               -- Scan ahead (balancing open/close) to confirm a '=' follows
               -- on this same statement, ruling out standalone expressions.
               void $ P.lookAhead scanForEquals
-              pure nextTok
-            failCommitted (PatternInFunctionDeclaration (ann nextTok))
+              pure (name, nextTok)
+            failCommitted (PatternInFunctionDeclaration (L.payload name) (ann nextTok))
       (_eqAnn, _bodySpanAnn, body) <- block "="
       verifyRelativeName' (fmap Name.unsafeParseVar name)
       let binding = mkBinding lhsLoc args body
@@ -1115,7 +1115,7 @@ binding = label "binding" do
       nextTokMaybe <- optional peekAny
       case nextTokMaybe of
         Just nextTok | isPatternToken (L.payload nextTok) ->
-          customFailure (PatternInFunctionDeclaration (ann nextTok))
+          customFailure (PatternInFunctionDeclaration (L.payload name) (ann nextTok))
         _ -> pure ()
       (_eqAnn, _bodySpanAnn, body) <- block "="
       let binding = mkBinding lhsLoc args body

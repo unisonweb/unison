@@ -125,7 +125,7 @@ patternInFunctionDeclarationTest =
   where
     expectation :: (Var e) => P.Error e -> Test ()
     expectation e = case e of
-      P.PatternInFunctionDeclaration _ -> ok
+      P.PatternInFunctionDeclaration _ _ -> ok
       _ -> crash "Error wasn't PatternInFunctionDeclaration"
 
 patternInFunctionDeclarationWithTypeSigTest :: Test ()
@@ -135,7 +135,7 @@ patternInFunctionDeclarationWithTypeSigTest =
   where
     expectation :: (Var e) => P.Error e -> Test ()
     expectation e = case e of
-      P.PatternInFunctionDeclaration _ -> ok
+      P.PatternInFunctionDeclaration _ _ -> ok
       _ -> crash "Error wasn't PatternInFunctionDeclaration"
 
 parses :: String -> Test ()
