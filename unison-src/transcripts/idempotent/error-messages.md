@@ -140,19 +140,13 @@ x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  It looks like this function call:
+  This bytes literal isn't valid syntax: 0xsnotvalidhexchars
 
       1 | x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 
-
-  is being applied to 2 arguments, but it has the type
-
-    [Nat] -> Bytes
-
-  which only accepts 1 argument.
-
-  Maybe you applied the function to too many arguments?
-
+  I was expecting an even number of hexadecimal characters (one
+  of 0123456789abcdefABCDEF) after the 0xs. Underscores may be
+  used as separators between hex digits (e.g. 0xsAA_BB).
 ```
 
 ### Layout errors

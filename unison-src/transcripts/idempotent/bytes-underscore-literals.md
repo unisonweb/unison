@@ -103,13 +103,11 @@ x = 0xs_01
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I got confused here:
+  This bytes literal isn't valid syntax: 0xs_01
 
       1 | x = 0xs_01
 
-
-  I was surprised to find a _ here.
-  I was expecting one of these instead:
-
-  * hexadecimal character
+  I was expecting an even number of hexadecimal characters (one
+  of 0123456789abcdefABCDEF) after the 0xs. Underscores may be
+  used as separators between hex digits (e.g. 0xsAA_BB).
 ```
