@@ -573,6 +573,7 @@ outputShouldUsePager o = case o of
   -- These are typically non-interactive outputs, so we don't page them.
   LoadingFile {} -> False
   Typechecked {} -> False
+  TypeErrors {} -> False
   Evaluated {} -> False
   EvaluationFailure {} -> False
   _ -> True
