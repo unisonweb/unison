@@ -47,6 +47,17 @@ E.g.
 $ UNISON_PAGER=more ucm
 ```
 
+### `UNISON_DISABLE_PAGER`
+
+Allows disabling paging entirely.
+
+E.g.
+
+```sh
+# Never use pager
+$ UNISON_DISABLE_PAGER=true
+```
+
 ### `UNISON_LSP_PORT`
 
 Allows selecting the port to run the LSP server on. Defaults to `5757`.

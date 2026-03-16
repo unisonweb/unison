@@ -1,7 +1,9 @@
 module Unison.Util.Less where
 
 import Control.Exception.Extra (ignore)
+import Data.Char qualified as Char
 import Data.Text.IO qualified as Text
+import GHC.IO (unsafePerformIO)
 import System.Environment (lookupEnv)
 import System.IO (hClose)
 import System.Process
@@ -9,13 +11,28 @@ import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
 
+shouldUsePager :: Bool
+shouldUsePager = unsafePerformIO $ do
+  inEmacs <- isJust <$> lookupEnv "INSIDE_EMACS"
+  disablePager <-
+    lookupEnv "UNISON_DISABLE_PAGER" <&> \mayStr ->
+      fromMaybe False (mayStr >>= parseBool)
+  isTerminal <- UnliftIO.hIsTerminalDevice UnliftIO.stdin
+  pure $
+    if inEmacs || disablePager
+      then False
+      else isTerminal
+  where
+    parseBool =
+      map Char.toLower >>> \case
+        "true" -> Just True
+        "false" -> Just False
+        _ -> Nothing
+{-# NOINLINE shouldUsePager #-}
+
 less :: Text -> IO ()
 less str = do
-  isInteractive <-
-    lookupEnv "INSIDE_EMACS" >>= \case
-      Just _ -> pure False
-      Nothing -> UnliftIO.hIsTerminalDevice UnliftIO.stdin
-  if isInteractive
+  if shouldUsePager
     then usePager
     else noPager
   where
