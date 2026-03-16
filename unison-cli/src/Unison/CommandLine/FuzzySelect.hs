@@ -83,6 +83,10 @@ data FuzzySelections a where
   SelectFromChoices :: (a -> Text) -> [a] -> FuzzySelections a
   SelectFiles :: FuzzySelections Text
 
+data FuzzySelectException
+  = FailedToBindHandle
+  deriving (Show, Exception)
+
 -- | Allows prompting the user to interactively fuzzy-select a result from a list of options, currently shells out to `fzf` under the hood.
 -- If fzf is missing, or an error (other than ctrl-c) occurred, returns Nothing.
 fuzzySelect :: forall a. Options -> FuzzySelections a -> IO (Maybe [a])
@@ -105,7 +109,7 @@ fuzzySelect opts selections =
           let searchTexts :: [Text] =
                 (\(n, ch) -> tShow (n) <> " " <> intoSearchText ch) <$> numberedChoices
 
-          result <- fzfWithChoices fzfPath fzfArgs searchTexts
+          result <- lift $ fzfWithChoices fzfPath fzfArgs searchTexts
           -- Since we prefixed every search term with its number earlier, we know each result
           -- is prefixed with a number, we need to parse it and use it to select the matching
           -- value from our input list.
@@ -122,9 +126,9 @@ fuzzySelect opts selections =
                 & Just
         SelectFiles -> do
           let fzfArgs :: [String] = optsToArgs opts False
-          eitherToMaybe <$> fzfFileSelector fzfPath fzfArgs
+          eitherToMaybe <$> lift (fzfFileSelector fzfPath fzfArgs)
   where
-    fzfWithChoices :: FilePath -> [String] -> [Text] -> ExceptT Text IO (Either SomeException [Text])
+    fzfWithChoices :: FilePath -> [String] -> [Text] -> IO (Either SomeException [Text])
     fzfWithChoices fzfPath fzfArgs searchTexts = do
       let fzfProc :: Proc.CreateProcess =
             (Proc.proc fzfPath fzfArgs)
@@ -132,18 +136,21 @@ fuzzySelect opts selections =
                 Proc.std_out = Proc.CreatePipe,
                 Proc.delegate_ctlc = True
               }
-      (Just stdin', Just stdout', _, procHandle) <- Proc.createProcess fzfProc
-      -- Generally no-buffering is helpful for highly interactive processes.
-      hSetBuffering stdin NoBuffering
-      hSetBuffering stdin' NoBuffering
-      liftIO . UnliftIO.tryAny $ do
-        -- Dump the search terms into fzf's stdin
-        traverse_ (Text.hPutStrLn stdin') searchTexts
-        -- Wire up the interactive terminal to fzf now that the inputs have been loaded.
-        hDuplicateTo stdin stdin'
-        void $ Proc.waitForProcess procHandle
-        Text.lines <$> liftIO (Text.hGetContents stdout')
-    fzfFileSelector :: FilePath -> [String] -> ExceptT Text IO (Either SomeException [Text])
+      UnliftIO.tryAny $ Proc.withCreateProcess fzfProc $ \mayStdin mayStdout _mayStderr procHandle -> do
+        case (mayStdin, mayStdout) of
+          (Nothing, _) -> UnliftIO.throwIO $ FailedToBindHandle
+          (_, Nothing) -> UnliftIO.throwIO $ FailedToBindHandle
+          (Just stdin', Just stdout') -> do
+            -- Generally no-buffering is helpful for highly interactive processes.
+            hSetBuffering stdin NoBuffering
+            hSetBuffering stdin' NoBuffering
+            -- Dump the search terms into fzf's stdin
+            traverse_ (Text.hPutStrLn stdin') searchTexts
+            -- Wire up the interactive terminal to fzf now that the inputs have been loaded.
+            hDuplicateTo stdin stdin'
+            void $ Proc.waitForProcess procHandle
+            Text.lines <$> liftIO (Text.hGetContents stdout')
+    fzfFileSelector :: FilePath -> [String] -> IO (Either SomeException [Text])
     fzfFileSelector fzfPath fzfArgs = do
       let fzfProc :: Proc.CreateProcess =
             (Proc.proc fzfPath fzfArgs)
@@ -151,12 +158,14 @@ fuzzySelect opts selections =
                 Proc.std_out = Proc.CreatePipe,
                 Proc.delegate_ctlc = True
               }
-      (_stdin', Just stdout', _, procHandle) <- Proc.createProcess fzfProc
-      -- Generally no-buffering is helpful for highly interactive processes.
-      hSetBuffering stdin NoBuffering
-      liftIO . UnliftIO.tryAny $ do
-        void $ Proc.waitForProcess procHandle
-        Text.lines <$> liftIO (Text.hGetContents stdout')
+      UnliftIO.tryAny $ Proc.withCreateProcess fzfProc $ \_mayStdin mayStdout _mayStderr procHandle -> do
+        case mayStdout of
+          Nothing -> UnliftIO.throwIO $ FailedToBindHandle
+          Just stdout' -> do
+            -- Generally no-buffering is helpful for highly interactive processes.
+            hSetBuffering stdin NoBuffering
+            void $ Proc.waitForProcess procHandle
+            Text.lines <$> liftIO (Text.hGetContents stdout')
     handleException :: SomeException -> IO (Maybe [a])
     handleException err = traceShowM err *> hPutStrLn stderr "Oops, something went wrong. No input selected." *> pure Nothing
     handleError :: IO (Either Text (Maybe [a])) -> IO (Maybe [a])
