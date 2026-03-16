@@ -537,9 +537,9 @@ ppedForFileHelper uf tf = do
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
 mkTypeSignatureHints parsedFile typecheckedFile = do
-  let prefixName name = case UF.fileNamespace' typecheckedFile <|> UF.fileNamespace parsedFile of
+  let unprefixName name = case UF.fileNamespace' typecheckedFile <|> UF.fileNamespace parsedFile of
         Nothing -> name
-        Just (_, ns) -> Name.fromSegments (Name.segments ns <> Name.segments name)
+        Just (_, prefix) -> fromMaybe name $ Name.stripNamePrefix prefix name
   let symbolsWithoutTypeSigs :: Map Symbol Ann
       symbolsWithoutTypeSigs =
         Map.toList (UF.terms parsedFile)
@@ -556,7 +556,7 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
           & Zip.zip symbolsWithoutTypeSigs
           & imapMaybe
             ( \v (ann, (_ann, ref, _wk, _trm, typ)) -> do
-                name <- prefixName <$> Name.parseText (Var.name v)
+                name <- unprefixName <$> Name.parseText (Var.name v)
                 range <- annToRange ann
                 let newRangeEnd =
                       range ^. LSPTypes.start
