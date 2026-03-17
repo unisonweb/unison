@@ -35,7 +35,7 @@ myproject/main> lib.install.local scratch
 
 myproject/main> ls lib
 
-  1. scratch_main. (749 terms, 117 types)
+  1. scratch_main. (755 terms, 119 types)
 
 -- Can also specify a custom destination location
 
@@ -45,8 +45,8 @@ myproject/main> lib.install.local scratch/main coolerscratch
 
 myproject/main> ls lib
 
-  1. coolerscratch. (749 terms, 117 types)
-  2. scratch_main.  (749 terms, 117 types)
+  1. coolerscratch. (755 terms, 119 types)
+  2. scratch_main.  (755 terms, 119 types)
 
 -- Installed libs should be squashed.
 

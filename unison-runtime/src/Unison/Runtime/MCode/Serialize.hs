@@ -170,6 +170,8 @@ data InstrT
   | DiscardT
   | InLocalT
   | KeepAliveT
+  | NewForeignPtrT
+  | AddFinalizerT
 
 instance Tag InstrT where
   tag2word Prim1T = 0
@@ -192,6 +194,8 @@ instance Tag InstrT where
   tag2word DiscardT = 19
   tag2word InLocalT = 20
   tag2word KeepAliveT = 21
+  tag2word NewForeignPtrT = 22
+  tag2word AddFinalizerT = 23
 
   word2tag 0 = pure Prim1T
   word2tag 1 = pure Prim2T
@@ -213,6 +217,8 @@ instance Tag InstrT where
   word2tag 19 = pure DiscardT
   word2tag 20 = pure InLocalT
   word2tag 21 = pure KeepAliveT
+  word2tag 22 = pure NewForeignPtrT
+  word2tag 23 = pure AddFinalizerT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: GInstr cix -> Builder
@@ -240,6 +246,8 @@ putInstr = \case
   (TryForce i) -> putTag TryForceT <> pInt i
   (InLocal i) -> putTag InLocalT <> pInt i
   (KeepAlive i) -> putTag KeepAliveT <> pInt i
+  (AddFinalizer i j) -> putTag AddFinalizerT <> pInt i <> pInt j
+  (NewForeignPtr i j) -> putTag NewForeignPtrT <> pInt i <> pInt j
   (SandboxingFailure {}) ->
     -- Sandboxing failures should only exist in code we're actively running, it shouldn't be serialized.
     error "putInstr: Unexpected serialized Sandboxing Failure"
@@ -269,6 +277,8 @@ getInstr =
     TryForceT -> TryForce <$> gInt
     InLocalT -> InLocal <$> gInt
     KeepAliveT -> KeepAlive <$> gInt
+    NewForeignPtrT -> NewForeignPtr <$> gInt <*> gInt
+    AddFinalizerT -> AddFinalizer <$> gInt <*> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
 
 data ArgsT

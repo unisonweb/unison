@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifdef WINDOWS_BUILD
 __declspec(dllexport)
@@ -107,4 +108,20 @@ void testptr2(uint64_t sz, uint32_t *ptr) {
   while (i < sz) {
     ptr[i++] = j++;
   }
+}
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+uint32_t *allocptr() {
+  uint32_t *ptr;
+  ptr = malloc(sizeof(uint32_t));
+  return ptr;
+}
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+void freeptr(uint32_t *ptr) {
+  free(ptr);
 }

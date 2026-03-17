@@ -256,7 +256,7 @@ scratch/other> moveTo dest.one organized.inner .
 
 scratch/other> ls
 
-  1. builtin.  (747 terms, 116 types)
+  1. builtin.  (753 terms, 118 types)
   2. inner.    (2 terms)
   3. newplace. (2 terms)
   4. one       (Nat)

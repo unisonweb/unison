@@ -460,6 +460,27 @@ fork'comp =
   where
     (act, unit, lz) = fresh
 
+new'fptr :: SuperNormal Reference Symbol
+new'fptr =
+  Lambda [BX,BX]
+    . TAbss [fin, p]
+    . TLetD unit BX (TCon Ty.unitRef 0 [])
+    . TName lz (Right fin) [unit]
+    $ TPrm FGNN [lz, p]
+  where
+    (p, fin, unit, lz) = fresh
+
+add'final :: SuperNormal Reference Symbol
+add'final =
+  Lambda [BX,BX]
+    . TAbss [fp, fin]
+    . TLetD unit BX (TCon Ty.unitRef 0 [])
+    . TName lz (Right fin) [unit]
+    . TLets Direct [] [] (TPrm FGNF [fp, lz])
+    $ TVar unit
+  where
+    (fp, fin, unit, lz) = fresh
+
 keep'alive :: SuperNormal Reference Symbol
 keep'alive =
   Lambda [BX, BX]
@@ -892,7 +913,9 @@ builtinLookup =
         ("Scope.ref", (Untracked, ref'new)),
         ("IO.ref", (Tracked, ref'new)),
         ("FFI.Ptr.cast", (Tracked, cast'ptr)),
-        ("IO.keepAlive", (Tracked, keep'alive))
+        ("IO.keepAlive", (Tracked, keep'alive)),
+        ("FFI.ForeignPtr.new", (Tracked, new'fptr)),
+        ("FFI.ForeignPtr.addFinalizer", (Tracked, add'final))
       ]
       ++ foreignWrappers
 
@@ -1442,6 +1465,7 @@ declareForeigns = do
   declareForeign Untracked 2 FFI_baseIO
   declareForeign Untracked 2 FFI_arr
   declareForeign Tracked 3 FFI_getDLLSym
+  declareForeign Tracked 3 FFI_getDLLSymPtr
   declareForeign Untracked 2 Bytes_read
   declareForeign Untracked 2 Bytes_read16le
   declareForeign Untracked 2 Bytes_read16be
@@ -1514,6 +1538,10 @@ declareForeigns = do
   declareForeign Tracked 1 FFI_Ptr_free
   declareForeignWrap Tracked direct FFI_Ptr_null
   declareForeign Tracked 1 PinnedByteArray_contents
+
+  declareForeign Tracked 2 FFI_ForeignPtr_new_foreign
+  declareForeign Tracked 2 FFI_ForeignPtr_addCFinalizer
+  declareForeign Tracked 1 FFI_ForeignPtr_unsafeContents
 
 foreignDeclResults ::
   (Map ForeignFunc (Sandbox, SuperNormal Reference Symbol))
