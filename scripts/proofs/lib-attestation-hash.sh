@@ -25,6 +25,8 @@
 
 set -euo pipefail
 
+export LC_ALL=C
+
 if [[ -z "${PATTERNS+x}" ]]; then
     echo "Error: PATTERNS array must be defined before sourcing lib-attestation-hash.sh" >&2
     exit 1
