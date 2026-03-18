@@ -455,6 +455,17 @@ data ForeignFunc
   | FFI_ForeignPtr_new_foreign
   | FFI_ForeignPtr_addCFinalizer
   | FFI_ForeignPtr_unsafeContents
+  | FFI_ForeignPtr_Int8_allocate
+  | FFI_ForeignPtr_Int16_allocate
+  | FFI_ForeignPtr_Int32_allocate
+  | FFI_ForeignPtr_Int_allocate
+  | FFI_ForeignPtr_Nat8_allocate
+  | FFI_ForeignPtr_Nat16_allocate
+  | FFI_ForeignPtr_Nat32_allocate
+  | FFI_ForeignPtr_Nat_allocate
+  | FFI_ForeignPtr_Float32_allocate
+  | FFI_ForeignPtr_Float_allocate
+  | FFI_ForeignPtr_Ptr_allocate
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -906,3 +917,14 @@ foreignFuncBuiltinName = \case
   FFI_ForeignPtr_new_foreign -> "FFI.ForeignPtr.new.foreign"
   FFI_ForeignPtr_addCFinalizer -> "FFI.ForeignPtr.addCFinalizer"
   FFI_ForeignPtr_unsafeContents -> "FFI.ForeignPtr.unsafeContents"
+  FFI_ForeignPtr_Int8_allocate -> "FFI.ForeignPtr.Int8.allocate"
+  FFI_ForeignPtr_Int16_allocate -> "FFI.ForeignPtr.Int16.allocate"
+  FFI_ForeignPtr_Int32_allocate -> "FFI.ForeignPtr.Int32.allocate"
+  FFI_ForeignPtr_Int_allocate -> "FFI.ForeignPtr.Int.allocate"
+  FFI_ForeignPtr_Nat8_allocate -> "FFI.ForeignPtr.Nat8.allocate"
+  FFI_ForeignPtr_Nat16_allocate -> "FFI.ForeignPtr.Nat16.allocate"
+  FFI_ForeignPtr_Nat32_allocate -> "FFI.ForeignPtr.Nat32.allocate"
+  FFI_ForeignPtr_Nat_allocate -> "FFI.ForeignPtr.Nat.allocate"
+  FFI_ForeignPtr_Float32_allocate -> "FFI.ForeignPtr.Float32.allocate"
+  FFI_ForeignPtr_Float_allocate -> "FFI.ForeignPtr.Float.allocate"
+  FFI_ForeignPtr_Ptr_allocate -> "FFI.ForeignPtr.Ptr.allocate"

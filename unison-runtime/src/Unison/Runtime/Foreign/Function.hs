@@ -1277,6 +1277,17 @@ foreignCallHelper = \case
     in FgnPtr.addForeignPtrFinalizer @() fin fptr
   FFI_ForeignPtr_unsafeContents -> mkForeign \fptr ->
     evaluate $ FgnPtr.unsafeForeignPtrToPtr @() fptr
+  FFI_ForeignPtr_Int8_allocate -> mkForeign $ allocForeignPtr @Int8
+  FFI_ForeignPtr_Int16_allocate -> mkForeign $ allocForeignPtr @Int16
+  FFI_ForeignPtr_Int32_allocate -> mkForeign $ allocForeignPtr @Int32
+  FFI_ForeignPtr_Int_allocate -> mkForeign $ allocForeignPtr @Int64
+  FFI_ForeignPtr_Nat8_allocate -> mkForeign $ allocForeignPtr @Word8
+  FFI_ForeignPtr_Nat16_allocate -> mkForeign $ allocForeignPtr @Word16
+  FFI_ForeignPtr_Nat32_allocate -> mkForeign $ allocForeignPtr @Word32
+  FFI_ForeignPtr_Nat_allocate -> mkForeign $ allocForeignPtr @Word64
+  FFI_ForeignPtr_Float32_allocate -> mkForeign $ allocForeignPtr @Float
+  FFI_ForeignPtr_Float_allocate -> mkForeign $ allocForeignPtr @Double
+  FFI_ForeignPtr_Ptr_allocate -> mkForeign $ allocForeignPtr @(Ptr ())
   where
     wrapOOB ::
       (Integral n) =>
@@ -1359,6 +1370,11 @@ allocPtr :: forall a. (Mem.Storable a) => Word64 -> IO (Ptr a)
 allocPtr elemCount = Mem.mallocBytes byteCount
   where
     byteCount = fromIntegral elemCount * Mem.sizeOf (undefined :: a)
+
+allocForeignPtr ::
+  (Mem.Storable a) => Word64 -> IO (FgnPtr.ForeignPtr a)
+allocForeignPtr elemCount =
+  FgnPtr.mallocForeignPtrArray (fromIntegral elemCount)
 
 peekAt :: forall a. (Mem.Storable a) => (Ptr a, Word64) -> IO a
 peekAt (ptr, off) = Mem.peekElemOff ptr $ fromIntegral off

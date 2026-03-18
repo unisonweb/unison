@@ -173,12 +173,22 @@ doUPTest = do
       loop (drop n 1)
 
   loop 100000
+
+doAPTest = do
+  loop = cases
+    0 -> ()
+    n ->
+      fp = ForeignPtr.Int.allocate 1
+      ForeignPtr.addFinalizer fp do ()
+      loop (drop n 1)
+  loop 100000
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   + allocPSpec : Spec ('{IO} Ptr a)
+  + doAPTest   : '{IO} ()
   + doFPTest   : '{IO, Exception} ()
   + doUPTest   : '{IO, Exception} ()
   + freePSpec  : Spec (Ptr a ->{IO} ())
@@ -196,6 +206,10 @@ scratch/dll-ffi> run doFPTest
   ()
 
 scratch/dll-ffi> run doUPTest
+
+  ()
+
+scratch/dll-ffi> run doAPTest
 
   ()
 ```

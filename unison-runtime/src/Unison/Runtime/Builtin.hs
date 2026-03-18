@@ -1543,6 +1543,17 @@ declareForeigns = do
   declareForeign Tracked 2 FFI_ForeignPtr_addCFinalizer
   declareForeign Tracked 1 FFI_ForeignPtr_unsafeContents
 
+  declareForeign Tracked 1 FFI_ForeignPtr_Int8_allocate
+  declareForeign Tracked 1 FFI_ForeignPtr_Int16_allocate
+  declareForeign Tracked 1 FFI_ForeignPtr_Int32_allocate
+  declareForeign Tracked 1 FFI_ForeignPtr_Int_allocate
+  declareForeign Tracked 1 FFI_ForeignPtr_Nat8_allocate
+  declareForeign Tracked 1 FFI_ForeignPtr_Nat16_allocate
+  declareForeign Tracked 1 FFI_ForeignPtr_Nat32_allocate
+  declareForeign Tracked 1 FFI_ForeignPtr_Nat_allocate
+  declareForeign Tracked 1 FFI_ForeignPtr_Float32_allocate
+  declareForeign Tracked 1 FFI_ForeignPtr_Float_allocate
+
 foreignDeclResults ::
   (Map ForeignFunc (Sandbox, SuperNormal Reference Symbol))
 foreignDeclResults =

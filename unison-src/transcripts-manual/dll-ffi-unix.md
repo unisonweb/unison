@@ -122,9 +122,19 @@ doUPTest = do
       loop (drop n 1)
 
   loop 100000
+
+doAPTest = do
+  loop = cases
+    0 -> ()
+    n ->
+      fp = ForeignPtr.Int.allocate 1
+      ForeignPtr.addFinalizer fp do ()
+      loop (drop n 1)
+  loop 100000
 ```
 
 ``` ucm
 scratch/dll-ffi> run doFPTest
 scratch/dll-ffi> run doUPTest
+scratch/dll-ffi> run doAPTest
 ```

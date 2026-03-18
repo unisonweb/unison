@@ -924,7 +924,19 @@ builtinsSrc =
     B "FFI.ForeignPtr.addFinalizer" $ forall1 "a" \a ->
       foreignptr a --> (unit --> io unit) --> io unit,
     B "FFI.ForeignPtr.unsafeContents" $ forall1 "a" \a ->
-      foreignptr a --> ptr a
+      foreignptr a --> ptr a,
+    B "FFI.ForeignPtr.Int8.allocate" $ nat --> io (foreignptr int8),
+    B "FFI.ForeignPtr.Int16.allocate" $ nat --> io (foreignptr int16),
+    B "FFI.ForeignPtr.Int32.allocate" $ nat --> io (foreignptr int32),
+    B "FFI.ForeignPtr.Int.allocate" $ nat --> io (foreignptr int),
+    B "FFI.ForeignPtr.Nat8.allocate" $ nat --> io (foreignptr nat8),
+    B "FFI.ForeignPtr.Nat16.allocate" $ nat --> io (foreignptr nat16),
+    B "FFI.ForeignPtr.Nat32.allocate" $ nat --> io (foreignptr nat32),
+    B "FFI.ForeignPtr.Nat.allocate" $ nat --> io (foreignptr nat),
+    B "FFI.ForeignPtr.Float32.allocate" $ nat --> io (foreignptr float32),
+    B "FFI.ForeignPtr.Float.allocate" $ nat --> io (foreignptr float),
+    B "FFI.ForeignPtr.Ptr.allocate" $
+      forall1 "a" \a -> nat --> io (foreignptr (ptr a))
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=

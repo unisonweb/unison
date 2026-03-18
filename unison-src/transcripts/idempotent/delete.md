@@ -62,7 +62,7 @@ scratch/main> delete Foo
 
 scratch/main> ls
 
-  1. lib. (926 terms, 136 types)
+  1. lib. (937 terms, 136 types)
 ```
 
 ``` ucm :hide
@@ -173,7 +173,7 @@ scratch/main> delete.force Foo.Foo
 scratch/main> ls
 
   1. Foo  (type)
-  2. lib. (926 terms, 136 types)
+  2. lib. (937 terms, 136 types)
 ```
 
 ``` ucm :hide
@@ -391,7 +391,7 @@ scratch/main> delete foo
 
 scratch/main> ls
 
-  1. lib. (926 terms, 136 types)
+  1. lib. (937 terms, 136 types)
 ```
 
 ``` ucm :hide

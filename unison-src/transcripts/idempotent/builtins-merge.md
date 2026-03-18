@@ -25,7 +25,7 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
   16.  Either.             (2 terms)
   17.  Exception           (type)
   18.  Exception.          (1 term)
-  19.  FFI.                (82 terms, 6 types)
+  19.  FFI.                (93 terms, 6 types)
   20.  Float               (builtin type)
   21.  Float.              (38 terms)
   22.  Float32             (builtin type)
