@@ -153,7 +153,10 @@ EOF
         exit 1
     fi
 
-    AMEND_FILES+=("$tracked_file")
+    # Only amend when the proof script actually changed the tracked proofs file.
+    if ! git diff --quiet -- "$tracked_path"; then
+        AMEND_FILES+=("$tracked_file")
+    fi
 }
 
 # -----------------------------------------------------------------------------
