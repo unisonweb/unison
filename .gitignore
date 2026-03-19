@@ -38,5 +38,5 @@ dist-newstyle
 result
 result-transcripts
 
-# Local verification proofs (see run-*-and-record.sh)
+# Local verification proofs (see scripts/proofs/)
 .local-proofs/

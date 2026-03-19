@@ -24,6 +24,18 @@ echo "Running pre-commit checks..."
 
 # Run each check, recording pass/fail (don't block commit on failure)
 for proof_type in tests transcripts; do  # formatting, weeds, left off for now
+    # Warn if unstaged changes overlap with this proof's PATTERN files,
+    # since hashes will reflect the working tree, not the staged contents.
+    unstaged_files=$(git diff --name-only)
+    if [[ -n "$unstaged_files" ]]; then
+        pattern_files=$("$REPO_ROOT/scripts/proofs/${proof_type}.sh" --list-files 2>/dev/null || true)
+        overlap=$(comm -12 <(echo "$unstaged_files" | sort) <(echo "$pattern_files" | sort))
+        if [[ -n "$overlap" ]]; then
+            echo "⚠️  Warning: unstaged changes to files tracked by ${proof_type} proof."
+            echo "   Proof hash will reflect the working tree, not the staged contents."
+            echo ""
+        fi
+    fi
     ./scripts/proofs/${proof_type}.sh || true
 done
 

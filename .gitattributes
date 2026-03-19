@@ -2,5 +2,5 @@
 *.uc binary
 
 # Auto-merge proofs to avoid conflicts when branches merge
-# See run-*-and-record.sh for details
+# See scripts/proofs/ for details
 .github/workflows/proofs/*.txt merge=union
