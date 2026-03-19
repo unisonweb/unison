@@ -50,7 +50,7 @@ _list_files() {
         for pattern in "${PATTERNS[@]}"; do
             rg --files --hidden -g "$pattern" 2>/dev/null || true
         done
-    fi | grep -v '\.stack-work' | sort -u
+    fi | grep -v '\.stack-work' | LC_ALL=C sort -u
 }
 
 # NUL-delimited version for safe piping to xargs -0
@@ -78,7 +78,7 @@ compute_hash() {
         tmpdir=$(mktemp -d)
         trap "rm -rf '$tmpdir'" RETURN
         git archive "$_COMMIT" -- "${PATTERNS[@]}" 2>/dev/null | tar -xf - -C "$tmpdir"
-        (cd "$tmpdir" && find . -type f | sed 's|^\./||' | grep -v '\.stack-work' | sort -u | tr '\n' '\0' | _hash_files)
+        (cd "$tmpdir" && find . -type f | sed 's|^\./||' | grep -v '\.stack-work' | LC_ALL=C sort -u | tr '\n' '\0' | _hash_files)
     else
         _list_files_0 | _hash_files
     fi
