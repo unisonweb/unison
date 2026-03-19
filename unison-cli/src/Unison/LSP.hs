@@ -11,7 +11,6 @@ where
 
 import Colog.Core (LogAction (LogAction))
 import Colog.Core qualified as Colog
-import Compat (onWindows)
 import Control.Monad.Reader
 import Data.ByteString.Builder.Extra (defaultChunkSize)
 import Data.Char (toLower)
@@ -125,7 +124,7 @@ spawnLsp lspFormattingConfig codebase runtime signal onSocketBound =
         Just (fmap toLower -> "false") -> pure ()
         Just (fmap toLower -> "true") -> runServer
         Just x -> Text.hPutStrLn stderr $ "Invalid value for UNISON_LSP_ENABLED, expected 'true' or 'false' but found: " <> Text.pack x
-        Nothing -> when (not onWindows) runServer
+        Nothing -> runServer
 
 serverDefinition ::
   LspFormattingConfig ->
