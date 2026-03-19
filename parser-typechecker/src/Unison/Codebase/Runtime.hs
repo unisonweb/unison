@@ -201,7 +201,7 @@ evaluateTerm ::
   IO (Either e (Response e', Term v))
 evaluateTerm codeLookup = evaluateTerm' codeLookup noCache
 
-evaluateTermBatch ::
+evaluateTermBatch' ::
   forall v a e e'.
   (Var v, Monoid a) =>
   CL.CodeLookup v IO a ->
@@ -211,7 +211,7 @@ evaluateTermBatch ::
   Runtime e e' v ->
   Map v (Term.Term v a) ->
   IO (Either e (Map v (Response e', Term v)))
-evaluateTermBatch codeLookup cache ppe prof rt tms = do
+evaluateTermBatch' codeLookup cache ppe prof rt tms = do
   results :: Map v (Maybe (Term v)) <- traverse (cache . Hashing.hashClosedTerm) tms
   let cacheTagged :: Map v (Either (Response e', Term v) (v, Term.Term v a))
       cacheTagged =
@@ -242,3 +242,13 @@ evaluateTermBatch codeLookup cache ppe prof rt tms = do
           )
     & runExceptT
     <&> (fmap . fmap) (either id id)
+
+evaluateTermBatch ::
+  (Var v, Monoid a) =>
+  CL.CodeLookup v IO a ->
+  PPE.PrettyPrintEnv ->
+  ProfileSpec ->
+  Runtime e e' v ->
+  (Map v (Term.Term v a)) ->
+  IO (Either e (Map v (Response e', Term v)))
+evaluateTermBatch codeLookup = evaluateTermBatch' codeLookup noCache

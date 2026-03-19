@@ -15,6 +15,7 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text.IO qualified as Text
+import Data.Zip qualified as Zip
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
@@ -59,7 +60,10 @@ import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation qualified as R
 import Unison.Util.Set qualified as Set
+import Unison.Util.Timing qualified as Timing
+import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
+import Witherable qualified as Wither
 
 -- | Handle a @test@ command.
 -- Run pure tests in the current subnamespace.
@@ -67,9 +71,9 @@ handleTest :: TestInput -> Cli ()
 handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = do
   Cli.Env {codebase} <- ask
 
-  testRefs <- findTermsOfTypes codebase includeLibNamespace path (NESet.singleton (DD.testResultListType mempty))
+  testRefs <- Timing.time "Test Search" $ findTermsOfTypes codebase includeLibNamespace path (NESet.singleton (DD.testResultListType mempty))
 
-  cachedTests <-
+  cachedTests <- Timing.time "Check Caches" do
     Map.fromList <$> Cli.runTransaction do
       Set.toList testRefs & wither \case
         rid -> fmap (rid,) <$> Codebase.getWatch codebase WK.TestWatch rid
@@ -95,44 +99,57 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
                 | otherwise -> Nothing
             _ -> Nothing
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
-  names <- Cli.currentNames
+  names <- Timing.time "Get names" Cli.currentNames
   let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let fqnPPE = PPED.unsuffixifiedPPE pped
-  Cli.respondNumbered $
-    TestResults
-      stats
-      fqnPPE
-      showSuccesses
-      showFailures
-      oks
-      fails
+  Timing.time "Respond TestResults:1" $
+    Cli.respondNumbered $
+      TestResults
+        stats
+        fqnPPE
+        showSuccesses
+        showFailures
+        oks
+        fails
   let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
-  when (not (Set.null toCompute)) do
-    let total = Set.size toCompute
-    computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
-      Cli.runTransaction (Codebase.getTerm codebase r) >>= \case
-        Nothing -> do
-          hqLength <- Cli.runTransaction Codebase.hashLength
-          Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId r)
-          pure []
-        Just tm -> do
-          let testName = Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r)
-          Debug.whenDebug Debug.Tests $
-            liftIO (Text.putStrLn $ "\nAbout to run test:" <> ("\n" <> P.toPlain 80 testName))
-          Cli.respond $ TestIncrementalOutputStart fqnPPE (n, total) r
-          --                        v don't cache; test cache populated below
-          tm' <- Cli.time ("\n" <> P.toPlain 80 testName) $ RuntimeUtils.evalUnisonTermE Sandboxed fqnPPE False tm
-          case tm' of
-            Left e -> do
-              Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r False
-              Cli.returnEarly $ EvaluationFailure (P.callout ("Error while evaluating test " <> P.backticked testName <> ":") . P.indentN 2) e
-            Right tm' -> do
-              -- After evaluation, cache the result of the test
-              Cli.runTransaction (Codebase.putWatch WK.TestWatch r tm')
-              Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r (isTestOk tm')
-              pure [(r, tm')]
+  Timing.time "Computing tests " $ when (not (Set.null toCompute)) do
+    let _total = Set.size toCompute
+    let termsMap :: Map Symbol TermReferenceId
+        termsMap = Map.fromList $ do
+          (n, termRef) <- (zip [1 :: Int ..] $ toList toCompute)
+          let testVar = Var.named $ "t" <> tShow n
+          pure (testVar, termRef)
+    preparedTests :: Map Symbol (Term Symbol Ann) <-
+      termsMap
+        & Wither.wither
+          ( \r ->
+              Cli.runTransaction (Codebase.getTerm codebase r) >>= \case
+                Nothing -> do
+                  hqLength <- Cli.runTransaction Codebase.hashLength
+                  Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId r)
+                  pure Nothing
+                Just tm -> do
+                  let testName = Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r)
+                  Debug.whenDebug Debug.Tests $
+                    liftIO (Text.putStrLn $ "\nAbout to run test:" <> ("\n" <> P.toPlain 80 testName))
+                  pure $ Just tm
+          )
 
-    let m = Map.fromList computedTests
+    -- Cli.respond $ TestIncrementalOutputStart fqnPPE (n, total) r
+    -- --                        v don't cache; test cache populated below
+    res <- Cli.time "Run batch tests" $ RuntimeUtils.evalUnisonTermBatch Sandboxed fqnPPE False preparedTests
+    computedTests <- case res of
+      Left e -> do
+        -- Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r False
+        Cli.returnEarly $ EvaluationFailure (P.callout ("Error while evaluating test batch: ") . P.indentN 2) e
+      Right tmsResult -> do
+        for (Zip.zip tmsResult termsMap) \(tm', r) -> do
+          -- After evaluation, cache the result of the test
+          Cli.runTransaction (Codebase.putWatch WK.TestWatch r tm')
+          -- Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r (isTestOk tm')
+          pure (r, tm')
+
+    let m = Map.fromList $ Map.elems computedTests
         (mFails, mOks) = passFails m
     Cli.respondNumbered $ TestResults Output.NewlyComputed fqnPPE showSuccesses showFailures mOks mFails
 
