@@ -462,7 +462,7 @@ fork'comp =
 
 new'fptr :: SuperNormal Reference Symbol
 new'fptr =
-  Lambda [BX,BX]
+  Lambda [BX, BX]
     . TAbss [fin, p]
     . TLetD unit BX (TCon Ty.unitRef 0 [])
     . TName lz (Right fin) [unit]
@@ -472,7 +472,7 @@ new'fptr =
 
 add'final :: SuperNormal Reference Symbol
 add'final =
-  Lambda [BX,BX]
+  Lambda [BX, BX]
     . TAbss [fp, fin]
     . TLetD unit BX (TCon Ty.unitRef 0 [])
     . TName lz (Right fin) [unit]

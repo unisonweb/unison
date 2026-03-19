@@ -195,8 +195,8 @@ import Data.Primitive.ByteArray qualified as BA
 import Data.Tagged (Tagged (..))
 import Data.Word
 import Data.X509 qualified as X509
-import Foreign.Ptr qualified as Ptr
 import Foreign.ForeignPtr qualified as Ptr
+import Foreign.Ptr qualified as Ptr
 import GHC.Base
 import GHC.Exts as L (IsList (..))
 import Language.Haskell.TH qualified as TH

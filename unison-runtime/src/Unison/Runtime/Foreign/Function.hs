@@ -72,10 +72,10 @@ import Data.X509 qualified as X
 import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
 import Data.X509.Validation as X
-import Foreign.Marshal.Alloc qualified as Mem
-import Foreign.Ptr (nullPtr, castFunPtr)
 import Foreign.ForeignPtr qualified as FgnPtr
 import Foreign.ForeignPtr.Unsafe qualified as FgnPtr
+import Foreign.Marshal.Alloc qualified as Mem
+import Foreign.Ptr (castFunPtr, nullPtr)
 import Foreign.Storable qualified as Mem
 import GHC.ByteOrder (ByteOrder (..), targetByteOrder)
 import GHC.Conc qualified as STM
@@ -1195,7 +1195,7 @@ foreignCallHelper = \case
           evaluate $ PApV dummyCix comb [encodeVal df]
   FFI_getDLLSymPtr -> mkForeignExn $ \(dll, sym, spec :: FFSpec) ->
     let name = getDLLPath dll ++ "$" ++ sym
-    in catchLoad name $ evaluate =<< loadForeign dll spec sym
+     in catchLoad name $ evaluate =<< loadForeign dll spec sym
   Bytes_read -> mkForeignExn . wrapOOB "Bytes.read" $ Bytes.at
   Bytes_read16be ->
     mkForeignExn . wrapOOB "Bytes.read16be" $ Bytes.index16be
@@ -1271,10 +1271,10 @@ foreignCallHelper = \case
     mkForeign $ evaluate . PA.mutableByteArrayContents @PA.RealWorld
   FFI_ForeignPtr_new_foreign -> mkForeign \(fin0, ptr) ->
     let fin | CDynFunc _ _ f <- fin0 = castFunPtr f
-    in FgnPtr.newForeignPtr @() fin ptr
+     in FgnPtr.newForeignPtr @() fin ptr
   FFI_ForeignPtr_addCFinalizer -> mkForeign \(fin0, fptr) ->
     let fin | CDynFunc _ _ f <- fin0 = castFunPtr f
-    in FgnPtr.addForeignPtrFinalizer @() fin fptr
+     in FgnPtr.addForeignPtrFinalizer @() fin fptr
   FFI_ForeignPtr_unsafeContents -> mkForeign \fptr ->
     evaluate $ FgnPtr.unsafeForeignPtrToPtr @() fptr
   FFI_ForeignPtr_Int8_allocate -> mkForeign $ allocForeignPtr @Int8
