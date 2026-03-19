@@ -83,10 +83,6 @@ ex4 =
 
       2 |   (a,b) = (a Nat.+ b, 19)
 
-  I think its type should be:
-
-      Nat
-
   I found some terms in scope with similar names but different 
   types. Was any of these what you wanted?
 

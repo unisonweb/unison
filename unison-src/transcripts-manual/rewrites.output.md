@@ -337,9 +337,6 @@ Instead, it should be an unbound free variable, which doesn't typecheck:
 
      19 |   bar21
 
-  its type could be anything.
-
-
   I found a term in scope with a similar name but a different 
   type. Was this what you wanted?
 
@@ -392,9 +389,6 @@ The `a` introduced will be freshened to not capture the `a` in scope, so it rema
   I couldn't figure out what a1 refers to here:
 
       6 |   a1
-
-  its type could be anything.
-
 
   I found some terms in scope with similar names but different 
   types. Was any of these what you wanted?
