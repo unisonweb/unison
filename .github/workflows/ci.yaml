@@ -19,7 +19,7 @@ jobs:
       - run: sudo apt-get install -y ripgrep
       - name: verify transcript proof
         run: |
-          RESULT=$(./scripts/proofs/transcripts.sh --verbose --check)
+          RESULT=$(./scripts/proofs/transcripts.sh --check)
           echo "Transcript proof: $RESULT"
           if [[ "$RESULT" == "pass" ]]; then
             exit 0
@@ -41,7 +41,7 @@ jobs:
       - run: sudo apt-get install -y ripgrep
       - name: verify test proof
         run: |
-          RESULT=$(./scripts/proofs/tests.sh --verbose --check)
+          RESULT=$(./scripts/proofs/tests.sh --check)
           echo "Test proof: $RESULT"
           if [[ "$RESULT" == "pass" ]]; then
             exit 0
