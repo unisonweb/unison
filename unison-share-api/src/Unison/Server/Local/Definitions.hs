@@ -9,6 +9,7 @@ import Control.Lens hiding ((??))
 import Control.Monad.Except
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Set.NonEmpty qualified as NESet
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
@@ -82,7 +83,7 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   let pped = PPED.biasTo biases unbiasedPPED
   let nameSearch = makeNameSearch hqLength localNamesOnly
   (DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do
-    definitionsByName codebase nameSearch DontIncludeCycles Names.ExactName [query]
+    definitionsByName codebase nameSearch DontIncludeCycles Names.ExactName (Set.singleton query)
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do

@@ -101,4 +101,4 @@ handleEditDependents name = do
       pure (ppe, types, terms)
 
   let misses = []
-  showDefinitions (LatestFileLocation WithinFold) ppe terms types misses
+  showDefinitions (LatestFileLocation WithinFold) (const True) ppe terms types misses

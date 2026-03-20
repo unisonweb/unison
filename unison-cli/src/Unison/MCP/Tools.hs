@@ -78,7 +78,8 @@ tools =
     moveToTool,
     deleteNamespaceTool,
     reflogTool,
-    historyTool
+    historyTool,
+    createBranchTool
   ]
 
 currentProjectContext :: (MonadIO m, MonadReader Env m) => m ProjectContext
@@ -805,6 +806,39 @@ historyTool =
             Nothing -> throwError $ "Invalid causal hash: " <> hash
           Nothing -> pure $ Input.BranchAtPath Path.Current'
         output <- handleInputMCP projectContext [Right $ Input.HistoryI limit diffLimit branchId]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+createBranchTool :: Tool MCP
+createBranchTool =
+  Tool
+    { toolName = toToolName CreateBranchTool,
+      toolDescription = "Create a new branch in a project. Can create from the current context, as an empty branch, or from an existing branch.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Create Branch",
+            readOnlyHint = Just False,
+            destructiveHint = Just False,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(CreateBranchToolArguments {projectName, newBranchName, sourceType, sourceBranchProject, sourceBranchName}) -> handleToolError $ do
+        -- Build the BranchSourceI based on sourceType
+        branchSource <- case sourceType of
+          "current" -> pure Input.BranchSourceI'CurrentContext
+          "empty" -> pure Input.BranchSourceI'Empty
+          "branch" -> case sourceBranchName of
+            Nothing -> throwError "sourceBranchName is required when sourceType is 'branch'"
+            Just srcBranch ->
+              pure $ Input.BranchSourceI'UnresolvedProjectBranch (ProjectAndBranch sourceBranchProject srcBranch)
+          _ -> throwError $ "Invalid sourceType: " <> sourceType <> ". Must be 'current', 'empty', or 'branch'"
+
+        -- Use a dummy project context for cliToMCP since BranchI handles project resolution itself
+        dummyContext <- currentProjectContext
+        let branchInput = Input.BranchI branchSource (ProjectAndBranch (Just projectName) newBranchName)
+        output <- handleInputMCP dummyContext [Right branchInput]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }

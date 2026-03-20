@@ -304,6 +304,7 @@ data Output
       !PPE.PrettyPrintEnv
       !(DefnsF (Map Name) SR.TermSlurp SR.TypeSlurp)
       !(Map Referent (NESet Name))
+      !Bool -- merging? (can expand later to include: upgrading?)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
@@ -572,6 +573,7 @@ outputShouldUsePager o = case o of
   -- These are typically non-interactive outputs, so we don't page them.
   LoadingFile {} -> False
   Typechecked {} -> False
+  TypeErrors {} -> False
   Evaluated {} -> False
   EvaluationFailure {} -> False
   _ -> True

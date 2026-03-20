@@ -207,7 +207,55 @@ test =
       t "{foo\n,bar}" [Open "{", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
       t "{foo\n ,bar}" [Open "{", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
       t "[foo\n,bar]" [Open "[", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
-      t "[foo\n ,bar]" [Open "[", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close]
+      t "[foo\n ,bar]" [Open "[", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
+      -- Underscore separators in numeric literals (#2228)
+      -- Decimal integers
+      t "1_000" [Numeric "1000"],
+      t "+1_000" [Numeric "+1000"],
+      t "-1_000" [Numeric "-1000"],
+      t "1_000_000" [Numeric "1000000"],
+      -- Floats
+      t "1_000.5" [Numeric "1000.5"],
+      t "1_000.000_001" [Numeric "1000.000001"],
+      -- Scientific notation
+      t "1_000e1_0" [Numeric "1000e10"],
+      t "1_000.5e1_0" [Numeric "1000.5e10"],
+      t "1_000.5E1_0" [Numeric "1000.5e10"],
+      t "+1_000.5e1_0" [Numeric "+1000.5e10"],
+      t "-1_000.5e-1_0" [Numeric "-1000.5e-10"],
+      -- Hex
+      t "0xFF_FF" [Numeric "65535"],
+      t "+0xFF_FF" [Numeric "+65535"],
+      t "-0xFF_FF" [Numeric "-65535"],
+      -- Octal
+      t "0o77_77" [Numeric "4095"],
+      -- Binary
+      t "0b1010_0101" [Numeric "165"],
+      t "+0b1010_0101" [Numeric "+165"],
+      -- Trailing and consecutive underscores are rejected
+      tError "1_",
+      tError "1__2",
+      tError "1_000_",
+      tError "0xFF_",
+      tError "0xFF__FF",
+      tError "0o77_",
+      tError "0b1010_",
+      -- Underscore followed by non-digit is rejected (not parsed as two tokens)
+      tError "1_x",
+      tError "1_e3",
+      -- Underscore immediately after base prefix is rejected
+      tError "0x_FF",
+      -- Underscore adjacent to period or exponent marker is rejected
+      tError "1_.2",
+      tError "1._2",
+      tError "1e_2",
+      tError "1_e2",
+      -- Underscore after exponent sign is rejected
+      tError "1e+_2",
+      tError "1e-_2",
+      -- Leading zeros with underscores
+      t "0_1" [Numeric "1"],
+      t "007" [Numeric "7"]
     ]
 
 t :: String -> [Lexeme] -> Test ()
@@ -225,6 +273,18 @@ t s expected = case toList . preParse $ lexer filename s of
               crash "actual != expected"
   where
     filename = "test case"
+
+tError :: String -> Test ()
+tError s = scope s $ case toList . preParse $ lexer filename s of
+  ts
+    | any isErr ts -> ok
+    | otherwise -> do
+        note $ "expected error but got: " ++ show (payload <$> ts)
+        crash "expected error"
+  where
+    filename = "test case"
+    isErr (Token (Err _) _ _) = True
+    isErr _ = False
 
 simpleSymbolyId :: Text -> Lexeme
 simpleSymbolyId =

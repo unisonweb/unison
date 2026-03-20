@@ -1083,7 +1083,7 @@ notifyUser dir issueFn = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  Typechecked oldPpe newPpe slurpEntries aliases -> do
+  Typechecked oldPpe newPpe slurpEntries aliases isMergeBranch -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -1265,16 +1265,25 @@ notifyUser dir issueFn = \case
                                  & (\acc -> foldr (\(name, _, _) -> f name) acc newTerms)
                                  & (\acc -> foldr (\(name, _, _, _, _) -> f name) acc updatedTerms)
                       in if Set.null addsAndUpdatesInLib
-                           then
-                             P.wrap
-                               ( "Run"
-                                   <> makeExample' IP.update
-                                   <> "to apply these changes to your codebase."
-                               )
+                           then runUpdateMessage
                            else P.warnCallout (modifyingLibNotAllowed addsAndUpdatesInLib)
                    )
             ]
-        else "No changes found."
+        else
+          if isMergeBranch
+            then runUpdateMessage
+            else "No changes found."
+    where
+      runUpdateMessage =
+        P.wrap $
+          "Run"
+            <> makeExample' IP.update
+            <> if isMergeBranch
+              then
+                "to apply these changes to your codebase and complete the merge, or"
+                  <> makeExample' IP.cancelInputPattern
+                  <> "to cancel the merge."
+              else "to apply these changes to your codebase."
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably

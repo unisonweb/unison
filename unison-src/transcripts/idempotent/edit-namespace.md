@@ -64,7 +64,7 @@ unique type Foo = { bar : Nat, baz : Nat }
 
   ☝️
 
-  I added 8 definitions to the top of scratch.u
+  I added 6 definitions to the top of scratch.u
 
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -73,21 +73,17 @@ unique type Foo = { bar : Nat, baz : Nat }
 ``` unison :added-by-ucm scratch.u
 type Foo = { bar : Nat, baz : Nat }
 
+{{ ping doc }}
 nested.cycle.ping : Nat -> Nat
 nested.cycle.ping n =
   use Nat +
   n + nested.cycle.pong n
 
-nested.cycle.ping.doc : Doc2
-nested.cycle.ping.doc = {{ ping doc }}
-
+{{ pong doc }}
 nested.cycle.pong : Nat -> Nat
 nested.cycle.pong n =
   use Nat +
   n + nested.cycle.ping n + 1
-
-nested.cycle.pong.doc : Doc2
-nested.cycle.pong.doc = {{ pong doc }}
 
 simple.x : Nat
 simple.x = 10
@@ -106,28 +102,24 @@ toplevel = "hi"
 
   ☝️
 
-  I added 6 definitions to the top of scratch.u
+  I added 4 definitions to the top of scratch.u
 
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 ```
 
 ``` unison :added-by-ucm scratch.u
+{{ ping doc }}
 nested.cycle.ping : Nat -> Nat
 nested.cycle.ping n =
   use Nat +
   n + nested.cycle.pong n
 
-nested.cycle.ping.doc : Doc2
-nested.cycle.ping.doc = {{ ping doc }}
-
+{{ pong doc }}
 nested.cycle.pong : Nat -> Nat
 nested.cycle.pong n =
   use Nat +
   n + nested.cycle.ping n + 1
-
-nested.cycle.pong.doc : Doc2
-nested.cycle.pong.doc = {{ pong doc }}
 
 simple.x : Nat
 simple.x = 10
