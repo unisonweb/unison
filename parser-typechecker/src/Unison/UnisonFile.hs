@@ -83,7 +83,8 @@ import Unison.WatchKind qualified as WatchKind
 emptyUnisonFile :: UnisonFile v a
 emptyUnisonFile =
   UnisonFileId
-    { dataDeclarationsId = Map.empty,
+    { fileNamespace = Nothing,
+      dataDeclarationsId = Map.empty,
       effectDeclarationsId = Map.empty,
       terms = Map.empty,
       watches = Map.empty
@@ -96,7 +97,8 @@ leftBiasedMerge lhs rhs =
       mergedDataDecls = Map.foldlWithKey' (addNotIn lhsTypeNames) (dataDeclarationsId lhs) (dataDeclarationsId rhs)
       mergedEffectDecls = Map.foldlWithKey' (addNotIn lhsTypeNames) (effectDeclarationsId lhs) (effectDeclarationsId rhs)
    in UnisonFileId
-        { dataDeclarationsId = mergedDataDecls,
+        { fileNamespace = fileNamespace lhs,
+          dataDeclarationsId = mergedDataDecls,
           effectDeclarationsId = mergedEffectDecls,
           terms = mergedTerms,
           watches = mergedWatches
@@ -172,8 +174,8 @@ hashTerms :: TypecheckedUnisonFile v a -> Map v (a, TermReference, Maybe WatchKi
 hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
 mapTerms :: (Term v a -> Term v a) -> UnisonFile v a -> UnisonFile v a
-mapTerms f (UnisonFileId datas effects terms watches) =
-  UnisonFileId datas effects terms' watches'
+mapTerms f (UnisonFileId fn datas effects terms watches) =
+  UnisonFileId fn datas effects terms' watches'
   where
     terms' = over (mapped . _2) f terms
     watches' = over (mapped . mapped . _3) f watches
@@ -205,7 +207,7 @@ mapTerms f (UnisonFileId datas effects terms watches) =
 -- then converting back to a "regular" UnisonFile with free variables in the
 -- terms.
 prepareRewrite :: (Monoid a, Var v) => UnisonFile v a -> ([v] -> Term v a -> Term v a, UnisonFile v a, UnisonFile v a -> UnisonFile v a)
-prepareRewrite uf@(UnisonFileId _datas _effects _terms watches) =
+prepareRewrite uf@(UnisonFileId _fn _datas _effects _terms watches) =
   (freshen, mapTerms substs uf, mapTerms refToVar)
   where
     -- fn to replace free vars with unique refs
@@ -242,8 +244,8 @@ prepareRewrite uf@(UnisonFileId _datas _effects _terms watches) =
 -- This function returns what symbols were modified.
 -- The `Set v` is symbols that should be left alone.
 rewrite :: (Var v, Eq a) => Set v -> (Term v a -> Maybe (Term v a)) -> UnisonFile v a -> ([v], UnisonFile v a)
-rewrite leaveAlone rewriteFn uf@(UnisonFileId datas effects _terms watches) =
-  (rewritten, UnisonFileId datas effects (Map.fromList $ unEitherTerms terms') (unEither <$> watches'))
+rewrite leaveAlone rewriteFn uf@(UnisonFileId fn datas effects _terms watches) =
+  (rewritten, UnisonFileId fn datas effects (Map.fromList $ unEitherTerms terms') (unEither <$> watches'))
   where
     terms' = go (termBindings uf)
     watches' = go <$> watches
@@ -264,7 +266,7 @@ typecheckedUnisonFile ::
   [(WatchKind, [(v, a, Term v a, Type v a)])] ->
   TypecheckedUnisonFile v a
 typecheckedUnisonFile datas effects tlcs watches =
-  TypecheckedUnisonFileId datas effects tlcs watches hashImpl
+  TypecheckedUnisonFileId Nothing datas effects tlcs watches hashImpl
   where
     hashImpl :: (Map v (a, Reference.Id, Maybe WatchKind, Term v a, Type v a))
     hashImpl =
@@ -328,7 +330,7 @@ topLevelComponents file =
 termSignatureExternalLabeledDependencies ::
   (Ord v) => TypecheckedUnisonFile v a -> Set LabeledDependency
 termSignatureExternalLabeledDependencies
-  tuf@(TypecheckedUnisonFile _ _ _ _ hashTerms) =
+  tuf@(TypecheckedUnisonFile _ _ _ _ _ hashTerms) =
     Set.difference
       ( Set.map LD.typeRef
           . foldMap Type.dependencies
@@ -340,7 +342,7 @@ termSignatureExternalLabeledDependencies
       (Set.map LD.typeRef $ localDeclRefs tuf)
 
 typeReferences :: (Ord v) => TypecheckedUnisonFile v a -> Set Reference
-typeReferences (TypecheckedUnisonFile datas effs _ _ hterms) =
+typeReferences (TypecheckedUnisonFile _fn datas effs _ _ hterms) =
   Set.unions
     [ foldMap Type.dependencies
         . fmap (\(_a, _r, _wk, _e, t) -> t)
@@ -356,7 +358,7 @@ externalTypeDependencies tuf =
   Set.difference (typeReferences tuf) (localDeclRefs tuf)
 
 localDeclRefs :: (Ord v) => TypecheckedUnisonFile v a -> Set Reference
-localDeclRefs (TypecheckedUnisonFile datas effs _ _ _) =
+localDeclRefs (TypecheckedUnisonFile _fn datas effs _ _ _) =
   Set.fromList $
     (fst <$> toList datas) <> (fst <$> toList effs)
 
@@ -378,10 +380,10 @@ dependencies file =
     ]
 
 discardTypes :: (Ord v) => TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes (TypecheckedUnisonFileId datas effects terms watches _) =
+discardTypes (TypecheckedUnisonFileId fn datas effects terms watches _) =
   let watches' = g . mconcat <$> List.multimap watches
       g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]
-   in UnisonFileId (coerce datas) (coerce effects) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches'
+   in UnisonFileId fn (coerce datas) (coerce effects) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches'
 
 declsToTypeLookup :: (Var v) => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =
