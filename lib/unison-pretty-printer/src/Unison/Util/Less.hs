@@ -8,6 +8,7 @@ import System.Process
 import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
+import UnliftIO.Process qualified as UnliftIO
 
 less :: Text -> IO ()
 less str = do
@@ -34,17 +35,19 @@ less str = do
       case pager of
         Nothing -> noPager
         Just process -> do
-          (Just stdin, _stdout, _stderr, pid) <-
-            createProcess process {std_in = CreatePipe}
+          ignore $ UnliftIO.withCreateProcess (process {std_in = CreatePipe}) \mayStdin _mayStdout _mayStderr pid -> do
+            case mayStdin of
+              Nothing ->
+                -- Should be impossible, but just use noPager if we can't get a handle to the pager's stdin.
+                noPager
+              Just stdin -> do
+                -- If pager exits before consuming all of stdin, `hPutStr` will crash.
+                Text.hPutStr stdin str
 
-          -- If pager exits before consuming all of stdin, `hPutStr` will crash.
-          ignore $ Text.hPutStr stdin str
-
-          -- If pager has already exited, hClose throws an exception.
-          ignore $ hClose stdin
-
-          -- Wait for pager to exit.
-          void $ waitForProcess pid
+                -- If pager has already exited, hClose throws an exception.
+                hClose stdin
+                -- Wait for pager to exit.
+                void $ waitForProcess pid
 
     lessArgs :: [String]
     lessArgs =

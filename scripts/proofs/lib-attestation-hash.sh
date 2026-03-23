@@ -50,12 +50,18 @@ _list_files() {
         for pattern in "${PATTERNS[@]}"; do
             rg --files --hidden -g "$pattern" 2>/dev/null || true
         done
-    fi | grep -v '\.stack-work' | sort -u
+    fi | grep -v '\.stack-work' | LC_ALL=C sort -u
+}
+
+# NUL-delimited version for safe piping to xargs -0
+_list_files_0() {
+    _list_files | tr '\n' '\0'
 }
 
 _hash_files() {
     # Batch file reads with perl: outputs filename\0content\0filename\0content...
-    xargs perl -0777 -ne '
+    # Input is NUL-delimited file paths (from _list_files_0)
+    xargs -0 perl -0777 -ne '
         BEGIN { $first = 1 }
         if (!$first) { print "\0" }
         $first = 0;
@@ -72,9 +78,9 @@ compute_hash() {
         tmpdir=$(mktemp -d)
         trap "rm -rf '$tmpdir'" RETURN
         git archive "$_COMMIT" -- "${PATTERNS[@]}" 2>/dev/null | tar -xf - -C "$tmpdir"
-        (cd "$tmpdir" && find . -type f | sed 's|^\./||' | grep -v '\.stack-work' | sort -u | _hash_files)
+        (cd "$tmpdir" && find . -type f | sed 's|^\./||' | grep -v '\.stack-work' | LC_ALL=C sort -u | tr '\n' '\0' | _hash_files)
     else
-        _list_files | _hash_files
+        _list_files_0 | _hash_files
     fi
 }
 
@@ -106,7 +112,8 @@ handle_flags() {
     local name
     name=$(basename "${BASH_SOURCE[1]}" .sh)
     case "${1:-}" in
-        --hash)  compute_hash "${2:-}"; exit 0 ;;
-        --check) _check_attestation "$name"; exit 0 ;;
+        --hash)       compute_hash "${2:-}"; exit 0 ;;
+        --check)      _check_attestation "$name"; exit 0 ;;
+        --list-files) _COMMIT="${2:-}"; _list_files; exit 0 ;;
     esac
 }
