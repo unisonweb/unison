@@ -42,6 +42,7 @@ handle_flags "$@"
 source "$(dirname "$0")/lib-attestation-randr.sh"
 attestation_setup "weeds" "$@"
 attestation_check_skip
+attestation_require_commands stack
 
 # === Tool-specific commands ===
 # Run in subshell to capture exit status while allowing errexit inside
@@ -54,6 +55,7 @@ set +e
 
     echo ""
     echo "Running dead code analysis (weeds)..."
-    "$SCRIPT_DIR/check-weeds"
+    set --
+    source "$SCRIPT_DIR/check-weeds"
 )
 attestation_record_and_exit $?
