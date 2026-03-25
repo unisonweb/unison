@@ -28,6 +28,7 @@
 # =============================================================================
 
 MAX_LOCAL_HASHES=100  # Cap for local file to prevent unbounded growth
+ATTESTATION_PREREQ_EXIT_CODE=125
 
 # Find the top-level scripts directory by walking up from this file
 _find_scripts_dir() {
@@ -80,6 +81,43 @@ attestation_setup() {
         echo "Source hash: $HASH"
         echo "Infra hash:  $INFRA_HASH"
     fi
+}
+
+# -----------------------------------------------------------------------------
+# prereq_failed <message>...
+# Exit without recording an attestation because a prerequisite was not met.
+# -----------------------------------------------------------------------------
+prereq_failed() {
+    >&2 printf '%s\n' "$@"
+    exit "$ATTESTATION_PREREQ_EXIT_CODE"
+}
+
+# -----------------------------------------------------------------------------
+# attestation_require_commands <cmd>...
+# Exit without recording an attestation if required commands are missing.
+# -----------------------------------------------------------------------------
+attestation_require_commands() {
+    local missing=()
+    local cmd
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            missing+=("$cmd")
+        fi
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    local plural="" noun="tool"
+    if [[ ${#missing[@]} -ne 1 ]]; then
+        plural="s"
+        noun="tools"
+    fi
+
+    prereq_failed \
+        "Cannot run $ATTESTATION_NAME: missing required $noun: ${missing[*]}" \
+        "This is an environment/toolchain issue; no attestation was recorded."
 }
 
 # -----------------------------------------------------------------------------
@@ -231,6 +269,8 @@ attestation_record_and_exit() {
     local exit_code="$1"
     if [[ $exit_code -eq 0 ]]; then
         attestation_record pass
+    elif [[ $exit_code -eq $ATTESTATION_PREREQ_EXIT_CODE ]]; then
+        exit "$exit_code"
     else
         attestation_record fail
         exit 1

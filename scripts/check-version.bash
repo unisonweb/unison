@@ -9,6 +9,17 @@ function indent() {
     pr -to $((indent * indentSize))
 }
 
+function _version_check_failed() {
+    local fallback_exit_code="$1"
+    shift
+    if declare -F prereq_failed >/dev/null; then
+        prereq_failed "$@"
+    else
+        >&2 printf '%s\n' "$@"
+        exit "$fallback_exit_code"
+    fi
+}
+
 ## This function checks
 ## 1. that the command is on PATH,
 ## 2. that the version of the command found matches our expectation (command must support `--version`), and
@@ -25,13 +36,13 @@ function version-equals {
 
     if command -v "$command" >/dev/null; then
         if ! "$command" --version | grep -q "${expected_version}"; then
-            >&2 echo "Skipping $command check – found, but the version isn’t ${expected_version}:"
-            "$command" --version | indent >&2
-            exit 78
+            _version_check_failed \
+                78 \
+                "Skipping $command check – found, but the version isn’t ${expected_version}:" \
+                "$("$command" --version | indent)"
         fi
     else
-        >&2 echo "Skipping $command check – not found on PATH"
-        exit 127
+        _version_check_failed 127 "Skipping $command check – not found on PATH"
     fi
 
     ## When the user has Nix, check that `expected_version` matches what we require for Nix.
