@@ -52,7 +52,7 @@ set +e
     set -euo pipefail
 
     echo "Building ucm and transcripts binaries..."
-    stack build --fast unison-cli:exe:transcripts unison-cli-main:exe:unison
+    stack build --fast unison-cli:exe:transcripts unison-cli-main:exe:unison --test --no-run-tests
 
     UCM=$(stack exec -- which unison)
     TRANSCRIPTS=$(stack exec -- which transcripts)
