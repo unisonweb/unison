@@ -102,6 +102,7 @@ term1to2 h =
       V1.Term.Char c -> V2.Term.Char c
       V1.Term.Ref r -> V2.Term.Ref (rreference1to2 h r)
       V1.Term.Constructor (V1.ConstructorReference r i) -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
+      V1.Term.Record fields -> V2.Term.Record fields
       V1.Term.Request (V1.ConstructorReference r i) -> V2.Term.Request (reference1to2 r) (fromIntegral i)
       V1.Term.Handle b h -> V2.Term.Handle b h
       V1.Term.App f a -> V2.Term.App f a
@@ -133,6 +134,8 @@ term1to2 h =
       V1.Pattern.Char _ c -> V2.Term.PChar c
       V1.Pattern.Constructor _ (V1.ConstructorReference r i) ps ->
         V2.Term.PConstructor (reference1to2 r) i (goPat <$> ps)
+      V1.Pattern.RecordLiteral _loc fields ->
+        V2.Term.PRecord (goPat <$> fields)
       V1.Pattern.As _ p -> V2.Term.PAs (goPat p)
       V1.Pattern.EffectPure _ p -> V2.Term.PEffectPure (goPat p)
       V1.Pattern.EffectBind _ (V1.ConstructorReference r i) ps k ->
@@ -165,6 +168,7 @@ term2to1 h lookupCT =
           V2.Term.Ref r -> pure $ V1.Term.Ref (rreference2to1 h r)
           V2.Term.Constructor r i ->
             pure (V1.Term.Constructor (V1.ConstructorReference (reference2to1 r) (fromIntegral i)))
+          V2.Term.Record fields -> pure $ V1.Term.Record fields
           V2.Term.Request r i ->
             pure (V1.Term.Request (V1.ConstructorReference (reference2to1 r) (fromIntegral i)))
           V2.Term.Handle a a4 -> pure $ V1.Term.Handle a a4
@@ -194,6 +198,8 @@ term2to1 h lookupCT =
           V2.Term.PChar c -> pure $ V1.Pattern.Char a c
           V2.Term.PConstructor r i ps ->
             V1.Pattern.Constructor a (V1.ConstructorReference (reference2to1 r) i) <$> traverse goPat ps
+          V2.Term.PRecord fields ->
+            V1.Pattern.RecordLiteral a <$> traverse goPat fields
           V2.Term.PAs p -> V1.Pattern.As a <$> goPat p
           V2.Term.PEffectPure p -> V1.Pattern.EffectPure a <$> goPat p
           V2.Term.PEffectBind r i ps p ->
@@ -357,7 +363,11 @@ type2to1' convertRef =
       V2.Type.Effects as -> V1.Type.Effects as
       V2.Type.Forall a -> V1.Type.Forall a
       V2.Type.IntroOuter a -> V1.Type.IntroOuter a
+      V2.Type.Record fb fields -> V1.Type.Record (convertFB fb) fields
       where
+        convertFB = \case
+          V2.Type.AllowExtraFields -> V1.Type.AllowExtraFields
+          V2.Type.RequireExactFields -> V1.Type.RequireExactFields
         convertKind = \case
           V2.Kind.Star -> V1.Kind.Star
           V2.Kind.Arrow i o -> V1.Kind.Arrow (convertKind i) (convertKind o)
@@ -384,7 +394,11 @@ type1to2' convertRef =
       V1.Type.Effects as -> V2.Type.Effects as
       V1.Type.Forall a -> V2.Type.Forall a
       V1.Type.IntroOuter a -> V2.Type.IntroOuter a
+      V1.Type.Record fb fields -> V2.Type.Record (convertFB fb) fields
       where
+        convertFB = \case
+          V1.Type.AllowExtraFields -> V2.Type.AllowExtraFields
+          V1.Type.RequireExactFields -> V2.Type.RequireExactFields
         convertKind = \case
           V1.Kind.Star -> V2.Kind.Star
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)

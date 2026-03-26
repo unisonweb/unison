@@ -16,6 +16,17 @@ type FT = F' Reference
 -- | For potentially recursive types, like those in DataDeclaration
 type FD = F' (Reference' Text (Maybe Hash))
 
+-- | Whether the record type unifies with types that have _extra_ fields.
+-- E.g. subtype (Record _ {a: Int, b: Nat}) (Record AllowExtraFields {a: Int})
+--   will succeed, since the former has all the required fields, and extra fields are allowed,
+--   but:
+--   subtype (Record _ {a: Int, b: Nat}) (Record RequireExactFields {a: Int})
+-- fails.
+data FieldBehavior
+  = AllowExtraFields
+  | RequireExactFields
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
 data F' r a
   = Ref r
   | Arrow a a
@@ -27,6 +38,7 @@ data F' r a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
+  | Record FieldBehavior (Map Text a)
   deriving (Foldable, Functor, Eq, Ord, Show, Traversable)
 
 -- | Non-recursive type

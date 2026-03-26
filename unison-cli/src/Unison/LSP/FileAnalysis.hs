@@ -328,8 +328,26 @@ analyseNotes codebase fileUri ppe src notes = do
               TypeError.RedundantPattern loc -> singleRange loc
               TypeError.UncoveredPatterns loc _pats -> singleRange loc
               TypeError.KindInferenceFailure ke -> singleRange (KindInference.lspLoc ke)
-              -- These type errors don't have custom type error conversions, but some
-              -- still have valid diagnostics.
+              TypeError.MissingRecordField {fieldType, recordWithoutField, recordWithField} ->
+                do
+                  r1 <- aToR (ABT.annotation recordWithoutField)
+                  r2 <- aToR (ABT.annotation fieldType)
+                  r3 <- aToR (ABT.annotation recordWithField)
+                  pure
+                    ( r1,
+                      [ ("expected field type", r2),
+                        ("expected record type", r3)
+                      ]
+                    )
+              TypeError.UnexpectedRecordField {recordWithoutField, recordWithField} ->
+                do
+                  r1 <- aToR (ABT.annotation recordWithField)
+                  r2 <- aToR (ABT.annotation recordWithoutField)
+                  pure
+                    ( r1,
+                      [ ("expected record type", r2)
+                      ]
+                    )
               TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
                 Context.PatternArityMismatch loc _typ _numArgs -> singleRange loc
                 Context.HandlerOfUnexpectedType loc _typ -> singleRange loc
@@ -349,6 +367,44 @@ analyseNotes codebase fileUri ppe src notes = do
                 Context.RedundantPattern loc -> singleRange loc
                 Context.InaccessiblePattern loc -> singleRange loc
                 Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
+                Context.MissingRecordField _fieldName fieldType recordWithoutField recordWithField -> do
+                  r1 <- aToR (ABT.annotation recordWithoutField)
+                  r2 <- aToR (ABT.annotation fieldType)
+                  r3 <- aToR (ABT.annotation recordWithField)
+                  pure
+                    ( r1,
+                      [ ("expected field type", r2),
+                        ("expected record type", r3)
+                      ]
+                    )
+                Context.UnexpectedRecordField _fieldName fieldType actualRecordType expectedRecordType -> do
+                  r1 <- aToR (ABT.annotation actualRecordType)
+                  r2 <- aToR (ABT.annotation fieldType)
+                  r3 <- aToR (ABT.annotation expectedRecordType)
+                  pure
+                    ( r1,
+                      [ ("expected field type", r2),
+                        ("expected record type", r3)
+                      ]
+                    )
+                Context.PatternMatchedMissingField _fieldName fieldPat recordType -> do
+                  r1 <- aToR (Pattern.loc fieldPat)
+                  r2 <- aToR (ABT.annotation recordType)
+                  pure
+                    ( r1,
+                      [ ("record type", r2)
+                      ]
+                    )
+                Context.RecordPatternMatchOnNonRecordType recordPat notRecordType ->
+                  do
+                    r1 <- aToR (Pattern.loc recordPat)
+                    r2 <- aToR (ABT.annotation notRecordType)
+                    pure
+                      ( r1,
+                        [ ("not a record type", r2)
+                        ]
+                      )
+
             shouldHaveBeenHandled e = do
               Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
               empty
@@ -640,3 +696,4 @@ expressionLeafNodes abt =
       Term.Match _a cases -> cases & foldMap \(Term.MatchCase {matchBody}) -> expressionLeafNodes matchBody
       Term.TermLink {} -> [abt]
       Term.TypeLink {} -> [abt]
+      Term.Record fields -> fields & foldMap expressionLeafNodes

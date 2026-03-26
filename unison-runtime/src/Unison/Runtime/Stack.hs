@@ -11,6 +11,7 @@ module Unison.Runtime.Stack
     Closure
       ( ..,
         DataC,
+        RecordC,
         PApV,
         CapV,
         PAp,
@@ -18,6 +19,7 @@ module Unison.Runtime.Stack
         Data1,
         Data2,
         DataG,
+        RecordG,
         Captured,
         Foreign,
         Affine,
@@ -66,6 +68,7 @@ module Unison.Runtime.Stack
     USeg,
     BSeg,
     SegList,
+    segToList,
     Val
       ( ..,
         CharVal,
@@ -216,7 +219,7 @@ import Unison.Builtin.Decls as Ty hiding
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.ANF (Code, PackedTag, Value, maskTags)
+import Unison.Runtime.ANF (Code, PackedTag, RecordRef, Value, maskTags)
 import Unison.Runtime.Array as PA
 import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign.Dynamic
@@ -399,6 +402,8 @@ unboxedTypeTagFromInt = \case
   3 -> NatTag
   _ -> error "intToUnboxedTypeTag: invalid tag"
 
+type RecordValMap = EnumMap FieldRef Val
+
 data GClosure comb
   = GPAp
       !CombIx
@@ -416,6 +421,7 @@ data GClosure comb
       !Int
       -- | u/b data stacks
       {-# UNPACK #-} !Seg
+  | GRecord !RecordRef !RecordValMap
   | GForeign !Foreign
   | -- | The type tag for the value in the corresponding unboxed stack slot.
     --
@@ -467,6 +473,9 @@ pattern Data2 r t i j = Closure (GData2 r t i j)
 
 pattern DataG r t seg = Closure (GDataG r t seg)
 
+pattern RecordG :: RecordRef -> RecordValMap -> Closure
+pattern RecordG rr seg = Closure (GRecord rr seg)
+
 pattern Captured k a seg = Closure (GCaptured k a seg)
 
 pattern Foreign x = Closure (GForeign x)
@@ -485,13 +494,13 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       IntTag -> intTypeTag
       NatTag -> natTypeTag
 
-{-# COMPLETE PAp, Enum, Data1, Data2, DataG, Captured, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
+{-# COMPLETE PAp, Enum, Data1, Data2, DataG, RecordC, Captured, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
 
-{-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, PApV, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PApV, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, PApV, CapV, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PApV, CapV, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
 -- We can avoid allocating a closure for common type tags on each poke by having shared top-level closures for them.
 natTypeTag :: Closure
@@ -618,6 +627,11 @@ pattern DataC rf ct segs <-
   (splitData -> Just (rf, ct, segs))
   where
     DataC rf ct segs = formData rf ct segs
+
+pattern RecordC :: RecordRef -> RecordValMap -> Closure
+pattern RecordC rr v <- (RecordG rr v)
+  where
+    RecordC rr v = RecordG rr v
 
 matchCharVal :: Val -> Maybe Char
 matchCharVal = \case
@@ -1590,6 +1604,7 @@ closureNum Foreign {} = 3
 closureNum UnboxedTypeTag {} = 4
 closureNum BlackHole {} = 5
 closureNum Affine {} = 6
+closureNum RecordC {} = 7
 
 -- | The `Eq` instance for `Val` can’t be derived because you need to
 -- take into account the fact that if a `Val` is boxed, the unboxed side

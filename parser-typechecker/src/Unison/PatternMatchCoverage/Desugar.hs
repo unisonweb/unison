@@ -3,6 +3,9 @@ module Unison.PatternMatchCoverage.Desugar
   )
 where
 
+import Data.Align qualified as Align
+import Data.Map qualified as Map
+import Data.These (These (..))
 import U.Core.ABT qualified as ABT
 import Unison.Pattern
 import Unison.Pattern qualified as Pattern
@@ -10,6 +13,7 @@ import Unison.PatternMatchCoverage.Class
 import Unison.PatternMatchCoverage.GrdTree
 import Unison.PatternMatchCoverage.PmGrd
 import Unison.PatternMatchCoverage.PmLit qualified as PmLit
+import Unison.Prelude
 import Unison.Term (MatchCase (..), Term', app, var)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
@@ -69,6 +73,9 @@ desugarPattern typ v0 pat k vs = case pat of
         tpatvars = zipWith (\(v, p) t -> (v, p, t)) patvars contyps
     rest <- foldr (\(v, pat, t) b -> desugarPattern t v pat b) k tpatvars vs
     pure (Grd c rest)
+  RecordLiteral _loc fields
+    | Type.Record' fb typeFields <- typ -> handleRecord fb typ typeFields v0 k fields vs
+    | otherwise -> error "desugarPattern: RecordLiteral pattern does not correspond to record type"
   As _ rest -> desugarPattern typ v0 rest k (v0 : vs)
   EffectPure _ resume -> do
     v <- fresh
@@ -87,6 +94,46 @@ desugarPattern typ v0 pat k vs = case pat of
     pure (Grd c rest)
   SequenceLiteral {} -> handleSequence typ v0 pat k vs
   SequenceOp {} -> handleSequence typ v0 pat k vs
+
+handleRecord ::
+  forall v vt loc m.
+  (Pmc vt v loc m) =>
+  Type.FieldBehavior ->
+  Type vt loc ->
+  (Map Text (Type vt loc)) ->
+  v ->
+  ([v] -> m (GrdTree (PmGrd vt v loc) loc)) ->
+  Map Text (Pattern loc) ->
+  [v] ->
+  m (GrdTree (PmGrd vt v loc) loc)
+handleRecord fb typ typeFields recordVar k fieldPats vs = do
+  -- TODO: Definitely double-check this
+  let go ::
+        (Text, (v, (Type vt loc, Pattern loc))) ->
+        ([v] -> m (GrdTree (PmGrd vt v loc) loc)) ->
+        [v] ->
+        m (GrdTree (PmGrd vt v loc) loc)
+      go (_fieldName, (fieldVar, (fieldType, fieldPat))) k vs = do
+        desugarPattern fieldType fieldVar fieldPat k vs
+  let cleanFields k = \case
+        This _ -> Nothing
+        That _ -> case fb of
+          Type.AllowExtraFields -> Nothing
+          Type.RequireExactFields -> error $ "TODO: this error should likely happen elsewhere: handleRecord: extra field in pattern. " <> show k
+        These t p -> Just (t, p)
+  let addVars a = do
+        v <- fresh
+        pure $ (v, a)
+  withVars <-
+    Align.align typeFields fieldPats
+      & Map.mapMaybeWithKey cleanFields
+      & traverse addVars
+  let onlyVars = fst <$> withVars
+  subtree <-
+    withVars
+      & Map.toList
+      & (\fs -> foldr go k fs vs)
+  pure $ Grd (PmRecordLiteral onlyVars recordVar typ) subtree
 
 handleSequence ::
   forall v vt loc m.

@@ -150,6 +150,7 @@ refInTerm term =
       Term.Match _a _cases -> Nothing
       Term.TermLink ref -> Just (LD.TermReferent ref)
       Term.TypeLink ref -> Just (LD.TypeReference ref)
+      Term.Record {} -> Nothing
     ABT.Var _v -> Nothing
     ABT.Cycle _r -> Nothing
     ABT.Abs _v _r -> Nothing
@@ -166,6 +167,7 @@ refInType typ = case ABT.out typ of
     Type.Ann _a _kind -> Nothing
     Type.Effects _es -> Nothing
     Type.IntroOuter _a -> Nothing
+    Type.Record _fb _fields -> Nothing
   ABT.Var _v -> Nothing
   ABT.Cycle _r -> Nothing
   ABT.Abs _v _r -> Nothing
@@ -187,6 +189,7 @@ refInPattern = \case
   Pattern.EffectBind _loc conRef _ _ -> Just (LD.ConReference conRef CT.Effect)
   Pattern.SequenceLiteral {} -> Nothing
   Pattern.SequenceOp {} -> Nothing
+  Pattern.RecordLiteral {} -> Nothing
 
 data SourceNode a
   = TermNode (Term Symbol a)
@@ -261,6 +264,8 @@ findSmallestEnclosingNodeMatching pos pred term
                   <|> altSum (cases <&> \(MatchCase pat grd body) -> ((findSmallestEnclosingPatternMatching pos patPred pat) <|> (altMaybe grd >>= findSmallestEnclosingNodeMatching pos pred) <|> findSmallestEnclosingNodeMatching pos pred body))
               Term.TermLink {} -> guardInFile *> termPred term
               Term.TypeLink {} -> guardInFile *> termPred term
+              Term.Record fields ->
+                altSum (findSmallestEnclosingNodeMatching pos pred <$> fields)
             ABT.Var _v -> guardInFile *> termPred term
             ABT.Cycle r -> findSmallestEnclosingNodeMatching pos pred r
             ABT.Abs _v r -> findSmallestEnclosingNodeMatching pos pred r
@@ -323,6 +328,7 @@ findSmallestEnclosingPatternMatching pos pred pat
             Pattern.EffectBind _loc _conRef pats p -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats) <|> findSmallestEnclosingPatternMatching pos pred p
             Pattern.SequenceLiteral _loc pats -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats)
             Pattern.SequenceOp _loc p1 _op p2 -> findSmallestEnclosingPatternMatching pos pred p1 <|> findSmallestEnclosingPatternMatching pos pred p2
+            Pattern.RecordLiteral _loc fields -> altSum (findSmallestEnclosingPatternMatching pos pred <$> fields)
       let fallback = if annIsFilePosition (ann pat) then pred pat else empty
       bestChild <|> fallback
   where
@@ -373,6 +379,7 @@ findSmallestEnclosingTypeMatching pos pred typ
               Type.Ann a _kind -> findSmallestEnclosingTypeMatching pos pred a
               Type.Effects es -> altSum (findSmallestEnclosingTypeMatching pos pred <$> es)
               Type.IntroOuter a -> findSmallestEnclosingTypeMatching pos pred a
+              Type.Record _fb fields -> altSum (findSmallestEnclosingTypeMatching pos pred <$> fields)
             ABT.Var _v -> guardInFile *> pred typ
             ABT.Cycle r -> findSmallestEnclosingTypeMatching pos pred r
             ABT.Abs _v r -> findSmallestEnclosingTypeMatching pos pred r

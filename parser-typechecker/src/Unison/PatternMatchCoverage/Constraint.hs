@@ -4,6 +4,9 @@ module Unison.PatternMatchCoverage.Constraint
   )
 where
 
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Text (Text)
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.EffectHandler
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
@@ -53,6 +56,11 @@ data Constraint vt v loc
       Int
       -- | element variable
       v
+  | PosRecordLiteral
+      -- | record root
+      v
+      -- | fields
+      (Map Text v)
   | -- | Negative constraint on length of the list (/i.e./ the list
     -- may not be an element of the interval set)
     NegListInterval v IntervalSet
@@ -76,6 +84,9 @@ prettyConstraint ppe = \case
   NegLit var lit -> sep " " [prettyVar var, "≠", prettyPmLit lit]
   PosListHead root n el -> sep " " [prettyVar el, "<-", "head", pany n, prettyVar root]
   PosListTail root n el -> sep " " [prettyVar el, "<-", "tail", pany n, prettyVar root]
+  PosRecordLiteral root fields ->
+    let fieldStrs = fmap (\(k, v) -> sep " " [pany k, ":", prettyVar v]) (Map.toList fields)
+     in "{" <> sep " " [sep ", " fieldStrs, "<-", "record", prettyVar root] <> "}"
   NegListInterval var x -> sep " " [prettyVar var, "≠", string (show x)]
   Effectful var -> "!" <> prettyVar var
   Eq v0 v1 -> sep " " [prettyVar v0, "=", prettyVar v1]

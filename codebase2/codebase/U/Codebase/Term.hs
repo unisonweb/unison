@@ -64,6 +64,7 @@ data F' text termRef typeRef termLink typeLink vt a
   | -- First argument identifies the data type,
     -- second argument identifies the constructor
     Constructor typeRef ConstructorId
+  | Record (Map Text {- field name -} a {- field value -})
   | Request typeRef ConstructorId
   | Handle a a
   | App a a
@@ -107,6 +108,7 @@ data Pattern t r
   | PText !t
   | PChar !Char
   | PConstructor !r !ConstructorId [Pattern t r]
+  | PRecord (Map Text (Pattern t r))
   | PAs (Pattern t r)
   | PEffectPure (Pattern t r)
   | PEffectBind !r !ConstructorId [Pattern t r] (Pattern t r)
@@ -187,6 +189,7 @@ extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
       Char c -> pure $ Char c
       Ref r -> Ref <$> ftermRef r
       Constructor r cid -> Constructor <$> (ftypeRef r) <*> pure cid
+      Record fields -> pure $ Record fields
       Request r cid -> Request <$> ftypeRef r <*> pure cid
       Handle e h -> pure $ Handle e h
       App f a -> pure $ App f a
@@ -221,6 +224,7 @@ rmapPatternM ft fr = go
       PText t -> PText <$> ft t
       PChar c -> pure $ PChar c
       PConstructor r i ps -> PConstructor <$> fr r <*> pure i <*> (traverse go ps)
+      PRecord fields -> PRecord <$> (traverse go fields)
       PAs p -> PAs <$> go p
       PEffectPure p -> PEffectPure <$> go p
       PEffectBind r i ps p -> PEffectBind <$> fr r <*> pure i <*> traverse go ps <*> go p
@@ -329,6 +333,7 @@ unhashComponent componentHash refToVar m =
             Text t -> ABT.tm () $ Text t
             Char c -> ABT.tm () $ Char c
             Constructor typeRef conId -> ABT.tm () $ Constructor typeRef conId
+            Record fields -> ABT.tm () $ Record fields
             Request typeRef conId -> ABT.tm () $ Request typeRef conId
             Handle e h -> ABT.tm () $ Handle e h
             App f a -> ABT.tm () $ App f a

@@ -988,6 +988,60 @@ renderTypeError e env src = case e of
         case defns of
           _ Nel.:| [] -> "name"
           _ -> "names"
+  MissingRecordField {missingFieldName, fieldType, recordWithField, recordWithoutField} ->
+    Pr.lines
+      [ Pr.wrap "I expected this record: ",
+        "",
+        annotatedAsErrorSite src recordWithoutField,
+        "",
+        "to have the field",
+        Pr.indentN 2 $
+          ( style Type2 $
+              (Text.unpack missingFieldName)
+                <> ": "
+                <> (renderType' env fieldType)
+          ),
+        "",
+        "so that it would match the type:",
+        Pr.indentN 2 $
+          ( Pr.lines
+              [ "",
+                style Type2 (renderType' env recordWithField),
+                ""
+              ]
+          ),
+        "",
+        Pr.wrap "from here: ",
+        "",
+        annotatedAsStyle Type1 src fieldType
+      ]
+  UnexpectedRecordField {unexpectedFieldName, fieldType, recordWithoutField, recordWithField} ->
+    Pr.lines
+      [ Pr.wrap "I didn't expect this record: ",
+        "",
+        annotatedAsErrorSite src recordWithField,
+        "",
+        "to have the field",
+        Pr.indentN 2 $
+          ( style Type1 $
+              (Text.unpack unexpectedFieldName)
+                <> ": "
+                <> (renderType' env fieldType)
+          ),
+        "",
+        "because it should have the type:",
+        Pr.indentN 2 $
+          ( Pr.lines
+              [ "",
+                style Type1 (renderType' env recordWithoutField),
+                ""
+              ]
+          ),
+        "",
+        Pr.wrap "derived from here: ",
+        "",
+        annotatedAsStyle Type2 src recordWithoutField
+      ]
   Other (C.cause -> C.HandlerOfUnexpectedType loc typ) ->
     Pr.lines
       [ Pr.wrap "The handler used here",
@@ -1284,6 +1338,52 @@ renderTypeError e env src = case e of
             "  reference=",
             showTypeRef env rf
           ]
+      C.MissingRecordField fieldName expectedFieldType recordMissingTheField expectedRecordType ->
+        mconcat
+          [ "Expected this record: ",
+            renderType'
+              env
+              recordMissingTheField,
+            "\n",
+            "to have the field: \n",
+            Pr.indent "  " $
+              fromString (Text.unpack fieldName)
+                <> " : "
+                <> renderType' env expectedFieldType,
+            "\n",
+            "so it would match this record: \n",
+            Pr.indent "  " $
+              renderType' env expectedRecordType,
+            "but it was missing."
+          ]
+      C.UnexpectedRecordField fieldName unexpectedFieldType actualRecordType expectedRecordType ->
+        mconcat
+          [ "Did not expect this record to have the field: \n",
+            Pr.indent "  " $
+              fromString (Text.unpack fieldName)
+                <> " : "
+                <> renderType' env unexpectedFieldType,
+            "\n",
+            "because it would not match the type of this record: \n",
+            Pr.indent "  " $
+              renderType' env expectedRecordType,
+            "\n",
+            "but it was present in this record: \n",
+            Pr.indent "  " $
+              renderType' env actualRecordType
+          ]
+      C.PatternMatchedMissingField fieldName fieldPat missingFieldTyp ->
+        mconcat
+          [ "This pattern tried to match on the `" <> Pr.text fieldName <> "` field, but it's not part of the type.\n",
+            "  The pattern is here: " <> Pr.lit (renderPattern env fieldPat) <> "\n",
+            "  I inferred the required type here: " <> renderType' env missingFieldTyp <> "\n"
+          ]
+      C.RecordPatternMatchOnNonRecordType recordPat nonRecordTyp ->
+        mconcat
+          [ "This pattern is trying to match a record, but the type is not a record.\n",
+            "  The pattern is here: " <> Pr.lit (renderPattern env recordPat) <> "\n",
+            "  I inferred the type here: " <> renderType' env nonRecordTyp <> "\n"
+          ]
 
 renderCompilerBug ::
   (Var v, Annotated loc, Ord loc, Show loc) =>
@@ -1433,6 +1533,20 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
             then go 0 body
             else "forall " <> spaces renderVar vs <> " . " <> go 1 body
       Type.Var' v -> renderVar v
+      Type.Record' fb fields ->
+        let fbs = case fb of
+              Type.AllowExtraFields -> "| ..."
+              Type.RequireExactFields -> ""
+         in curly
+              (p >= 3)
+              "{"
+              <> commas
+                ( \(label, fieldType) ->
+                    fromString (Text.unpack label) <> ": " <> go 0 fieldType
+                )
+                (Map.toList fields)
+              <> fbs
+              <> "}"
       _ -> error $ "pattern match failure in PrintError.renderType " ++ show t
       where
         go = renderType0 env f

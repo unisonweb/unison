@@ -9,6 +9,8 @@
 module Unison.Runtime.MCode
   ( Args' (..),
     Args (..),
+    FieldTags (..),
+    FieldRef (..),
     RefNums (..),
     MLit (..),
     GInstr (..),
@@ -33,6 +35,8 @@ module Unison.Runtime.MCode
     GBranch (..),
     Branch,
     RBranch,
+    RecordFieldMappings (..),
+    convertFieldNamesToRefs,
     emitCombs,
     emitComb,
     resolveCombs,
@@ -40,6 +44,7 @@ module Unison.Runtime.MCode
     absurdCombs,
     emptyRNs,
     argsToLists,
+    argsToArgs',
     countArgs,
     combRef,
     combDeps,
@@ -49,18 +54,27 @@ module Unison.Runtime.MCode
   )
 where
 
+import Control.Monad.RWS
+import Control.Monad.Reader
+import Control.Monad.State.Strict
+import Control.Monad.Trans.Writer.CPS (WriterT, runWriterT)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bifunctor (Bifunctor, bimap, first)
 import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
+import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Map.Strict qualified as M
 import Data.Primitive.PrimArray
 import Data.Primitive.PrimArray qualified as PA
+import Data.Semigroup (Max (..))
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Traversable (for)
+import Data.Vector (Vector)
+import Data.Vector qualified as V
 import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
@@ -97,7 +111,10 @@ import Unison.Runtime.ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
+import Unison.Util.BiMap (BiMap)
+import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.EnumContainers as EC
+import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
 
@@ -277,6 +294,23 @@ data Args
   | VArgN {-# UNPACK #-} !(PrimArray Int)
   | VArgV !Int
   deriving (Show, Eq, Ord)
+
+argsToArgs' :: Args -> Args'
+argsToArgs' = \case
+  ZArgs -> ArgN PA.emptyPrimArray
+  VArg1 i -> Arg1 i
+  VArg2 i j -> Arg2 i j
+  VArgR i l -> ArgR i l
+  VArgN us -> ArgN us
+  VArgV n -> ArgR 0 n
+{-# INLINEABLE argsToArgs' #-}
+
+newtype FieldTags = FieldTags (PrimArray Word64)
+  deriving stock (Show, Eq, Ord)
+
+-- | Efficient mapping for record field names
+newtype FieldRef = FieldRef Word64
+  deriving newtype (Show, Eq, Ord, Enum, EnumKey)
 
 argsToLists :: Args -> [Int]
 argsToLists = \case
@@ -537,7 +571,25 @@ data GInstr comb
       !Reference -- data type reference
       !PackedTag -- tag
       !Args -- arguments to pack
-  | -- Push a particular value onto the appropriate stack
+  | -- Pack a record type into a closure and place it on the stack.
+    RecPack
+      !ANF.RecordRef
+      !(Vector FieldRef)
+      -- values to pack
+      !Args
+  | -- Unpack a set of fields from a record on the boxed stack.
+    -- It may be a subset of the fields, so the RecordRef may not match
+    -- that of the record in the closure.
+    RecUnpack
+      !(Vector FieldRef {- fields to unpack -})
+      !Int {- index of record on boxed stack -}
+  | -- Which fields to pack each arg into
+    -- TODO: Do we need this? I think we should just generate ANF
+    -- with all fields in order according to key, then we can just assume
+    -- the field values are in alphabetical order according to their key.
+    -- ![FieldTag]
+
+    -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
   | -- Print a value on the unboxed stack
     Print !Int -- index of the primitive value to print
@@ -649,17 +701,22 @@ data CombIx
 combRef :: CombIx -> Reference
 combRef (CIx r _ _) = r
 
--- dnum maps type references to their number in the runtime
--- cnum maps combinator references to their number
--- anum maps combinator references to their main arity
+--
 data RefNums = RN
-  { dnum :: Reference -> Word64,
+  { -- maps type references to their number in the runtime
+    dnum :: Reference -> Word64,
+    -- cnum maps combinator references to their number
     cnum :: Reference -> Word64,
-    anum :: Reference -> Maybe Int
+    -- anum maps combinator references to their main arity
+    anum :: Reference -> Maybe Int,
+    -- Map record schemas into their runtime reference
+    recNum :: ANF.RecordSchema -> ANF.RecordRef,
+    -- Map record field names into their runtime reference
+    recField :: RecordFieldMappings -> ANF.FieldName -> FieldRef
   }
 
 emptyRNs :: RefNums
-emptyRNs = RN mt mt (const Nothing)
+emptyRNs = RN mt mt (const Nothing) mt mt
   where
     mt _ = internalBug [] "RefNums: empty"
 
@@ -867,14 +924,16 @@ emitCombs ::
   Reference ->
   Word64 ->
   SuperGroup Reference v ->
-  EnumMap Word64 Comb
-emitCombs rns grpr grpn (Rec grp ent) =
-  emitComb rns grpr grpn rec (0, ent) <> aux
+  State RecordFieldMappings (EnumMap Word64 Comb)
+emitCombs rns grpr grpn (Rec grp ent) = do
+  es <- emitComb rns grpr grpn rec (0, ent)
+  auxEs <- aux
+  pure $ es <> auxEs
   where
     (rvs, cmbs) = unzip grp
     ixs = map (`shiftL` 16) [1 ..]
     rec = M.fromList $ zip rvs ixs
-    aux = foldMap (emitComb rns grpr grpn rec) (zip ixs cmbs)
+    aux = foldMapM (emitComb rns grpr grpn rec) (zip ixs cmbs)
 
 -- | lazily replace all references to combinators with the combinators themselves,
 -- tying the knot recursively when necessary.
@@ -923,40 +982,63 @@ instance Applicative Counted where
   pure = C 0
   C s0 f <*> C s1 x = C (max s0 s1) (f x)
 
+instance Monad Counted where
+  C s0 x >>= f =
+    let C s1 y = f x
+     in C (max s0 s1) y
+
+data RecordFieldMappings
+  = RecordFieldMappings
+      (FieldRef {- next unassigned ref -})
+      (BiMap ANF.FieldName FieldRef {- mapping from field name to field ref -})
+  deriving stock (Show, Eq, Ord)
+
+-- | Note that the Ord instance for Field Refs is arbitrary and not tied to the field name Ord instance.
+convertFieldNamesToRefs :: (MonadState RecordFieldMappings m, Traversable f) => f ANF.FieldName -> m (f FieldRef)
+convertFieldNamesToRefs names = for names \name -> do
+  RecordFieldMappings next m <- get
+  case BiMap.lookupL name m of
+    Just fr -> pure fr
+    Nothing -> do
+      put $ RecordFieldMappings (succ next) (BiMap.insert name next m)
+      pure next
+
 newtype Emit a
-  = EM (Word64 -> (EC.EnumMap Word64 Comb, Counted a))
-  deriving (Functor)
+  = EM ((ReaderT Word64 (WriterT (EC.EnumMap Word64 Comb, Max Int) (State RecordFieldMappings))) a)
+  deriving newtype (Functor, Applicative, Monad, MonadReader Word64, MonadWriter (EC.EnumMap Word64 Comb, Max Int), MonadState RecordFieldMappings)
 
-runEmit :: Word64 -> Emit a -> EC.EnumMap Word64 Comb
-runEmit w (EM e) = fst $ e w
-
-instance Applicative Emit where
-  pure = EM . pure . pure . pure
-  EM ef <*> EM ex = EM $ (liftA2 . liftA2) (<*>) ef ex
+runEmit :: Word64 -> Emit a -> State RecordFieldMappings (EC.EnumMap Word64 Comb)
+runEmit w (EM e) =
+  e
+    & flip runReaderT w
+    & runWriterT
+    <&> \(_a, (ec, _)) -> ec
 
 counted :: Counted a -> Emit a
-counted = EM . pure . pure
-
-onCount :: (Counted a -> Counted b) -> Emit a -> Emit b
-onCount f (EM e) = EM $ fmap f <$> e
+counted (C n a) = tell (mempty, Max n) *> pure a
 
 letIndex :: Word16 -> Word64 -> Word64
 letIndex l c = c .|. fromIntegral l
 
 record :: Ctx v -> Word16 -> Emit Section -> Emit (Word64, Comb)
-record ctx l (EM es) = EM $ \c ->
-  let (m, C sz s) = es c
-      na = countCtx0 0 ctx
+record ctx l (EM es) = EM do
+  c <- ask
+  (s, (_m, Max sz)) <- listen es
+  let na = countCtx0 0 ctx
       n = letIndex l c
       comb = Lam na sz s
-   in (EC.mapInsert n comb m, C sz (n, comb))
+  tell (EC.mapSingleton n comb, 0)
+  pure $ (n, comb)
 
 recordTop :: [v] -> Word16 -> Emit Section -> Emit ()
-recordTop vs l (EM e) = EM $ \c ->
-  let (m, C sz s) = e c
-      na = length vs
+recordTop vs l (EM e) = EM do
+  c <- ask
+  (s, (_m, Max sz)) <- listen e
+  let na = length vs
       n = letIndex l c
-   in (EC.mapInsert n (Lam na sz s) m, C sz ())
+      lam = Lam na sz s
+  tell (EC.mapSingleton n lam, 0)
+  pure ()
 
 -- Counts the stack space used by a context and annotates a value
 -- with it.
@@ -978,14 +1060,17 @@ emitComb ::
   Word64 ->
   RCtx v ->
   (Word64, SuperNormal Reference v) ->
-  EC.EnumMap Word64 Comb
+  State RecordFieldMappings (EC.EnumMap Word64 Comb)
 emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd)) =
   runEmit n
     . recordTop vs 0
     $ emitSection rns grpr grpn rec (ctx vs ccs) bd
 
 addCount :: Int -> Emit a -> Emit a
-addCount i = onCount $ \(C sz x) -> C (sz + i) x
+addCount i (EM m) = EM $ do
+  (a, (_m, Max n)) <- listen m
+  tell (mempty, Max $ n + i)
+  pure a
 
 -- Emit a machine code section from an ANF term
 emitSection ::
@@ -1041,8 +1126,9 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
     . VArgV
     $ countBlock ctx
 emitSection rns grpr grpn rec ctx (TApp f args) =
-  emitClosures grpr grpn rec ctx args $ \ctx as ->
-    countCtx ctx $ emitFunction rns grpr grpn rec ctx f as
+  emitClosures grpr grpn rec ctx args $ \ctx as -> do
+    rfm <- get
+    countCtx ctx $ emitFunction rns rfm grpr grpn rec ctx f as
 emitSection rns grpr grpn rec ctx (TLocal v bo)
   | Just (i, BX) <- ctxResolve ctx v =
       Ins (InLocal i)
@@ -1063,6 +1149,12 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
     MatchData r cs df <- bs =
       DMatch (Just r) i
         <$> emitDataMatching r rns grpr grpn rec ctx cs df
+  | Just (i, BX) <- ctxResolve ctx v,
+    MatchRec (ANF.RecordSchema fields) (TAbss vs bd) <- bs = do
+      fieldRefs <- convertFieldNamesToRefs (V.fromList $ Set.toList fields)
+      let instr = RecUnpack fieldRefs i
+      let newCtx = pushCtx (zip vs (repeat BX {- these are ignored -})) ctx
+      Ins instr <$> emitSection rns grpr grpn rec newCtx bd
   | Just (i, BX) <- ctxResolve ctx v,
     MatchRequest hs0 df <- bs,
     hs <- mapFromList $ first (dnum rns) <$> hs0 =
@@ -1147,6 +1239,7 @@ emitSection _ _ _ _ _ tm =
 emitFunction ::
   (Var v) =>
   RefNums ->
+  RecordFieldMappings ->
   Reference ->
   Word64 -> -- self combinator number
   RCtx v -> -- recursive binding group
@@ -1154,14 +1247,14 @@ emitFunction ::
   Func Reference v ->
   Args ->
   Section
-emitFunction _ grpr grpn rec ctx (FVar v) as
+emitFunction _ _rfms grpr grpn rec ctx (FVar v) as
   | Just (i, BX) <- ctxResolve ctx v =
       App False (Stk i) as
   | Just j <- rctxResolve rec v =
       let cix = CIx grpr grpn j
        in App False (Env cix cix) as
   | otherwise = emitSectionVErr v
-emitFunction rns _grpr _ _ _ (FComb r) as
+emitFunction rns _rfms _grpr _ _ _ (FComb r) as
   | Just k <- anum rns r,
     countArgs as == k -- exactly saturated call
     =
@@ -1172,13 +1265,19 @@ emitFunction rns _grpr _ _ _ (FComb r) as
   where
     n = cnum rns r
     cix = CIx r n 0
-emitFunction rns _grpr _ _ _ (FCon r t) as =
+emitFunction rns _rfms _grpr _ _ _ (FCon r t) as =
   Ins (Pack r (packTags rt t) as)
     . Yield
     $ VArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitFunction rns _grpr _ _ _ (FReq r e) as =
+emitFunction rns rfms _grpr _ _ _ (FRec rs@(ANF.RecordSchema fields)) as =
+  Ins (RecPack recRef (V.fromList . fmap (recField rns rfms) $ Set.toList fields) as)
+    . Yield
+    $ VArg1 0
+  where
+    recRef = recNum rns rs
+emitFunction rns _rfms _grpr _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
   -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have
   -- more than 2^16 types.
@@ -1188,11 +1287,11 @@ emitFunction rns _grpr _ _ _ (FReq r e) as =
   where
     a = dnum rns r
     rt = toEnum . fromIntegral $ a
-emitFunction _ _grpr _ _ ctx (FCont k) as
+emitFunction _ _rfms _grpr _ _ ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
   | otherwise = internalBug [] $ "emitFunction: continuations are boxed"
-emitFunction _ _grpr _ _ _ (FPrim _) _ =
+emitFunction _ _rfms _grpr _ _ _ (FPrim _) _ =
   internalBug [] "emitFunction: impossible"
 
 countBlock :: Ctx v -> Int
@@ -1213,6 +1312,7 @@ matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
       | MatchRequest _ _ <- b = "MatchRequest"
       | MatchSum _ <- b = "MatchSum"
       | MatchText _ _ <- b = "MatchText"
+      | MatchRec _ _ <- b = "MatchRec"
 
 emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v =
@@ -1254,6 +1354,9 @@ emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
   fmap (Ins . Pack r (packTags rt n) $ emitArgs grpn ctx args)
   where
     rt = toEnum . fromIntegral $ dnum rns r
+emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs@(ANF.RecordSchema fields)) args) = \es -> do
+  rfm <- get
+  fmap (Ins . RecPack (recNum rns rs) (V.fromList . fmap (recField rns rfm) $ Set.toList fields) $ emitArgs grpn ctx args) es
 emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
 emitLet _ _ _ _ _ _ ctx (TDiscard v)

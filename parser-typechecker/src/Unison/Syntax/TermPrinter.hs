@@ -64,6 +64,7 @@ import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
 import Unison.Type qualified as Type
 import Unison.Util.Bytes qualified as Bytes
+import Unison.Util.List qualified as List
 import Unison.Util.Monoid (foldMapM, intercalateMap, intercalateMapM)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
 import Unison.Util.Pretty qualified as PP
@@ -351,6 +352,13 @@ pretty0
             let open = listLink "[" `PP.orElse` listLink "[ "
             let close = listLink "]" `PP.orElse` ("\n" <> listLink "]")
             pure $ PP.group (open <> PP.sep comma pelems <> close)
+          Record' fields -> do
+            renderedFields <- for (Map.toList fields) \(fieldName, v) ->
+              do
+                pretty0 (ac Annotation Normal im doc) v
+                <&> (\v -> fmt (S.RecordFieldName fieldName) (PP.text fieldName) <> fmt S.RecordFieldValueColon ": " <> v)
+                <&> PP.indentNAfterNewline 2
+            pure $ PP.group $ PP.surroundCommas "{" "}" renderedFields
           If' cond t f ->
             do
               pcond <- pretty0 (ac Control Block im doc) cond
@@ -423,7 +431,7 @@ pretty0
                       ]
                   else (fmt S.ControlKeyword "match " <> ps <> fmt S.ControlKeyword " with") `PP.hang` pbs
           Apps' f args -> paren (p >= Application) <$> (PP.hang <$> goNormal (InfixOp Highest) f <*> PP.spacedTraverse (goNormal Application) args)
-          t -> pure $ l "error: " <> l (show t)
+          t -> pure $ l "TermPrinter:pretty0: Unhandled term: " <> l (show t)
     where
       goNormal prec tm = pretty0 (ac prec Normal im doc) tm
       specialCases term go = do
@@ -767,6 +775,30 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
               `PP.hang` pats_printed,
           tail_vs
         )
+  Pattern.RecordLiteral _loc fields -> do
+    let (renderedFields, vs') =
+          fields
+            & Map.toList
+            & flip
+              foldl'
+              ([], vs)
+              ( \(acc, currentVS) (fieldName, p) ->
+                  let (renderedPat, tailVS) = do
+                        prettyPattern n c Bottom currentVS p
+                      renderedField =
+                        fmt (S.RecordFieldName fieldName) (PP.text fieldName)
+                          <> fmt S.RecordFieldValueColon ": "
+                          <> renderedPat
+                   in (acc <> [renderedField], tailVS)
+              )
+     in ( PP.group
+            ( PP.surroundCommas
+                (fmt S.DelimiterChar "{")
+                (fmt S.DelimiterChar "}")
+                (map (PP.indentNAfterNewline 2) renderedFields)
+            ),
+          vs'
+        )
   Pattern.As _ pat ->
     case vs of
       (v : tail_vs) ->
@@ -834,14 +866,24 @@ groupCases ::
   (Ord v) =>
   [MatchCase' () (Term3 v ann)] ->
   [([Pattern ()], [v], [(Maybe (Term3 v ann), ([v], Term3 v ann))])]
-groupCases = \cases
-  [] -> []
-  ms@((p1, _, AbsN' vs1 _) : _) -> go (p1, vs1) [] ms
+groupCases ms =
+  ms
+    & List.groupMap
+      ( \case
+          (p, g, AbsN' vs body) -> ((p, vs), (g, body))
+      )
+    & foldMap \((p, vs), guardRows) ->
+      [(p, vs, second (vs,) <$> toList guardRows)]
   where
-    go (p0, vs0) acc [] = [(p0, vs0, reverse acc)]
-    go (p0, vs0) acc ms@((p1, g1, AbsN' vs body) : tl)
-      | p0 == p1 && vs == vs0 = go (p0, vs0) ((g1, (vs, body)) : acc) tl
-      | otherwise = (p0, vs0, reverse acc) : groupCases ms
+
+-- case Debug.debug Debug.Temp "groupCases: ms" ms of
+-- [] -> []
+-- ms@((p1, _, AbsN' vs1 _) : _) -> go (p1, vs1) [] ms
+
+-- go (p0, vs0) acc [] = [(p0, vs0, reverse acc)]
+-- go (p0, vs0) acc ms@((p1, g1, AbsN' vs body) : tl)
+--   | p0 == p1 && vs == vs0 = go (p0, vs0) ((g1, (vs, body)) : acc) tl
+--   | otherwise = (p0, vs0, reverse acc) : groupCases ms
 
 printCase ::
   forall m v.
@@ -1414,6 +1456,9 @@ countPatternUsages n usedTm = Pattern.foldMap' f
         if noImportRefs (r ^. ConstructorReference.reference_)
           then mempty
           else countHQ usedTm $ PrettyPrintEnv.patternName n r
+      Pattern.RecordLiteral _loc fields ->
+        -- TODO: double-check this
+        foldMap (countPatternUsages n usedTm) fields
 
 countHQ :: (HasCallStack) => Set Name -> HQ.HashQualified Name -> PrintAnnotation
 countHQ used (HQ.NameOnly n)
@@ -1697,6 +1742,9 @@ isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)] =
       Pattern.Text _ _ -> True
       Pattern.Char _ _ -> True
       Pattern.Constructor _ _ ps -> any hasLiteral ps
+      Pattern.RecordLiteral _loc fields ->
+        -- TODO: double-check that this is correct
+        any hasLiteral fields
       Pattern.As _ p -> hasLiteral p
       Pattern.EffectPure _ p -> hasLiteral p
       Pattern.EffectBind _ _ ps pk -> any hasLiteral (pk : ps)

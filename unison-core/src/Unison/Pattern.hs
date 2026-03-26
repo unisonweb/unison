@@ -29,6 +29,7 @@ data Pattern loc
   | EffectBind loc !ConstructorReference [Pattern loc] (Pattern loc)
   | SequenceLiteral loc [Pattern loc]
   | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
+  | RecordLiteral loc (Map Text (Pattern loc))
   deriving (Ord, Generic, Functor, Foldable, Traversable)
 
 data SeqOp
@@ -50,6 +51,8 @@ updateDependencies tms p = case p of
   Constructor loc r ps -> case Map.lookup (Referent.Con r CT.Data) tms of
     Just (Referent.Con r CT.Data) -> Constructor loc r (updateDependencies tms <$> ps)
     _ -> Constructor loc r (updateDependencies tms <$> ps)
+  RecordLiteral loc ps ->
+    RecordLiteral loc (updateDependencies tms <$> ps)
   As loc p -> As loc (updateDependencies tms p)
   EffectPure loc p -> EffectPure loc (updateDependencies tms p)
   EffectBind loc r pats k -> case Map.lookup (Referent.Con r CT.Effect) tms of
@@ -75,6 +78,7 @@ hasSubpattern needle haystack = needle == haystack || go haystack
     go Text {} = False
     go Char {} = False
     go (Constructor _ _ ps) = any (hasSubpattern needle) ps
+    go (RecordLiteral _ ps) = any (hasSubpattern needle) (Map.elems ps)
     go (As _ p) = hasSubpattern needle p
     go (EffectPure _ p) = hasSubpattern needle p
     go (EffectBind _ _ ps p) = any (hasSubpattern needle) ps || hasSubpattern needle p
@@ -92,6 +96,8 @@ instance Show (Pattern loc) where
   show (Char _ c) = "Char " <> show c
   show (Constructor _ (ConstructorReference r i) ps) =
     "Constructor " <> unwords [show r, show i, show ps]
+  show (RecordLiteral _ ps) =
+    "RecordLiteral {" <> intercalate ", " (fmap (\(k, v) -> show k <> ": " <> show v) $ Map.toList ps) <> "}"
   show (As _ p) = "As " <> show p
   show (EffectPure _ k) = "EffectPure " <> show k
   show (EffectBind _ (ConstructorReference r i) ps k) =
@@ -114,6 +120,7 @@ loc = \case
   Text loc _ -> loc
   Char loc _ -> loc
   Constructor loc _ _ -> loc
+  RecordLiteral loc _ -> loc
   As loc _ -> loc
   EffectPure loc _ -> loc
   EffectBind loc _ _ _ -> loc
@@ -158,6 +165,7 @@ foldMap' f p = case p of
   Text _ _ -> f p
   Char _ _ -> f p
   Constructor _ _ ps -> f p <> foldMap (foldMap' f) ps
+  RecordLiteral _ ps -> f p <> foldMap (foldMap' f) (Map.elems ps)
   As _ p' -> f p <> foldMap' f p'
   EffectPure _ p' -> f p <> foldMap' f p'
   EffectBind _ _ ps p' -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
@@ -181,6 +189,7 @@ generalizedDependencies literalType dataConstructor dataType effectConstructor e
           Var _ -> mempty
           As _ _ -> mempty
           Constructor _ (ConstructorReference r cid) _ -> [dataType r, dataConstructor r cid]
+          RecordLiteral _ _ -> mempty
           EffectPure _ _ -> [effectType Type.effectRef]
           EffectBind _ (ConstructorReference r cid) _ _ ->
             [effectType Type.effectRef, effectType r, effectConstructor r cid]

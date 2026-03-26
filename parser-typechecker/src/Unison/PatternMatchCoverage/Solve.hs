@@ -103,6 +103,10 @@ uncoverAnnotate z grdtree0 = cata phi grdtree0 z
         PmLet var expr typ -> do
           nc <- addLiteral' nc0 (Let var expr typ)
           k nc
+        PmRecordLiteral fields recordVar recordType -> do
+          -- TODO: I have no idea what's happening here and should probably spend some time with the paper.
+          nc <- addLiteral' nc0 (PosRecordLiteral recordVar fields recordType)
+          k nc
 
     -- Constructors and literals are handled uniformly except that
     -- they pass different positive and negative literals.
@@ -488,6 +492,10 @@ addLiteral lit0 nabla0 = runMaybeT do
       let nabla1 = declVar listElem listElemType id nabla0
           c = C.PosListTail listRoot n listElem
       addConstraint c nabla1
+    PosRecordLiteral recordVar fields recordType -> do
+      let nabla1 = declVar recordVar recordType id nabla0
+          c = C.PosRecordLiteral recordVar fields
+      addConstraint c nabla1
     NegListInterval listVar iset -> addConstraint (C.NegListInterval listVar iset) nabla0
     Effectful var -> addConstraint (C.Effectful var) nabla0
     Let var _expr typ -> pure (Just (declVar var typ id nabla0))
@@ -592,6 +600,11 @@ addConstraint con0 nc = do
                     iset' = IntervalSet.delete (0, length posSnoc' - 1) iset
                  in (populateCons r posCons iset', Update (posCons, posSnoc', iset'))
        in modifyListC r updateList nc
+    C.PosRecordLiteral _recordVar _fields ->
+      -- TODO: Actually implement record literal constraints,
+      -- for now it just _always_ succeeds
+      --- modifyRecordC recordVar updateRecord nc
+      pure (Just nc)
     C.PosCon var datacon convars ->
       let updateConstructor pos neg
             | Just (datacon1, convars1) <- pos = case datacon == datacon1 of

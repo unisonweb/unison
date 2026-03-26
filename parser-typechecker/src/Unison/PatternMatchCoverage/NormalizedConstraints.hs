@@ -161,12 +161,15 @@ declVar ::
   NormalizedConstraints vt v loc ->
   NormalizedConstraints vt v loc
 declVar v t f nc@NormalizedConstraints {constraintMap} =
-  nc {constraintMap = UFMap.alter v nothing just constraintMap}
+  -- TODO: Revert this and add the correct case for records in constraint normalization.
+  -- nc {constraintMap = UFMap.alter v nothing just constraintMap}
+  nc {constraintMap = UFMap.insert v nothing constraintMap}
   where
     nothing =
       let !vi = f (mkVarInfo v t)
-       in Just vi
-    just _ _ _ = error ("attempted to declare: " <> show v <> " but it already exists")
+       in vi
+
+-- just _ _ _ = error ("attempted to declare: " <> show v <> " but it already exists")
 
 mkVarInfo :: forall vt v loc. v -> Type vt loc -> VarInfo vt v loc
 mkVarInfo v t =

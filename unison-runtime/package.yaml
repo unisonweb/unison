@@ -91,6 +91,7 @@ library:
     - temporary
     - text
     - template-haskell
+    - transformers
     - inspection-testing
     - time
     - tls
@@ -105,6 +106,7 @@ library:
     - unison-syntax
     - unison-util-bytes
     - unison-util-recursion
+    - unison-util-relation
     - unliftio
     - unordered-containers
     - vector

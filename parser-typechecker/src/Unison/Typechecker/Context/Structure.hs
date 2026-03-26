@@ -335,6 +335,7 @@ apply' solved t = go t
       Type.Effects' es -> Type.effects a (fmap go es)
       Type.ForallNamed' v t' -> Type.forAll a v (go t')
       Type.IntroOuterNamed' v t' -> Type.introOuter a v (go t')
+      Type.Record' fb fields -> Type.record a fb (go <$> fields)
       _ -> error $ "Match error in Context.apply': " ++ show t
       where
         a = ABT.annotation t

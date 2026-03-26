@@ -8,6 +8,7 @@ module Unison.Hashing.V2.Term
   )
 where
 
+import Data.Map qualified as Map
 import Data.Sequence qualified as Sequence
 import Data.Text qualified as Text
 import Data.Zip qualified as Zip
@@ -45,6 +46,7 @@ data TermF typeVar typeAnn patternAnn a
   | -- First argument identifies the data type,
     -- second argument identifies the constructor
     TermConstructor Reference ConstructorId
+  | TermRecord (Map Text a)
   | TermRequest Reference ConstructorId
   | TermHandle a a
   | TermApp a a
@@ -200,3 +202,12 @@ instance (Var v) => Hashable1 (TermF v a p) where
                   TermOr x y -> [tag 17, hashed $ hash x, hashed $ hash y]
                   TermTermLink r -> [tag 18, accumulateToken r]
                   TermTypeLink r -> [tag 19, accumulateToken r]
+                  TermRecord fields -> [tag 20] <> fieldTokens fields
+                    where
+                      fieldTokens :: Map Text x -> [Hashable.Token]
+                      fieldTokens fs =
+                        foldMap
+                          ( \(name, val) ->
+                              [accumulateToken name, hashed (hash val)]
+                          )
+                          (Map.toList fs)

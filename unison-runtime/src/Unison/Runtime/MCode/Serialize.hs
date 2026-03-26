@@ -19,8 +19,9 @@ import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.Array (PrimArray)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.MCode hiding (MatchT)
-import Unison.Runtime.Serialize
+import Unison.Runtime.Serialize hiding (getFieldTag, putFieldTag)
 import Unison.Runtime.Serialize.Get
+import Unison.Runtime.TypeTags (FieldTag (..))
 import Unison.Util.Text qualified as Util.Text
 import Prelude hiding (getChar, putChar)
 
@@ -170,6 +171,8 @@ data InstrT
   | DiscardT
   | InLocalT
   | KeepAliveT
+  | RecPackT
+  | RecUnpackT
 
 instance Tag InstrT where
   tag2word Prim1T = 0
@@ -192,6 +195,8 @@ instance Tag InstrT where
   tag2word DiscardT = 19
   tag2word InLocalT = 20
   tag2word KeepAliveT = 21
+  tag2word RecPackT = 22
+  tag2word RecUnpackT = 23
 
   word2tag 0 = pure Prim1T
   word2tag 1 = pure Prim2T
@@ -213,6 +218,8 @@ instance Tag InstrT where
   word2tag 19 = pure DiscardT
   word2tag 20 = pure InLocalT
   word2tag 21 = pure KeepAliveT
+  word2tag 22 = pure RecPackT
+  word2tag 23 = pure RecUnpackT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: GInstr cix -> Builder
@@ -227,6 +234,8 @@ putInstr = \case
   (Name r a) -> putTag NameT <> putRef r <> putArgs a
   (Info s) -> putTag InfoT <> putString s
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
+  (RecPack rr fields args) -> putTag RecPackT <> putRecordRef rr <> putFoldable putFieldRef fields <> putArgs args
+  (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putFieldRef fields <> pInt recIndex
   (Lit l) -> putTag LitT <> putLit l
   (Print i) -> putTag PrintT <> pInt i
   (Reset s nh ah) ->
@@ -246,6 +255,12 @@ putInstr = \case
   DLLCall ->
     -- same for DLL calls; those happen exclusively at runtime
     error "putInstr: Unexpected serialized DLLCall"
+
+_putFieldTag :: FieldTag -> Builder
+_putFieldTag (FieldTag name) = putText name
+
+_getFieldTag :: (PrimBase m) => Get m FieldTag
+_getFieldTag = FieldTag <$> getText
 
 getInstr :: (PrimBase m) => Get m Instr
 getInstr =
@@ -270,6 +285,8 @@ getInstr =
     InLocalT -> InLocal <$> gInt
     KeepAliveT -> KeepAlive <$> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
+    RecPackT -> RecPack <$> getRecordRef <*> getVector getFieldRef <*> getArgs
+    RecUnpackT -> RecUnpack <$> getVector getFieldRef <*> gInt
 
 data ArgsT
   = ZArgsT
@@ -312,6 +329,18 @@ getArgs =
     ArgRT -> VArgR <$> gInt <*> gInt
     ArgNT -> VArgN <$> getIntArr
     ArgVT -> VArgV <$> gInt
+
+putFieldRef :: FieldRef -> Builder
+putFieldRef (FieldRef r) = putVarInt r
+
+getFieldRef :: (PrimBase m) => Get m FieldRef
+getFieldRef = FieldRef <$> getVarInt
+
+-- getRecordRef :: (PrimBase m) => Get m RecordRef
+-- getRecordRef = RecordRef <$> getWord64be
+
+-- putRecordRef :: RecordRef -> Builder
+-- putRecordRef (RecordRef r) = BU.word64BE r
 
 data RefT = StkT | EnvT | DynT
 

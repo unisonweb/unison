@@ -2738,6 +2738,7 @@ c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
       C.Type.Effects es -> pure $ C.Type.Effects es
       C.Type.Forall a -> pure $ C.Type.Forall a
       C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
+      C.Type.Record fb fields -> pure $ C.Type.Record fb fields
     done :: (S.Decl.Decl Symbol, (Seq Text, Seq Hash)) -> m (LocalIds' t d, S.Decl.Decl Symbol)
     done (decl, (localTextValues, localDefnValues)) = do
       textIds <- traverse saveText localTextValues
@@ -2771,6 +2772,7 @@ c2xTerm saveText saveDefn tm tp =
         C.Term.Constructor
           <$> bitraverse lookupText lookupDefn typeRef
           <*> pure cid
+      C.Term.Record fields -> pure $ C.Term.Record fields
       C.Term.Request typeRef cid ->
         C.Term.Request <$> bitraverse lookupText lookupDefn typeRef <*> pure cid
       C.Term.Handle a a2 -> pure $ C.Term.Handle a a2
@@ -2806,6 +2808,7 @@ c2xTerm saveText saveDefn tm tp =
       C.Type.Effects es -> pure $ C.Type.Effects es
       C.Type.Forall a -> pure $ C.Type.Forall a
       C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
+      C.Type.Record fb fields -> pure $ C.Type.Record fb fields
     goCase ::
       forall m w s a.
       ( MonadState s m,
@@ -2841,6 +2844,7 @@ c2xTerm saveText saveDefn tm tp =
       C.Term.PText t -> C.Term.PText <$> lookupText t
       C.Term.PChar c -> pure $ C.Term.PChar c
       C.Term.PConstructor r i ps -> C.Term.PConstructor <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat ps
+      C.Term.PRecord fields -> C.Term.PRecord <$> traverse goPat fields
       C.Term.PAs p -> C.Term.PAs <$> goPat p
       C.Term.PEffectPure p -> C.Term.PEffectPure <$> goPat p
       C.Term.PEffectBind r i bindings k -> C.Term.PEffectBind <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat bindings <*> goPat k

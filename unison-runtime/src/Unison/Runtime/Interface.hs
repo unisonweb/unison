@@ -37,7 +37,7 @@ where
 import Control.Concurrent.STM as STM
 import Control.Exception (fromException, tryJust)
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Data.Bitraversable (bitraverse)
 import Data.ByteString qualified as B
 import Data.ByteString.Builder (Builder)
@@ -84,9 +84,11 @@ import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.MCode
   ( Args (..),
     CombIx (..),
+    FieldRef (..),
     GInstr (..),
     GSection (..),
     RCombs,
+    RecordFieldMappings (..),
     RefNums (..),
     absurdCombs,
     combTypes,
@@ -126,6 +128,8 @@ import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Type
+import Unison.Util.BiMap qualified as BM
+import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty as P
@@ -209,7 +213,7 @@ recursiveDeclDeps ::
   CodeLookup Symbol IO () ->
   Decl Symbol () ->
   -- (type deps, term deps)
-  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
+  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
 recursiveDeclDeps cl d = do
   seen0 <- get
   let seen = seen0 <> Set.map RF.typeRef deps
@@ -223,7 +227,7 @@ recursiveDeclDeps cl d = do
             Just d -> recursiveDeclDeps cl d
             Nothing -> pure mempty
         _ -> pure mempty
-  pure $ (deps, mempty) <> rec
+  pure $ (deps, mempty, mempty) <> rec
   where
     deps = declTypeDependencies d
 
@@ -237,8 +241,8 @@ categorize =
 recursiveTermDeps ::
   CodeLookup Symbol IO () ->
   Term Symbol ->
-  -- (type deps, term deps)
-  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
+  -- (type deps, term deps, record schemas)
+  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
 recursiveTermDeps cl tm = do
   seen0 <- get
   let seen = seen0 <> deps
@@ -250,19 +254,22 @@ recursiveTermDeps cl tm = do
         RF.TypeReference (RF.DerivedId refId) -> handleTypeReferenceId refId
         RF.TermReference r -> recursiveRefDeps cl r
         _ -> pure mempty
-  pure $ foldMap categorize deps <> rec
+
+  let (tyrs, tmrs) = foldMap categorize deps
+  pure $ (tyrs, tmrs, recordSchemas) <> rec
   where
-    handleTypeReferenceId :: RF.Id -> StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
+    handleTypeReferenceId :: RF.Id -> StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
     handleTypeReferenceId refId =
       lift (getTypeDeclaration cl refId) >>= \case
         Just d -> recursiveDeclDeps cl d
         Nothing -> pure mempty
     deps = Tm.labeledDependencies tm
+    recordSchemas = Set.map RecordSchema $ Tm.recordSchemas tm
 
 recursiveRefDeps ::
   CodeLookup Symbol IO () ->
   Reference ->
-  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
+  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
 recursiveRefDeps cl (RF.DerivedId i) =
   lift (getTerm cl i) >>= \case
     Just tm -> recursiveTermDeps cl tm
@@ -303,10 +310,10 @@ recursiveIntermedDeps cl rfs = mapMaybe f $ Set.toList ds
 collectDeps ::
   CodeLookup Symbol IO () ->
   Term Symbol ->
-  IO ([(Reference, Either [Int] [Int])], [Reference])
+  IO ([(Reference, Either [Int] [Int])], [Reference], Set RecordSchema)
 collectDeps cl tm = do
-  (tys, tms) <- evalStateT (recursiveTermDeps cl tm) mempty
-  (,toList tms) <$> (traverse getDecl (toList tys))
+  (tys, tms, rss) <- evalStateT (recursiveTermDeps cl tm) mempty
+  (,toList tms,rss) <$> (traverse getDecl (toList tys))
   where
     getDecl ty@(RF.DerivedId i) =
       (ty,) . maybe (Right []) declFields
@@ -316,11 +323,11 @@ collectDeps cl tm = do
 collectRefDeps ::
   CodeLookup Symbol IO () ->
   Reference ->
-  IO ([(Reference, Either [Int] [Int])], [Reference])
+  IO ([(Reference, Either [Int] [Int])], [Reference], Set RecordSchema)
 collectRefDeps cl r = do
   tm <- resolveTermRef cl r
-  (tyrs, tmrs) <- collectDeps cl tm
-  pure (tyrs, r : tmrs)
+  (tyrs, tmrs, rss) <- collectDeps cl tm
+  pure (tyrs, r : tmrs, rss)
 
 backrefAdd ::
   Map.Map Reference (Map.Map Word64 (Term Symbol)) ->
@@ -444,8 +451,9 @@ loadDeps ::
   EvalCtx ->
   [(Reference, Either [Int] [Int])] ->
   [Reference] ->
+  Set RecordSchema ->
   IO (EvalCtx, [(Reference, Code Reference)])
-loadDeps cl ppe ctx tyrs tmrs = do
+loadDeps cl ppe ctx tyrs tmrs recSchemas = do
   let cc = ccache ctx
   sand <- readTVarIO (sandbox cc)
   p <-
@@ -458,7 +466,7 @@ loadDeps cl ppe ctx tyrs tmrs = do
   let tyAdd = Set.fromList $ fst <$> tyrs
   (ctx', rgrp) <- loadCode cl ppe ctx tmrs
   crgrp <- traverse (checkCacheability cl ctx') rgrp
-  (ctx', crgrp) <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
+  (ctx', crgrp) <$ cacheAdd0 recSchemas tyAdd crgrp (expandSandbox sand rgrp) cc
 
 checkCacheability ::
   CodeLookup Symbol IO () ->
@@ -492,8 +500,9 @@ checkCacheability cl ctx (r, sg) =
       t -> or t
 
 decompileCtx ::
-  EnumMap Word64 Reference -> EvalCtx -> Val -> DecompResult Symbol
-decompileCtx crs ctx = decompile ib $ backReferenceTm crs fr ir dt
+  RecordFieldMappings -> EnumMap Word64 Reference -> EvalCtx -> Val -> DecompResult Symbol
+decompileCtx (RecordFieldMappings _ frBiMap) crs ctx val = do
+  decompile (\fr -> fromMaybe (error $ "Missing FieldRef: " <> show fr) . flip BM.lookupR frBiMap $ fr) ib (backReferenceTm crs fr ir dt) val
   where
     ib = intermedToBase ctx
     fr = floatRemap ctx
@@ -512,8 +521,8 @@ interpEvalDirect ::
 interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
   catchErrors $ do
     ctx <- readIORef ctxVar
-    (tyrs, tmrs) <- collectDeps cl tm
-    (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
+    (tyrs, tmrs, recSchemas) <- collectDeps cl tm
+    (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs recSchemas
     (ctx, _, init) <- prepareEvaluation ppe tm ctx
     initw <- refNumTm (ccache ctx) init
     writeIORef ctxVar ctx
@@ -608,8 +617,8 @@ interpCompile ::
   IO (Maybe Error)
 interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
   ctx <- readIORef ctxVar
-  (tyrs, tmrs) <- collectRefDeps cl rf
-  (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
+  (tyrs, tmrs, recSchemas) <- collectRefDeps cl rf
+  (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs recSchemas
   let cc = ccache ctx
       lk m = flip Map.lookup m =<< baseToIntermed ctx rf
   Just w <- lk <$> readTVarIO (refTm cc)
@@ -647,7 +656,7 @@ intermediateTerms ppe ctx rtms =
       where
         f ref =
           superNormalize
-            . splitPatterns (dspec ctx)
+            . splitPatterns ctx.dspec
             . addDefaultCases tmName
           where
             tmName = HQ.toText . termName ppe $ RF.Ref ref
@@ -727,7 +736,7 @@ intermediateTerm ppe ctx tm =
         tmName = HQ.toText . termName ppe $ RF.Ref ref
         f =
           superNormalize
-            . splitPatterns (dspec ctx)
+            . splitPatterns ctx.dspec
             . addDefaultCases tmName
 
 prepareEvaluation ::
@@ -798,8 +807,9 @@ evalInContext ::
 evalInContext ppe ctx prof activeThreads w = do
   r <- newIORef (boxedVal BlackHole)
   crs <- readTVarIO (combRefs $ ccache ctx)
+  rfms <- readTVarIO $ recordFieldMappings $ ccache ctx
   let hook = watchHook r
-      decom = decompileCtx crs ctx
+      decom = decompileCtx rfms crs ctx
       mkResponse errs =
         if Set.null errs
           then EmptyResponse
@@ -840,9 +850,10 @@ executeMainComb init cc = do
   where
     contextualizeErr re = do
       crs <- readTVarIO (combRefs cc)
+      RecordFieldMappings _ rfms <- readTVarIO $ recordFieldMappings cc
       let ctx = cacheContext cc
           decom =
-            decompile (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
+            decompile (\fr -> fromMaybe (error $ "Missing FieldRef: " <> show fr) . flip BM.lookupR rfms $ fr) (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
               decompTm ctx
       pure $ RuntimeExn (pure (mempty, id, decom)) re
 
@@ -917,14 +928,17 @@ data StoredCache
       (EnumMap Word64 Reference)
       Word64
       Word64
+      Word64
       (Map Reference (SuperGroup Reference Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
+      (BM.BiMap ANF.RecordSchema ANF.RecordRef)
       (Map Reference (Set Reference))
+      RecordFieldMappings
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -932,10 +946,26 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) 
     <> putEnumMap putNat putReference trs
     <> putNat ftm
     <> putNat fty
+    <> putNat frs
     <> putMap putReference (putGroup mempty False) int
     <> putMap putReference putNat rtm
     <> putMap putReference putNat rty
+    <> putMap putRecordSchema putRecordRef (BM.forward rsLookup)
     <> putMap putReference (putFoldable putReference) sbs
+    <> putRecordFieldMappings rfm
+
+putRecordFieldMappings :: RecordFieldMappings -> Builder
+putRecordFieldMappings (RecordFieldMappings next rfm) =
+  putFieldRef next <> putMap putText putFieldRef (BiMap.toMapL rfm)
+
+getRecordFieldMappings :: (PrimBase m) => Get m RecordFieldMappings
+getRecordFieldMappings = RecordFieldMappings <$> getFieldRef <*> (BiMap.fromMap <$> getMap getText getFieldRef)
+
+putFieldRef :: FieldRef -> Builder
+putFieldRef (FieldRef w) = putVarInt w
+
+getFieldRef :: (PrimBase m) => Get m FieldRef
+getFieldRef = FieldRef <$> getVarInt
 
 getStoredCache :: (PrimBase m) => Get m StoredCache
 getStoredCache =
@@ -947,10 +977,13 @@ getStoredCache =
     <*> getEnumMap getNat getReference
     <*> getNat
     <*> getNat
+    <*> getNat
     <*> getMap getReference getGroupCurrent
     <*> getMap getReference getNat
     <*> getMap getReference getNat
+    <*> (BM.fromMap <$> getMap getRecordSchema getRecordRef)
     <*> getMap getReference (fromList <$> getList getReference)
+    <*> getRecordFieldMappings
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
 debugTextFormat fancy =
@@ -959,7 +992,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
-restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
+restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm@(RecordFieldMappings _ oldRFMs)) = do
   cc <-
     CCache sandboxed debugText ()
       <$> newTVarIO srcCombs
@@ -970,10 +1003,13 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
       <*> newTVarIO (trs <> builtinTypeBackref)
       <*> newTVarIO ftm
       <*> newTVarIO fty
+      <*> newTVarIO frs
       <*> newTVarIO int
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
+      <*> newTVarIO recSchemas
       <*> newTVarIO (sbs <> baseSandboxInfo)
+      <*> newTVarIO newRFM
   let (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
         srcCombs
           & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
@@ -990,6 +1026,7 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
   where
     decom =
       decompile
+        (\fr -> fromMaybe (error $ "Missing FieldRef" <> show fr) $ BM.lookupR fr oldRFMs)
         (const Nothing)
         (backReferenceTm crs mempty mempty mempty)
     debugText fancy c = case decom c of
@@ -1003,10 +1040,20 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
               (debugTextFormat fancy $ pretty PPE.empty dv)
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
+    builtinCombs :: EnumMap Word64 Combs
+    newRFM :: RecordFieldMappings
+    (builtinCombs, newRFM) =
+      flip
+        runState
+        rfm
+        ( numberedTermLookup
+            & traverseWithKey
+              ( \k v -> do
+                  emitComb @Symbol rns (rf k) k mempty (0, v)
+              )
+        )
     srcCombs :: EnumMap Word64 Combs
-    srcCombs =
-      let builtinCombs = mapWithKey (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v)) numberedTermLookup
-       in builtinCombs <> cs
+    srcCombs = builtinCombs <> cs
     combs :: EnumMap Word64 (RCombs Val)
     combs =
       srcCombs
@@ -1036,12 +1083,15 @@ buildSCache ::
   EnumMap Word64 Reference ->
   Word64 ->
   Word64 ->
+  Word64 ->
   Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   Map Reference Word64 ->
+  BM.BiMap ANF.RecordSchema ANF.RecordRef ->
   Map Reference (Set Reference) ->
+  RecordFieldMappings ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc sndbx =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm =
   SCache
     cs
     crs
@@ -1050,10 +1100,13 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc sn
     trs
     ftm
     fty
+    frs
     int
     rtm
     (restrictTyR rtysrc)
+    rsLookup
     (restrictTmR sndbx)
+    rfm
   where
     termRefs = Map.keysSet int
 
@@ -1096,10 +1149,13 @@ standalone cc init =
           <*> readTVarIO (tagRefs cc)
           <*> readTVarIO (freshTm cc)
           <*> readTVarIO (freshTy cc)
+          <*> readTVarIO (freshRecSchema cc)
           <*> (readTVarIO (intermed cc) >>= traceNeeded rinit)
           <*> readTVarIO (refTm cc)
           <*> readTVarIO (refTy cc)
+          <*> readTVarIO (recordRefs cc)
           <*> readTVarIO (sandbox cc)
+          <*> readTVarIO (recordFieldMappings cc)
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
 
@@ -1247,20 +1303,21 @@ prettyRuntimeExn' ppe backmap decom issueFn = \case
                   | otherwise = ""
                 name = P.syntaxToColor . prettyHashQualified . PPE.termName ppe $ RF.Ref rf
 
-prettyRuntimeExn :: (Applicative f) => (Word -> f (Pretty P.ColorText)) -> RuntimeExn -> f (Pretty P.ColorText)
-prettyRuntimeExn = prettyRuntimeExn' mempty id (decompile pure \_ _ -> Nothing)
+prettyRuntimeExn :: (Applicative f) => (FieldRef -> Text) -> (Word -> f (Pretty P.ColorText)) -> RuntimeExn -> f (Pretty P.ColorText)
+prettyRuntimeExn rfLookup = prettyRuntimeExn' mempty id (decompile rfLookup pure \_ _ -> Nothing)
 
 -- |
 --
 --  __NB__: The only reason this is in the unison-runtime package is because it’s used in the tests. Otherwise it should move to unison-cli.
 prettyError ::
   (Applicative f) =>
+  (FieldRef -> Text) ->
   -- | A function for displaying unisonweb/unison issue numbers (for example,
   --   `Unison.CommandLine.OutputMessages.showIssueUrl`).
   (Word -> f (Pretty P.ColorText)) ->
   Error ->
   f (Pretty P.ColorText)
-prettyError issueFn = \case
+prettyError rfLookup issueFn = \case
   UnstructuredError text -> pure $ P.text text
   CompileExn (CE _ issues err) -> do
     issueMessage <- formatIssues issueFn issues
@@ -1273,7 +1330,7 @@ prettyError issueFn = \case
           issueMessage
         ]
   RuntimeExn ctx re ->
-    maybe prettyRuntimeExn (\(ppe, backmapRef, decom) -> prettyRuntimeExn' ppe backmapRef decom) ctx issueFn re
+    maybe (prettyRuntimeExn rfLookup) (\(ppe, backmapRef, decom) -> prettyRuntimeExn' ppe backmapRef decom) ctx issueFn re
   RuntimePanic ppe decom (Panic msg mval) ->
     pure . P.callout panicIcon . P.linesNonEmpty $
       [ P.wrap "The program halted with a runtime panic:",

@@ -100,6 +100,9 @@ convertElement = \case
   SyntaxText.LinkKeyword -> LinkKeyword
   SyntaxText.DocDelimiter -> DocDelimiter
   SyntaxText.DocKeyword -> DocKeyword
+  SyntaxText.RecordFieldName name -> RecordFieldName name
+  SyntaxText.RecordFieldValueColon -> RecordFieldValueColon
+  SyntaxText.RecordExtraFields -> RecordExtraFields
 
 type UnisonHash = Text
 
@@ -154,6 +157,9 @@ data Element
   | DocDelimiter
   | -- the 'include' in @[include], etc
     DocKeyword
+  | RecordFieldName Text
+  | RecordFieldValueColon
+  | RecordExtraFields
   deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON Element where
@@ -190,6 +196,9 @@ instance ToJSON Element where
     LinkKeyword -> object ["tag" .= String "LinkKeyword"]
     DocDelimiter -> object ["tag" .= String "DocDelimiter"]
     DocKeyword -> object ["tag" .= String "DocKeyword"]
+    RecordFieldName name -> object ["tag" .= String "RecordFieldName", "contents" .= name]
+    RecordFieldValueColon -> object ["tag" .= String "RecordFieldValueColon"]
+    RecordExtraFields -> object ["tag" .= String "RecordExtraFields"]
 
 instance FromJSON Element where
   parseJSON = withObject "Element" $ \obj -> do
@@ -226,6 +235,9 @@ instance FromJSON Element where
       "LinkKeyword" -> pure LinkKeyword
       "DocDelimiter" -> pure DocDelimiter
       "DocKeyword" -> pure DocKeyword
+      "RecordFieldName" -> RecordFieldName <$> obj .: "contents"
+      "RecordFieldValueColon" -> pure RecordFieldValueColon
+      "RecordExtraFields" -> pure RecordExtraFields
       _ -> fail $ "Unknown tag: " <> tag
 
 deriving instance ToSchema Element
@@ -392,3 +404,9 @@ elementToClassName el =
       "doc-delimeter"
     DocKeyword ->
       "doc-keyword"
+    RecordFieldName _name ->
+      "record-field-name"
+    RecordFieldValueColon ->
+      "record-field-value-colon"
+    RecordExtraFields ->
+      "record-extra-fields"
