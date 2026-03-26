@@ -1992,6 +1992,8 @@ instance Eq Foreign where
   WrapX509PrivKey l == WrapX509PrivKey r = l == r
   WrapPtr l == WrapPtr r = l == r
   WrapCDynFunc l == WrapCDynFunc r = l == r
+  WrapFFIType l == WrapFFIType r = l == r
+  WrapFFISpec l == WrapFFISpec r = l == r
   -- these lack Eq instances
   WrapProcessHandle l == WrapProcessHandle r = ptrEq l r
   WrapPromise l == WrapPromise r = ptrEq l r
@@ -2020,6 +2022,8 @@ compareForeign _tyEq (WrapInteger l) (WrapInteger r) = compare l r
 compareForeign _tyEq (WrapNatural l) (WrapNatural r) = compare l r
 compareForeign _tyEq (WrapPtr l) (WrapPtr r) = compare l r
 compareForeign _tyEq (WrapCDynFunc l) (WrapCDynFunc r) = compare l r
+compareForeign _tyEq (WrapFFIType l) (WrapFFIType r) = compare l r
+compareForeign _tyEq (WrapFFISpec l) (WrapFFISpec r) = compare l r
 compareForeign tyEq (WrapMap l) (WrapMap r) = mapCmp tyEq l r
 compareForeign tyEq (WrapSeq l) (WrapSeq r) =
   liftCompare (compareVal tyEq) l r
