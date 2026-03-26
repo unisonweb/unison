@@ -85,22 +85,26 @@ compute_hash() {
 }
 
 # Check if attestation exists in the tracked proofs file.
-# Prints: pass, fail, or missing
+# Prints: <status> <hash>
+# Statuses: pass, fail, nofile (proofs file absent), noentry (file exists but hash not found)
 _check_attestation() {
     local name="$1"
     local proofs_file=".github/workflows/proofs/${name}.txt"
     local hash
     hash=$(compute_hash)
 
-    if [[ -f "$proofs_file" ]]; then
-        local result
-        result=$(grep "^$hash " "$proofs_file" 2>/dev/null | awk '{print $3}' || true)
-        if [[ "$result" == "pass" || "$result" == "fail" ]]; then
-            echo "$result"
-            return 0
-        fi
+    if [[ ! -f "$proofs_file" ]]; then
+        echo "nofile $hash"
+        return 0
     fi
-    echo "missing"
+
+    local result
+    result=$(grep "^$hash " "$proofs_file" 2>/dev/null | awk '{print $3}' || true)
+    if [[ "$result" == "pass" || "$result" == "fail" ]]; then
+        echo "$result $hash"
+    else
+        echo "noentry $hash"
+    fi
 }
 
 # Handle --hash and --check flags early, before the full attestation machinery.
