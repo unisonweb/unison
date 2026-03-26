@@ -61,7 +61,6 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-      - run: sudo apt-get install -y ripgrep
       - name: check transcript proof
         id: check
         run: |

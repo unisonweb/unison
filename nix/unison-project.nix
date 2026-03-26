@@ -51,7 +51,6 @@ in
       pkgs.hpack
       pkgs.jq # helpful when pushing to Cachix
       pkgs.ormolu
-      pkgs.ripgrep # used by lib-attestation-hash.sh
       pkgs.stack-wrapped
     ];
     devShellArgsModifier = args: args // {withHoogle = true;};
