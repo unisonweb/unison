@@ -95,23 +95,23 @@ checkout_branch() {
 }
 
 # -----------------------------------------------------------------------------
-# check_proof <name> <local_ref> <local_sha>
+# check_proof_hash <name> <local_ref> <local_sha>
 #
-# Check if proof exists for the given type, run tests if needed.
-# Appends to AMEND_FILES array if the proofs file was updated.
+# Check if proof already exists for the given type.
+# Returns 0 if proof found with "pass", exits 1 if "fail", returns 1 if
+# no matching proof (tests need to run).
 #
 # Arguments:
 #   name      - Proof type (e.g., "transcripts", "tests")
 #   local_ref - The ref being pushed (e.g., refs/heads/feature)
 #   local_sha - The commit SHA being pushed
 # -----------------------------------------------------------------------------
-check_proof() {
+check_proof_hash() {
     local name="$1"
     local local_ref="$2"
     local local_sha="$3"
 
     local tracked_path=".github/workflows/proofs/${name}.txt"
-    local tracked_file="$REPO_ROOT/$tracked_path"
 
     echo "Checking $name proof for $local_ref..."
 
@@ -140,10 +140,26 @@ check_proof() {
 EOF
             exit 1
         fi
-        # Invalid or missing status, fall through to run tests
     fi
 
-    # Run the attestation script
+    # No matching proof found — tests need to run
+    return 1
+}
+
+# -----------------------------------------------------------------------------
+# run_proof <name> <local_ref> <local_sha>
+#
+# Run the attestation script for the given proof type.
+# Exits 1 on failure. Appends to AMEND_FILES if proofs file was updated.
+# -----------------------------------------------------------------------------
+run_proof() {
+    local name="$1"
+    local local_ref="$2"
+    local local_sha="$3"
+
+    local tracked_path=".github/workflows/proofs/${name}.txt"
+    local tracked_file="$REPO_ROOT/$tracked_path"
+
     if ! "$REPO_ROOT/scripts/proofs/${name}.sh"; then
         cat >&2 <<EOF
 
@@ -153,7 +169,9 @@ EOF
         exit 1
     fi
 
-    AMEND_FILES+=("$tracked_file")
+    if ! git diff --quiet -- "$tracked_path"; then
+      AMEND_FILES+=("$tracked_file")
+    fi
 }
 
 # -----------------------------------------------------------------------------

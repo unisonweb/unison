@@ -61,18 +61,18 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-      - run: sudo apt-get install -y ripgrep
       - name: check transcript proof
         id: check
         run: |
-          RESULT=$(./scripts/proofs/transcripts.sh --check)
-          echo "Transcript proof: $RESULT"
+          read -r RESULT HASH <<< "$(./scripts/proofs/transcripts.sh --check)"
           if [[ "$RESULT" == "pass" ]]; then
+            echo "Transcript proof: pass ($HASH)"
             echo "attested=true" >> "$GITHUB_OUTPUT"
           elif [[ "$RESULT" == "fail" ]]; then
-            echo "::error::Transcripts previously failed for this hash"
+            echo "::error::Transcripts previously FAILED for hash $HASH"
             exit 1
           else
+            echo "Transcript proof: $RESULT ($HASH)"
             echo "attested=false" >> "$GITHUB_OUTPUT"
           fi
 

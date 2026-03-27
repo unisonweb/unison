@@ -564,6 +564,14 @@ data GInstr comb
     SandboxingFailure !Text.Text -- The name of the builtin which failed was sandboxed.
   | -- keep a value alive while subsequent computations are run
     KeepAlive !Int
+  | -- create a new foreign pointer with a unison finalizer
+    NewForeignPtr
+      !Int -- finalizer index
+      !Int -- pointer index
+  | -- add a unison finalizer to a foreign pointer
+    AddFinalizer
+      !Int -- foreign pointer index
+      !Int -- finalizer index
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 type Section = GSection CombIx
@@ -1452,6 +1460,12 @@ emitPOp ANF.TFRC = \case
 emitPOp ANF.KEEP = \case
   VArg1 i -> KeepAlive i
   _ -> internalBug [] "keepAlive takes exactly one boxed argument"
+emitPOp ANF.FGNN = \case
+  VArg2 i j -> NewForeignPtr i j
+  _ -> internalBug [] "newForeignPtr takes exactly two boxed arguments"
+emitPOp ANF.FGNF = \case
+  VArg2 i j -> AddFinalizer i j
+  _ -> internalBug [] "addFinalizer takes exactly two boxed arguments"
 
 -- handled in emitSection because Die is not an instruction
 
