@@ -1991,6 +1991,7 @@ instance Eq Foreign where
   WrapTimeSpec l == WrapTimeSpec r = l == r
   WrapX509PrivKey l == WrapX509PrivKey r = l == r
   WrapPtr l == WrapPtr r = l == r
+  WrapForeignPtr l == WrapForeignPtr r = l == r
   WrapCDynFunc l == WrapCDynFunc r = l == r
   WrapFFIType l == WrapFFIType r = l == r
   WrapFFISpec l == WrapFFISpec r = l == r
@@ -2000,6 +2001,7 @@ instance Eq Foreign where
   WrapTlsClientParams l == WrapTlsClientParams r = ptrEq l r
   WrapTlsServerParams l == WrapTlsServerParams r = ptrEq l r
   WrapValue l == WrapValue r = ptrEq l r
+  WrapDLL l == WrapDLL r = ptrEq l r
   l == r =
     error $
       "Attempting to check equality of values of different types: "
@@ -2021,6 +2023,7 @@ compareForeign _tyEq (WrapCharPattern l) (WrapCharPattern r) = compare l r
 compareForeign _tyEq (WrapInteger l) (WrapInteger r) = compare l r
 compareForeign _tyEq (WrapNatural l) (WrapNatural r) = compare l r
 compareForeign _tyEq (WrapPtr l) (WrapPtr r) = compare l r
+compareForeign _tyEq (WrapForeignPtr l) (WrapForeignPtr r) = compare l r
 compareForeign _tyEq (WrapCDynFunc l) (WrapCDynFunc r) = compare l r
 compareForeign _tyEq (WrapFFIType l) (WrapFFIType r) = compare l r
 compareForeign _tyEq (WrapFFISpec l) (WrapFFISpec r) = compare l r
