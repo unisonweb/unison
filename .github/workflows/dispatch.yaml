@@ -17,6 +17,7 @@ jobs:
     with:
       skip-attested-transcripts: true
   ci-result:
+    if: ${{ !cancelled() }}
     needs: [quick-check, full-check]
     runs-on: ubuntu-24.04
     steps:
