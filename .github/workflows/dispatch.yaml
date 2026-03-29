@@ -2,6 +2,9 @@ name: ci dispatch
 
 on:
   push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+      - 'trunk'
   pull_request:
   merge_group:
 
