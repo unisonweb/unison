@@ -5,8 +5,11 @@ defaults:
     shell: bash
 
 on:
-  pull_request:
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check out (defaults to github.ref)
+        type: string
 
 jobs:
   verify-transcripts:
@@ -15,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.ref || github.ref }}
       - name: debug transcript proof inputs
         run: |
           echo "=== files included in transcript proof hash ==="
@@ -43,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.ref || github.ref }}
       - name: debug test proof inputs
         run: |
           echo "=== files included in test proof hash ==="
