@@ -386,8 +386,9 @@ ffiSpecRef = Reference.Builtin "FFI.Spec"
 ffiDllRef = Reference.Builtin "FFI.DLL"
 ffiFuncRef = Reference.Builtin "FFI.Func"
 
-ffiPtrRef :: TypeReference
+ffiPtrRef, ffiForeignPtrRef :: TypeReference
 ffiPtrRef = Reference.Builtin "FFI.Ptr"
+ffiForeignPtrRef = Reference.Builtin "FFI.ForeignPtr"
 
 -- FFI (currently) phantom types
 nat8Ref, nat16Ref, nat32Ref, int8Ref, int16Ref, int32Ref :: TypeReference

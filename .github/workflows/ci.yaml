@@ -5,8 +5,11 @@ defaults:
     shell: bash
 
 on:
-  pull_request:
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check out (defaults to github.ref)
+        type: string
 
 jobs:
   verify-transcripts:
@@ -15,19 +18,25 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - run: sudo apt-get install -y ripgrep
+          ref: ${{ inputs.ref || github.ref }}
+      - name: debug transcript proof inputs
+        run: |
+          echo "=== files included in transcript proof hash ==="
+          ./scripts/proofs/transcripts.sh --list-files
       - name: verify transcript proof
         run: |
-          RESULT=$(./scripts/proofs/transcripts.sh --check)
-          echo "Transcript proof: $RESULT"
+          read -r RESULT HASH <<< "$(./scripts/proofs/transcripts.sh --check)"
           if [[ "$RESULT" == "pass" ]]; then
+            echo "Transcript proof: pass ($HASH)"
             exit 0
           elif [[ "$RESULT" == "fail" ]]; then
-            echo "::error::Transcripts previously FAILED. Fix and re-run './scripts/proofs/transcripts.sh'."
+            echo "::error::Transcripts previously FAILED for hash $HASH. Fix and re-run './scripts/proofs/transcripts.sh'."
+            exit 1
+          elif [[ "$RESULT" == "nofile" ]]; then
+            echo "::error::Transcript proof file not found (hash $HASH). Run './scripts/proofs/transcripts.sh', commit the proofs file, and push again."
             exit 1
           else
-            echo "::error::Transcript proof not found. Run './scripts/proofs/transcripts.sh', commit the proofs file, and push again."
+            echo "::error::Transcript proof has no entry for hash $HASH. Run './scripts/proofs/transcripts.sh', commit the proofs file, and push again."
             exit 1
           fi
 
@@ -37,19 +46,25 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - run: sudo apt-get install -y ripgrep
+          ref: ${{ inputs.ref || github.ref }}
+      - name: debug test proof inputs
+        run: |
+          echo "=== files included in test proof hash ==="
+          ./scripts/proofs/tests.sh --list-files
       - name: verify test proof
         run: |
-          RESULT=$(./scripts/proofs/tests.sh --check)
-          echo "Test proof: $RESULT"
+          read -r RESULT HASH <<< "$(./scripts/proofs/tests.sh --check)"
           if [[ "$RESULT" == "pass" ]]; then
+            echo "Test proof: pass ($HASH)"
             exit 0
           elif [[ "$RESULT" == "fail" ]]; then
-            echo "::error::Tests previously FAILED. Fix and re-run './scripts/proofs/tests.sh'."
+            echo "::error::Tests previously FAILED for hash $HASH. Fix and re-run './scripts/proofs/tests.sh'."
+            exit 1
+          elif [[ "$RESULT" == "nofile" ]]; then
+            echo "::error::Test proof file not found (hash $HASH). Run './scripts/proofs/tests.sh', commit the proofs file, and push again."
             exit 1
           else
-            echo "::error::Test proof not found. Run './scripts/proofs/tests.sh', commit the proofs file, and push again."
+            echo "::error::Test proof has no entry for hash $HASH. Run './scripts/proofs/tests.sh', commit the proofs file, and push again."
             exit 1
           fi
 

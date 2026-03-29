@@ -55,6 +55,13 @@ cffResult = ffResult . ffSpec . cSpec
 instance Show CDynFunc where
   show f = "<" ++ cName f ++ ">"
 
+-- Compare pointers for CDynFunc
+instance Eq CDynFunc where
+  CDynFunc _ _ l == CDynFunc _ _ r = l == castFunPtr r
+
+instance Ord CDynFunc where
+  compare (CDynFunc _ _ l) (CDynFunc _ _ r) = compare l (castFunPtr r)
+
 encodeType :: FFType -> Ptr CType
 encodeType I8 = ffi_type_sint8
 encodeType I16 = ffi_type_sint16

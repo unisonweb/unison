@@ -30,10 +30,6 @@ if [[ -z "${PATTERNS+x}" ]]; then
     exit 1
 fi
 
-if ! command -v rg &>/dev/null; then
-    echo "Error: ripgrep (rg) is required but not found in PATH." >&2
-    exit 1
-fi
 
 cd "$(git rev-parse --show-toplevel)"
 
@@ -45,12 +41,9 @@ _list_files() {
         # Use git archive to list files matching glob patterns from a commit
         git archive "$_COMMIT" -- "${PATTERNS[@]}" 2>/dev/null | tar -t 2>/dev/null | grep -v '/$'
     else
-        # Use ripgrep to list files matching glob patterns in working directory
-        # --hidden needed to find files in .github/
-        for pattern in "${PATTERNS[@]}"; do
-            rg --files --hidden -g "$pattern" 2>/dev/null || true
-        done
-    fi | grep -v '\.stack-work' | sort -u
+        # List tracked + untracked files matching glob patterns (respects .gitignore)
+        git ls-files --cached --others --exclude-standard -- "${PATTERNS[@]}"
+    fi | LC_ALL=C sort -u
 }
 
 # NUL-delimited version for safe piping to xargs -0
@@ -78,29 +71,33 @@ compute_hash() {
         tmpdir=$(mktemp -d)
         trap "rm -rf '$tmpdir'" RETURN
         git archive "$_COMMIT" -- "${PATTERNS[@]}" 2>/dev/null | tar -xf - -C "$tmpdir"
-        (cd "$tmpdir" && find . -type f | sed 's|^\./||' | grep -v '\.stack-work' | sort -u | tr '\n' '\0' | _hash_files)
+        (cd "$tmpdir" && find . -type f | sed 's|^\./||' | grep -v '\.stack-work' | LC_ALL=C sort -u | tr '\n' '\0' | _hash_files)
     else
         _list_files_0 | _hash_files
     fi
 }
 
 # Check if attestation exists in the tracked proofs file.
-# Prints: pass, fail, or missing
+# Prints: <status> <hash>
+# Statuses: pass, fail, nofile (proofs file absent), noentry (file exists but hash not found)
 _check_attestation() {
     local name="$1"
     local proofs_file=".github/workflows/proofs/${name}.txt"
     local hash
     hash=$(compute_hash)
 
-    if [[ -f "$proofs_file" ]]; then
-        local result
-        result=$(grep "^$hash " "$proofs_file" 2>/dev/null | awk '{print $3}' || true)
-        if [[ "$result" == "pass" || "$result" == "fail" ]]; then
-            echo "$result"
-            return 0
-        fi
+    if [[ ! -f "$proofs_file" ]]; then
+        echo "nofile $hash"
+        return 0
     fi
-    echo "missing"
+
+    local result
+    result=$(grep "^$hash " "$proofs_file" 2>/dev/null | awk '{print $3}' || true)
+    if [[ "$result" == "pass" || "$result" == "fail" ]]; then
+        echo "$result $hash"
+    else
+        echo "noentry $hash"
+    fi
 }
 
 # Handle --hash and --check flags early, before the full attestation machinery.
