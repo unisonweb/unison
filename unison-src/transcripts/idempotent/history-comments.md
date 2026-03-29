@@ -38,7 +38,7 @@ scratch/main> history
   ⊙ Unison
     ┃ Renamed x to y
 
-  ⊙ 1. #bhel60226i
+  ⊙ 1. #3u2p4u21dj
 
     + Adds / updates:
     
@@ -52,11 +52,11 @@ scratch/main> history
   ⊙ Unison
     ┃ Initial commit with variable x set to 1
 
-  ⊙ 2. #8rrlhobds4
+  ⊙ 2. #i4lpc6c7tc
 
     + Adds / updates:
     
       x
 
-  □ 3. #es8qksqb4e (start of history)
+  □ 3. #nvnsj8115j (start of history)
 ```

@@ -3,6 +3,24 @@ scratch/dll-ffi> builtins.mergeio
 ```
 
 ``` unison
+libtest = do openDLL "unison-src/transcripts-manual/dll-ffi/libtest.so"
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + libtest : '{IO, Exception} DLL
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/dll-ffi> update
+
+  Done.
+```
+
+``` unison
 testu64Spec = arr uint64 (base uint64 uint64)
 testu32Spec = arr uint32 (base uint32 uint32)
 testu16Spec = arr uint16 (base uint16 uint16)
@@ -13,8 +31,6 @@ testi16Spec = arr int16 (base int16 int16)
 testi8Spec = arr int8 (base int8 int8)
 testdSpec = arr double (base double double)
 testfSpec = arr float (base float float)
-
-libtest = do openDLL "unison-src/transcripts-manual/dll-ffi/libtest.so"
 
 doTest = do
   dll = libtest()
@@ -71,7 +87,6 @@ doPTest = do
                     Float,
                     Float)
   + getpSpec    : Spec ('{IO} Ptr a)
-  + libtest     : '{IO, Exception} DLL
   + testdSpec   : Spec (Float -> Float -> Float)
   + testfSpec   : Spec (Float -> Float -> Float)
   + testi16Spec : Spec (Int -> Int -> Int)
@@ -101,4 +116,100 @@ scratch/dll-ffi> run doArrTest
 scratch/dll-ffi> run doPTest
 
   [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+```
+
+``` unison
+allocPSpec = baseIO void ptr
+freePSpec = baseIO ptr void
+
+stdout = stdHandle StdOut
+
+newline = toUtf8 "\n"
+
+putBytes h bs = match putBytes.impl h bs with
+  Left e -> raise e
+  Right _ -> ()
+
+printLine txt =
+  putBytes stdout (toUtf8 txt)
+  putBytes stdout newline
+
+-- foreign finalizer
+doFPTest = do
+  dll = libtest()
+  alloc = getDLLSym dll "allocptr" allocPSpec
+  final = getDLLSymPtr dll "freeptr" freePSpec
+
+  loop = cases
+    0 -> ()
+    n ->
+      p : Ptr Nat32
+      p = alloc()
+
+      fp = ForeignPtr.new.foreign final p
+
+      loop (drop n 1)
+
+  loop 100000
+
+-- unison finalizer
+doUPTest = do
+  dll = libtest()
+  alloc = getDLLSym dll "allocptr" allocPSpec
+  free : Ptr a ->{IO} ()
+  free = getDLLSym dll "freeptr" freePSpec
+
+  final : Ptr a -> '{IO} ()
+  final p = do free p
+
+  loop = cases
+    0 -> ()
+    n ->
+      p : Ptr Nat32
+      p = alloc()
+
+      fp = ForeignPtr.new (final p) p
+
+      loop (drop n 1)
+
+  loop 100000
+
+doAPTest = do
+  loop = cases
+    0 -> ()
+    n ->
+      fp = ForeignPtr.Int.allocate 1
+      ForeignPtr.addFinalizer fp do ()
+      loop (drop n 1)
+  loop 100000
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + allocPSpec : Spec ('{IO} Ptr a)
+  + doAPTest   : '{IO} ()
+  + doFPTest   : '{IO, Exception} ()
+  + doUPTest   : '{IO, Exception} ()
+  + freePSpec  : Spec (Ptr a ->{IO} ())
+  + newline    : Bytes
+  + printLine  : Text ->{IO, Exception} ()
+  + putBytes   : Handle -> Bytes ->{IO, Exception} ()
+  + stdout     : Handle
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/dll-ffi> run doFPTest
+
+  ()
+
+scratch/dll-ffi> run doUPTest
+
+  ()
+
+scratch/dll-ffi> run doAPTest
+
+  ()
 ```

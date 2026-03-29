@@ -267,7 +267,9 @@ builtinTypesSrc =
     B' "Int8" CT.Data,
     B' "Int16" CT.Data,
     B' "Int32" CT.Data,
-    B' "Float32" CT.Data
+    B' "Float32" CT.Data,
+    B' "FFI.Func" CT.Data,
+    B' "FFI.ForeignPtr" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -844,6 +846,8 @@ builtinsSrc =
       ffiType a --> ffiSpec b --> ffiSpec (a --> Type.effect () [] b),
     B "FFI.getDLLSym" . forall1 "a" $ \a ->
       dll --> text --> ffiSpec a --> ioexn a,
+    B "FFI.getDLLSymPtr" . forall1 "a" $ \a ->
+      dll --> text --> ffiSpec a --> ioexn (funptr a),
     B "FFI.Ptr.Int8.allocate" $ nat --> io (ptr int8),
     B "FFI.Ptr.Int16.allocate" $ nat --> io (ptr int16),
     B "FFI.Ptr.Int32.allocate" $ nat --> io (ptr int32),
@@ -910,7 +914,29 @@ builtinsSrc =
       pinnedByteArrayt g --> ptr nat8,
     B "IO.keepAlive" $ forall2 "a" "b" \a b ->
       a --> (unit --> io b) --> io b,
-    B "FFI.Ptr.null" $ forall1 "a" \a -> ptr a
+    B "FFI.Ptr.null" $ forall1 "a" \a -> ptr a,
+    B "FFI.ForeignPtr.new.foreign" $ forall1 "a" \a ->
+      funptr (ptr a --> io unit) --> ptr a --> io (foreignptr a),
+    B "FFI.ForeignPtr.new" $ forall1 "a" \a ->
+      (unit --> io unit) --> ptr a --> io (foreignptr a),
+    B "FFI.ForeignPtr.addCFinalizer" $ forall1 "a" \a ->
+      foreignptr a --> funptr (ptr a --> io unit) --> io unit,
+    B "FFI.ForeignPtr.addFinalizer" $ forall1 "a" \a ->
+      foreignptr a --> (unit --> io unit) --> io unit,
+    B "FFI.ForeignPtr.unsafeContents" $ forall1 "a" \a ->
+      foreignptr a --> ptr a,
+    B "FFI.ForeignPtr.Int8.allocate" $ nat --> io (foreignptr int8),
+    B "FFI.ForeignPtr.Int16.allocate" $ nat --> io (foreignptr int16),
+    B "FFI.ForeignPtr.Int32.allocate" $ nat --> io (foreignptr int32),
+    B "FFI.ForeignPtr.Int.allocate" $ nat --> io (foreignptr int),
+    B "FFI.ForeignPtr.Nat8.allocate" $ nat --> io (foreignptr nat8),
+    B "FFI.ForeignPtr.Nat16.allocate" $ nat --> io (foreignptr nat16),
+    B "FFI.ForeignPtr.Nat32.allocate" $ nat --> io (foreignptr nat32),
+    B "FFI.ForeignPtr.Nat.allocate" $ nat --> io (foreignptr nat),
+    B "FFI.ForeignPtr.Float32.allocate" $ nat --> io (foreignptr float32),
+    B "FFI.ForeignPtr.Float.allocate" $ nat --> io (foreignptr float),
+    B "FFI.ForeignPtr.Ptr.allocate" $
+      forall1 "a" \a -> nat --> io (foreignptr (ptr a))
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -1401,6 +1427,12 @@ float32 = Type.ref () Type.float32Ref
 
 ptr :: Type -> Type
 ptr t = Type.ref () Type.ffiPtrRef `app` t
+
+funptr :: Type -> Type
+funptr t = Type.ref () Type.ffiFuncRef `app` t
+
+foreignptr :: Type -> Type
+foreignptr t = Type.ref () Type.ffiForeignPtrRef `app` t
 
 anyt = Type.ref () Type.anyRef
 
