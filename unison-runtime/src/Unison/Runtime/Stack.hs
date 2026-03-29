@@ -195,6 +195,7 @@ import Data.Primitive.ByteArray qualified as BA
 import Data.Tagged (Tagged (..))
 import Data.Word
 import Data.X509 qualified as X509
+import Foreign.ForeignPtr qualified as Ptr
 import Foreign.Ptr qualified as Ptr
 import GHC.Base
 import GHC.Exts as L (IsList (..))
@@ -1835,6 +1836,7 @@ data Foreign
   | WrapProcessHandle !ProcessHandle
   | WrapPromise !(Promise Val)
   | WrapPtr !(Ptr.Ptr ())
+  | WrapForeignPtr !(Ptr.ForeignPtr ())
   | WrapReference !Reference
   | WrapReferent !Referent
   | WrapSeq !(Seq Val)
@@ -1883,6 +1885,7 @@ foreignRef WrapNatural {} = Ty.naturalRef
 foreignRef WrapProcessHandle {} = Ty.processHandleRef
 foreignRef WrapPromise {} = Ty.promiseRef
 foreignRef WrapPtr {} = Ty.ffiPtrRef
+foreignRef WrapForeignPtr {} = Ty.ffiForeignPtrRef
 foreignRef WrapReference {} = Ty.typeLinkRef
 foreignRef WrapReferent {} = Ty.termLinkRef
 foreignRef WrapSeq {} = Ty.listRef
@@ -1925,6 +1928,7 @@ foreignName WrapNatural {} = "Natural"
 foreignName WrapProcessHandle {} = "ProcessHandle"
 foreignName WrapPromise {} = "Promise"
 foreignName WrapPtr {} = "Ptr"
+foreignName WrapForeignPtr {} = "ForeignPtr"
 foreignName WrapReference {} = "Reference"
 foreignName WrapReferent {} = "Referent"
 foreignName WrapSeq {} = "Seq"
@@ -1987,12 +1991,17 @@ instance Eq Foreign where
   WrapTimeSpec l == WrapTimeSpec r = l == r
   WrapX509PrivKey l == WrapX509PrivKey r = l == r
   WrapPtr l == WrapPtr r = l == r
+  WrapForeignPtr l == WrapForeignPtr r = l == r
+  WrapCDynFunc l == WrapCDynFunc r = l == r
+  WrapFFIType l == WrapFFIType r = l == r
+  WrapFFISpec l == WrapFFISpec r = l == r
   -- these lack Eq instances
   WrapProcessHandle l == WrapProcessHandle r = ptrEq l r
   WrapPromise l == WrapPromise r = ptrEq l r
   WrapTlsClientParams l == WrapTlsClientParams r = ptrEq l r
   WrapTlsServerParams l == WrapTlsServerParams r = ptrEq l r
   WrapValue l == WrapValue r = ptrEq l r
+  WrapDLL l == WrapDLL r = ptrEq l r
   l == r =
     error $
       "Attempting to check equality of values of different types: "
@@ -2014,6 +2023,10 @@ compareForeign _tyEq (WrapCharPattern l) (WrapCharPattern r) = compare l r
 compareForeign _tyEq (WrapInteger l) (WrapInteger r) = compare l r
 compareForeign _tyEq (WrapNatural l) (WrapNatural r) = compare l r
 compareForeign _tyEq (WrapPtr l) (WrapPtr r) = compare l r
+compareForeign _tyEq (WrapForeignPtr l) (WrapForeignPtr r) = compare l r
+compareForeign _tyEq (WrapCDynFunc l) (WrapCDynFunc r) = compare l r
+compareForeign _tyEq (WrapFFIType l) (WrapFFIType r) = compare l r
+compareForeign _tyEq (WrapFFISpec l) (WrapFFISpec r) = compare l r
 compareForeign tyEq (WrapMap l) (WrapMap r) = mapCmp tyEq l r
 compareForeign tyEq (WrapSeq l) (WrapSeq r) =
   liftCompare (compareVal tyEq) l r
@@ -2082,6 +2095,14 @@ instance BuiltinForeign (Ptr.Ptr a) where
   wrapBuiltin = WrapPtr . Ptr.castPtr
   maybeUnwrapBuiltin = \case
     WrapPtr p -> Just (Ptr.castPtr p)
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (Ptr.ForeignPtr a) where
+  builtinName = Tagged "ForeignPtr"
+  wrapBuiltin = WrapForeignPtr . Ptr.castForeignPtr
+  maybeUnwrapBuiltin = \case
+    WrapForeignPtr p -> Just (Ptr.castForeignPtr p)
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
