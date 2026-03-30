@@ -9,27 +9,29 @@ on:
   merge_group:
 
 jobs:
-  quick-check:
+  quick:
+    name: ${{ github.event_name == 'push' && 'quick (branch push)' || github.event_name == 'pull_request' && 'quick (fork PR)' || 'quick' }}
     if: (github.event_name == 'push' && github.ref != 'refs/heads/trunk') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
     uses: ./.github/workflows/ci.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
-  full-check:
+  full:
+    name: ${{ github.event_name == 'merge_group' && 'full (merge queue)' || 'full' }}
     if: github.event_name == 'merge_group'
     uses: ./.github/workflows/test.yaml
     with:
       skip-attested-transcripts: true
   ci-result:
     if: ${{ !cancelled() }}
-    needs: [quick-check, full-check]
+    needs: [quick, full]
     runs-on: ubuntu-24.04
     steps:
       - name: check results
         run: |
-          if [[ "${{ needs.quick-check.result }}" == "failure" ]]; then
+          if [[ "${{ needs.quick.result }}" == "failure" ]]; then
             echo "::error::Quick check failed. Please fix the issues and push again."
             exit 1
-          elif [[ "${{ needs.full-check.result }}" == "failure" ]]; then
+          elif [[ "${{ needs.full.result }}" == "failure" ]]; then
             echo "::error::Full check failed. Please fix the issues and push again."
             exit 1
           else
