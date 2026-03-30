@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.1.
+-- This file has been generated from package.yaml by hpack version 0.39.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -262,6 +262,7 @@ library
     , megaparsec
     , memory
     , mtl
+    , network
     , network-simple
     , network-uri
     , nonempty-containers

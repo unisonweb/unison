@@ -398,7 +398,9 @@ builtinConstraintTree =
           flip Type.ref Type.patternRef,
           flip Type.ref Type.ffiTypeRef,
           flip Type.ref Type.ffiSpecRef,
-          flip Type.ref Type.ffiPtrRef
+          flip Type.ref Type.ffiFuncRef,
+          flip Type.ref Type.ffiPtrRef,
+          flip Type.ref Type.ffiForeignPtrRef
         ],
       traverse
         (constrain Ability)
