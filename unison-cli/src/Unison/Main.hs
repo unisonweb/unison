@@ -24,7 +24,7 @@ import ArgParse
     parseCLIArgs,
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
-import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
+import Control.Concurrent (newEmptyMVar, putMVar, runInUnboundThread, takeMVar)
 import Control.Exception (displayException, fromException)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString qualified as BS
@@ -38,6 +38,7 @@ import GHC.Conc qualified
 import Ki qualified
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
+import Network.Socket qualified as Socket
 import Stats (recordRtsStats)
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName, withArgs)
@@ -332,7 +333,8 @@ main version = do
               -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
               -- Windows when we move to GHC 9.*
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-              void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
+              lspServerSock <- UnliftIO.newEmptyMVar
+              void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal (putMVar lspServerSock)
               let isTest = False
               let ucmVersion = Version.gitDescribeWithDate version
               let credMan = AuthN.globalCredentialManager
@@ -386,6 +388,11 @@ main version = do
                         initRes
                         lspCheckForChanges
                         shouldWatchFiles
+                      -- Close the LSP server socket so the LSP thread unblocks from
+                      -- `accept` and can exit cleanly. This is necessary on Windows
+                      -- where async exceptions cannot interrupt a thread blocked in
+                      -- a socket accept call.
+                      whenJustM (UnliftIO.tryTakeMVar lspServerSock) Socket.close
                   Exit -> Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)

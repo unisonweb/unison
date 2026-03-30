@@ -99,3 +99,4 @@ The format for this list: name, GitHub handle
 * Maurice Scheffmacher (@MauScheff)
 * ChanningWalton (@channingwalton)
 * Taylor Fausak (@tfausak)
+* Gabriel Anderson (@andgate)

@@ -11,7 +11,6 @@ where
 
 import Colog.Core (LogAction (LogAction))
 import Colog.Core qualified as Colog
-import Compat (onWindows)
 import Control.Monad.Reader
 import Data.ByteString.Builder.Extra (defaultChunkSize)
 import Data.Char (toLower)
@@ -28,6 +27,7 @@ import Language.LSP.Protocol.Utils.SMethodMap qualified as SMM
 import Language.LSP.Server
 import Language.LSP.VFS
 import Network.Simple.TCP qualified as TCP
+import Network.Socket qualified as Socket
 import System.Environment (lookupEnv)
 import Unison.Codebase
 import Unison.Codebase.ProjectPath qualified as PP
@@ -72,37 +72,48 @@ spawnLsp ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Signal PP.ProjectPathIds ->
+  (Socket.Socket -> IO ()) ->
   IO ()
-spawnLsp lspFormattingConfig codebase runtime signal =
+spawnLsp lspFormattingConfig codebase runtime signal onSocketBound =
   ifEnabled . TCP.withSocketsDo $ do
+    shutdownVar <- UnliftIO.newIORef False
     lspPort <- getLspPort
-    UnliftIO.handleIO (handleFailure lspPort) $ do
-      TCP.serve (TCP.Host "127.0.0.1") lspPort $ \(sock, _sockaddr) -> do
-        Ki.scoped \scope -> do
-          -- If the socket is closed, reading/writing will throw an exception,
-          -- but since the socket is closed, this connection will be shutting down
-          -- immediately anyways, so we just ignore it.
-          let clientInput = handleAny (\_ -> pure "") do
-                -- The server will be in the process of shutting down if the socket is closed,
-                -- so just return empty input in the meantime.
-                fromMaybe "" <$> TCP.recv sock defaultChunkSize
-          let clientOutput output = handleAny (\_ -> pure ()) do
-                TCP.sendLazy sock output
+    UnliftIO.handleIO (handleFailure shutdownVar lspPort) $ do
+      -- We bind the socket manually so we can hand it back to the caller,
+      -- who can close it to unblock `accept` on shutdown (needed on Windows).
+      TCP.bindSock (TCP.Host "127.0.0.1") lspPort >>= \(serverSock, _addr) -> do
+        Socket.listen serverSock 1
+        onSocketBound serverSock
+        UnliftIO.writeIORef shutdownVar True
+        void $ TCP.acceptFork serverSock $ \(sock, _sockaddr) -> do
+          Ki.scoped \scope -> do
+            -- If the socket is closed, reading/writing will throw an exception,
+            -- but since the socket is closed, this connection will be shutting down
+            -- immediately anyways, so we just ignore it.
+            let clientInput = handleAny (\_ -> pure "") do
+                  -- The server will be in the process of shutting down if the socket is closed,
+                  -- so just return empty input in the meantime.
+                  fromMaybe "" <$> TCP.recv sock defaultChunkSize
+            let clientOutput output = handleAny (\_ -> pure ()) do
+                  TCP.sendLazy sock output
 
-          -- currently we have an independent VFS for each LSP client since each client might have
-          -- different un-saved state for the same file.
-          do
-            vfsVar <- newMVar emptyVFS
-            void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition lspFormattingConfig vfsVar codebase runtime scope signal)
+            -- currently we have an independent VFS for each LSP client since each client might have
+            -- different un-saved state for the same file.
+            do
+              vfsVar <- newMVar emptyVFS
+              void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition lspFormattingConfig vfsVar codebase runtime scope signal)
   where
-    handleFailure :: String -> IOException -> IO ()
-    handleFailure lspPort ioerr =
-      case Errno <$> ioe_errno ioerr of
-        Just errNo
-          | errNo == eADDRINUSE -> do
-              Text.hPutStrLn UnliftIO.stderr $ "⚠️  Port " <> Text.pack lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
-        _ -> do
-          Text.hPutStrLn UnliftIO.stderr $ "LSP server failed to start."
+    handleFailure :: UnliftIO.IORef Bool -> String -> IOException -> IO ()
+    handleFailure shutdownVar lspPort ioerr = do
+      isShuttingDown <- UnliftIO.readIORef shutdownVar
+      if isShuttingDown
+        then pure ()
+        else case Errno <$> ioe_errno ioerr of
+          Just errNo
+            | errNo == eADDRINUSE -> do
+                Text.hPutStrLn UnliftIO.stderr $ "⚠️  Port " <> Text.pack lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+          _ -> do
+            Text.hPutStrLn UnliftIO.stderr $ "LSP server failed to start."
     -- Where to send logs that occur before a client connects
     lspServerLogger = Colog.filterBySeverity Colog.Error Colog.getSeverity $ Colog.cmap (fmap tShow) (LogAction print)
     -- Where to send logs that occur after a client connects
@@ -114,7 +125,7 @@ spawnLsp lspFormattingConfig codebase runtime signal =
         Just (fmap toLower -> "false") -> pure ()
         Just (fmap toLower -> "true") -> runServer
         Just x -> Text.hPutStrLn stderr $ "Invalid value for UNISON_LSP_ENABLED, expected 'true' or 'false' but found: " <> Text.pack x
-        Nothing -> when (not onWindows) runServer
+        Nothing -> runServer
 
 serverDefinition ::
   LspFormattingConfig ->
