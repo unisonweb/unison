@@ -106,13 +106,14 @@ spawnLsp lspFormattingConfig codebase runtime signal onSocketBound =
     handleFailure :: UnliftIO.IORef Bool -> String -> IOException -> IO ()
     handleFailure shutdownVar lspPort ioerr = do
       isShuttingDown <- UnliftIO.readIORef shutdownVar
-      if isShuttingDown then pure ()
-      else case Errno <$> ioe_errno ioerr of
-        Just errNo
-          | errNo == eADDRINUSE -> do
-              Text.hPutStrLn UnliftIO.stderr $ "⚠️  Port " <> Text.pack lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
-        _ -> do
-          Text.hPutStrLn UnliftIO.stderr $ "LSP server failed to start."
+      if isShuttingDown
+        then pure ()
+        else case Errno <$> ioe_errno ioerr of
+          Just errNo
+            | errNo == eADDRINUSE -> do
+                Text.hPutStrLn UnliftIO.stderr $ "⚠️  Port " <> Text.pack lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+          _ -> do
+            Text.hPutStrLn UnliftIO.stderr $ "LSP server failed to start."
     -- Where to send logs that occur before a client connects
     lspServerLogger = Colog.filterBySeverity Colog.Error Colog.getSeverity $ Colog.cmap (fmap tShow) (LogAction print)
     -- Where to send logs that occur after a client connects

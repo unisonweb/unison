@@ -24,7 +24,7 @@ import ArgParse
     parseCLIArgs,
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
-import Control.Concurrent (newEmptyMVar, runInUnboundThread, putMVar, takeMVar)
+import Control.Concurrent (newEmptyMVar, putMVar, runInUnboundThread, takeMVar)
 import Control.Exception (displayException, fromException)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString qualified as BS
@@ -388,10 +388,10 @@ main version = do
                         initRes
                         lspCheckForChanges
                         shouldWatchFiles
-                        -- Close the LSP server socket so the LSP thread unblocks from
-                        -- `accept` and can exit cleanly. This is necessary on Windows
-                        -- where async exceptions cannot interrupt a thread blocked in
-                        -- a socket accept call.
+                      -- Close the LSP server socket so the LSP thread unblocks from
+                      -- `accept` and can exit cleanly. This is necessary on Windows
+                      -- where async exceptions cannot interrupt a thread blocked in
+                      -- a socket accept call.
                       whenJustM (UnliftIO.tryTakeMVar lspServerSock) Socket.close
                   Exit -> Exit.exitSuccess
   where
