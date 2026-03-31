@@ -1,3 +1,7 @@
 # Require approval from ucm team when editing repository workflows
 # This helps prevent users from sneaking in malicious changes to CI workflows.
 /.github/ @unisonweb/ucm
+
+# Proofs are auto-generated attestation files updated by most PRs,
+# so they don't need ucm team review.
+/.github/workflows/proofs/ # no owner
