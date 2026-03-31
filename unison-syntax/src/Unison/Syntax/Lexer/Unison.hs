@@ -513,10 +513,13 @@ lexemes eof =
         bytes = do
           start <- posP
           _ <- lit "0xs"
-          s <- map toLower <$> P.takeWhileP (Just "hexidecimal character") isAlphaNum
-          case Bytes.fromBase16 $ Bytes.fromWord8s (fromIntegral . ord <$> s) of
-            Left _ -> err start (InvalidBytesLiteral $ "0xs" <> s)
-            Right bs -> pure (Bytes bs)
+          s <- map toLower <$> (digitsWithUnderscores "hexadecimal character" isHexDigit <|> pure "")
+          invalid <- P.takeWhileP Nothing (\c -> isAlphaNum c || c == '_')
+          if not (null invalid)
+            then err start (InvalidBytesLiteral $ "0xs" <> s <> invalid)
+            else case Bytes.fromBase16 $ Bytes.fromWord8s (fromIntegral . ord <$> s) of
+              Left _ -> err start (InvalidBytesLiteral $ "0xs" <> s)
+              Right bs -> pure (Bytes bs)
         otherbase = octal <|> hex <|> binary
         octal = baseWithPrefix "0o" 8 "octal digit" isOctDigit InvalidOctalLiteral
         hex = baseWithPrefix "0x" 16 "hexadecimal digit" isHexDigit InvalidHexLiteral

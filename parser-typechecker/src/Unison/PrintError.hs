@@ -1655,11 +1655,13 @@ renderParseErrors s = \case
               "",
               excerpt,
               Pr.wrap $
-                "I was expecting an even number of hexidecimal characters"
+                "I was expecting an even number of hexadecimal characters"
                   <> "(one of"
                   <> Pr.group (style Code "0123456789abcdefABCDEF" <> ")")
                   <> "after the"
                   <> Pr.group (style ErrorSite "0xs" <> ".")
+                  <> "Underscores may be used as separators between hex digits (e.g."
+                  <> Pr.group (style Code "0xsAA_BB" <> ").")
             ]
         L.InvalidHexLiteral ->
           Pr.lines

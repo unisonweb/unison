@@ -44,6 +44,7 @@ tests:
       - unison-core1
       - unison-prelude
       - unison-syntax
+      - unison-util-bytes
       - unison-util-recursion
       - text
     main: Main.hs
