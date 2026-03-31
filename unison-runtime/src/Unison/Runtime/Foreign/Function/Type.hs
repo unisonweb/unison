@@ -386,6 +386,7 @@ data ForeignFunc
   | FFI_baseIO
   | FFI_arr
   | FFI_getDLLSym
+  | FFI_getDLLSymPtr
   | Bytes_read
   | Bytes_read16be
   | Bytes_read16le
@@ -451,6 +452,20 @@ data ForeignFunc
   | FFI_Ptr_free
   | PinnedByteArray_contents
   | FFI_Ptr_null
+  | FFI_ForeignPtr_new_foreign
+  | FFI_ForeignPtr_addCFinalizer
+  | FFI_ForeignPtr_unsafeContents
+  | FFI_ForeignPtr_Int8_allocate
+  | FFI_ForeignPtr_Int16_allocate
+  | FFI_ForeignPtr_Int32_allocate
+  | FFI_ForeignPtr_Int_allocate
+  | FFI_ForeignPtr_Nat8_allocate
+  | FFI_ForeignPtr_Nat16_allocate
+  | FFI_ForeignPtr_Nat32_allocate
+  | FFI_ForeignPtr_Nat_allocate
+  | FFI_ForeignPtr_Float32_allocate
+  | FFI_ForeignPtr_Float_allocate
+  | FFI_ForeignPtr_Ptr_allocate
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -833,6 +848,7 @@ foreignFuncBuiltinName = \case
   FFI_baseIO -> "FFI.baseIO"
   FFI_arr -> "FFI.arr"
   FFI_getDLLSym -> "FFI.getDLLSym"
+  FFI_getDLLSymPtr -> "FFI.getDLLSymPtr"
   Bytes_read -> "Bytes.read"
   Bytes_read16be -> "Bytes.read16be"
   Bytes_read16le -> "Bytes.read16le"
@@ -898,3 +914,17 @@ foreignFuncBuiltinName = \case
   FFI_Ptr_free -> "FFI.Ptr.free"
   PinnedByteArray_contents -> "PinnedByteArray.contents"
   FFI_Ptr_null -> "FFI.Ptr.null"
+  FFI_ForeignPtr_new_foreign -> "FFI.ForeignPtr.new.foreign"
+  FFI_ForeignPtr_addCFinalizer -> "FFI.ForeignPtr.addCFinalizer"
+  FFI_ForeignPtr_unsafeContents -> "FFI.ForeignPtr.unsafeContents"
+  FFI_ForeignPtr_Int8_allocate -> "FFI.ForeignPtr.Int8.allocate"
+  FFI_ForeignPtr_Int16_allocate -> "FFI.ForeignPtr.Int16.allocate"
+  FFI_ForeignPtr_Int32_allocate -> "FFI.ForeignPtr.Int32.allocate"
+  FFI_ForeignPtr_Int_allocate -> "FFI.ForeignPtr.Int.allocate"
+  FFI_ForeignPtr_Nat8_allocate -> "FFI.ForeignPtr.Nat8.allocate"
+  FFI_ForeignPtr_Nat16_allocate -> "FFI.ForeignPtr.Nat16.allocate"
+  FFI_ForeignPtr_Nat32_allocate -> "FFI.ForeignPtr.Nat32.allocate"
+  FFI_ForeignPtr_Nat_allocate -> "FFI.ForeignPtr.Nat.allocate"
+  FFI_ForeignPtr_Float32_allocate -> "FFI.ForeignPtr.Float32.allocate"
+  FFI_ForeignPtr_Float_allocate -> "FFI.ForeignPtr.Float.allocate"
+  FFI_ForeignPtr_Ptr_allocate -> "FFI.ForeignPtr.Ptr.allocate"

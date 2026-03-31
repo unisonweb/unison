@@ -42,6 +42,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as DTx
 import Data.Text.IO qualified as Tx
 import Data.Traversable
+import Foreign.Concurrent qualified as CFPtr
 import Foreign.LibFFI.Internal
 import Foreign.Marshal (alloca)
 import Foreign.Marshal.Array (allocaArray)
@@ -482,6 +483,26 @@ exec env henv !activeThreads !stk !k _ (TryForce i)
       stk <- bump stk -- Bump the boxed stack to make a slot for the result, which will be written in the callback if we succeed.
       ev <- Control.Exception.try $ nestEval env activeThreads (poke stk) v
       stk <- encodeExn stk ev
+      pure (False, henv, stk, k)
+exec env henv !activeThreads !stk !k _ (NewForeignPtr i j)
+  | sandboxed env =
+      die [] "attempted to use sandboxed operation: ForeignPtr.new"
+  | otherwise = do
+      fin <- peekOff stk i
+      p <- peekOffBi stk j
+      let thunk = nestEval env activeThreads (const $ pure ()) fin
+      fp <- CFPtr.newForeignPtr p thunk
+      stk <- bump stk
+      pokeBi stk fp
+      pure (False, henv, stk, k)
+exec env henv !activeThreads !stk !k _ (AddFinalizer i j)
+  | sandboxed env =
+      die [] "attempted to use sandboxed operation: ForeignPtr.addFinalizer"
+  | otherwise = do
+      fp <- peekOffBi stk i
+      fin <- peekOff stk j
+      CFPtr.addForeignPtrFinalizer fp $
+        nestEval env activeThreads (const $ pure ()) fin
       pure (False, henv, stk, k)
 exec _ henv !_activeThreads !stk !k _ DLLCall = do
   cf <- peekBi stk

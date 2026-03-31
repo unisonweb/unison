@@ -11,7 +11,7 @@ unisonLocal.zip
 !unison-cli-integration/integration-tests/IntegrationTests/**/*.u
 
 # Auto-generated
-interpreter-tests.md
+unison-src/builtin-tests/interpreter-tests.md
 
 # Stack
 .stack-work
@@ -38,5 +38,5 @@ dist-newstyle
 result
 result-transcripts
 
-# Local verification proofs (see run-*-and-record.sh)
+# Local verification proofs (see scripts/proofs/)
 .local-proofs/

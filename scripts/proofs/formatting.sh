@@ -47,6 +47,7 @@ set +e
     set -euo pipefail
 
     echo "Checking code formatting with ormolu..."
-    "$SCRIPT_DIR/check-formatting"
+    set --
+    source "$SCRIPT_DIR/check-formatting"
 )
 attestation_record_and_exit $?
