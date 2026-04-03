@@ -20,4 +20,7 @@ definition:
     2 |   y = 24
 
 Try adding an expression at the end of the block.
+
+Hint: Did you mean to use == (equality check) instead of =
+(which introduces a definition)?
 ```
