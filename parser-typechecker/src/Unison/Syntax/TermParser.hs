@@ -1114,8 +1114,9 @@ binding = label "binding" do
       -- Check for Haskell-style pattern matching in the function head.
       nextTokMaybe <- optional peekAny
       case nextTokMaybe of
-        Just nextTok | isPatternToken (L.payload nextTok) ->
-          customFailure (PatternInFunctionDeclaration (L.payload name) (ann nextTok))
+        Just nextTok
+          | isPatternToken (L.payload nextTok) ->
+              customFailure (PatternInFunctionDeclaration (L.payload name) (ann nextTok))
         _ -> pure ()
       (_eqAnn, _bodySpanAnn, body) <- block "="
       let binding = mkBinding lhsLoc args body
