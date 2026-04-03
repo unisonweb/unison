@@ -1110,8 +1110,8 @@ This transcript is intended to make visible accidental changes to the hashing al
         
   303.  -- #rncdj545f93f7nfrneabp6jlrjag766vr2n18al8u2a78ju5v746agg62r4ob8u6ue8eeac6nbg8apeii6qfasgfv2q2ap3h4sk1tdg
         builtin.Doc2.MediaSource.mimeType.modify : (Optional
-          Text
-        ->{g} Optional Text)
+           Text
+         ->{g} Optional Text)
         -> MediaSource
         ->{g} MediaSource
         
@@ -1125,7 +1125,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         
   306.  -- #laoh1nhllsb9vf0reilmbmjutdei2b0vs0vse1s8j148imfi1m9uu4l17iqdt9r5575dap8jnlq6r48kdn6ob70iroso75erqfc74e0
         builtin.Doc2.MediaSource.sourceUrl.modify : (Text
-        ->{g} Text)
+         ->{g} Text)
         -> MediaSource
         ->{g} MediaSource
         
@@ -1242,7 +1242,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         
   338.  -- #vld47vp37855gceko81jj00j5t0mf5p137ub57094585aq3jfevq0ob03fot9d73p97r2pj0alel9e6a7lqcc7mue0ogefshg991e6g
         builtin.Doc2.Video.config.modify : ([(Text, Text)]
-        ->{g} [(Text, Text)])
+         ->{g} [(Text, Text)])
         -> Video
         ->{g} Video
         
@@ -1256,7 +1256,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         
   341.  -- #nm77894uq9g3kv5mo7ubuptpimt53jml7jt825lr83gu41tqcfpg2krcesn7p5aaea107su7brg2gm8vn1l0mabpfnpbcdi4onlatvo
         builtin.Doc2.Video.sources.modify : ([MediaSource]
-        ->{g} [MediaSource])
+         ->{g} [MediaSource])
         -> Video
         ->{g} Video
         
@@ -2883,7 +2883,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         
   785.  -- #ucpi54l843bf1osaejl1cnn0jt3o89fak5c0120k8256in3m80ik836hnite0osl12m91utnpnt5n7pgm3oe1rv4r1hk8ai4033agvo
         builtin.License.copyrightHolders.modify : ([CopyrightHolder]
-        ->{g} [CopyrightHolder])
+         ->{g} [CopyrightHolder])
         -> License
         ->{g} License
         
@@ -2903,7 +2903,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         
   789.  -- #1rm8kpbv278t9tqj4jfssl8q3cn4hgu1mti7bp8lhcr5h7qmojujmt9de4c31p42to8mtav61u98oad3oen8q9im20sacs69psjpugo
         builtin.License.licenseType.modify : (LicenseType
-        ->{g} LicenseType)
+         ->{g} LicenseType)
         -> License
         ->{g} License
         
@@ -3537,8 +3537,8 @@ This transcript is intended to make visible accidental changes to the hashing al
         
   960.  -- #nu6eab37fl81lb5hfcainu83hph0ksqjsjgjbqvc3t8o13djtt5511qfa6tuggc5c3re06c5p6eto5o2cqme0jdlo31nnd13npqigjo#0
         builtin.RewriteSignature.RewriteSignature : (a
-        -> b
-        -> ())
+         -> b
+         -> ())
         -> RewriteSignature a b
         
   961.  -- #bvffhraos4oatd3qmedt676dqul9c1oj8r4cqns36lsrue84kl0ote15iqbbmgu8joek3gce1h2raqas5b9nnvs2d79l9mrpmmi2sf0
