@@ -14,7 +14,31 @@ env:
   ormolu_version: 0.8.0.2
 
 jobs:
+  check-formatting-proof:
+    name: check formatting proof
+    runs-on: ubuntu-24.04
+    outputs:
+      attested: ${{ steps.check.outputs.attested }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: check formatting proof
+        id: check
+        run: |
+          read -r RESULT HASH <<< "$(./scripts/proofs/formatting.sh --check)"
+          if [[ "$RESULT" == "pass" ]]; then
+            echo "Formatting proof: pass ($HASH)"
+            echo "attested=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$RESULT" == "fail" ]]; then
+            echo "::error::Formatting previously FAILED for hash $HASH"
+            exit 1
+          else
+            echo "Formatting proof: $RESULT ($HASH)"
+            echo "attested=false" >> "$GITHUB_OUTPUT"
+          fi
+
   ormolu:
+    needs: check-formatting-proof
+    if: needs.check-formatting-proof.outputs.attested != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
