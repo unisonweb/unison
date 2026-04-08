@@ -1883,15 +1883,16 @@ resetContextAfter x a = do
   setContext ctx
   pure a
 
+type LetRecInfo v loc =
+  (v -> M v loc v) -> M v loc ([((loc, v), Term v loc)], Term v loc)
+
 -- | Synthesize and generalize the type of each binding in a let rec.
 -- Updates the context so that all bindings are annotated with
 -- their type. Also returns the freshened version of `body`.
 -- See usage in `synthesize` and `check` for `LetRec'` case.
 annotateLetRecBindings ::
   (Var v, Ord loc, Semigroup loc) =>
-  Term.IsTop ->
-  ((v -> M v loc v) -> M v loc ([((loc, v), Term v loc)], Term v loc)) ->
-  M v loc (Term v loc)
+  Term.IsTop -> LetRecInfo v loc -> M v loc (Term v loc)
 annotateLetRecBindings isTop letrec =
   -- If this is a top-level letrec, then emit a TopLevelComponent note,
   -- which asks if the user-provided type annotations were needed.
@@ -1899,12 +1900,13 @@ annotateLetRecBindings isTop letrec =
     then do
       -- First, typecheck (using annotateLetRecBindings') the bindings with any
       -- user-provided annotations.
-      (body, vts) <- annotateLetRecBindings' True
+      (body, vts) <- annotateLetRecBindings' letrec True
       -- Then, try typechecking again, but ignoring any user-provided annotations.
       -- This will infer whatever type.  If it altogether fails to typecheck here
       -- then, ...(1)
       withoutAnnotations <-
-        resetContextAfter Nothing $ Just <$> annotateLetRecBindings' False
+        resetContextAfter Nothing $
+          Just <$> annotateLetRecBindings' letrec False
       -- convert from typechecker TypeVar back to regular `v` vars
       let unTypeVar (v, t) = (v, generalizeAndUnTypeVar t)
       case withoutAnnotations of
@@ -1918,58 +1920,147 @@ annotateLetRecBindings isTop letrec =
       pure body
     else do
       -- If this isn't a top-level letrec, then we don't have to do anything special
-      (body, _vts) <- annotateLetRecBindings' True
+      (body, _vts) <- annotateLetRecBindings' letrec True
       pure body
+
+-- A wrapper type for demuxed binding information in a let. Only used
+-- locally.
+data Bindings v loc =
+  Bindings {
+    bnds :: [Term v loc],    -- actual bindings
+    bndTyps :: [Type v loc], -- types for the bindings
+    bndVars :: [v],          -- variables the bindings are bound to
+    bndVarLocs :: [loc]      -- locations of said variables
+  }
+
+demuxBindings :: [(Term v loc, Type v loc, v, loc)] -> Bindings v loc
+demuxBindings = uncurry4 Bindings . unzip4
+
+-- Calculates the associations between variables and their bindings in
+-- a `Bindings`, discarding some of the other information.
+namedBindings :: Bindings v loc -> [(v, Term v loc)]
+namedBindings bs = bndVars bs `zip` bnds bs
+
+-- Helper function for checking recursive let bindings. This is the
+-- part of the check that processes the type of the _bindings_, and
+-- returns information that can be used to subsequently check the
+-- body.
+--
+-- To achieve better results, this classifies the bindings into two
+-- categories
+--
+--   1. Bindings given with completely closed types, that need no
+--      parts inferred.
+--   2. Bindings that need at least some part of the type inferred.
+--
+-- The first category can be checked _last_, under the presumption
+-- that the given types are accurate, because the checking of the
+-- second category has no effect on the types in the first category.
+-- This allows us to _generalize_ the types in the second category
+-- before checking the first category. This is necessary when you have
+-- examples like:
+--
+--   f x = g x
+--   g : a -> b
+--   g x = f x
+--
+-- because otherwise the inferred type of `f` will seem too concrete
+-- for the checking of `g` to succeed.
+--
+-- Note however that "closed" can be somewhat deceptive. The type of
+-- `g` above is actually not closed, because it is shorthand for the
+-- type `a ->{e} b`, where the `e` needs to be inferred. To avoid this
+-- defeating the whole approach, it's advisable to be somewhat
+-- conservative with making up these inference variables. For instance
+--
+--   f : a -> b -> c ->{E} d
+--   f x y z = ...
+--
+-- can be immediately completed to `a ->{} b ->{} c ->{E} d` instead
+-- of making up variables for the two positions that must be pure.
+annotateLetRecBindings' ::
+  (Var v, Ord loc, Semigroup loc) =>
+  LetRecInfo v loc ->
+  Bool ->
+  M v loc (Term v loc, [(v, Type v loc)])
+annotateLetRecBindings' letrec useAnn = do
+  (binds, body) <- letrec freshenVar
+
+  ((abnds, ubnds), ctx) <-
+    markThenRetract Var.inferOther $ do
+      binds <- traverse prepare binds
+      let (unanns, anns) = partitionEithers binds
+          ubnds = demuxBindings unanns
+          abnds = demuxBindings anns
+          allbnds = demuxBindings $ map (either id id) binds
+
+      ensureGuardedCycle (namedBindings allbnds)
+
+      -- check un-annotated bindings against their types
+      appendContext (varAnns allbnds)
+
+      Foldable.for_ (vbts ubnds) \(v, b, t) -> do
+        -- elements of a cycle need to be pure, otherwise order of
+        -- effects is unclear and chaos ensues.
+
+        -- ensure actions in blocks have type ()
+        when (Var.isAction v) . scope InActionRestriction $
+          subtype t (DDB.unitType (ABT.annotation b))
+        insideDef v $ checkScopedWith b t []
+
+      pure (abnds, ubnds)
+
+  -- compute generalized types for bindings that needed inference
+  vars <- getVariances
+  let bindingArities = Term.arity <$> bnds ubnds
+      gen bty _arity =
+        generalizeExistentials ctx vars bty
+      gbndTyps = zipWith gen (bndTyps ubnds) bindingArities
+      genAnns =
+        zipWith3 Ann (bndVars ubnds) (bndVarLocs ubnds) gbndTyps
+
+      allAnns = genAnns ++ varAnns abnds
+
+  appendContext allAnns
+
+  -- check annotated bindings
+  _ <- markThenRetract Var.inferOther $ do
+
+    Foldable.for_ (vbts abnds) \(v, b, t) -> do
+      when (Var.isAction v) . scope InActionRestriction $
+        subtype t (DDB.unitType (ABT.annotation b))
+      insideDef v $ checkScopedWith b t []
+
+  let vTypes =
+        zip (bndVars ubnds) gbndTyps ++
+        zip (bndVars abnds) (bndTyps abnds)
+
+  pure (body, vTypes)
   where
-    annotateLetRecBindings' useUserAnnotations = do
-      (bindings, body) <- letrec freshenVar
-      let vs = map (snd . fst) bindings
-      ((bindings, bindingTypes, vlocs), ctx2) <- markThenRetract Var.inferOther $ do
-        let f ((vloc, v), binding) = case binding of
-              -- If user has provided an annotation, we use that
-              Term.Ann' e t | useUserAnnotations -> do
-                -- Arrows in `t` with no ability lists get an attached fresh
-                -- existential to allow inference of required abilities
-                t2 <- existentializeArrows =<< applyM t
-                pure (Term.ann (loc binding) e t2, t2, vloc)
-              -- If we're not using an annotation, we make one up. There's 2 cases:
+    closed = Set.null . ABT.freeVars
+    indicate t = if closed t then Right else Left
 
-              lam@(Term.Lam' {}) ->
-                -- If `e` is a lambda of arity K, we immediately refine the
-                -- existential to `a1 ->{e1} a2 ... ->{eK} r`. This gives better
-                -- inference of the lambda's ability variables in conjunction with
-                -- handling of lambdas in `check` judgement.
-                (lam,,vloc) <$> existentialFunctionTypeFor lam
-              e -> do
-                -- Anything else, just make up a fresh existential
-                -- which will be refined during typechecking of the binding
-                vt <- extendExistential v
-                pure $ (e, existential' (loc binding) B.Blank vt, vloc)
-        (bindings, bindingTypes, vlocs) <- unzip3 <$> traverse f bindings
-        appendContext (zipWith3 Ann vs vlocs bindingTypes)
-        -- check each `bi` against its type
-        Foldable.for_ (zip3 vs bindings bindingTypes) $ \(v, b, t) -> do
-          -- note: elements of a cycle have to be pure, otherwise order of effects
-          -- is unclear and chaos ensues
+    varAnns bs = zipWith3 Ann (bndVars bs) (bndVarLocs bs) (bndTyps bs)
 
-          -- ensure actions in blocks have type ()
-          when (Var.isAction v) . scope InActionRestriction $
-            subtype t (DDB.unitType (ABT.annotation b))
-          insideDef v $ checkScopedWith b t []
-        ensureGuardedCycle (vs `zip` bindings)
-        pure (bindings, bindingTypes, vlocs)
-      -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
-      -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
-      vars <- getVariances
-      let bindingArities = Term.arity <$> bindings
-          gen bindingType _arity =
-            generalizeExistentials ctx2 vars bindingType
-          bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
-          annotations = zipWith3 Ann vs vlocs bindingTypesGeneralized
+    vbts bs = zip3 (bndVars bs) (bnds bs) (bndTyps bs)
 
-      appendContext annotations
-      let vTypes = vs `zip` bindingTypesGeneralized
-      pure (body, vTypes)
+    prepare ((vloc, v), binding)
+      -- If a term has an annotation add any missing ability
+      -- annotations. We indicate whether the type is completely
+      -- closed, because such types can be separated out of the
+      -- binding cycle.
+      | useAnn, Term.Ann' e t <- binding = do
+          t <- existentializeArrows =<< applyM t
+          pure $ indicate t (Term.ann (loc binding) e t, t, v, vloc)
+      -- If the term is a lambda, we immediately make a refined type
+      -- for better inference.
+      | Term.Lam' {} <- binding =
+          Left . (binding,,v,vloc) <$>
+            existentialFunctionTypeFor binding
+      -- otherwise just make up a fresh existential and proceed
+      | otherwise = do
+          vt <- extendExistential v
+          pure $ Left (binding, existential' (loc binding) B.Blank vt, v, vloc)
 
 ensureGuardedCycle :: (Var v) => [(v, Term v loc)] -> M v loc ()
 ensureGuardedCycle bindings =
