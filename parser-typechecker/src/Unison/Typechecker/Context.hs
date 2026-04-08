@@ -2044,13 +2044,17 @@ annotateLetRecBindings' letrec useAnn = do
 
     vbts bs = zip3 (bndVars bs) (bnds bs) (bndTyps bs)
 
+    countLambdas tm
+      | Term.LamsNamed' vs _ <- tm = length vs
+      | otherwise = 0
+
     prepare ((vloc, v), binding)
       -- If a term has an annotation add any missing ability
       -- annotations. We indicate whether the type is completely
       -- closed, because such types can be separated out of the
       -- binding cycle.
       | useAnn, Term.Ann' e t <- binding = do
-          t <- existentializeArrows =<< applyM t
+          t <- addAbilities (countLambdas e) =<< applyM t
           pure $ indicate t (Term.ann (loc binding) e t, t, v, vloc)
       -- If the term is a lambda, we immediately make a refined type
       -- for better inference.
@@ -2075,16 +2079,24 @@ ensureGuardedCycle bindings =
         then pure ()
         else failWith $ UnguardedLetRecCycle (fst <$> notok) bindings
 
-existentialFunctionTypeFor :: (Ord loc, Var v) => Term v loc -> M v loc (Type v loc)
-existentialFunctionTypeFor lam@(Term.LamNamed' v body) = do
-  v <- extendExistential v
+-- Create a n existential type for a lambda term.
+--
+-- Note: for lambdas like `x y z -> ...` only the abilities after z
+-- will ever be non-empty, so we can just make up empty ability lists
+-- for repeated lambdas.
+existentialFunctionTypeFor
+  :: (Ord loc, Var v) => Term v loc -> M v loc (Type v loc)
+existentialFunctionTypeFor lam@(Term.LamsNamed' vs _) = do
+  let expl = existentialp (loc lam)
+  us <- traverse extendExistential vs
   e <- extendExistential Var.inferAbility
-  o <- existentialFunctionTypeFor body
-  pure $
-    Type.arrow
-      (loc lam)
-      (existentialp (loc lam) v)
-      (Type.effect (loc lam) [existentialp (loc lam) e] o)
+  o <- extendExistential Var.inferOutput
+  let f u t =
+        Type.arrow
+          (loc lam)
+          (expl u)
+          (Type.effect (loc lam) [] t)
+  pure $ foldr f (Type.effect (loc lam) [expl e] (expl o)) us
 existentialFunctionTypeFor e = do
   v <- extendExistential Var.inferOutput
   pure $ existentialp (loc e) v
@@ -2094,6 +2106,30 @@ existentializeArrows t = do
   let newVar = extendExistentialTV Var.inferAbility
   t <- Type.existentializeArrows newVar t
   pure t
+
+-- Adds ability lists to arrows in a type that lack them. Unlike
+-- `existentializeArrows`, this takes a count for a corresponding
+-- repeated lambda, like
+--
+--    w x y z -> ...
+--
+-- since it is impossible for abilities to be used except after `z` in
+-- such a case, this avoids making up variables for them. The `Int`
+-- argument specifies how many repeated variables there are in the
+-- corresponding term.
+addAbilities :: (Var v) => Int -> Type v loc -> M v loc (Type v loc)
+addAbilities ct ty
+  | a <- ABT.annotation ty, Type.ForallsNamed' vs ty <- ty =
+      Type.foralls a vs <$> addAbilities ct ty
+  -- Note: Arrow'' matches even with no abilities, providing []
+  | ct > 1, Type.Arrow'' a es b <- ty = do
+      a <- existentializeArrows a
+      b <- addAbilities (ct-1) b
+      pure $ Type.arrow ann a (Type.effect ann es b)
+  | otherwise = existentializeArrows ty
+  where
+    ann = ABT.annotation ty
+
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 ungeneralize t = snd <$> ungeneralize' t
