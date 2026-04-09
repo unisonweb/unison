@@ -1925,12 +1925,12 @@ annotateLetRecBindings isTop letrec =
 
 -- A wrapper type for demuxed binding information in a let. Only used
 -- locally.
-data Bindings v loc =
-  Bindings {
-    bnds :: [Term v loc],    -- actual bindings
+data Bindings v loc
+  = Bindings
+  { bnds :: [Term v loc], -- actual bindings
     bndTyps :: [Type v loc], -- types for the bindings
-    bndVars :: [v],          -- variables the bindings are bound to
-    bndVarLocs :: [loc]      -- locations of said variables
+    bndVars :: [v], -- variables the bindings are bound to
+    bndVarLocs :: [loc] -- locations of said variables
   }
 
 demuxBindings :: [(Term v loc, Type v loc, v, loc)] -> Bindings v loc
@@ -1994,7 +1994,6 @@ annotateLetRecBindings' letrec useAnn = do
           abnds = demuxBindings anns
           allbnds = demuxBindings $ map (either id id) binds
 
-
       -- check un-annotated bindings against their types
       appendContext (varAnns allbnds)
 
@@ -2024,7 +2023,6 @@ annotateLetRecBindings' letrec useAnn = do
 
   -- check annotated bindings
   _ <- markThenRetract Var.inferOther $ do
-
     Foldable.for_ (vbts abnds) \(v, b, t) -> do
       when (Var.isAction v) . scope InActionRestriction $
         subtype t (DDB.unitType (ABT.annotation b))
@@ -2033,8 +2031,8 @@ annotateLetRecBindings' letrec useAnn = do
   ensureGuardedCycle (namedBindings allbnds)
 
   let vTypes =
-        zip (bndVars ubnds) gbndTyps ++
-        zip (bndVars abnds) (bndTyps abnds)
+        zip (bndVars ubnds) gbndTyps
+          ++ zip (bndVars abnds) (bndTyps abnds)
 
   pure (body, vTypes)
   where
@@ -2050,14 +2048,15 @@ annotateLetRecBindings' letrec useAnn = do
       -- annotations. We indicate whether the type is completely
       -- closed, because such types can be separated out of the
       -- binding cycle.
-      | useAnn, Term.Ann' e t <- binding = do
+      | useAnn,
+        Term.Ann' e t <- binding = do
           t <- addAbilities (countLambdas e) =<< applyM t
           pure $ indicate t (Term.ann (loc binding) e t, t, v, vloc)
       -- If the term is a lambda, we immediately make a refined type
       -- for better inference.
       | Term.Lam' {} <- binding =
-          Left . (binding,,v,vloc) <$>
-            existentialFunctionTypeFor binding
+          Left . (binding,,v,vloc)
+            <$> existentialFunctionTypeFor binding
       -- otherwise just make up a fresh existential and proceed
       | otherwise = do
           vt <- extendExistential v
@@ -2081,8 +2080,8 @@ ensureGuardedCycle bindings =
 -- Note: for lambdas like `x y z -> ...` only the abilities after z
 -- will ever be non-empty, so we can just make up empty ability lists
 -- for repeated lambdas.
-existentialFunctionTypeFor
-  :: (Ord loc, Var v) => Term v loc -> M v loc (Type v loc)
+existentialFunctionTypeFor ::
+  (Ord loc, Var v) => Term v loc -> M v loc (Type v loc)
 existentialFunctionTypeFor lam@(Term.LamsNamed' vs _) = do
   let expl = existentialp (loc lam)
   us <- traverse extendExistential vs
@@ -2116,12 +2115,14 @@ existentializeArrows t = do
 -- corresponding term.
 addAbilities :: (Var v) => Int -> Type v loc -> M v loc (Type v loc)
 addAbilities ct ty
-  | a <- ABT.annotation ty, Type.ForallsNamed' vs ty <- ty =
+  | a <- ABT.annotation ty,
+    Type.ForallsNamed' vs ty <- ty =
       Type.foralls a vs <$> addAbilities ct ty
   -- Note: Arrow'' matches even with no abilities, providing []
-  | ct > 1, Type.Arrow'' a es b <- ty = do
+  | ct > 1,
+    Type.Arrow'' a es b <- ty = do
       a <- existentializeArrows a
-      b <- addAbilities (ct-1) b
+      b <- addAbilities (ct - 1) b
       pure $ Type.arrow ann a (Type.effect ann es b)
   | otherwise = existentializeArrows ty
   where
