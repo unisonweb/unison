@@ -1986,7 +1986,7 @@ annotateLetRecBindings' ::
 annotateLetRecBindings' letrec useAnn = do
   (binds, body) <- letrec freshenVar
 
-  ((abnds, ubnds), ctx) <-
+  ((allbnds, abnds, ubnds), ctx) <-
     markThenRetract Var.inferOther $ do
       binds <- traverse prepare binds
       let (unanns, anns) = partitionEithers binds
@@ -1994,7 +1994,6 @@ annotateLetRecBindings' letrec useAnn = do
           abnds = demuxBindings anns
           allbnds = demuxBindings $ map (either id id) binds
 
-      ensureGuardedCycle (namedBindings allbnds)
 
       -- check un-annotated bindings against their types
       appendContext (varAnns allbnds)
@@ -2008,7 +2007,7 @@ annotateLetRecBindings' letrec useAnn = do
           subtype t (DDB.unitType (ABT.annotation b))
         insideDef v $ checkScopedWith b t []
 
-      pure (abnds, ubnds)
+      pure (allbnds, abnds, ubnds)
 
   -- compute generalized types for bindings that needed inference
   vars <- getVariances
@@ -2030,6 +2029,8 @@ annotateLetRecBindings' letrec useAnn = do
       when (Var.isAction v) . scope InActionRestriction $
         subtype t (DDB.unitType (ABT.annotation b))
       insideDef v $ checkScopedWith b t []
+
+  ensureGuardedCycle (namedBindings allbnds)
 
   let vTypes =
         zip (bndVars ubnds) gbndTyps ++
