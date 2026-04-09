@@ -2044,10 +2044,6 @@ annotateLetRecBindings' letrec useAnn = do
 
     vbts bs = zip3 (bndVars bs) (bnds bs) (bndTyps bs)
 
-    countLambdas tm
-      | Term.LamsNamed' vs _ <- tm = length vs
-      | otherwise = 0
-
     prepare ((vloc, v), binding)
       -- If a term has an annotation add any missing ability
       -- annotations. We indicate whether the type is completely
@@ -2130,6 +2126,12 @@ addAbilities ct ty
   where
     ann = ABT.annotation ty
 
+-- Counts the number of iterated lambdas in a term; for use with the
+-- above `addAbilities`
+countLambdas :: Term v loc -> Int
+countLambdas tm
+  | Term.LamsNamed' vs _ <- tm = length vs
+  | otherwise = 0
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 ungeneralize t = snd <$> ungeneralize' t
@@ -2340,7 +2342,7 @@ checkScoped e (Type.Forall' body) = do
   want <- substAndDefaultWanted want pop
   pure (generalizeP variableP pop ty, want)
 checkScoped e t = do
-  t <- existentializeArrows t
+  t <- addAbilities (countLambdas e) t
   (t,) <$> check e t
 
 checkScopedWith ::
