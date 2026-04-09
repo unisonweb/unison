@@ -391,7 +391,7 @@ prettyLibdepName =
   P.blue . P.text . NameSegment.toEscapedText
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> P.Pretty P.ColorText
-prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
+prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
   P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
   where
     prettyEffects = map prettyEffectDecl (Map.toList effects)

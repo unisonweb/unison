@@ -78,7 +78,7 @@ expectExitCode expected cmd args stdin = scope (intercalate " " (cmd : args)) do
   note $ printf "\n[Time: %s sec]" $ show diff
   when (code /= expected) do
     note ("stderr:\n" <> stdErr)
-  expectEqual code expected
+  expectEqual expected code
 
 defaultArgs :: [String]
 defaultArgs = ["--codebase-create", tempCodebase]
