@@ -967,7 +967,19 @@ renderTypeError e env src = case e of
               formatWrongs preambleSimilarNameRightType suggestionsSimilarNameRightType
         handleSuggestions (_, _, _, suggestionsWrongNameRightType, suggestionsSimilarNameWrongType)
           | not $ null (suggestionsSimilarNameWrongType ++ suggestionsWrongNameRightType) =
-              formatWrongs preambleDifferentNameWrongType (suggestionsSimilarNameWrongType ++ suggestionsWrongNameRightType)
+              let wrongs = formatWrongs preambleDifferentNameWrongType (suggestionsSimilarNameWrongType ++ suggestionsWrongNameRightType)
+               in mconcat
+                    [ case expectedType of
+                        Type.Var' (TypeVar.Existential {}) -> Pr.wrap ("its type could be anything.") <> "\n"
+                        _ ->
+                          mconcat
+                            [ "I think its type should be:",
+                              "\n\n",
+                              Pr.indentN 4 (style Type1 (renderType' env expectedType))
+                            ],
+                      "\n\n",
+                      wrongs
+                    ]
         handleSuggestions (_, _, _, _, _) = undefinedSymbolHelp
      in mconcat
           [ "I couldn't figure out what ",
