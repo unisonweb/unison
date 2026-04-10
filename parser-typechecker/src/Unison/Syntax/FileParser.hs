@@ -51,13 +51,14 @@ file = do
   _ <- openBlock
 
   -- Parse an optional directive like "namespace foo.bar"
-  maybeNamespace :: Maybe Name.Name <-
+  maybeAnnotatedNamespace :: Maybe (Ann, Name.Name) <-
     optional (reserved "namespace") >>= \case
       Nothing -> pure Nothing
       Just _ -> do
         namespace <- importRelativeWordyId <|> importRelativeSymbolyId
         void (optional semi)
-        pure (Just namespace.payload)
+        pure (Just (ann namespace, namespace.payload))
+  let maybeNamespace = snd <$> maybeAnnotatedNamespace
   let maybeNamespaceVar = Name.toVar <$> maybeNamespace
 
   -- The file may optionally contain top-level imports,
@@ -181,6 +182,7 @@ file = do
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
     validateUnisonFile
+      maybeAnnotatedNamespace
       (UF.datasId env)
       (UF.effectsId env)
       (terms <> accessors)
@@ -286,13 +288,14 @@ applyNamespaceToStanza namespace locallyBoundTerms = \case
 -- | Final validations and sanity checks to perform before finishing parsing.
 validateUnisonFile ::
   (Ord v) =>
+  Maybe (Ann, Name.Name) ->
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
   [(v, Ann, Term v Ann)] ->
   Map WatchKind [(v, Ann, Term v Ann)] ->
   P v m (UnisonFile v Ann)
-validateUnisonFile datas effects terms watches =
-  checkForDuplicateTermsAndConstructors datas effects terms watches
+validateUnisonFile fn datas effects terms watches =
+  checkForDuplicateTermsAndConstructors fn datas effects terms watches
 
 -- | Because types and abilities can introduce their own constructors and fields it's difficult
 -- to detect all duplicate terms during parsing itself. Here we collect all terms and
@@ -300,12 +303,13 @@ validateUnisonFile datas effects terms watches =
 checkForDuplicateTermsAndConstructors ::
   forall m v.
   (Ord v) =>
+  Maybe (Ann, Name.Name) ->
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
   [(v, Ann, Term v Ann)] ->
   Map WatchKind [(v, Ann, Term v Ann)] ->
   P v m (UnisonFile v Ann)
-checkForDuplicateTermsAndConstructors datas effects terms watches = do
+checkForDuplicateTermsAndConstructors fn datas effects terms watches = do
   when (not . null $ duplicates) $ do
     let dupeList :: [(v, [Ann])]
         dupeList =
@@ -315,7 +319,8 @@ checkForDuplicateTermsAndConstructors datas effects terms watches = do
     P.customFailure (DuplicateTermNames dupeList)
   pure
     UnisonFileId
-      { dataDeclarationsId = datas,
+      { fileNamespace = fn,
+        dataDeclarationsId = datas,
         effectDeclarationsId = effects,
         terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
         watches
