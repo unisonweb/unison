@@ -153,8 +153,16 @@ And here's the full API:
   17. hashBytes : HashAlgorithm -> Bytes -> Bytes
   18. hmac : HashAlgorithm -> Bytes -> a -> Bytes
   19. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
-  20. Rsa.sign.impl : Bytes -> Bytes -> Either Failure Bytes
-  21. Rsa.verify.impl : Bytes
+  20. P256.publicKey.impl : Bytes -> Either Failure Bytes
+  21. P256.signSha256.impl : Bytes
+                             -> Bytes
+                             -> Either Failure Bytes
+  22. P256.verifySha256.impl : Bytes
+                               -> Bytes
+                               -> Bytes
+                               -> Either Failure Boolean
+  23. Rsa.sign.impl : Bytes -> Bytes -> Either Failure Bytes
+  24. Rsa.verify.impl : Bytes
                         -> Bytes
                         -> Bytes
                         -> Either Failure Boolean
