@@ -1023,6 +1023,12 @@ cryptoBuiltins =
       bytes --> bytes --> eithert failure bytes,
     B "crypto.Rsa.verify.impl" $
       bytes --> bytes --> bytes --> eithert failure boolean,
+    B "crypto.P256.publicKey.impl" $
+      bytes --> eithert failure bytes,
+    B "crypto.P256.signSha256.impl" $
+      bytes --> bytes --> eithert failure bytes,
+    B "crypto.P256.verifySha256.impl" $
+      bytes --> bytes --> bytes --> eithert failure boolean,
     -- Argon2id password hashing (raw bytes API)
     B "crypto.argon2.hashRaw" $
       nat --> nat --> nat --> nat --> bytes --> bytes --> eithert failure bytes,
