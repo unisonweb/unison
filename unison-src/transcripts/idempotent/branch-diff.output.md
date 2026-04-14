@@ -72,9 +72,9 @@ scratch/bob> reflog
   Tip: Use `diff.namespace 1 7` to compare between points in
        history.
 
-       Branch        Hash          Description
-  1.   scratch/bob   #diiate0po6   update
-  2.   scratch/bob   #umhbc4jt4j   Branch created from scratch/main
+       Branch        When   Hash          Description
+  1.   scratch/bob   now    #diiate0po6   update
+  2.   scratch/bob   now    #umhbc4jt4j   Branch created from scratch/main
 
 scratch/bob> branch.diff 2 1
 
