@@ -54,6 +54,7 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -536,6 +537,9 @@ ppedForFileHelper uf tf = do
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
 mkTypeSignatureHints parsedFile typecheckedFile = do
+  let unprefixName name = case UF.fileNamespace' typecheckedFile <|> UF.fileNamespace parsedFile of
+        Nothing -> name
+        Just (_, prefix) -> fromMaybe name $ Name.stripNamePrefix prefix name
   let symbolsWithoutTypeSigs :: Map Symbol Ann
       symbolsWithoutTypeSigs =
         Map.toList (UF.terms parsedFile)
@@ -552,7 +556,7 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
           & Zip.zip symbolsWithoutTypeSigs
           & imapMaybe
             ( \v (ann, (_ann, ref, _wk, _trm, typ)) -> do
-                name <- Name.parseText (Var.name v)
+                name <- unprefixName <$> Name.parseText (Var.name v)
                 range <- annToRange ann
                 let newRangeEnd =
                       range ^. LSPTypes.start

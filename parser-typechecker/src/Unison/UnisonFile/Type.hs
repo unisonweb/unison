@@ -5,6 +5,7 @@ module Unison.UnisonFile.Type where
 import Control.Lens
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
+import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
@@ -15,7 +16,9 @@ import Unison.Type qualified as Type
 import Unison.WatchKind (WatchKind)
 
 data UnisonFile v a = UnisonFileId
-  { dataDeclarationsId :: Map v (TypeReferenceId, DataDeclaration v a),
+  { -- Files can have an optional namespace prefix.
+    fileNamespace :: Maybe (a, Name),
+    dataDeclarationsId :: Map v (TypeReferenceId, DataDeclaration v a),
     effectDeclarationsId :: Map v (TypeReferenceId, EffectDeclaration v a),
     terms :: Map v (a {- ann for name of the binding -}, Term v a),
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
@@ -23,13 +26,15 @@ data UnisonFile v a = UnisonFileId
   deriving stock (Generic, Show)
 
 pattern UnisonFile ::
+  Maybe (a, Name) ->
   Map v (TypeReference, DataDeclaration v a) ->
   Map v (TypeReference, EffectDeclaration v a) ->
   Map v (a, Term v a) ->
   Map WatchKind [(v, a, Term v a)] ->
   UnisonFile v a
-pattern UnisonFile ds es tms ws <-
+pattern UnisonFile fn ds es tms ws <-
   UnisonFileId
+    fn
     (fmap (first Reference.DerivedId) -> ds)
     (fmap (first Reference.DerivedId) -> es)
     tms
@@ -40,7 +45,8 @@ pattern UnisonFile ds es tms ws <-
 -- | A UnisonFile after typechecking. Terms are split into groups by
 --  cycle and the type of each term is known.
 data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
-  { dataDeclarationsId' :: Map v (TypeReferenceId, DataDeclaration v a),
+  { fileNamespace' :: Maybe (a, Name),
+    dataDeclarationsId' :: Map v (TypeReferenceId, DataDeclaration v a),
     effectDeclarationsId' :: Map v (TypeReferenceId, EffectDeclaration v a),
     topLevelComponents' :: [[(v, a {- ann for whole binding -}, Term v a, Type v a)]],
     watchComponents :: [(WatchKind, [(v, a {- ann for whole watch -}, Term v a, Type v a)])],
@@ -51,6 +57,7 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
 {-# COMPLETE TypecheckedUnisonFile #-}
 
 pattern TypecheckedUnisonFile ::
+  Maybe (a, Name) ->
   Map v (TypeReference, DataDeclaration v a) ->
   Map v (TypeReference, EffectDeclaration v a) ->
   [[(v, a, Term v a, Type v a)]] ->
@@ -64,8 +71,9 @@ pattern TypecheckedUnisonFile ::
       ABT.Term Type.F v a
     ) ->
   TypecheckedUnisonFile v a
-pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
+pattern TypecheckedUnisonFile fn ds es tlcs wcs hts <-
   TypecheckedUnisonFileId
+    fn
     (fmap (first Reference.DerivedId) -> ds)
     (fmap (first Reference.DerivedId) -> es)
     tlcs
@@ -73,9 +81,10 @@ pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
     (fmap (over _2 Reference.DerivedId) -> hts)
 
 instance (Ord v) => Functor (TypecheckedUnisonFile v) where
-  fmap f (TypecheckedUnisonFileId ds es tlcs wcs hashTerms) =
-    TypecheckedUnisonFileId ds' es' tlcs' wcs' hashTerms'
+  fmap f (TypecheckedUnisonFileId fn ds es tlcs wcs hashTerms) =
+    TypecheckedUnisonFileId fn' ds' es' tlcs' wcs' hashTerms'
     where
+      fn' = (fmap . first) f fn
       ds' = ds <&> \(refId, decl) -> (refId, fmap f decl)
       es' = es <&> \(refId, effect) -> (refId, fmap f effect)
       tlcs' =
