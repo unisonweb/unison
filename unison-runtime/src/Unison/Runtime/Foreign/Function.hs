@@ -489,6 +489,17 @@ foreignCallHelper = \case
   Tls_ClientConfig_certificates_get ->
     mkForeign $
       \(client :: TLS.ClientParams) -> pure $ X.listCertificates $ TLS.sharedCAStore $ TLS.clientShared client
+  Tls_ClientConfig_alpn_set ->
+    let updateClient :: [Bytes.Bytes] -> TLS.ClientParams -> TLS.ClientParams
+        updateClient protocols client =
+          client
+            { TLS.clientHooks =
+                (TLS.clientHooks client)
+                  { TLS.onSuggestALPN = pure (Just (map Bytes.toArray protocols))
+                  }
+            }
+     in mkForeign $
+          \(protocols :: [Bytes.Bytes], params :: ClientParams) -> pure $ updateClient protocols params
   Tls_ClientConfig_validation_disableHostNameValidation ->
     let customChecks = X.defaultChecks {checkFQHN = False}
         customHooks = def {TLS.onServerCertificate = X.validate X.HashSHA256 defaultHooks customChecks}
