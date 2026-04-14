@@ -107,6 +107,7 @@ data ForeignFunc
   | Tls_ClientConfig_certificates_set
   | Tls_ClientConfig_certificates_get
   | Tls_ClientConfig_alpn_set
+  | Tls_negotiatedProtocol
   | Tls_ClientConfig_validation_disableHostNameValidation
   | Tls_ClientConfig_validation_disableCertificateValidation
   | Tls_ServerConfig_certificates_set
@@ -571,6 +572,7 @@ foreignFuncBuiltinName = \case
   Tls_ServerConfig_certificates_set -> "Tls.ServerConfig.certificates.set"
   Tls_ClientConfig_certificates_get -> "Tls.ClientConfig.certificates.get"
   Tls_ClientConfig_alpn_set -> "Tls.ClientConfig.alpn.set"
+  Tls_negotiatedProtocol -> "Tls.negotiatedProtocol"
   Tls_ServerConfig_certificates_get -> "Tls.ServerConfig.certificates.get"
   Tls_ClientConfig_validation_disableCertificateValidation -> "Tls.ClientConfig.validation.disableCertificateValidation"
   Tls_ClientConfig_validation_disableHostNameValidation -> "Tls.ClientConfig.validation.disableHostNameValidation"

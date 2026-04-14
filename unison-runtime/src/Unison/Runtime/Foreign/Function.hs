@@ -554,6 +554,8 @@ foreignCallHelper = \case
          ) -> Tls socket <$> TLS.contextNew socket config
   Tls_handshake_impl_v3 -> mkForeignTls $
     \(tls :: Tls) -> TLS.handshake tls.context
+  Tls_negotiatedProtocol -> mkForeignTls $
+    \(tls :: Tls) -> fmap (fmap Bytes.fromArray) $ TLS.getNegotiatedProtocol tls.context
   Tls_send_impl_v3 ->
     mkForeignTls $
       \( tls :: Tls,

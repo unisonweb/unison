@@ -1221,6 +1221,7 @@ declareForeigns = do
   declareForeign Tracked 2 Tls_newClient_impl_v3
   declareForeign Tracked 2 Tls_newServer_impl_v3
   declareForeign Tracked 1 Tls_handshake_impl_v3
+  declareForeign Tracked 1 Tls_negotiatedProtocol
   declareForeign Tracked 2 Tls_send_impl_v3
   declareForeign Tracked 1 Tls_decodeCert_impl_v3
 

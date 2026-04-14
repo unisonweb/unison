@@ -1127,6 +1127,7 @@ ioBuiltins =
     ("Tls.encodePrivateKey", tlsPrivateKey --> bytes),
     ("Tls.receive.impl.v3", tls --> iof bytes),
     ("Tls.terminate.impl.v3", tls --> iof unit),
+    ("Tls.negotiatedProtocol", tls --> iof (optionalt bytes)),
     ("Tls.ClientConfig.default", text --> bytes --> tlsClientConfig),
     ("Tls.ServerConfig.default", list tlsSignedCert --> tlsPrivateKey --> tlsServerConfig),
     ("TLS.ClientConfig.ciphers.set", list tlsCipher --> tlsClientConfig --> tlsClientConfig),
