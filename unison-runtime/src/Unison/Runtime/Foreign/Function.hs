@@ -1566,9 +1566,10 @@ signP256Sha256Wrapper ::
   (Bytes.Bytes, Bytes.Bytes) -> Either Failure Bytes.Bytes
 signP256Sha256Wrapper (private0, msg0) =
   bimapFailure "p256" $
-    Bytes.fromByteString <$> P256.signSha256
-      (Bytes.toArray private0 :: ByteString)
-      (Bytes.toArray msg0 :: ByteString)
+    Bytes.fromByteString
+      <$> P256.signSha256
+        (Bytes.toArray private0 :: ByteString)
+        (Bytes.toArray msg0 :: ByteString)
 
 verifyP256Sha256Wrapper ::
   (Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) -> Either Failure Bool

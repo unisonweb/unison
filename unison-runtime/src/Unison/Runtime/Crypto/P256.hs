@@ -6,10 +6,10 @@ module Unison.Runtime.Crypto.P256
 where
 
 import Crypto.Hash qualified as Hash
+import Crypto.Number.Serialize (i2ospOf_, os2ip)
 import Crypto.PubKey.ECC.ECDSA qualified as ECDSA
 import Crypto.PubKey.ECC.Prim qualified as ECC
 import Crypto.PubKey.ECC.Types qualified as ECC
-import Crypto.Number.Serialize (i2ospOf_, os2ip)
 import Data.ByteString qualified as BS
 import Data.Word (Word8)
 import Unison.Util.Text (Text)
