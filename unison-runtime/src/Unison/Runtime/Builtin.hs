@@ -1199,6 +1199,7 @@ declareForeigns = do
   declareForeign Tracked 2 Tls_ServerConfig_certificates_set
   declareForeign Tracked 1 Tls_ClientConfig_certificates_get
   declareForeign Tracked 2 Tls_ClientConfig_alpn_set
+  declareForeign Tracked 2 Tls_ServerConfig_alpn_set
   declareForeign Tracked 1 Tls_ServerConfig_certificates_get
   declareForeign Tracked 1 Tls_ClientConfig_validation_disableHostNameValidation
   declareForeign Tracked 1 Tls_ClientConfig_validation_disableCertificateValidation

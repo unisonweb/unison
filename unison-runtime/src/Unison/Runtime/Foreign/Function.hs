@@ -500,6 +500,27 @@ foreignCallHelper = \case
             }
      in mkForeign $
           \(protocols :: [Bytes.Bytes], params :: ClientParams) -> pure $ updateClient protocols params
+  Tls_ServerConfig_alpn_set ->
+    let updateServer :: [Bytes.Bytes] -> TLS.ServerParams -> TLS.ServerParams
+        updateServer protocols server =
+          server
+            { TLS.serverHooks =
+                (TLS.serverHooks server)
+                  { TLS.onALPNClientSuggest =
+                      Just $ \clientProtocols ->
+                        pure $
+                          foldr
+                            (\protocol selected ->
+                               if Bytes.toArray protocol `elem` clientProtocols
+                                 then Bytes.toArray protocol
+                                 else selected
+                            )
+                            ""
+                            protocols
+                  }
+            }
+     in mkForeign $
+          \(protocols :: [Bytes.Bytes], params :: ServerParams) -> pure $ updateServer protocols params
   Tls_ClientConfig_validation_disableHostNameValidation ->
     let customChecks = X.defaultChecks {checkFQHN = False}
         customHooks = def {TLS.onServerCertificate = X.validate X.HashSHA256 defaultHooks customChecks}
