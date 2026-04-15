@@ -101,18 +101,7 @@ Create `.kiro/settings/mcp.json` in the project root:
 kiro-cli mcp add --name unison --command <path-to-ucm> --args mcp --scope global
 ```
 
-If you're using a custom agent (e.g. defined in `~/.kiro/agents/my-agent.json`), workspace and global MCP servers are not automatically included. Instead, add the server directly to the agent's `mcpServers` block:
-
-``` json
-{
-  "mcpServers": {
-    "unison": {
-      "command": "<path-to-ucm>",
-      "args": ["mcp"]
-    }
-  }
-}
-```
+If you're using a custom agent (e.g. defined in `~/.kiro/agents/my-agent.json`), workspace and global MCP servers are not automatically included. Instead, add the same `mcpServers` entry above directly to the agent's JSON config file.
 
 After saving, restart Kiro CLI. You can verify the server is loaded with `/mcp` in chat.
 
