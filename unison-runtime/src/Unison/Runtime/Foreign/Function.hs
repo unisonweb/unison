@@ -510,10 +510,10 @@ foreignCallHelper = \case
                       Just $ \clientProtocols ->
                         pure $
                           foldr
-                            (\protocol selected ->
-                               if Bytes.toArray protocol `elem` clientProtocols
-                                 then Bytes.toArray protocol
-                                 else selected
+                            ( \protocol selected ->
+                                if Bytes.toArray protocol `elem` clientProtocols
+                                  then Bytes.toArray protocol
+                                  else selected
                             )
                             ""
                             protocols
