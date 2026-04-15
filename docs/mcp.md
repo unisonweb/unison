@@ -76,6 +76,46 @@ Restart `codex`; you should now be able to see the Unison MCP server by entering
 list-project-definitions, list-project-libraries, search-by-type, search-definitions-by-name, share-project-readme, share-project-search, typecheck-code, view-definitions
 ```
 
+#### Kiro CLI
+
+Kiro CLI supports MCP servers at both global and workspace scope.
+
+**Workspace scope** (recommended — scoped to this project):
+
+Create `.kiro/settings/mcp.json` in the project root:
+
+``` json
+{
+  "mcpServers": {
+    "unison": {
+      "command": "<path-to-ucm>",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**Global scope** (available in all projects):
+
+``` bash
+kiro-cli mcp add --name unison --command <path-to-ucm> --args mcp --scope global
+```
+
+If you're using a custom agent (e.g. defined in `~/.kiro/agents/my-agent.json`), workspace and global MCP servers are not automatically included. Instead, add the server directly to the agent's `mcpServers` block:
+
+``` json
+{
+  "mcpServers": {
+    "unison": {
+      "command": "<path-to-ucm>",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+After saving, restart Kiro CLI. You can verify the server is loaded with `/mcp` in chat.
+
 ### Connecting to a running UCM executable (not recommended)
 
 If instead you wish to connect an agent to a running UCM executable you can use an HTTP MCP connection.
