@@ -212,7 +212,7 @@ displayPretty pped terms typeOf eval types tm = go tm
         eval tm >>= \case
           Nothing -> do
             p <- displayTerm pped terms typeOf eval types tm
-            pure . P.indentN 4 $ P.lines [p, "⧨", P.red "🆘  An error occured during evaluation"]
+            pure . P.indentN 4 $ P.lines [p, "⧨", P.red "🆘  An error occurred during evaluation"]
           Just result -> do
             p1 <- displayTerm pped terms typeOf eval types tm
             p2 <- displayTerm pped terms typeOf eval types result

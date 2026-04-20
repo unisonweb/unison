@@ -222,7 +222,7 @@ renderDoc pped doc = renderSpecial <$> doc
       ERenderError (InvalidTerm tm) -> Embed ("🆘  unable to render " <> source tm)
 
     evalErrMsg :: SyntaxText
-    evalErrMsg = "🆘  An error occured during evaluation"
+    evalErrMsg = "🆘  An error occurred during evaluation"
 
     renderSrc :: [EvaluatedSrc v] -> [Ref (UnisonHash, DisplayObject SyntaxText Src)]
     renderSrc srcs =

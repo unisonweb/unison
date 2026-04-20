@@ -19,7 +19,7 @@ Overview
 
 * No builds. Unison has perfect incremental compilation, with a shared compilation cache that is part of the codebase format. Despite the strong static typing, you are almost never waiting for code to compile.
 * Instant, non-breaking renaming of definitions.
-* Perfect caching of tests, only rerunning determinstic tests if dependencies changed.
+* Perfect caching of tests, only rerunning deterministic tests if dependencies changed.
 * Semantically-aware version control, avoiding spurious merge conflicts from things like order of imports, whitespace or code formatting differences, and so on.
 
 Unison can be used like any other general-purpose language, or you can use it in conjunction with [Unison Cloud](https://unison.cloud) for building distributed systems.
