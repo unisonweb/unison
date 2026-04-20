@@ -1153,7 +1153,7 @@ tabulateErrors errs | null errs = mempty
 tabulateErrors errs =
   P.indentN 2 . P.lines $
     ""
-      : P.wrap "The following errors occured while decompiling:"
+      : P.wrap "The following errors occurred while decompiling:"
       : (P.indentN 2 . renderDecompError <$> toList errs)
 
 formatIssues :: (Applicative f) => (Word -> f (Pretty P.ColorText)) -> [Word] -> f (Pretty P.ColorText)
