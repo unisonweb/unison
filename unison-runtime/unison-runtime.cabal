@@ -54,6 +54,7 @@ library
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Types
       Unison.Runtime.Canonicalizer
+      Unison.Runtime.Crypto.P256
       Unison.Runtime.Crypto.Rsa
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
@@ -196,6 +197,7 @@ test-suite runtime-tests
       Unison.Test.Gen
       Unison.Test.Runtime.ANF
       Unison.Test.Runtime.ANF.Serialization
+      Unison.Test.Runtime.Crypto.P256
       Unison.Test.Runtime.Crypto.Rsa
       Unison.Test.Runtime.MCode
       Unison.Test.Runtime.MCode.Serialization

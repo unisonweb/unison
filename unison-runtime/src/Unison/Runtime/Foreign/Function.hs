@@ -184,6 +184,7 @@ import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.ANF.Serialize qualified as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin
+import Unison.Runtime.Crypto.P256 qualified as P256
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception (die, exn)
 import Unison.Runtime.FFI.DLL
@@ -650,6 +651,15 @@ foreignCallHelper = \case
   Crypto_Ed25519_verify_impl ->
     mkForeign $
       pure . verifyEd25519Wrapper
+  Crypto_P256_publicKey_impl ->
+    mkForeign $
+      pure . deriveP256PublicKeyWrapper
+  Crypto_P256_signSha256_impl ->
+    mkForeign $
+      pure . signP256Sha256Wrapper
+  Crypto_P256_verifySha256_impl ->
+    mkForeign $
+      pure . verifyP256Sha256Wrapper
   Crypto_Rsa_sign_impl ->
     mkForeign $
       pure . signRsaWrapper
@@ -1546,6 +1556,30 @@ verifyEd25519Wrapper (public0, msg0, sig0) = case validated of
       "ed25519: Secret key structure invalid"
     errMsg _ = "ed25519: unexpected error"
 
+deriveP256PublicKeyWrapper ::
+  Bytes.Bytes -> Either Failure Bytes.Bytes
+deriveP256PublicKeyWrapper private0 =
+  bimapFailure "p256" $
+    Bytes.fromByteString <$> P256.derivePublicKey (Bytes.toArray private0 :: ByteString)
+
+signP256Sha256Wrapper ::
+  (Bytes.Bytes, Bytes.Bytes) -> Either Failure Bytes.Bytes
+signP256Sha256Wrapper (private0, msg0) =
+  bimapFailure "p256" $
+    Bytes.fromByteString
+      <$> P256.signSha256
+        (Bytes.toArray private0 :: ByteString)
+        (Bytes.toArray msg0 :: ByteString)
+
+verifyP256Sha256Wrapper ::
+  (Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) -> Either Failure Bool
+verifyP256Sha256Wrapper (public0, msg0, sig0) =
+  bimapFailure "p256" $
+    P256.verifySha256
+      (Bytes.toArray public0 :: ByteString)
+      (Bytes.toArray msg0 :: ByteString)
+      (Bytes.toArray sig0 :: ByteString)
+
 signRsaWrapper ::
   (Bytes.Bytes, Bytes.Bytes) -> Either Failure Bytes.Bytes
 signRsaWrapper (secret0, msg0) = case validated of
@@ -1570,6 +1604,11 @@ verifyRsaWrapper (public0, msg0, sig0) = case validated of
     msg = Bytes.toArray msg0 :: ByteString
     sig = Bytes.toArray sig0 :: ByteString
     validated = Rsa.parseRsaPublicKey (Bytes.toArray public0 :: ByteString)
+
+bimapFailure :: Text -> Either Text a -> Either Failure a
+bimapFailure _ = \case
+  Left err -> Left (F.Failure Ty.cryptoFailureRef err unitValue)
+  Right value -> Right value
 
 -- | Hash a password with Argon2id using the provided options and salt.
 -- Takes: (memory KiB, iterations, parallelism, outputLen, password, salt)
