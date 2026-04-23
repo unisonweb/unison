@@ -9,6 +9,7 @@ import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Output
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -29,9 +30,10 @@ handleSignature :: NonEmpty (HQ.HashQualified Name) -> Cli ()
 handleSignature hqNames = do
   Cli.Env {codebase} <- ask
   names <- Cli.currentNames
-  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
+  hashLength <- Cli.runTransaction Codebase.hashLength
+  let pped = PPED.makePPED (PPE.hqNamer hashLength names) (PPE.suffixifyByHash names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
-  let nameSearch = NameSearch.makeNameSearch 10 names
+  let nameSearch = NameSearch.makeNameSearch hashLength names
   let query = Set.fromList (toList hqNames)
   (misses, results) <- Cli.runTransaction do
     QueryResult {misses, hits} <- Backend.hqNameQuery codebase nameSearch Names.IncludeSuffixes query

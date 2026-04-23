@@ -926,6 +926,9 @@
     as though they were provided at the command line when
     running `mymain` as an executable.
 
+  signature (or sig)
+  `signature foo` displays the type signature of `foo`.
+
   switch
   `switch`          opens an interactive selector to pick a
                     project and branch
