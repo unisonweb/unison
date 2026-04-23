@@ -14,8 +14,7 @@ unisonLocal.zip
 unison-src/builtin-tests/interpreter-tests.md
 
 # Stack
-*.stack-work
-*.stack-work-hls
+*.stack-work*
 
 # Cabal
 dist-newstyle
