@@ -40,3 +40,6 @@ result-transcripts
 
 # Local verification proofs (see scripts/proofs/)
 .local-proofs/
+
+# Agent stuff
+/.claude
