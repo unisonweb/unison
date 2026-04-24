@@ -57,7 +57,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names (Names)
 import Unison.Names qualified as Names
-import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann (Ann, isFileAnn)
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
@@ -546,7 +546,7 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
           & mapMaybe
             ( \(v, (ann, trm)) -> do
                 -- We only want hints for terms without a user signature
-                guard (isNothing $ Term.getTypeAnnotation trm)
+                guard (isNothing $ Term.getTypeAnnotation trm && isFileAnn ann)
                 pure (v, ann)
             )
           & Map.fromList
