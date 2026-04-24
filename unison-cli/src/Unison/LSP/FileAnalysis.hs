@@ -73,6 +73,7 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
@@ -546,7 +547,9 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
           & mapMaybe
             ( \(v, (ann, trm)) -> do
                 -- We only want hints for terms without a user signature
-                guard (isNothing $ Term.getTypeAnnotation trm && isFileAnn ann)
+                guard (isNothing (Term.getTypeAnnotation trm))
+                -- And we don't want hints for generated methods
+                guard (isFileAnn ann)
                 pure (v, ann)
             )
           & Map.fromList
@@ -557,6 +560,8 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
           & imapMaybe
             ( \v (ann, (_ann, ref, _wk, _trm, typ)) -> do
                 name <- unprefixName <$> Name.parseText (Var.name v)
+                -- Don't bother with hints for docs
+                guard (Name.lastSegment name /= NameSegment.unsafeParseText "doc")
                 range <- annToRange ann
                 let newRangeEnd =
                       range ^. LSPTypes.start
