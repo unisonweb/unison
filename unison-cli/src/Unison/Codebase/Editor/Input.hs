@@ -207,6 +207,7 @@ data Input
   | ReleaseDraftI Semver
   | ResetI BranchId2 {- namespace to reset it to -} (Maybe UnresolvedProjectBranch {- ProjectBranch to reset -})
   | SaveExecuteResultI Name
+  | SignatureI (NonEmpty (HQ.HashQualified Name))
   | ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
   | ShowGlobalReflogI
   | ShowProjectBranchReflogI (Maybe (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))

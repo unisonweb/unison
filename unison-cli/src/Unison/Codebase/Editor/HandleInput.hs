@@ -97,6 +97,7 @@ import Unison.Codebase.Editor.HandleInput.Rename (handleRename)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (handleShowDefinition)
+import Unison.Codebase.Editor.HandleInput.Signature (handleSignature)
 import Unison.Codebase.Editor.HandleInput.SyncV2 qualified as SyncV2
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveMainRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
@@ -628,6 +629,7 @@ loop e = do
           _ <- Cli.updateAt description target (const newRoot)
           Cli.respond Success
         SaveExecuteResultI resultName -> handleAddRun input resultName
+        SignatureI query -> handleSignature query
         ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
         ShowGlobalReflogI -> Reflogs.showGlobalReflog
         ShowProjectBranchReflogI mayProjBranch -> Reflogs.showProjectBranchReflog mayProjBranch
@@ -853,6 +855,7 @@ inputDescription input =
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
     SaveExecuteResultI {} -> wat
+    SignatureI {} -> wat
     ShowDefinitionI {} -> wat
     ShowGlobalReflogI {} -> wat
     ShowProjectBranchReflogI {} -> wat

@@ -54,9 +54,10 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.Names (Names)
 import Unison.Names qualified as Names
-import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann (Ann, isFileAnn)
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
@@ -72,6 +73,7 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
@@ -536,13 +538,18 @@ ppedForFileHelper uf tf = do
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
 mkTypeSignatureHints parsedFile typecheckedFile = do
+  let unprefixName name = case UF.fileNamespace' typecheckedFile <|> UF.fileNamespace parsedFile of
+        Nothing -> name
+        Just (_, prefix) -> fromMaybe name $ Name.stripNamePrefix prefix name
   let symbolsWithoutTypeSigs :: Map Symbol Ann
       symbolsWithoutTypeSigs =
         Map.toList (UF.terms parsedFile)
           & mapMaybe
             ( \(v, (ann, trm)) -> do
                 -- We only want hints for terms without a user signature
-                guard (isNothing $ Term.getTypeAnnotation trm)
+                guard (isNothing (Term.getTypeAnnotation trm))
+                -- And we don't want hints for generated methods
+                guard (isFileAnn ann)
                 pure (v, ann)
             )
           & Map.fromList
@@ -552,7 +559,9 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
           & Zip.zip symbolsWithoutTypeSigs
           & imapMaybe
             ( \v (ann, (_ann, ref, _wk, _trm, typ)) -> do
-                name <- Name.parseText (Var.name v)
+                name <- unprefixName <$> Name.parseText (Var.name v)
+                -- Don't bother with hints for docs
+                guard (Name.lastSegment name /= NameSegment.unsafeParseText "doc")
                 range <- annToRange ann
                 let newRangeEnd =
                       range ^. LSPTypes.start

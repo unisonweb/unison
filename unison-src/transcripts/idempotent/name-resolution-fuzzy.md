@@ -61,6 +61,10 @@ myFunction = TRuncate
 
       4 | myFunction = TRuncate
 
+  I think its type should be:
+
+      Float -> Int
+
   I found some terms in scope with similar names but different 
   types. Was any of these what you wanted?
 
@@ -81,6 +85,10 @@ myFunction = builtin.io2.Ref.ca1
   I couldn't figure out what builtin.io2.Ref.ca1 refers to here:
 
       4 | myFunction = builtin.io2.Ref.ca1
+
+  I think its type should be:
+
+      Ref {IO} a1 -> Ticket a1 -> a1 ->{IO} Boolean
 
   I found a term in scope with a similar name but a different 
   type. Was this what you wanted?
@@ -113,6 +121,9 @@ x = biz.bete
 
       2 | x = biz.bete
 
+  its type could be anything.
+
+
   I found some terms in scope with similar names but different 
   types. Was any of these what you wanted?
 
@@ -137,6 +148,10 @@ myFunction = Flat.TRuncate2x4
 
       3 | myFunction = Flat.TRuncate2x4
 
+  I think its type should be:
+
+      Float -> Nat
+
   I found some terms in scope with similar names but different 
   types. Was any of these what you wanted?
 
@@ -157,6 +172,10 @@ myFunction = X
   I couldn't figure out what X refers to here:
 
       4 | myFunction = X
+
+  I think its type should be:
+
+      Int -> Int -> Boolean
 
   I found some terms in scope with similar names but different 
   types. Was any of these what you wanted?
@@ -179,6 +198,10 @@ myFunction = In.X
   I couldn't figure out what In.X refers to here:
 
       4 | myFunction = In.X
+
+  I think its type should be:
+
+      Int -> Int -> Boolean
 
   I found some terms in scope with similar names but different 
   types. Was any of these what you wanted?
@@ -212,6 +235,10 @@ f =
 
      10 |   if A then xYzlmno else ()
 
+  I think its type should be:
+
+      Boolean
+
   I found some terms in scope with similar names but different 
   types. Was any of these what you wanted?
 
@@ -239,6 +266,10 @@ f =
   I couldn't figure out what R.xYzlmno refers to here:
 
      10 |   if R.xYzlmno then A else ()
+
+  I think its type should be:
+
+      Boolean
 
   I found a term in scope with a similar name but a different 
   type. Was this what you wanted?

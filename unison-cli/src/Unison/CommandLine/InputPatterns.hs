@@ -109,6 +109,7 @@ module Unison.CommandLine.InputPatterns
     renameType,
     reset,
     saveExecuteResult,
+    signature,
     sfind,
     sfindReplace,
     textfind,
@@ -951,6 +952,23 @@ viewGlobal =
         ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionGlobal)
             . traverse handleHashQualifiedNameArg
         )
+        . NE.nonEmpty
+    )
+
+signature :: InputPattern
+signature =
+  InputPattern
+    "signature"
+    ["sig"]
+    I.Visible
+    (Parameters [] $ OnePlus ("definition name", definitionQueryArg))
+    ( P.wrap $
+        makeExample signature ["foo"]
+          <> "displays the type signature of `foo`."
+    )
+    ( maybe
+        (wrongArgsLength "at least one argument" [])
+        (fmap Input.SignatureI . traverse handleHashQualifiedNameArg)
         . NE.nonEmpty
     )
 
@@ -4003,6 +4021,7 @@ validInputs =
       moveTo,
       reset,
       saveExecuteResult,
+      signature,
       test,
       testAll,
       todo,

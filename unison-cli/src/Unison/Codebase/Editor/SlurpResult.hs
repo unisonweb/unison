@@ -312,13 +312,14 @@ filterUnisonFile ::
 filterUnisonFile
   SlurpResult {adds}
   ( UF.TypecheckedUnisonFileId
+      fileNamespace'
       dataDeclarations'
       effectDeclarations'
       topLevelComponents'
       watchComponents
       hashTerms
     ) =
-    UF.TypecheckedUnisonFileId datas effects tlcs watches hashTerms'
+    UF.TypecheckedUnisonFileId fileNamespace' datas effects tlcs watches hashTerms'
     where
       keep = adds
       keepTerms = SC.terms keep

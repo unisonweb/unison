@@ -97,6 +97,7 @@ library
       Unison.Codebase.Editor.HandleInput.Run
       Unison.Codebase.Editor.HandleInput.RuntimeUtils
       Unison.Codebase.Editor.HandleInput.ShowDefinition
+      Unison.Codebase.Editor.HandleInput.Signature
       Unison.Codebase.Editor.HandleInput.SyncV2
       Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.Tests
