@@ -772,6 +772,7 @@ patternReferences_ f = \case
   p@(Pattern.Float {}) -> pure p
   p@(Pattern.Text {}) -> pure p
   p@(Pattern.Char {}) -> pure p
+  p@(Pattern.Bytes {}) -> pure p
   (Pattern.Constructor loc ref patterns) ->
     (\newRef newPatterns -> Pattern.Constructor loc newRef newPatterns)
       <$> (ref & someRefCon_ %%~ f)

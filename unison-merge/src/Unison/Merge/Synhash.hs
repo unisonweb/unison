@@ -69,6 +69,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
 import Unison.Util.Map qualified as Map
 import Unison.Var (Var)
@@ -321,6 +322,7 @@ hashPatternTokens ppe = \case
         Pattern.Concat -> H.Tag 0
         Pattern.Snoc -> H.Tag 1
         Pattern.Cons -> H.Tag 2
+  Pattern.Bytes _ b -> [H.Tag 17, H.Bytes (Bytes.toByteString b)]
 
 hashReferentToken :: PrettyPrintEnv -> Referent -> Token
 hashReferentToken ppe =

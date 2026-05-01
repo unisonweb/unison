@@ -11,10 +11,12 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Syntax.Lexer.Token (Token)
 import Unison.Syntax.Parser (Annotated (..))
+import Unison.Util.Bytes (Bytes)
 
 data Pattern v
   = As Ann (Token v) (Pattern v)
   | Boolean Ann !Bool
+  | Bytes Ann !Bytes
   | Char Ann !Char
   | Constructor Ann !(Token (HashQualified Name)) [Pattern v]
   | EffectBind Ann !(Token (HashQualified Name)) [Pattern v] (Pattern v)
@@ -37,6 +39,7 @@ instance Annotated (Pattern v) where
   ann = \case
     As pos _ _ -> pos
     Boolean pos _ -> pos
+    Bytes pos _ -> pos
     Char pos _ -> pos
     Constructor pos _ _ -> pos
     EffectBind pos _ _ _ -> pos
@@ -56,6 +59,7 @@ setPos :: Ann -> Pattern v -> Pattern v
 setPos pos = \case
   As _ a b -> As pos a b
   Boolean _ a -> Boolean pos a
+  Bytes _ a -> Bytes pos a
   Char _ a -> Char pos a
   Constructor _ a b -> Constructor pos a b
   EffectBind _ a b c -> EffectBind pos a b c

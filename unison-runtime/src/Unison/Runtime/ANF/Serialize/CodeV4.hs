@@ -398,6 +398,8 @@ putBranches fops ctx bs = case bs of
       <> putRefNum r
       <> putEnumMap BU.word64BE (putNormal fops ctx) m
       <> putMaybe df (putNormal fops ctx)
+  MatchBytes _ _ ->
+    exn [] "putBranches: Bytes pattern matching not supported in V4 codec"
   _ -> exn [] "putBranches: malformed intermediate term"
 
 getBranches ::
@@ -436,6 +438,7 @@ getBranches ctx frsh0 =
         <$> getRefNum
         <*> getEnumMap getWord64be (getNormal ctx frsh0)
         <*> getMaybe (getNormal ctx frsh0)
+    MBytesT -> exn [] "getBranches: Bytes pattern matching not supported in V4 codec"
 {-# INLINEABLE getBranches #-}
 
 putCase ::
