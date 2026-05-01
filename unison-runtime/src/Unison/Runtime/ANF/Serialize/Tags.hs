@@ -33,6 +33,7 @@ data MtTag
   | MDataT
   | MSumT
   | MNumT
+  | MBytesT
 
 data LtTag
   = IT
@@ -124,6 +125,7 @@ instance Tag MtTag where
     MDataT -> 4
     MSumT -> 5
     MNumT -> 6
+    MBytesT -> 7
 
   word2tag = \case
     0 -> pure MIntT
@@ -133,6 +135,7 @@ instance Tag MtTag where
     4 -> pure MDataT
     5 -> pure MSumT
     6 -> pure MNumT
+    7 -> pure MBytesT
     n -> unknownTag "MtTag" n
 
 instance Tag LtTag where

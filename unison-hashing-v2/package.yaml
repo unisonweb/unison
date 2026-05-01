@@ -19,6 +19,7 @@ dependencies:
   - unison-hash
   - unison-hashing
   - unison-prelude
+  - unison-util-bytes
   - unison-util-relation
 
 library:

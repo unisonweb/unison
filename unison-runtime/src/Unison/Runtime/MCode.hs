@@ -97,6 +97,7 @@ import Unison.Runtime.ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
+import Unison.Util.Bytes (Bytes)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
@@ -763,6 +764,9 @@ data GBranch comb
   | TestT
       !(GSection comb)
       !(M.Map Text (GSection comb))
+  | TestY
+      !(GSection comb)
+      !(M.Map Bytes (GSection comb))
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 branchToEnumMap :: GBranch comb -> Maybe ((GSection comb), EnumMap Word64 (GSection comb))
@@ -780,6 +784,9 @@ pattern MatchW i d cs <- Match i (branchToEnumMap -> Just (d, cs))
 
 pattern MatchT :: Int -> (GSection comb) -> M.Map Text (GSection comb) -> (GSection comb)
 pattern MatchT i d cs = Match i (TestT d cs)
+
+pattern MatchY :: Int -> (GSection comb) -> M.Map Bytes (GSection comb) -> (GSection comb)
+pattern MatchY i d cs = Match i (TestY d cs)
 
 pattern NMatchW ::
   Maybe Reference -> Int -> (GSection comb) -> EnumMap Word64 (GSection comb) -> (GSection comb)
@@ -1115,6 +1122,19 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
         i
         cs
         df
+  | Just (i, BX) <- ctxResolve ctx v,
+    MatchBytes cs df <- bs =
+      emitLitMatching
+        MatchY
+        "missing bytes case"
+        rns
+        grpr
+        grpn
+        rec
+        ctx
+        i
+        cs
+        df
   | Just (i, UN) <- ctxResolve ctx v,
     MatchSum cs <- bs =
       emitSumMatching rns grpr grpn rec ctx v i cs
@@ -1221,6 +1241,7 @@ matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
       | MatchRequest _ _ <- b = "MatchRequest"
       | MatchSum _ <- b = "MatchSum"
       | MatchText _ _ <- b = "MatchText"
+      | MatchBytes _ _ <- b = "MatchBytes"
 
 emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v =
@@ -1712,6 +1733,8 @@ branchDeps (TestW d m) =
   sectionDeps d ++ foldMap sectionDeps m
 branchDeps (TestT d m) =
   sectionDeps d ++ foldMap sectionDeps m
+branchDeps (TestY d m) =
+  sectionDeps d ++ foldMap sectionDeps m
 
 branchTypes :: GBranch comb -> [Word64]
 branchTypes (Test1 _ s1 d) = sectionTypes s1 ++ sectionTypes d
@@ -1720,6 +1743,8 @@ branchTypes (Test2 _ s1 _ s2 d) =
 branchTypes (TestW d m) =
   sectionTypes d ++ foldMap sectionTypes m
 branchTypes (TestT d m) =
+  sectionTypes d ++ foldMap sectionTypes m
+branchTypes (TestY d m) =
   sectionTypes d ++ foldMap sectionTypes m
 
 indent :: Int -> ShowS
@@ -1818,7 +1843,7 @@ prettyGRef p r =
     Dyn w -> showString "Dyn " . shows w
     Env cix _ -> showString "Env " . prettyCIx cix
 
-prettyBranches :: (Show comb) => Int -> GBranch comb -> ShowS
+prettyBranches :: forall comb. (Show comb) => Int -> GBranch comb -> ShowS
 prettyBranches ind bs =
   case bs of
     Test1 i e df -> pdf df . picase i e
@@ -1826,10 +1851,13 @@ prettyBranches ind bs =
     TestW df m ->
       pdf df . foldr (\(i, e) r -> picase i e . r) id (mapToList m)
     TestT df m ->
-      pdf df . foldr (\(i, e) r -> ptcase i e . r) id (M.toList m)
+      pdf df . foldr (\(i, e) r -> pscase i e . r) id (M.toList m)
+    TestY df m ->
+      pdf df . foldr (\(i, e) r -> pscase i e . r) id (M.toList m)
   where
     pdf e = indent ind . showString "DFLT ->\n" . prettySection (ind + 1) e
-    ptcase t e =
+    pscase :: (Show a) => a -> GSection comb -> ShowS
+    pscase t e =
       showString "\n"
         . indent ind
         . shows t
@@ -1898,3 +1926,4 @@ sanitizeBranches sandboxedForeigns = \case
   Test2 i s j t d -> Test2 i (sanitizeSection sandboxedForeigns s) j (sanitizeSection sandboxedForeigns t) (sanitizeSection sandboxedForeigns d)
   TestW d m -> TestW (sanitizeSection sandboxedForeigns d) (fmap (sanitizeSection sandboxedForeigns) m)
   TestT d m -> TestT (sanitizeSection sandboxedForeigns d) (fmap (sanitizeSection sandboxedForeigns) m)
+  TestY d m -> TestY (sanitizeSection sandboxedForeigns d) (fmap (sanitizeSection sandboxedForeigns) m)

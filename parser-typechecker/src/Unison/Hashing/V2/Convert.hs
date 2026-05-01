@@ -147,6 +147,7 @@ m2hPattern = \case
   Memory.Pattern.Float loc f -> Hashing.PatternFloat loc f
   Memory.Pattern.Text loc t -> Hashing.PatternText loc t
   Memory.Pattern.Char loc c -> Hashing.PatternChar loc c
+  Memory.Pattern.Bytes loc b -> Hashing.PatternBytes loc b
   Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference r i) ps ->
     Hashing.PatternConstructor loc (m2hReference r) i (fmap m2hPattern ps)
   Memory.Pattern.As loc p -> Hashing.PatternAs loc (m2hPattern p)
@@ -208,6 +209,7 @@ h2mPattern = \case
   Hashing.PatternFloat loc f -> Memory.Pattern.Float loc f
   Hashing.PatternText loc t -> Memory.Pattern.Text loc t
   Hashing.PatternChar loc c -> Memory.Pattern.Char loc c
+  Hashing.PatternBytes loc b -> Memory.Pattern.Bytes loc b
   Hashing.PatternConstructor loc r i ps ->
     Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference (h2mReference r) i) (h2mPattern <$> ps)
   Hashing.PatternAs loc p -> Memory.Pattern.As loc (h2mPattern p)

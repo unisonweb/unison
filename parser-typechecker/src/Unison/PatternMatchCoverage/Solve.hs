@@ -708,6 +708,7 @@ union v0 v1 nc@NormalizedConstraints {constraintMap} =
           Vc'Float pos neg -> handleLit PmLit.Float pos neg
           Vc'Text pos neg -> handleLit PmLit.Text pos neg
           Vc'Char pos neg -> handleLit PmLit.Char pos neg
+          Vc'Bytes pos neg -> handleLit PmLit.Bytes pos neg
         effCon = case vi_eff nonCanonValue of
           IsNotEffectful -> []
           IsEffectful -> [C.Effectful chosenCanon]
@@ -920,6 +921,8 @@ posAndNegLiteral f lit = \case
     | PmLit.Text b <- lit -> uncurry Vc'Text <$> f pos neg b
   Vc'Char pos neg
     | PmLit.Char b <- lit -> uncurry Vc'Char <$> f pos neg b
+  Vc'Bytes pos neg
+    | PmLit.Bytes b <- lit -> uncurry Vc'Bytes <$> f pos neg b
   Vc'Constructor _ _ -> error "impossible: posAndNegLiteral called on constructor"
   _ -> error "impossible: incompatible PmLit and VarConstraints types"
 {-# INLINE posAndNegLiteral #-}

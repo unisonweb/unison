@@ -13,6 +13,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Type qualified as Type
+import Unison.Util.Bytes (Bytes)
 
 data Pattern loc
   = Unbound loc
@@ -23,6 +24,7 @@ data Pattern loc
   | Float loc !Double
   | Text loc !Text
   | Char loc !Char
+  | Bytes loc !Bytes
   | Constructor loc !ConstructorReference [Pattern loc]
   | As loc (Pattern loc)
   | EffectPure loc (Pattern loc)
@@ -47,6 +49,7 @@ updateDependencies tms p = case p of
   Float {} -> p
   Text {} -> p
   Char {} -> p
+  Bytes {} -> p
   Constructor loc r ps -> case Map.lookup (Referent.Con r CT.Data) tms of
     Just (Referent.Con r CT.Data) -> Constructor loc r (updateDependencies tms <$> ps)
     _ -> Constructor loc r (updateDependencies tms <$> ps)
@@ -74,6 +77,7 @@ hasSubpattern needle haystack = needle == haystack || go haystack
     go Boolean {} = False
     go Text {} = False
     go Char {} = False
+    go Bytes {} = False
     go (Constructor _ _ ps) = any (hasSubpattern needle) ps
     go (As _ p) = hasSubpattern needle p
     go (EffectPure _ p) = hasSubpattern needle p
@@ -90,6 +94,7 @@ instance Show (Pattern loc) where
   show (Float _ x) = "Float " <> show x
   show (Text _ t) = "Text " <> show t
   show (Char _ c) = "Char " <> show c
+  show (Bytes _ b) = "Bytes " <> show b
   show (Constructor _ (ConstructorReference r i) ps) =
     "Constructor " <> unwords [show r, show i, show ps]
   show (As _ p) = "As " <> show p
@@ -113,6 +118,7 @@ loc = \case
   Float loc _ -> loc
   Text loc _ -> loc
   Char loc _ -> loc
+  Bytes loc _ -> loc
   Constructor loc _ _ -> loc
   As loc _ -> loc
   EffectPure loc _ -> loc
@@ -143,6 +149,7 @@ instance Eq (Pattern loc) where
   EffectBind _ r ps k == EffectBind _ r2 ps2 k2 = r == r2 && ps == ps2 && k == k2
   As _ p == As _ q = p == q
   Text _ t == Text _ t2 = t == t2
+  Bytes _ b == Bytes _ b2 = b == b2
   SequenceLiteral _ ps == SequenceLiteral _ ps2 = ps == ps2
   SequenceOp _ ph op pt == SequenceOp _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False
@@ -157,6 +164,7 @@ foldMap' f p = case p of
   Float _ _ -> f p
   Text _ _ -> f p
   Char _ _ -> f p
+  Bytes _ _ -> f p
   Constructor _ _ ps -> f p <> foldMap (foldMap' f) ps
   As _ p' -> f p <> foldMap' f p'
   EffectPure _ p' -> f p <> foldMap' f p'
@@ -192,6 +200,7 @@ generalizedDependencies literalType dataConstructor dataType effectConstructor e
           Float _ _ -> [literalType Type.floatRef]
           Text _ _ -> [literalType Type.textRef]
           Char _ _ -> [literalType Type.charRef]
+          Bytes _ _ -> [literalType Type.bytesRef]
       )
 
 labeledDependencies :: Pattern loc -> Set LabeledDependency

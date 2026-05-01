@@ -29,7 +29,8 @@ import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Syntax.TypePrinter qualified as TypePrinter
-import Unison.Type (Type, booleanRef, charRef, effectRef, floatRef, intRef, listRef, natRef, textRef, pattern App', pattern Apps', pattern Ref')
+import Unison.Type (Type, booleanRef, bytesRef, charRef, effectRef, floatRef, intRef, listRef, natRef, textRef, pattern App', pattern Apps', pattern Ref')
+import Unison.Util.Bytes (Bytes)
 import Unison.Util.Pretty
 import Unison.Var (Var)
 
@@ -184,6 +185,7 @@ mkVarInfo v t =
           | r == floatRef -> Vc'Float Nothing mempty
           | r == textRef -> Vc'Text Nothing mempty
           | r == charRef -> Vc'Char Nothing mempty
+          | r == bytesRef -> Vc'Bytes Nothing mempty
         -- this may not be a constructor, but we won't be producing
         -- any constraints for it in that case anyway
         _ -> Vc'Constructor Nothing mempty,
@@ -215,6 +217,7 @@ data VarConstraints vt v loc
   | Vc'Float (Maybe Double) (Set Double)
   | Vc'Text (Maybe Text) (Set Text)
   | Vc'Char (Maybe Char) (Set Char)
+  | Vc'Bytes (Maybe Bytes) (Set Bytes)
   | Vc'ListRoot
       -- | type of list elems
       (Type vt loc)
@@ -255,6 +258,8 @@ prettyNormalizedConstraints ppe (NormalizedConstraints {constraintMap}) = sep " 
               (\x -> [PosLit kcanon (PmLit.Text x)]) <$> pos
             Vc'Char pos _neg ->
               (\x -> [PosLit kcanon (PmLit.Char x)]) <$> pos
+            Vc'Bytes pos _neg ->
+              (\x -> [PosLit kcanon (PmLit.Bytes x)]) <$> pos
             Vc'ListRoot _typ posCons posSnoc _iset ->
               let consConstraints = fmap (\(i, x) -> PosListHead kcanon i x) (zip [0 ..] (toList posCons))
                   snocConstraints = fmap (\(i, x) -> PosListTail kcanon i x) (zip [0 ..] (toList posSnoc))
@@ -270,6 +275,7 @@ prettyNormalizedConstraints ppe (NormalizedConstraints {constraintMap}) = sep " 
             Vc'Float _pos neg -> negConK neg (\v a -> NegLit v (PmLit.Float a))
             Vc'Text _pos neg -> negConK neg (\v a -> NegLit v (PmLit.Text a))
             Vc'Char _pos neg -> negConK neg (\v a -> NegLit v (PmLit.Char a))
+            Vc'Bytes _pos neg -> negConK neg (\v a -> NegLit v (PmLit.Bytes a))
             Vc'ListRoot _typ _posCons _posSnoc iset -> [NegListInterval kcanon (IntervalSet.complement iset)]
           botCon = case vi_eff vi of
             IsNotEffectful -> []

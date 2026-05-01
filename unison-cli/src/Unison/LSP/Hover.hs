@@ -184,6 +184,7 @@ builtinTypeForPatternLiterals = \case
   Pattern.Float _ _ -> Just "Float"
   Pattern.Text _ _ -> Just "Text"
   Pattern.Char _ _ -> Just "Char"
+  Pattern.Bytes _ _ -> Just "Bytes"
   Pattern.Constructor _ _ _ -> Nothing
   Pattern.As _ _ -> Nothing
   Pattern.EffectPure _ _ -> Nothing

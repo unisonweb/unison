@@ -134,6 +134,8 @@ denormalizeMatch b
       (dcase (ipat @Word64 @Integer Ty.intRef) <$> mapToList m) ++ dfcase df
   | MatchText m df <- b =
       (dcase (const @_ @Integer $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
+  | MatchBytes m df <- b =
+      (dcase (const @_ @Integer $ P.Bytes ()) <$> Map.toList m) ++ dfcase df
   | MatchData r cs Nothing <- b,
     [(0, ([UN], zb))] <- mapToList cs,
     TAbs i (TMatch j (MatchIntegral m df)) <- zb,
