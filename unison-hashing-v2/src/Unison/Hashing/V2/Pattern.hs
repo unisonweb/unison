@@ -8,6 +8,8 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Tokenizable qualified as H
 import Unison.Prelude
+import Unison.Util.Bytes (Bytes)
+import Unison.Util.Bytes qualified as Bytes
 
 data Pattern loc
   = PatternUnbound loc
@@ -18,6 +20,7 @@ data Pattern loc
   | PatternFloat loc !Double
   | PatternText loc !Text
   | PatternChar loc !Char
+  | PatternBytes loc !Bytes
   | PatternConstructor loc !Reference !ConstructorId [Pattern loc]
   | PatternAs loc (Pattern loc)
   | PatternEffectPure loc (Pattern loc)
@@ -54,6 +57,7 @@ instance H.Tokenizable (Pattern p) where
   tokens (PatternSequenceLiteral _ ps) = H.Tag 11 : concatMap H.tokens ps
   tokens (PatternSequenceOp _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
   tokens (PatternChar _ c) = H.Tag 13 : H.tokens c
+  tokens (PatternBytes _ b) = [H.Tag 14, H.Bytes (Bytes.toByteString b)]
 
 instance Eq (Pattern loc) where
   PatternUnbound _ == PatternUnbound _ = True
@@ -67,6 +71,7 @@ instance Eq (Pattern loc) where
   PatternEffectBind _ r ctor ps k == PatternEffectBind _ r2 ctor2 ps2 k2 = r == r2 && ctor == ctor2 && ps == ps2 && k == k2
   PatternAs _ p == PatternAs _ q = p == q
   PatternText _ t == PatternText _ t2 = t == t2
+  PatternBytes _ b == PatternBytes _ b2 = b == b2
   PatternSequenceLiteral _ ps == PatternSequenceLiteral _ ps2 = ps == ps2
   PatternSequenceOp _ ph op pt == PatternSequenceOp _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False

@@ -101,6 +101,7 @@ import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Rf
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Text qualified as Util.Text
@@ -698,6 +699,9 @@ eval' !_ _ _ !_ !stk !_ !_ section
 eval' !yld env henv !activeThreads !stk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi stk i
   eval yld env henv activeThreads stk k r $ selectTextBranch t df cs
+eval' !yld env henv !activeThreads !stk !k r (Match i (TestY df cs)) = do
+  b <- peekOffBi stk i
+  eval yld env henv activeThreads stk k r $ selectBytesBranch b df cs
 eval' !yld env henv !activeThreads !stk !k r (Match i br) = do
   n <- peekOffN stk i
   eval yld env henv activeThreads stk k r $ selectBranch n br
@@ -1230,6 +1234,11 @@ selectTextBranch ::
 selectTextBranch t df cs = M.findWithDefault df t cs
 {-# INLINE selectTextBranch #-}
 
+selectBytesBranch ::
+  Bytes.Bytes -> MSection -> M.Map Bytes.Bytes MSection -> MSection
+selectBytesBranch b df cs = M.findWithDefault df b cs
+{-# INLINE selectBytesBranch #-}
+
 selectBranch :: Tag -> MBranch -> MSection
 selectBranch t (Test1 u y n)
   | t == u = y
@@ -1240,6 +1249,7 @@ selectBranch t (Test2 u cu v cv e)
   | otherwise = e
 selectBranch t (TestW df cs) = lookupWithDefault df t cs
 selectBranch _ (TestT {}) = error "impossible"
+selectBranch _ (TestY {}) = error "impossible"
 {-# INLINE selectBranch #-}
 
 -- Combined branch selection and field dumping function for data types.

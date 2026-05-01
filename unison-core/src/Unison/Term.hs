@@ -39,6 +39,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List (multimap, validate)
 import Unison.Var (Var)
@@ -1591,6 +1592,9 @@ matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
       Pattern.Float loc f -> pure (float loc f)
       Pattern.Text loc t -> pure (text loc t)
       Pattern.Char loc c -> pure (char loc c)
+      Pattern.Bytes loc b ->
+        pure $
+          app loc (builtin loc "Bytes.fromList") (list loc (nat loc . fromIntegral <$> Bytes.toWord8s b))
       Pattern.Constructor loc r ps -> apps' (constructor loc r) <$> traverse intop ps
       Pattern.As loc p -> do
         avs <- State.get

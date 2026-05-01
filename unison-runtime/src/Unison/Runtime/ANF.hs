@@ -1017,6 +1017,13 @@ alignBranch f (MatchText bl dl) (MatchText br dr)
         MatchText
           <$> traverse id (Map.intersectionWith f bl br)
           <*> ds
+alignBranch f (MatchBytes bl dl) (MatchBytes br dr)
+  | Map.keysSet bl == Map.keysSet br,
+    Just ds <- alignMaybe f dl dr =
+      Just $
+        MatchBytes
+          <$> traverse id (Map.intersectionWith f bl br)
+          <*> ds
 alignBranch f (MatchRequest bl pl) (MatchRequest br pr)
   | Just bs <- alignAscList h bl br =
       Just $ MatchRequest <$> bs <*> f pl pr
@@ -1347,6 +1354,7 @@ data SeqEnd = SLeft | SRight
 data Branched ref e
   = MatchIntegral (EnumMap Word64 e) (Maybe e)
   | MatchText (Map.Map Util.Text.Text e) (Maybe e)
+  | MatchBytes (Map.Map Bytes e) (Maybe e)
   | MatchRequest [(ref, (EnumMap CTag ([Mem], e)))] e
   | MatchEmpty
   | MatchData ref (EnumMap CTag ([Mem], e)) (Maybe e)
@@ -1368,6 +1376,9 @@ data BranchAccum v
   | AccumText
       (Maybe (ANormal Reference v))
       (Map.Map Util.Text.Text (ANormal Reference v))
+  | AccumBytes
+      (Maybe (ANormal Reference v))
+      (Map.Map Bytes (ANormal Reference v))
   | AccumDefault (ANormal Reference v)
   | AccumPure (ANormal Reference v)
   | AccumRequest
@@ -1395,18 +1406,24 @@ instance Semigroup (BranchAccum v) where
     | rl == rr = AccumIntegral rl (dl <|> dr) $ cl <> cr
   AccumText dl cl <> AccumText dr cr =
     AccumText (dl <|> dr) (cl <> cr)
+  AccumBytes dl cl <> AccumBytes dr cr =
+    AccumBytes (dl <|> dr) (cl <> cr)
   AccumData rl dl cl <> AccumData rr dr cr
     | rl == rr = AccumData rl (dl <|> dr) (cl <> cr)
   AccumDefault dl <> AccumIntegral r _ cr =
     AccumIntegral r (Just dl) cr
   AccumDefault dl <> AccumText _ cr =
     AccumText (Just dl) cr
+  AccumDefault dl <> AccumBytes _ cr =
+    AccumBytes (Just dl) cr
   AccumDefault dl <> AccumData rr _ cr =
     AccumData rr (Just dl) cr
   AccumIntegral r dl cl <> AccumDefault dr =
     AccumIntegral r (dl <|> Just dr) cl
   AccumText dl cl <> AccumDefault dr =
     AccumText (dl <|> Just dr) cl
+  AccumBytes dl cl <> AccumDefault dr =
+    AccumBytes (dl <|> Just dr) cl
   AccumData rl dl cl <> AccumDefault dr =
     AccumData rl (dl <|> Just dr) cl
   l@(AccumPure _) <> AccumPure _ = l
@@ -1969,6 +1986,8 @@ anfBlock (Match' scrut cas) = do
         )
     AccumText df cs ->
       pure (sctx <> cx, pure . TMatch v $ MatchText cs df)
+    AccumBytes df cs ->
+      pure (sctx <> cx, pure . TMatch v $ MatchBytes cs df)
     AccumIntegral r df cs ->
       pure (sctx <> cx, pure $ TMatch v $ MatchNumeric r cs df)
     AccumData r df cs ->
@@ -2136,6 +2155,9 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | P.Text _ t <- p,
     [] <- vs =
       AccumText Nothing . Map.singleton (Util.Text.fromText t) <$> anfBody bd
+  | P.Bytes _ b <- p,
+    [] <- vs =
+      AccumBytes Nothing . Map.singleton b <$> anfBody bd
   | P.Constructor _ (ConstructorReference r t) ps <- p = do
       (,)
         <$> expandBindings ps vs
@@ -2448,6 +2470,8 @@ branchLinks f g (MatchData r m e) =
   MatchData <$> f r <*> (traverse . traverse) g m <*> traverse g e
 branchLinks _ g (MatchText m e) =
   MatchText <$> traverse g m <*> traverse g e
+branchLinks _ g (MatchBytes m e) =
+  MatchBytes <$> traverse g m <*> traverse g e
 branchLinks _ g (MatchIntegral m e) =
   MatchIntegral <$> traverse g m <*> traverse g e
 branchLinks f g (MatchNumeric r m e) =
@@ -2676,6 +2700,9 @@ prettyBranches ind bs = case bs of
     maybe id (\e -> prettyCase ind (showString "_") e id) df
       . foldr (uncurry $ prettyCase ind . shows) id (mapToList bs)
   MatchText bs df ->
+    maybe id (\e -> prettyCase ind (showString "_") e id) df
+      . foldr (uncurry $ prettyCase ind . shows) id (Map.toList bs)
+  MatchBytes bs df ->
     maybe id (\e -> prettyCase ind (showString "_") e id) df
       . foldr (uncurry $ prettyCase ind . shows) id (Map.toList bs)
   MatchData r bs df ->

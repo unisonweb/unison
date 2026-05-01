@@ -538,6 +538,10 @@ putBranches refrep fops ctx bs = case bs of
     putTag MTextT
       <> putMap (putText . Util.Text.toText) (putNormal refrep fops ctx) m
       <> putMaybe df (putNormal refrep fops ctx)
+  MatchBytes m df ->
+    putTag MBytesT
+      <> putMap putBytes (putNormal refrep fops ctx) m
+      <> putMaybe df (putNormal refrep fops ctx)
   MatchRequest m (TAbs v df) ->
     putTag MReqT
       <> putMapping putReference (putEnumMap putCTag (putCase refrep fops ctx)) m
@@ -573,6 +577,10 @@ getBranches ctx frsh0 s =
     MTextT ->
       MatchText
         <$> getMap (Util.Text.fromText <$> getText) (getNormal ctx frsh0 s)
+        <*> getMaybe (getNormal ctx frsh0 s)
+    MBytesT ->
+      MatchBytes
+        <$> getMap getBytes (getNormal ctx frsh0 s)
         <*> getMaybe (getNormal ctx frsh0 s)
     MReqT ->
       MatchRequest

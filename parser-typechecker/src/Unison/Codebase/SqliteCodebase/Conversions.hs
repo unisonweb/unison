@@ -131,6 +131,7 @@ term1to2 h =
       V1.Pattern.Float _ d -> V2.Term.PFloat d
       V1.Pattern.Text _ t -> V2.Term.PText t
       V1.Pattern.Char _ c -> V2.Term.PChar c
+      V1.Pattern.Bytes _ b -> V2.Term.PBytes b
       V1.Pattern.Constructor _ (V1.ConstructorReference r i) ps ->
         V2.Term.PConstructor (reference1to2 r) i (goPat <$> ps)
       V1.Pattern.As _ p -> V2.Term.PAs (goPat p)
@@ -192,6 +193,7 @@ term2to1 h lookupCT =
           V2.Term.PFloat d -> pure $ V1.Pattern.Float a d
           V2.Term.PText t -> pure $ V1.Pattern.Text a t
           V2.Term.PChar c -> pure $ V1.Pattern.Char a c
+          V2.Term.PBytes b -> pure $ V1.Pattern.Bytes a b
           V2.Term.PConstructor r i ps ->
             V1.Pattern.Constructor a (V1.ConstructorReference (reference2to1 r) i) <$> traverse goPat ps
           V2.Term.PAs p -> V1.Pattern.As a <$> goPat p

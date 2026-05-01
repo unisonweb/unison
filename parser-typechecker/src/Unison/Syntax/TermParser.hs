@@ -310,7 +310,7 @@ parsePattern =
 
     pLiteral :: P v m (Syntax.Pattern.Pattern v)
     pLiteral =
-      asum [pTrue, pFalse, pNumber, pText, pChar]
+      asum [pTrue, pFalse, pNumber, pText, pChar, pBytes]
       where
         pTrue :: P v m (Syntax.Pattern.Pattern v)
         pTrue = do
@@ -339,6 +339,11 @@ parsePattern =
         pChar = do
           tok <- character
           pure (Syntax.Pattern.Char (ann tok) (L.payload tok))
+
+        pBytes :: P v m (Syntax.Pattern.Pattern v)
+        pBytes = do
+          tok <- bytesToken
+          pure (Syntax.Pattern.Bytes (ann tok) (L.payload tok))
 
     pParenOrTuple :: P v m (Syntax.Pattern.Pattern v)
     pParenOrTuple = do
@@ -456,6 +461,7 @@ bindConstructorsInPattern =
             Syntax.Pattern.Snoc -> Pattern.Snoc
           <*> bindConstructorsInPattern1 lpat2
       Syntax.Pattern.Text pos t -> pure (Pattern.Text pos t)
+      Syntax.Pattern.Bytes pos b -> pure (Pattern.Bytes pos b)
       Syntax.Pattern.Unbound pos -> pure (Pattern.Unbound pos)
       Syntax.Pattern.Unit pos -> pure (Pattern.Constructor pos (ConstructorReference DD.unitRef 0) [])
       -- Not awesome: something can be at once a syntactically valid nullary constructor and a syntactically valid

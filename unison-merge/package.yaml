@@ -22,6 +22,7 @@ dependencies:
   - unison-prelude
   - unison-pretty-printer
   - unison-syntax
+  - unison-util-bytes
   - unison-util-relation
   - witch
   - witherable

@@ -93,6 +93,7 @@ import U.Util.Serialization hiding (debug)
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid qualified as Monoid
 import Prelude hiding (getChar, putChar)
 
@@ -313,6 +314,9 @@ putSingleTerm t = putABT putSymbol putUnit putF t
           *> putPattern r
       Term.PText t -> putWord8 12 *> putVarInt t
       Term.PChar c -> putWord8 13 *> putChar c
+      Term.PBytes b ->
+        let bs = Bytes.toByteString b
+         in putWord8 14 *> putVarInt (BS.length bs) *> putByteString bs
     putSeqOp :: (MonadPut m) => Term.SeqOp -> m ()
     putSeqOp Term.PCons = putWord8 0
     putSeqOp Term.PSnoc = putWord8 1
@@ -398,6 +402,10 @@ getSingleTerm = getABT getSymbol getUnit getF
                 <*> getPattern
             12 -> Term.PText <$> getVarInt
             13 -> Term.PChar <$> getChar
+            14 -> do
+              n <- getVarInt
+              bs <- getByteString n
+              pure $ Term.PBytes (Bytes.fromByteString bs)
             x -> unknownTag "Pattern" x
           where
             getSeqOp :: (MonadGet m) => m Term.SeqOp

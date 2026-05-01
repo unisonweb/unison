@@ -27,6 +27,7 @@ import Unison.Runtime.Foreign.Function.Type
 import Unison.Runtime.Referenced
 import Unison.Runtime.Serialize (naturalToWord64s)
 import Unison.Runtime.TypeTags (mapBinTag, mapTipTag)
+import Unison.Util.Bytes (Bytes)
 import Unison.Util.Bytes qualified as B
 import Unison.Util.EnumContainers qualified as EC
 import Unison.Util.Text as UT hiding (reverse, pattern Text)
@@ -351,6 +352,10 @@ hash64AddBranches rs ctx = \case
     hash64AddInt 7
       `combine` hash64AddEMap (hash64AddNAssoc rs ctx) bs
       `combine` hash64AddMaybe (hash64AddNormal rs ctx) df
+  MatchBytes bs df ->
+    hash64AddInt 8
+      `combine` hash64AddMap (hash64AddYAssoc rs ctx) bs
+      `combine` hash64AddMaybe (hash64AddNormal rs ctx) df
 
 hash64AddNAssoc ::
   (Show r) =>
@@ -375,6 +380,18 @@ hash64AddTAssoc ::
   Hash64
 hash64AddTAssoc rs ctx t tm =
   UT.hash64AddText t `combine` hash64AddNormal rs ctx tm
+
+hash64AddYAssoc ::
+  (Show r) =>
+  (Var v) =>
+  HRefs r ->
+  [v] ->
+  Bytes ->
+  ANormal r v ->
+  Hash64 ->
+  Hash64
+hash64AddYAssoc rs ctx b tm =
+  B.hash64AddBytes b `combine` hash64AddNormal rs ctx tm
 
 hash64AddDAssoc ::
   (Show r) =>

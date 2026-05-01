@@ -1779,6 +1779,8 @@ checkPattern scrutineeType p =
       lift $ subtype scrutineeType (Type.text loc) $> mempty
     Pattern.Char loc _ ->
       lift $ subtype scrutineeType (Type.char loc) $> mempty
+    Pattern.Bytes loc _ ->
+      lift $ subtype scrutineeType (Type.bytes loc) $> mempty
     Pattern.Constructor loc ref args -> do
       dct <- lift $ getDataConstructorType ref
       udct <- lift $ skolemize forcedData dct

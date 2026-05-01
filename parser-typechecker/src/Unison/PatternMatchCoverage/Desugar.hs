@@ -60,6 +60,7 @@ desugarPattern typ v0 pat k vs = case pat of
   Float _ x -> Grd (PmLit v0 $ PmLit.Float x) <$> k vs
   Text _ x -> Grd (PmLit v0 $ PmLit.Text x) <$> k vs
   Char _ x -> Grd (PmLit v0 $ PmLit.Char x) <$> k vs
+  Bytes _ x -> Grd (PmLit v0 $ PmLit.Bytes x) <$> k vs
   Constructor _loc consRef pats -> do
     contyps <- getConstructorVarTypes typ consRef
     patvars <- assignFreshPatternVars pats
