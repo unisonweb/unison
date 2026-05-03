@@ -20,7 +20,9 @@ import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Symbol (Symbol)
 import Unison.Symbol qualified as Symbol
@@ -47,8 +49,20 @@ hoverHandler m respond = do
         }
 
 hoverInfo :: forall m. (Lspish m, MonadUnliftIO m) => Uri -> Position -> MaybeT m Text
-hoverInfo uri pos =
-  (hoverInfoForRef <|> hoverInfoForLiteral <|> hoverInfoForLocalVar)
+hoverInfo uri pos = do
+  -- Chunk F1: combine the regular hover content (type signature,
+  -- docs, local-binding info) with any implicit-arg info recorded by
+  -- D3's 'applyGivenDecisions'. The regular hover content takes
+  -- priority; the implicit info is appended below it. If only one of
+  -- the two is available, return that one alone. If neither, fail (so
+  -- the LSP returns @null@).
+  baseHover <- lift . runMaybeT $ hoverInfoForRef <|> hoverInfoForLiteral <|> hoverInfoForLocalVar
+  implicits <- lift . runMaybeT $ implicitArgHover
+  case (baseHover, implicits) of
+    (Nothing, Nothing) -> empty
+    (Just b, Nothing) -> pure b
+    (Nothing, Just i) -> pure i
+    (Just b, Just i) -> pure (b <> "\n---\n" <> i)
   where
     markdownify :: Text -> Text
     markdownify rendered = Text.unlines ["``` unison", rendered, "```"]
@@ -138,6 +152,30 @@ hoverInfo uri pos =
             (Symbol.Symbol _ (Var.User name)) -> name
             _ -> tShow localVar
       pure $ renderTypeSigForHover pped varName typ
+
+    -- Chunk F1: render an "Implicit argument; resolved from given …"
+    -- line for each synthesized implicit slot at this cursor position.
+    -- Multiple slots produce multiple lines, in left-to-right
+    -- synthesis order.
+    implicitArgHover :: MaybeT m Text
+    implicitArgHover = do
+      FileAnalysis {implicitArgInfo} <- FileAnalysis.getFileAnalysis uri
+      let refs =
+            IM.intersecting implicitArgInfo (IM.ClosedInterval pos pos)
+              & IM.toAscList
+              & concatMap snd
+      case refs of
+        [] -> empty
+        _ -> do
+          pped <- lift $ ppedForFile uri
+          pure . Text.unlines $ renderImplicitLine pped <$> refs
+
+    renderImplicitLine :: PPED.PrettyPrintEnvDecl -> Reference -> Text
+    renderImplicitLine pped ref =
+      let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+          name = HQ.toTextWith Name.toText (PPE.termName unsuffixifiedPPE (Referent.Ref ref))
+          hashPrefix = Reference.showShort 9 ref
+       in "Implicit argument; resolved from given `" <> name <> "` (" <> hashPrefix <> ")"
 
     hoistMaybe :: Maybe a -> MaybeT m a
     hoistMaybe = MaybeT . pure

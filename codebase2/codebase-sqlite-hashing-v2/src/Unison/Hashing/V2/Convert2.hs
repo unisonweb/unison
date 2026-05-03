@@ -84,6 +84,8 @@ v2ToH2Type' mkReference = ABT.transform convertF
       V2.Type.Effects a -> H2.TypeEffects a
       V2.Type.Forall a -> H2.TypeForall a
       V2.Type.IntroOuter a -> H2.TypeIntroOuter a
+      -- ADR-019: implicit arrows hash distinctly via 'TypeImplicitArrow'.
+      V2.Type.ImplicitArrow a b -> H2.TypeImplicitArrow a b
 
 convertKind :: V2.Kind -> H2.Kind
 convertKind = \case

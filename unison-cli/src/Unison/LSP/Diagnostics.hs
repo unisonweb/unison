@@ -1,6 +1,7 @@
 module Unison.LSP.Diagnostics
   ( reportDiagnostics,
     mkDiagnostic,
+    setDiagnosticCode,
     DiagnosticSeverity (..),
   )
 where
@@ -44,3 +45,9 @@ mkDiagnostic uri r severity tags msg references =
       _codeDescription = Nothing,
       _data_ = Nothing
     }
+
+-- | Tag a diagnostic with a short string code (chunk F2). The LSP
+-- protocol allows either an integer or a string here; we use string
+-- codes so the categories are self-describing in the editor UI.
+setDiagnosticCode :: Text -> Diagnostic -> Diagnostic
+setDiagnosticCode c d = d {_code = Just (InR c)}

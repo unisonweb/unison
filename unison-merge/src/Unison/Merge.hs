@@ -24,6 +24,16 @@ module Unison.Merge
     TwoWayI (..),
     Unconflicts (..),
     Updated,
+
+    -- * Given-set conflict resolution (per ADR-021)
+    GivenMarks,
+    GivenSetConflict (..),
+    GivenSetMergeOutcome (..),
+    GivenSetSide (..),
+    MergeMode (..),
+    SurvivorMap,
+    applyGivenSet,
+    mergeGivenSets,
   )
 where
 
@@ -32,6 +42,16 @@ import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Diffblob (Diffblob (..), DiffblobLog (..), emptyDiffblobLog, makeDiffblob)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
+import Unison.Merge.GivenSet
+  ( GivenMarks,
+    GivenSetConflict (..),
+    GivenSetMergeOutcome (..),
+    GivenSetSide (..),
+    MergeMode (..),
+    SurvivorMap,
+    applyGivenSet,
+    mergeGivenSets,
+  )
 import Unison.Merge.Libdeps (LibdepDiffOp (..))
 import Unison.Merge.Mergeblob (Mergeblob (..), MergeblobError (..), makeMergeblob)
 import Unison.Merge.Rename (Rename (..), SimpleRenames (..))

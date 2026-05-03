@@ -488,6 +488,10 @@ checkCacheability cl ctx (r, sg) =
     hasArrows abt = case ABT.out' abt of
       (ABT.Tm f) -> case f of
         Type.Arrow _ _ -> True
+        -- ADR-019: 'ImplicitArrow' is still an arrow at the term level
+        -- (the elaborator turns it into 'Arrow' before runtime, but for
+        -- this caching predicate we treat it identically to 'Arrow').
+        Type.ImplicitArrow _ _ -> True
         other -> or other
       t -> or t
 

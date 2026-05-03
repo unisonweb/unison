@@ -5,12 +5,14 @@ import System.Environment (getArgs)
 import System.IO
 import System.IO.CodePage (withCP65001)
 import Unison.Test.Server.Backend.DefinitionDiff qualified as DefinitionDiff
+import Unison.Test.Sync.GivenRoundtrip qualified as SyncGivenRoundtrip
 import Unison.Test.Sync.Roundtrip qualified as SyncRoundtrip
 
 test :: Test ()
 test =
   tests
     [ SyncRoundtrip.test,
+      SyncGivenRoundtrip.test,
       DefinitionDiff.test
     ]
 

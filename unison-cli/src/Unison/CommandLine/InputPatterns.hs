@@ -1226,6 +1226,9 @@ findHelp =
         ),
         ( "debug.find.global foo",
           "Iteratively searches all projects and branches and lists all definitions with a name similar to 'foo'. Note that this is a very slow operation."
+        ),
+        ( "`find :given`",
+          "lists every term in the current namespace tagged as a given (see also `givens`)."
         )
       ]
   )
@@ -1312,6 +1315,51 @@ renameTerm =
     \case
       oldName : newName : _ -> Input.MoveTermI <$> handleHashQualifiedSplit'Arg oldName <*> handleNewName newName
       _ -> Left $ P.wrap "`rename.term` takes two arguments, like `rename.term oldname newname`."
+
+markGiven :: InputPattern
+markGiven =
+  InputPattern
+    "mark.given"
+    []
+    I.Visible
+    (Parameters [("definition to mark", exactDefinitionTermQueryArg)] $ Optional [] Nothing)
+    ( P.wrap $
+        makeExample markGiven ["foo"]
+          <> "marks `foo` as a given so it participates in implicit resolution."
+          <> "The term hash of `foo` is unchanged; only the namespace hash changes."
+    )
+    \case
+      [name] -> Input.MarkGivenI <$> handleHashQualifiedSplit'Arg name
+      _ -> Left $ P.wrap "`mark.given` takes one argument, like `mark.given foo`."
+
+unmarkGiven :: InputPattern
+unmarkGiven =
+  InputPattern
+    "unmark.given"
+    []
+    I.Visible
+    (Parameters [("definition to unmark", exactDefinitionTermQueryArg)] $ Optional [] Nothing)
+    ( P.wrap $
+        makeExample unmarkGiven ["foo"]
+          <> "removes the given tag from `foo`."
+    )
+    \case
+      [name] -> Input.UnmarkGivenI <$> handleHashQualifiedSplit'Arg name
+      _ -> Left $ P.wrap "`unmark.given` takes one argument, like `unmark.given foo`."
+
+givens :: InputPattern
+givens =
+  InputPattern
+    "givens"
+    []
+    I.Visible
+    noParams
+    ( P.wrap $
+        makeExample' givens
+          <> "lists every definition in the current namespace that has been marked as a given."
+    )
+    . const
+    $ pure Input.GivensI
 
 moveAll :: InputPattern
 moveAll =
@@ -3978,6 +4026,7 @@ validInputs =
       textfind False,
       textfind True,
       forkLocal,
+      givens,
       help,
       helpTopics,
       history,
@@ -3988,6 +4037,7 @@ validInputs =
       libInstallLocalInputPattern,
       load,
       makeStandalone,
+      markGiven,
       mergeBuiltins,
       mergeIOBuiltins,
       mergeInputPattern,
@@ -4027,6 +4077,7 @@ validInputs =
       todo,
       ui,
       undo,
+      unmarkGiven,
       up,
       update,
       diffUpdate,

@@ -109,6 +109,12 @@ improveError' generatedConstraint constraintConflict constraintMap =
         AppAbs abs arg -> pure (UnexpectedArgument loc abs arg constraintMap)
         AppArg abs expected actual -> pure (ArgumentMismatch abs expected actual constraintMap)
         AppArrow loc dom cod -> pure (ArgumentMismatchArrow (loc, dom, cod) constraintConflict constraintMap)
+        -- ADR-019 / chunk C2.1: 'AppImplicitArrow' folds into the same
+        -- 'ArgumentMismatchArrow' error variant as 'AppArrow' so kind
+        -- errors over @=>@ get the same diagnostic shape. Phase 4 may
+        -- introduce a dedicated error variant once @=>@ rendering is
+        -- distinguished from @->@.
+        AppImplicitArrow loc dom cod -> pure (ArgumentMismatchArrow (loc, dom, cod) constraintConflict constraintMap)
         EffectsList -> pure (EffectListMismatch constraintConflict constraintMap)
         _ -> pure (ConstraintConflict generatedConstraint constraintConflict constraintMap)
 

@@ -3,6 +3,7 @@ module Unison.Test.Common
     t,
     tm,
     parseAndSynthesizeAsFile,
+    parseAndSynthesizeAsFileWithGivens,
     parsingEnv,
   )
 where
@@ -26,6 +27,7 @@ import Unison.Syntax.TermParser qualified as TermParser
 import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
+import Unison.Typechecker.GivenElaborator qualified as GivenElaborator
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Var (Var)
@@ -70,7 +72,26 @@ parseAndSynthesizeAsFile ::
   Result
     (Seq (Note Symbol Ann))
     (Either (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann))
-parseAndSynthesizeAsFile ambient filename s = do
+parseAndSynthesizeAsFile ambient filename s =
+  parseAndSynthesizeAsFileWithGivens ambient [] filename s
+
+-- | Like 'parseAndSynthesizeAsFile' but also threads an explicit list
+-- of ambient givens through 'computeTypecheckingEnvironment', and —
+-- crucially — surfaces the typechecker's info notes on the /success/
+-- path too. The original 'parseAndSynthesizeAsFile' silently dropped
+-- notes when typechecking succeeded, which makes it useless for
+-- asserting on 'TypeInfo' notes (e.g. 'SolvedImplicit') emitted by the
+-- chunk L1 elaborator. Used by the source-level e2e test in
+-- "Unison.Test.Typechecker.GivenApply".
+parseAndSynthesizeAsFileWithGivens ::
+  [Type Symbol] ->
+  [GivenElaborator.AmbientGiven Symbol Ann] ->
+  FilePath ->
+  String ->
+  Result
+    (Seq (Note Symbol Ann))
+    (Either (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann))
+parseAndSynthesizeAsFileWithGivens ambient givens filename s = do
   file <- Result.fromParsing (runIdentity (Parsers.parseFile filename s parsingEnv))
   let typecheckingEnv =
         runIdentity $
@@ -78,10 +99,11 @@ parseAndSynthesizeAsFile ambient filename s = do
             (FP.ShouldUseTndr'Yes parsingEnv)
             ambient
             (\_deps -> pure B.typeLookup)
+            givens
             file
   case FP.synthesizeFile typecheckingEnv file of
     Result.Result notes Nothing -> tell notes >> pure (Left file)
-    Result.Result _ (Just typecheckedFile) -> pure (Right typecheckedFile)
+    Result.Result notes (Just typecheckedFile) -> tell notes >> pure (Right typecheckedFile)
 
 parsingEnv :: Parser.ParsingEnv Identity
 parsingEnv =

@@ -12,6 +12,8 @@ module Unison.Builtin
     builtinTypes,
     builtinTermsByType,
     builtinTermsByTypeMention,
+    givenSentinelName,
+    givenSentinelRef,
     intrinsicTermReferences,
     intrinsicTypeReferences,
     isBuiltinType,
@@ -284,6 +286,25 @@ intrinsicTypeReferences = foldl' go mempty builtinTypesSrc
 
 intrinsicTermReferences :: Set R.Reference
 intrinsicTermReferences = Map.keysSet termRefTypes
+
+-- | The textual name of the sentinel builtin reference used to mark a
+-- definition as a "given" via namespace metadata. This corresponds to the
+-- hash-prefix syntax @##Builtin.Given@.
+--
+-- See ADR-013 (given-set storage) and ADR-002 (givenness namespace
+-- metadata).
+givenSentinelName :: Text
+givenSentinelName = "Builtin.Given"
+
+-- | The sentinel builtin reference used to mark a definition as a "given"
+-- when present in its 'MdValues' metadata set. The reference is *not*
+-- registered as a callable term (it has no type and is not in
+-- 'termRefTypes'); it exists solely as a tag carried by namespace
+-- metadata, where its presence indicates givenness.
+--
+-- See @docs/architecture/decisions/ADR-013-given-set-storage.md@.
+givenSentinelRef :: R.Reference
+givenSentinelRef = R.Builtin givenSentinelName
 
 builtinConstructorType :: Map R.Reference CT.ConstructorType
 builtinConstructorType = Map.fromList [(R.Builtin r, ct) | B' r ct <- builtinTypesSrc]

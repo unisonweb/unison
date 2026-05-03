@@ -71,6 +71,44 @@ test =
       t "\"woot\" -- a comment 1.0" [Textual "woot"],
       t "0:Int" [Numeric "0", Reserved ":", simpleWordyId "Int"],
       t "0 : Int" [Numeric "0", Reserved ":", simpleWordyId "Int"],
+      -- Constraint arrow "=>" introduced by ADR-001 (chunk A1).
+      -- Distinct from "==>" (rewrite arrow), "->" (function arrow),
+      -- and "=" (definition arrow / layout-opener).
+      t "Show a => a" [simpleWordyId "Show", simpleWordyId "a", Reserved "=>", simpleWordyId "a"],
+      t "a=>b" [simpleWordyId "a", Reserved "=>", simpleWordyId "b"],
+      -- A2 carry-over: pin that `given` and `summon` lex as Reserved
+      -- (chunk A2, ADR-006/010/022). They are wordy keywords, so
+      -- they are emitted as `Reserved "given"` / `Reserved "summon"`,
+      -- not as `WordyId "given"` / `WordyId "summon"`. Without this,
+      -- a future identifier-leniency change to the lexer could
+      -- silently downgrade them to identifiers.
+      t "given" [Reserved "given"],
+      t "summon" [Reserved "summon"],
+      -- The keywords still lex as keywords when adjacent to other
+      -- content; `given x` is `Reserved "given"` followed by an
+      -- identifier, not `WordyId "givenx"`.
+      t "given x" [Reserved "given", simpleWordyId "x"],
+      t "summon Nat" [Reserved "summon", simpleWordyId "Nat"],
+      -- `given` and `summon` only lex as keywords as standalone
+      -- words; suffixed forms (e.g., `givens`, `summons`) remain
+      -- ordinary wordy identifiers. This protects user identifiers
+      -- whose prefix happens to be one of the new keywords.
+      t "givens" [simpleWordyId "givens"],
+      t "summons" [simpleWordyId "summons"],
+      -- "@"-positional explicit override (chunk A3, ADR-007). The
+      -- lexer just emits a single Reserved "@" token; the parser
+      -- decides between as-pattern, doc-prefix, and override based
+      -- on context. Confirms the token shape `f @ d x` relies on.
+      t
+        "f @ d x"
+        [ simpleWordyId "f",
+          Reserved "@",
+          simpleWordyId "d",
+          simpleWordyId "x"
+        ],
+      -- Tight spacing: "f@d" still tokenizes the "@" separately,
+      -- because '@' is not a wordy-id char.
+      t "f@d" [simpleWordyId "f", Reserved "@", simpleWordyId "d"],
       t
         ".Foo Foo `.` .foo.bar.baz"
         [ simpleWordyId ".Foo",

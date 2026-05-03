@@ -81,6 +81,7 @@ tests:
       - containers
       - easytest
       - text
+      - time
       - unison-core
       - unison-core1
       - unison-hash

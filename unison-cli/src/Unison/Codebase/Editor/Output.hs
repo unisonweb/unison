@@ -515,6 +515,20 @@ data Output
     WatchAddResult !(Maybe FilePath) !FilePath
   | -- `update` was attempted, but it would have either added or edited something in lib.*
     CantUpdateLib !(NESet Name)
+  | -- | The user ran `mark.given <name>` and the marking was applied.
+    -- The 'HQ'.HashQualified Name' identifies the name that was marked.
+    MarkedGiven !(HQ'.HashQualified Name)
+  | -- | The user ran `mark.given <name>` but the name was already
+    -- tagged. Idempotent no-op.
+    AlreadyMarkedGiven !(HQ'.HashQualified Name)
+  | -- | The user ran `unmark.given <name>` and the tag was removed.
+    UnmarkedGiven !(HQ'.HashQualified Name)
+  | -- | The user ran `unmark.given <name>` but no sentinel was
+    -- present. Idempotent no-op.
+    NotMarkedGiven !(HQ'.HashQualified Name)
+  | -- | Result of `givens`: the list of (name, referent) pairs in the
+    -- current namespace whose metadata carries the given sentinel.
+    ListGivens ![(Name, Referent)]
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -784,6 +798,11 @@ isFailure o = case o of
   WatchAddResult Nothing _ -> True
   WatchAddResult (Just _) _ -> False
   CantUpdateLib _ -> True
+  MarkedGiven {} -> False
+  AlreadyMarkedGiven {} -> False
+  UnmarkedGiven {} -> False
+  NotMarkedGiven {} -> False
+  ListGivens {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

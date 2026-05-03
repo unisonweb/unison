@@ -287,7 +287,7 @@ applyNamespaceToStanza namespace locallyBoundTerms = \case
 
 -- | Final validations and sanity checks to perform before finishing parsing.
 validateUnisonFile ::
-  (Ord v) =>
+  (Monad m, Ord v) =>
   Maybe (Ann, Name.Name) ->
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
@@ -302,7 +302,7 @@ validateUnisonFile fn datas effects terms watches =
 -- constructors and verify that no duplicates exist in the file, triggering an error if needed.
 checkForDuplicateTermsAndConstructors ::
   forall m v.
-  (Ord v) =>
+  (Monad m, Ord v) =>
   Maybe (Ann, Name.Name) ->
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
@@ -317,13 +317,21 @@ checkForDuplicateTermsAndConstructors fn datas effects terms watches = do
             & fmap Set.toList
             & Map.toList
     P.customFailure (DuplicateTermNames dupeList)
+  -- ADR-010 / chunk L2 fixup: pull the parser-side @given@-keyword
+  -- names out of the parser's state side channel and stamp them onto
+  -- the 'UnisonFile' so the typechecker can recognise @given@ origins
+  -- by name. Includes both file-level @given@ decls and @let given@
+  -- bindings nested inside term bodies (both invoke 'givenBindingBody'
+  -- which calls 'recordGivenVar').
+  gbs <- getGivenVars
   pure
     UnisonFileId
       { fileNamespace = fn,
         dataDeclarationsId = datas,
         effectDeclarationsId = effects,
         terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
-        watches
+        watches,
+        givenBindings = gbs
       }
   where
     effectDecls :: [DataDeclaration v Ann]

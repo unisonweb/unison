@@ -2956,6 +2956,34 @@ notifyUser dir issueFn = \case
           <> "it didn't seem to exist."
   CantUpdateLib names ->
     pure (P.fatalCallout (modifyingLibNotAllowed names))
+  MarkedGiven hq ->
+    pure . P.wrap $
+      "Marked"
+        <> P.group (P.syntaxToColor (prettyHashQualified' hq) <> ".")
+        <> "It will now participate in implicit resolution."
+  AlreadyMarkedGiven hq ->
+    pure . P.wrap $
+      P.group (P.syntaxToColor (prettyHashQualified' hq))
+        <> "is already marked as a given. No changes were made."
+  UnmarkedGiven hq ->
+    pure . P.wrap $
+      "Unmarked"
+        <> P.group (P.syntaxToColor (prettyHashQualified' hq) <> ".")
+        <> "It will no longer participate in implicit resolution."
+  NotMarkedGiven hq ->
+    pure . P.wrap $
+      P.group (P.syntaxToColor (prettyHashQualified' hq))
+        <> "is not marked as a given. No changes were made."
+  ListGivens entries ->
+    pure $
+      if null entries
+        then P.wrap "No definitions in the current namespace are marked as givens."
+        else
+          P.lines
+            ( P.wrap "Definitions marked as givens in the current namespace:"
+                : ""
+                : map (\(n, _r) -> "  " <> prettyName n) entries
+            )
   where
     iveCreatedATemporaryBranch scratchFile =
       P.wrap $
