@@ -68,6 +68,7 @@ import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker.Context qualified as C
+import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.Typechecker.TypeError
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.UnisonFile.Error qualified as UF
@@ -1433,6 +1434,19 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
     curly = wrap "{" "}"
     renderType0 env f p t = f (ABT.annotation t) $ case t of
       Type.Ref' r -> showTypeRef env r
+      -- ADR-019 / chunk P1: a leading chain of 'ImplicitArrow's renders
+      -- as a @=>@ constraint context. Walk the spine to collect every
+      -- leading constraint, emit them as a single @=>@ tuple (single
+      -- constraints print bare; two or more print as a parenthesised
+      -- comma list), then recurse on the conclusion. The conclusion is
+      -- rendered at precedence 0 so it is /not/ parenthesised: @=>@
+      -- binds looser than @->@. Mirrors the helper in @TypePrinter.hs@.
+      _
+        | (cs@(_ : _), conclusion) <- splitImplicitConstraints t ->
+            let renderedCs = case cs of
+                  [c] -> go 0 c
+                  _ -> "(" <> commas (go 0) cs <> ")"
+             in paren (p >= 1) $ renderedCs <> " => " <> go 0 conclusion
       Type.Arrow' i (Type.Effect1' e o) ->
         paren (p >= 2) $ go 2 i <> " ->{" <> go 1 e <> "} " <> go 1 o
       Type.Arrow' i o -> paren (p >= 2) $ go 2 i <> " -> " <> go 1 o
@@ -1472,6 +1486,18 @@ spaces = intercalateMap " "
 
 commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
+
+-- | Walk the leading chain of 'Type.ImplicitArrow's, returning the list
+-- of constraint types and the conclusion. ADR-019: @(C1, C2) => T@ is
+-- encoded as @ImplicitArrow C1 (ImplicitArrow C2 T)@; this peels the
+-- chain so the error renderer can emit it as a single @=>@ context.
+-- Mirrors 'Unison.Syntax.TypePrinter.splitImplicitConstraints'.
+splitImplicitConstraints :: Type.Type v loc -> ([Type.Type v loc], Type.Type v loc)
+splitImplicitConstraints t = case t of
+  Type.ImplicitArrow' c rest ->
+    let (cs, conclusion) = splitImplicitConstraints rest
+     in (c : cs, conclusion)
+  _ -> ([], t)
 
 renderVar :: (IsString a, Var v) => v -> a
 renderVar = fromString . Text.unpack . Var.name
@@ -1579,6 +1605,147 @@ printNoteWithSource env s (CompilerBug (Result.TypecheckerBug c)) =
   renderCompilerBug env s c
 printNoteWithSource _env _s (CompilerBug c) =
   fromString $ "Compiler bug: " <> show c
+printNoteWithSource env s (Result.UnresolvedImplicit loc goal err) =
+  renderImplicitResolutionError env s loc goal err
+
+-- | Render a 'GR.ResolveError' produced by implicit resolution
+-- (chunk D4). The four primary categories ('NoGiven', 'Ambiguous',
+-- 'DepthExceeded', 'Cycle') and the goal-metavar refinement
+-- ('UnresolvedMetavarInGoal') each get a distinct, helpful header
+-- and supporting context. NearMisses on 'NoGiven' show /why/ each
+-- candidate didn't work, threading the same renderer recursively.
+renderImplicitResolutionError ::
+  forall v a.
+  (Var v, Annotated a, Show a, Ord a) =>
+  Env ->
+  String ->
+  a ->
+  Type v a ->
+  GR.ResolveError v a ->
+  Pretty ColorText
+renderImplicitResolutionError env src loc _goal err =
+  Pr.lines
+    [ headerFor err,
+      "",
+      annotatedAsErrorSite src loc,
+      "",
+      bodyFor err
+    ]
+  where
+    -- Top-line summary, color-keyed to error category.
+    headerFor :: GR.ResolveError v a -> Pretty ColorText
+    headerFor = \case
+      GR.NoGiven g _ ->
+        Pr.wrap $
+          "I couldn't find a "
+            <> style ErrorSite "given"
+            <> " for "
+            <> style Type1 (renderType' env g)
+            <> "."
+      GR.Ambiguous g _ ->
+        Pr.wrap $
+          "I found multiple "
+            <> style ErrorSite "given"
+            <> " candidates for "
+            <> style Type1 (renderType' env g)
+            <> "; the choice is ambiguous."
+      GR.DepthExceeded _ ->
+        Pr.wrap $
+          "Implicit resolution gave up: the chain "
+            <> "exceeded the maximum depth."
+      GR.Cycle _ ->
+        Pr.wrap $
+          "Implicit resolution detected a "
+            <> style ErrorSite "cycle"
+            <> " between givens."
+      GR.UnresolvedMetavarInGoal g ->
+        Pr.wrap $
+          "I can't pick a "
+            <> style ErrorSite "given"
+            <> " for "
+            <> style Type1 (renderType' env g)
+            <> " because the goal type still contains an "
+            <> "unsolved type variable. Add a type annotation "
+            <> "and try again."
+
+    -- Detail body — varies by category.
+    bodyFor :: GR.ResolveError v a -> Pretty ColorText
+    bodyFor = \case
+      GR.NoGiven _ [] ->
+        Pr.wrap "No matching givens are in scope."
+      GR.NoGiven _ misses ->
+        Pr.lines
+          [ Pr.wrap "These candidates head-matched but their premises did not resolve:",
+            "",
+            Pr.indentN 2 (Pr.lines (map renderNearMiss misses))
+          ]
+      GR.Ambiguous _ candidates ->
+        Pr.lines
+          [ Pr.wrap "Candidates:",
+            "",
+            Pr.indentN 2 (Pr.lines (map renderCandidate candidates))
+          ]
+      GR.DepthExceeded chain ->
+        Pr.lines
+          [ Pr.wrap "The chain (truncated to the first few links):",
+            "",
+            Pr.indentN 2 (Pr.lines (map renderChainStep (truncateChain chain)))
+          ]
+      GR.Cycle chain ->
+        Pr.lines
+          [ Pr.wrap "The cycle (outermost first):",
+            "",
+            Pr.indentN 2 (Pr.lines (map renderChainStep chain))
+          ]
+      GR.UnresolvedMetavarInGoal _ ->
+        Pr.wrap $
+          "Implicit resolution needs a fully-determined goal type."
+
+    renderNearMiss :: GR.NearMiss v a -> Pretty ColorText
+    renderNearMiss (GR.NearMiss g why) =
+      Pr.lines
+        [ "- "
+            <> style Identifier (givenLabelString g)
+            <> ", failed because:",
+          Pr.indentN 4 (renderNestedReason why)
+        ]
+
+    renderNestedReason :: GR.ResolveError v a -> Pretty ColorText
+    renderNestedReason = \case
+      GR.NoGiven g _ ->
+        Pr.wrap $
+          "no given for " <> style Type1 (renderType' env g)
+      GR.Ambiguous g _ ->
+        Pr.wrap $
+          "ambiguous candidates for " <> style Type1 (renderType' env g)
+      GR.DepthExceeded _ ->
+        Pr.wrap "depth limit exceeded in this branch"
+      GR.Cycle _ ->
+        Pr.wrap "cycle detected in this branch"
+      GR.UnresolvedMetavarInGoal g ->
+        Pr.wrap $
+          "goal type "
+            <> style Type1 (renderType' env g)
+            <> " contains an unresolved metavariable"
+
+    renderCandidate :: GR.Given v a -> Pretty ColorText
+    renderCandidate g = "- " <> style Identifier (givenLabelString g)
+
+    givenLabelString :: GR.Given v a -> String
+    givenLabelString g = Text.unpack (R.toText (GR.givenName g))
+
+    renderChainStep :: Type v a -> Pretty ColorText
+    renderChainStep t = "- " <> style Type1 (renderType' env t)
+
+    -- Show at most ~12 chain steps (head + tail) to keep depth-exceeded
+    -- diagnostics readable.
+    truncateChain :: [Type v a] -> [Type v a]
+    truncateChain xs
+      | length xs <= 12 = xs
+      | otherwise =
+          let (front, back) = splitAt 6 xs
+              tail6 = drop (length back - 6) back
+           in front ++ tail6
 
 _printPosRange :: String -> L.Pos -> L.Pos -> String
 _printPosRange s (L.Pos startLine startCol) _end =

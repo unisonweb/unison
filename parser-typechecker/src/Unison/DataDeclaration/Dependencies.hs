@@ -30,6 +30,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.GivenResolver qualified as GivenResolver
 import Unison.Typechecker.TypeLookup (TypeLookup (..))
 import Unison.Typechecker.Variance (defaultVariances)
 import Unison.Util.Tuple qualified as Tuple
@@ -126,5 +127,7 @@ hashFieldAccessors ppe declName vars declRef dd = do
           termsByShortname = mempty,
           freeNameToFuzzyTermsByShortName = Map.empty,
           topLevelComponents = Map.empty,
-          variances = defaultVariances
+          variances = defaultVariances,
+          ambientGivens = GivenResolver.poolFromList [],
+          givenBindings = mempty
         }

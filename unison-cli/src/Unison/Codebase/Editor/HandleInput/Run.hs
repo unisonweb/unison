@@ -54,6 +54,7 @@ import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.GivenResolver qualified as GivenResolver
 import Unison.Typechecker.TypeLookup (TypeLookup)
 import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.Typechecker.Variance qualified as Variance
@@ -184,7 +185,9 @@ synthesizeForce tl typeOfFunc = do
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,
-            variances = Variance.fromTypeLookup tl
+            variances = Variance.fromTypeLookup tl,
+            ambientGivens = GivenResolver.poolFromList [],
+            givenBindings = mempty
           }
   case Result.runResultT
     ( Typechecker.synthesize

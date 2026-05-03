@@ -24,6 +24,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
+import Unison.Cli.TypeCheck qualified as Cli.TypeCheck
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -384,9 +385,15 @@ parseAndTypecheckUnisonFile names sourceName text = do
       & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
   -- set that the file at least parsed (but didn't typecheck)
   State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
+  -- Chunk L1: harvest namespace-level givens before entering the
+  -- typechecking transaction. The branch read happens in 'Cli'; the
+  -- pool itself is built inside the transaction with the codebase's
+  -- type lookup.
+  branch0 <- Cli.getCurrentBranch0
   typecheckingEnv <-
     Cli.runTransaction do
-      computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
+      ambientGivens <- Cli.TypeCheck.ambientGivensFromBranch codebase branch0
+      computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] ambientGivens unisonFile
   let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
       tws = reverse [wrn | Result.TypeWarning wrn <- toList notes]
       suffixifiedPPE = PPED.suffixifiedPPE pped

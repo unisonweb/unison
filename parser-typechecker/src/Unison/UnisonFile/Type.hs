@@ -21,7 +21,15 @@ data UnisonFile v a = UnisonFileId
     dataDeclarationsId :: Map v (TypeReferenceId, DataDeclaration v a),
     effectDeclarationsId :: Map v (TypeReferenceId, EffectDeclaration v a),
     terms :: Map v (a {- ann for name of the binding -}, Term v a),
-    watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
+    watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)],
+    -- | ADR-010 / chunk L2 fixup: variable names that originated from
+    -- the @given@ keyword. Populated by the parser via the side channel
+    -- in 'Unison.Syntax.Parser' (@StateT (Set v)@) and read by the
+    -- typechecker to identify @given@ origins without inspecting type
+    -- shape. Includes both file-level @given@ declarations and
+    -- @let given@ bindings inside term bodies. Empty for files with no
+    -- @given@ declarations.
+    givenBindings :: Set v
   }
   deriving stock (Generic, Show)
 
@@ -31,14 +39,16 @@ pattern UnisonFile ::
   Map v (TypeReference, EffectDeclaration v a) ->
   Map v (a, Term v a) ->
   Map WatchKind [(v, a, Term v a)] ->
+  Set v ->
   UnisonFile v a
-pattern UnisonFile fn ds es tms ws <-
+pattern UnisonFile fn ds es tms ws gbs <-
   UnisonFileId
     fn
     (fmap (first Reference.DerivedId) -> ds)
     (fmap (first Reference.DerivedId) -> es)
     tms
     ws
+    gbs
 
 {-# COMPLETE UnisonFile #-}
 

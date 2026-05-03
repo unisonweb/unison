@@ -4,34 +4,50 @@ copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
 
 ghc-options: -Wall
 
-dependencies:
-  - base
-  - containers
-  - deepseq
-  - lens
-  - nonempty-containers
-  - semialign
-  - semigroups
-  - text
-  - these
-  - transformers
-  - unison-core
-  - unison-core1
-  - unison-hash
-  - unison-parser-typechecker
-  - unison-prelude
-  - unison-pretty-printer
-  - unison-syntax
-  - unison-util-bytes
-  - unison-util-relation
-  - witch
-  - witherable
-
 library:
   source-dirs: src
   when:
     - condition: false
       other-modules: Paths_unison_merge
+  dependencies:
+    - base
+    - containers
+    - deepseq
+    - lens
+    - nonempty-containers
+    - semialign
+    - semigroups
+    - text
+    - these
+    - transformers
+    - unison-core
+    - unison-core1
+    - unison-hash
+    - unison-parser-typechecker
+    - unison-prelude
+    - unison-pretty-printer
+    - unison-syntax
+    - unison-util-bytes
+    - unison-util-relation
+    - witch
+    - witherable
+
+tests:
+  unison-merge-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_merge
+    dependencies:
+      - base
+      - code-page
+      - containers
+      - easytest
+      - text
+      - unison-core
+      - unison-core1
+      - unison-merge
+    main: Main.hs
+    source-dirs: tests
 
 default-extensions:
   - ApplicativeDo

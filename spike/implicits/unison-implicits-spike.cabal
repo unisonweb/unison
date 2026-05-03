@@ -1,0 +1,59 @@
+cabal-version:      2.2
+name:               unison-implicits-spike
+version:            0.0.0
+synopsis:           Phase 1 spike for Unison implicit-parameter resolution
+description:
+  Throwaway prototype for the resolution algorithm described in
+  docs/implicits-plan.md (sections 1.3 and 4). Not part of the main
+  Unison build; lives outside stack.yaml. Build with plain
+  @cabal build@ / @cabal test@ from this directory.
+
+license:            MIT
+author:             Unison contributors
+maintainer:         core@unison-lang.org
+build-type:         Simple
+category:           Compiler
+stability:          experimental
+
+common common-opts
+  default-language: Haskell2010
+  default-extensions:
+    BangPatterns
+    DeriveFunctor
+    DerivingStrategies
+    FlexibleContexts
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    OverloadedStrings
+    ScopedTypeVariables
+    TupleSections
+  ghc-options:
+    -Wall
+    -Wno-name-shadowing
+
+library
+  import:           common-opts
+  hs-source-dirs:   src
+  exposed-modules:
+    Implicits.Resolve
+    Implicits.Types
+    Implicits.Unify
+  build-depends:
+    base       >= 4.18 && < 5,
+    containers >= 0.6  && < 0.9,
+    mtl        >= 2.2  && < 2.4
+
+test-suite spike-tests
+  import:           common-opts
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Main.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    base                   >= 4.18 && < 5,
+    containers             >= 0.6  && < 0.9,
+    mtl                    >= 2.2  && < 2.4,
+    tasty                  >= 1.4  && < 1.6,
+    tasty-hunit            >= 0.10 && < 0.11,
+    time                   >= 1.12 && < 1.15,
+    unison-implicits-spike

@@ -16,6 +16,7 @@ import Unison.Codebase.Editor.HandleInput.EditNamespace (getNamesForEdit)
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
 import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..))
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Givens qualified as Givens
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -101,4 +102,8 @@ handleEditDependents name = do
       pure (ppe, types, terms)
 
   let misses = []
-  showDefinitions (LatestFileLocation WithinFold) (const True) ppe terms types misses
+  -- Re-read the current branch so we can highlight given-tagged
+  -- definitions in the rendered output.
+  branchForGivens <- Cli.getCurrentBranch0
+  let isGivenRef r = Givens.isGiven (Referent.Ref r) branchForGivens
+  showDefinitions (LatestFileLocation WithinFold) (const True) isGivenRef ppe terms types misses

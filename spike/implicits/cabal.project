@@ -1,0 +1,8 @@
+-- Standalone cabal project for the implicits resolution spike.
+-- Not connected to the main Unison build (no stack.yaml entry).
+--
+-- Pinned to GHC 9.10.3 to mirror lts-24.21 used by the main build,
+-- but the code is plain enough to compile on any 9.6+ GHC.
+with-compiler: ghc-9.10.3
+
+packages: .

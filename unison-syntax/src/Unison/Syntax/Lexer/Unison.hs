@@ -581,6 +581,18 @@ lexemes eof =
             <|> wordyKw "∀"
             <|> wordyKw "termLink"
             <|> wordyKw "typeLink"
+            -- The `given` and `summon` keywords introduced by the
+            -- implicit-parameter feature (chunk A2; ADRs 006, 010, 022).
+            -- Per ADR-022, the production rollout uses a one-release
+            -- deprecation cycle. For the prototype we hard-break here:
+            -- any user identifier named `given` or `summon` will need
+            -- to be backtick-escaped (`` `given` ``) or renamed.
+            -- The `given` token doubles as a top-level definition prefix
+            -- and as a let-block statement opener; `summon` is an
+            -- expression-position keyword that takes a parenthesized
+            -- type. Neither opens a layout block by itself.
+            <|> wordyKw "given"
+            <|> wordyKw "summon"
 
         wordyKw s = separated wordySep (kw s)
         symbolyKw s = separated (not . symbolyIdChar) (kw s)
@@ -597,6 +609,11 @@ lexemes eof =
             <|> typ
             <|> arr
             <|> rewriteArr
+            -- 'constraintArr' must come after 'rewriteArr' so that "==>" wins
+            -- maximal-munch over "=>" (per ADR-001). The literals are
+            -- distinguishable byte-by-byte, but we keep this ordering to make
+            -- the precedence intent explicit and robust to future edits.
+            <|> constraintArr
             <|> eq
             <|> openKw "cases"
             <|> openKw "where"
@@ -655,6 +672,14 @@ lexemes eof =
               [Token _ start end] <- symbolyKw "==>"
               env <- S.get
               S.put (env {opening = Just "==>"}) >> pure [Token (Open "==>") start end]
+
+            -- The implicit-parameter constraint arrow "=>" introduced by
+            -- ADR-001. Unlike "->", "==>", and "=", it does not influence
+            -- layout — it is a plain reserved token used only inside type
+            -- signatures (see 'Unison.Syntax.TypeParser').
+            constraintArr = do
+              [Token _ start end] <- symbolyKw "=>"
+              pure [Token (Reserved "=>") start end]
 
             arr = do
               [Token _ start end] <- symbolyKw "->"

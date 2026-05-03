@@ -2,10 +2,12 @@ module Unison.FileParsers
   ( ShouldUseTndr (..),
     computeTypecheckingEnvironment,
     synthesizeFile,
+    givenDeclVars,
   )
 where
 
 import Control.Lens
+import Control.Monad.Fail qualified as Fail
 import Control.Monad.State (evalStateT)
 import Data.Foldable qualified as Foldable
 import Data.List (partition)
@@ -40,6 +42,8 @@ import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
+import Unison.Typechecker.GivenApply qualified as GivenApply
+import Unison.Typechecker.GivenElaborator qualified as GivenElaborator
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.Variance qualified as Variance
 import Unison.UnisonFile (definitionLocation)
@@ -89,9 +93,16 @@ computeTypecheckingEnvironment ::
   ShouldUseTndr m ->
   [Type v] ->
   (DefnsF Set TermReference TypeReference -> m (TL.TypeLookup v Ann)) ->
+  -- | Ambient givens harvested from the namespace (chunk L1). Each
+  -- entry is a top-level term tagged via
+  -- 'Unison.Codebase.Givens.givenSentinel' together with its declared
+  -- type; 'ambientPool' decomposes the type into the resolver's
+  -- @(tyVars, premises, conclusion)@ shape. Pass @[]@ when there is no
+  -- namespace context (e.g. a fresh test environment).
+  [GivenElaborator.AmbientGiven v Ann] ->
   UnisonFile v ->
   m (Typechecker.Env v Ann)
-computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
+computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf ambientGivens uf =
   case shouldUseTndr of
     ShouldUseTndr'No -> do
       tl <- typeLookupf (UF.dependencies uf)
@@ -102,7 +113,11 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,
-            variances = Variance.fromTypeLookup tl
+            variances = Variance.fromTypeLookup tl,
+            ambientGivens = GivenElaborator.ambientPool ambientGivens,
+            -- ADR-010 / chunk L2 fixup: thread the parser-collected
+            -- @given@-bound variable names through to the typechecker.
+            givenBindings = uf.givenBindings
           }
     ShouldUseTndr'Yes parsingEnv -> do
       let resolveName :: Name -> Relation Name (ResolvesTo Referent)
@@ -195,7 +210,11 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             termsByShortname,
             freeNameToFuzzyTermsByShortName,
             topLevelComponents = Map.empty,
-            variances = Variance.fromTypeLookup typeLookup
+            variances = Variance.fromTypeLookup typeLookup,
+            ambientGivens = GivenElaborator.ambientPool ambientGivens,
+            -- ADR-010 / chunk L2 fixup: thread the parser-collected
+            -- @given@-bound variable names through to the typechecker.
+            givenBindings = uf.givenBindings
           }
 
 -- | 'fuzzyFindByEditDistanceRanked' finds matches for the given 'name' within 'names' by edit distance.
@@ -299,16 +318,70 @@ synthesizeFile env0 uf = do
             -- The Var.reset removes any freshening added during typechecking
             pure (Var.reset v, tm, typ)
        in traverse (traverse addTypesToTopLevelBindings) tlcsFromTypechecker
+    -- Phase-2 chunks D2 + D3 + L1: drive given-resolution from the
+    -- 'ConstraintGoal' info notes the typechecker emitted (chunk
+    -- C2.2), then walk each top-level term and substitute resolution
+    -- trees into 'App' nodes. The ambient pool comes from
+    -- 'env0.ambientGivens', built by 'computeTypecheckingEnvironment'
+    -- from the namespace's 'given'-tagged definitions (L1 wiring).
+    let ambient = Typechecker.ambientGivens env0
+    let infosWithImplicits = GivenElaborator.elaborateInfoNotes ambient infos
+    -- Phase-2 chunk D4: surface implicit-resolution failures as user
+    -- diagnostics. Each 'SolvedImplicit' note whose decision is
+    -- 'Left _' becomes a 'Result.UnresolvedImplicit' note. We tell
+    -- them all and fail the result if any were emitted, so the
+    -- compiler does not silently proceed with an under-applied term.
+    let implicitFailures =
+          [ Result.UnresolvedImplicit loc ty err
+          | (loc, ty, Left err) <- GivenElaborator.implicitDecisions infosWithImplicits
+          ]
+    Result.tellNotes (Seq.fromList implicitFailures)
+    when (not (null implicitFailures)) (Fail.fail "implicit resolution failed")
+    -- Chunk L1: surface 'SolvedImplicit' info notes as 'TypeInfo' so
+    -- downstream consumers (LSP, tests, transcripts) can observe which
+    -- given was chosen for each apply-site. The 'GivenElaborator'
+    -- adds these as plain 'Context.InfoNote's appended to the
+    -- typechecker's stream; they need an explicit 'tell' here to
+    -- become part of the file's 'Result' notes.
+    let solvedImplicitNotes =
+          [ note'
+          | note'@(Context.SolvedImplicit {}) <-
+              drop (length infos) infosWithImplicits
+          ]
+    for_ solvedImplicitNotes (Result.tell1 . Result.TypeInfo)
     let doTdnr = applyTdnrDecisions infos
-    let doTdnrInComponent (v, t, tp) = (v, doTdnr t, tp)
-    let tdnredTlcs =
+    let doImplicits =
+          GivenApply.applyGivenDecisions
+            infosWithImplicits
+            (Typechecker.typeLookup env0)
+    -- Chunk F1: 'doImplicits' also produces 'ImplicitArgRef' info
+    -- notes recording each synthesized dictionary insertion. Collect
+    -- them so the LSP can build a position-indexed lookup.
+    let doTdnrInComponent (v, t, tp) =
+          let (t', implicitNotes) = doImplicits (doTdnr t)
+           in ((v, t', tp), implicitNotes)
+    let tlcsWithImplicitNotes =
           topLevelComponents
             & (fmap . fmap)
               ( \vtt ->
-                  vtt
-                    & doTdnrInComponent
-                    & \(v, t, tp) -> (v, fromMaybe (error $ "Symbol from typechecked file not present in parsed file" <> show v) (definitionLocation v uf), t, tp)
+                  let (vtt', notes) = vtt & doTdnrInComponent
+                   in ( vtt'
+                          & \(v, t, tp) ->
+                            ( v,
+                              fromMaybe
+                                (error $ "Symbol from typechecked file not present in parsed file" <> show v)
+                                (definitionLocation v uf),
+                              t,
+                              tp
+                            ),
+                        notes
+                      )
               )
+    let tdnredTlcs = (fmap . fmap) fst tlcsWithImplicitNotes
+    let implicitNotesAll = concatMap (concatMap snd) tlcsWithImplicitNotes
+    -- Emit the 'ImplicitArgRef' notes as 'TypeInfo' so that
+    -- 'FileAnalysis' (and any other 'Note'-consumer) can pick them up.
+    for_ implicitNotesAll (Result.tell1 . Result.TypeInfo)
     let (watches', terms') = partition isWatch tdnredTlcs
         isWatch = all (\(v, _, _, _) -> Set.member v watchedVars)
         watchedVars = Set.fromList [v | (v, _a, _) <- UF.allWatches uf]
@@ -341,3 +414,41 @@ synthesizeFile env0 uf = do
                 -- Decision
                 Just $ replacement
           _ -> Nothing
+
+-- | ADR-019 / chunk C2.3: extract the @given@-declaration metadata
+-- from the typechecker's info-notes stream.
+--
+-- A 'Context.GivenDecl' note is emitted for every top-level binding
+-- whose declared type begins (after stripping any leading 'Forall')
+-- with one or more @=>@ constraint parameters. This helper projects
+-- those notes into a @Map v (declaredType, conclusion)@, with
+-- 'Var.reset' applied so callers see the user-written variable name
+-- (un-freshened).
+--
+-- Consumers: chunk B2's UCM command surface, which marks each named
+-- definition as a given via 'Unison.Codebase.Givens.markGivenAt'
+-- after the file's hashes are computed; chunk D3's elaborator, which
+-- substitutes resolved dictionary terms into apply sites.
+--
+-- Per ADR-005 the namespace is the instance set; this helper does
+-- not itself touch any namespace metadata. It only provides the data
+-- the caller needs to do the marking.
+givenDeclVars ::
+  (Var v) =>
+  [Context.InfoNote v Ann] ->
+  Map v (Type v, Type v)
+givenDeclVars infos =
+  -- The typechecker's 'GivenDecl' note carries 'Context.Type'
+  -- (TypeVar-tagged), so lower each type back to surface form before
+  -- handing the map to consumers — they will compare it against
+  -- 'Type.Type v Ann'-shaped values from the parser / namespace.
+  -- 'generalizeAndUnTypeVar' is the same lowering 'TopLevelComponent'
+  -- uses for the publicly-exposed type field.
+  Map.fromList
+    [ ( Var.reset v,
+        ( Context.generalizeAndUnTypeVar declared,
+          Context.generalizeAndUnTypeVar conclusion
+        )
+      )
+    | Context.GivenDecl _ v declared conclusion <- infos
+    ]

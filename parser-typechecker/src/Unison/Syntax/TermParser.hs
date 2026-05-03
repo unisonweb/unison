@@ -667,6 +667,7 @@ termLeaf :: forall m v. (Monad m, Var v) => TermP v m
 termLeaf =
   asum
     [ force,
+      summonExpr,
       hashQualifiedPrefixTerm,
       text,
       char,
@@ -682,6 +683,35 @@ termLeaf =
       bang,
       doc2Block <&> \(spanAnn, trm) -> trm {ABT.annotation = ABT.annotation trm <> spanAnn}
     ]
+
+-- | Parse a `summon T` expression (chunk A2; ADR-006).
+--
+-- `summon` is followed by a type. It desugars (for now) to a typed
+-- hole `_ : T` so that downstream phases can ignore the new node:
+-- the elaborator (chunk D) will recognise the source range and
+-- replace it with the resolved dictionary; until then the typechecker
+-- will report an unfilled blank, which is the correct behaviour for
+-- a parser-only landing.
+--
+-- The argument is a full 'TypeParser.valueType', which greedily
+-- consumes everything that 'valueType' accepts: type atoms, prefix
+-- applications (`summon Show Nat`), parenthesized forms
+-- (`summon (Show Nat)`), arrows, foralls, and the new constraint
+-- arrow `=>` from chunk A1. Both unparenthesized and parenthesized
+-- forms appear in @docs/implicits-plan.md@ §1.2; the greedy parse
+-- accepts both without disambiguation.
+summonExpr :: forall m v. (Monad m, Var v) => TermP v m
+summonExpr = do
+  kw <- reserved "summon"
+  -- A type signature parser consumes everything up to the next
+  -- expression-context terminator. We call into 'TypeParser.valueType'
+  -- which already handles parens, applications, forall, and the
+  -- new constraint-arrow form (chunk A1). The blank's annotation
+  -- spans the whole `summon T`, so the source range is recoverable
+  -- by downstream passes.
+  ty <- TypeParser.valueType
+  let spanAnn = ann kw <> ann ty
+  pure $ Term.ann spanAnn (Term.blank spanAnn) ty
 
 -- | Gives a parser an explicit stream to parse, so that it consumes nothing from the original stream when it runs.
 --
@@ -908,10 +938,38 @@ force = P.label "force" $ P.try do
   pure $ DD.forceTerm (ann fn <> ann close) (tok <> ann close) fn
 
 term4 :: (Monad m, Var v) => TermP v m
-term4 = f <$> some termLeaf
+term4 = do
+  func <- termLeaf
+  args <- many appArg
+  pure case args of
+    [] -> func
+    _ -> Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
   where
-    f (func : args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
-    f [] = error "'some' shouldn't produce an empty list"
+    -- An argument in an application chain. May be either an ordinary
+    -- term-leaf, or an explicit @-positional override of the form
+    -- @ d (chunk A3; ADR-007).
+    --
+    -- Disambiguation:
+    --   - In *expression* context (here): a `Reserved "@"` token in
+    --     argument position introduces an override.
+    --   - In *pattern* context (`pHqNamey` ~line 410): the same token
+    --     produces an as-pattern. Patterns are parsed by a different
+    --     entry point so the two grammars do not interfere.
+    --   - In *doc* context (`Syntax/Parser/Doc.hs:keyedInline`): the
+    --     `@` is matched at the raw-string level, before tokens reach
+    --     this parser.
+    --
+    -- For chunk A3 the override desugars to ordinary positional
+    -- application: `f @ d` parses as `Term.app f d`. The argument's
+    -- annotation is widened to include the leading `@` token so that
+    -- downstream chunks (D2/D3) can recognise overrides by source
+    -- range and skip implicit-resolution at that slot.
+    appArg = overrideArg <|> termLeaf
+    overrideArg = do
+      atTok <- reserved "@"
+      d <- termLeaf
+      let widened = ann atTok <> ann d
+      pure (ABT.annotate widened d)
 
 data InfixParse v
   = InfixOp (L.Token (HQ.HashQualified Name)) (Term v Ann) (InfixParse v) (InfixParse v)
@@ -1060,49 +1118,102 @@ binding ::
       Term v Ann
     )
 binding = label "binding" do
-  typ <- optional typedecl
-  -- a ++ b = ...
-  let infixLhs = do
-        (arg1, op) <-
-          P.try $
-            (,) <$> prefixDefinitionName <*> symbolyDefinitionName
-        arg2 <- prefixDefinitionName
-        pure (ann arg1, op, [arg1, arg2])
-  let prefixLhs = do
-        v <- prefixTermName
-        vs <- many prefixTermName
-        pure (ann v, v, vs)
-  let lhs :: P v m (Ann, L.Token v, [L.Token v])
-      lhs = infixLhs <|> prefixLhs
-  case typ of
-    Nothing -> do
-      -- we haven't seen a type annotation, so lookahead to '=' before commit
-      (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
-      (_eqAnn, _bodySpanAnn, body) <- block "="
-      verifyRelativeName' (fmap Name.unsafeParseVar name)
-      let binding = mkBinding lhsLoc args body
-      -- We don't actually use the span annotation from the block (yet) because it
-      -- may contain a bunch of white-space and comments following a top-level-definition.
-      -- let spanAnn = ann lhsLoc <> ann binding
-      pure $ ((ann name, (L.payload name)), binding)
-    Just (nameT, typ) -> do
-      (lhsLoc, name, args) <- lhs
-      verifyRelativeName' (fmap Name.unsafeParseVar name)
-      when (L.payload name /= L.payload nameT) $
-        customFailure $
-          SignatureNeedsAccompanyingBody nameT
-      (_eqAnn, _bodySpanAnn, body) <- block "="
-      let binding = mkBinding lhsLoc args body
-      -- We don't actually use the span annotation from the block (yet) because it
-      -- may contain a bunch of white-space and comments following a top-level-definition.
-      let spanAnn = ann nameT <> ann binding
-      pure $ ((ann nameT, L.payload name), Term.ann spanAnn binding typ)
+  -- A `given` declaration is a one-line binding form:
+  --
+  -- > given name : T = body
+  --
+  -- We commit as soon as we see the `given` keyword (no `P.try`); a
+  -- malformed `given` is a hard parse error rather than a backtrack
+  -- to `regularBinding`, which would otherwise produce a confusing
+  -- "expected binding got `given`" message. See chunk A2;
+  -- ADR-010, ADR-022.
+  P.optional (reserved "given") >>= \case
+    Just kw -> givenBindingBody kw
+    Nothing -> regularBinding
   where
+    regularBinding = do
+      typ <- optional typedecl
+      -- a ++ b = ...
+      let infixLhs = do
+            (arg1, op) <-
+              P.try $
+                (,) <$> prefixDefinitionName <*> symbolyDefinitionName
+            arg2 <- prefixDefinitionName
+            pure (ann arg1, op, [arg1, arg2])
+      let prefixLhs = do
+            v <- prefixTermName
+            vs <- many prefixTermName
+            pure (ann v, v, vs)
+      let lhs :: P v m (Ann, L.Token v, [L.Token v])
+          lhs = infixLhs <|> prefixLhs
+      case typ of
+        Nothing -> do
+          -- we haven't seen a type annotation, so lookahead to '=' before commit
+          (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
+          (_eqAnn, _bodySpanAnn, body) <- block "="
+          verifyRelativeName' (fmap Name.unsafeParseVar name)
+          let bnd = mkBinding lhsLoc args body
+          -- We don't actually use the span annotation from the block (yet) because it
+          -- may contain a bunch of white-space and comments following a top-level-definition.
+          -- let spanAnn = ann lhsLoc <> ann bnd
+          pure $ ((ann name, (L.payload name)), bnd)
+        Just (nameT, typ') -> do
+          (lhsLoc, name, args) <- lhs
+          verifyRelativeName' (fmap Name.unsafeParseVar name)
+          when (L.payload name /= L.payload nameT) $
+            customFailure $
+              SignatureNeedsAccompanyingBody nameT
+          (_eqAnn, _bodySpanAnn, body) <- block "="
+          let bnd = mkBinding lhsLoc args body
+          -- We don't actually use the span annotation from the block (yet) because it
+          -- may contain a bunch of white-space and comments following a top-level-definition.
+          let spanAnn = ann nameT <> ann bnd
+          pure $ ((ann nameT, L.payload name), Term.ann spanAnn bnd typ')
     mkBinding :: Ann -> [L.Token v] -> Term.Term v Ann -> Term.Term v Ann
     mkBinding _lhsLoc [] body = body
     mkBinding lhsLoc args body =
       let annotatedArgs = args <&> \arg -> (ann arg, L.payload arg)
        in Term.lam' (lhsLoc <> ann body) annotatedArgs body
+
+-- | Parse the body of a `given` declaration after the leading `given`
+-- keyword has already been consumed. Used at the top level and inside
+-- block contexts (i.e., `let given name : T = body`). The remaining
+-- form is: name, `:`, type, `=`, body.
+--
+-- For now (chunk A2) the parser produces an ordinary type-annotated
+-- binding. The `given` tag itself is namespace metadata (chunk B1),
+-- not part of the term AST. The leading-keyword source range is
+-- preserved by the binding's annotation so downstream phases can
+-- recognise the statement when wiring up implicit resolution.
+--
+-- The caller commits to this branch as soon as it sees `given`; this
+-- function does NOT use `P.try`, so a malformed body produces a
+-- targeted error (e.g., "expected `:` after `given <name>`") rather
+-- than a confusing backtrack into the regular-binding grammar.
+givenBindingBody ::
+  forall m v.
+  (Monad m, Var v) =>
+  L.Token String ->
+  P
+    v
+    m
+    ( (Ann, v),
+      Term v Ann
+    )
+givenBindingBody kw = label "given" do
+  name <- prefixTermName
+  verifyRelativeName' (fmap Name.unsafeParseVar name)
+  -- ADR-010 / chunk L2 fixup: record this variable name in the parser's
+  -- given-binding side channel so the typechecker can identify @given@
+  -- origins by name rather than inspecting type shape. This makes the
+  -- canonical premise-free form @given local : Ord a = …@ work without
+  -- relying on the type beginning with @=>@.
+  recordGivenVar (L.payload name)
+  _ <- reserved ":"
+  ty <- TypeParser.valueType
+  (_eqAnn, _bodySpanAnn, body) <- block "="
+  let spanAnn = ann kw <> ann body
+  pure ((ann kw <> ann name, L.payload name), Term.ann spanAnn body ty)
 
 customFailure :: (P.MonadParsec e s m) => e -> m a
 customFailure = P.customFailure

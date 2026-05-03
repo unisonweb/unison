@@ -5,6 +5,7 @@ module Unison.Test.LSP (test) where
 
 import Control.Monad.Reader
 import Crypto.Random qualified as Random
+import Data.IntervalMap.Lazy qualified as IM
 import Data.List.Extra (firstJust)
 import Data.Map.Strict qualified as Map
 import Data.String.Here.Uninterpolated (here)
@@ -28,8 +29,10 @@ import Unison.LSP.Conversions
 import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.FileAnalysis qualified as FileAnalysis
 import Unison.LSP.FileAnalysis.UnusedBindings qualified as UnusedBindings
+import Unison.LSP.GoToDefinition qualified as GoToDefinition
 import Unison.LSP.Hover qualified as Hover
 import Unison.LSP.Queries qualified as LSPQ
+import Unison.LSP.Types (FileAnalysis (..))
 import Unison.LSP.Types qualified as ULSP
 import Unison.Lexer.Pos qualified as Lexer
 import Unison.Parser.Ann (Ann (..))
@@ -45,9 +48,12 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
+import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Summary (FileSummary (..))
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Recursion
+import Unison.Var qualified as Var
 import UnliftIO qualified
 
 test :: Test ()
@@ -62,9 +68,19 @@ test = do
       [ unusedBindingLocations,
         typeMismatchLocations
       ]
+  scope "implicit-resolution" $
+    tests
+      [ implicitResolveDiagnosticCodes,
+        implicitResolveNoGivenCodeAction
+      ]
   scope "hover" $
     tests
-      [ localBindingHoverTest
+      [ localBindingHoverTest,
+        implicitArgHoverTest
+      ]
+  scope "goto-def" $
+    tests
+      [ implicitArgGotoDefTest
       ]
 
 newtype TestLsp a = TestLsp {unTestLsp :: ReaderT ULSP.Env IO a}
@@ -452,6 +468,7 @@ typecheckSrc name src = do
                 (FileParsers.ShouldUseTndr'Yes parsingEnv)
                 codebase
                 ambientAbilities
+                []
                 unisonFile
             typecheckingResult <-
               Result.runResultT (FileParsers.synthesizeFile typecheckingEnv unisonFile) <&> \case
@@ -668,3 +685,279 @@ term =
 |]
       )
     ]
+
+------------------------------------------------------------------------------
+-- Chunk F1: LSP hover and goto-def on synthesized implicit arguments.
+--
+-- Strategy: D3's 'Unison.Typechecker.GivenApply.applyGivenDecisions'
+-- emits 'Context.ImplicitArgRef' info notes (anchored at the call
+-- site of each implicit-arrow function) which 'FileAnalysis' indexes
+-- into 'implicitArgInfo'. The hover and goto-def handlers consult
+-- this map. Because the typechecker integration for sourced @given@s
+-- isn't fully wired (let-given doesn't currently extend the
+-- lexical-given environment, and the file-level ambient pool is
+-- empty), we drive the LSP layer by constructing a 'FileAnalysis'
+-- directly with a populated 'implicitArgInfo' and installing it in
+-- the checked-files cache. This is the same shape the LSP would see
+-- if D3 had emitted notes against a real file.
+
+-- | Build a synthetic 'FileAnalysis' carrying the supplied
+-- 'implicitArgInfo' map, with empty defaults for everything else.
+mkSyntheticFileAnalysis ::
+  LSP.Uri ->
+  IM.IntervalMap LSP.Position [Reference.Reference] ->
+  Maybe (UF.TypecheckedUnisonFile Symbol Ann) ->
+  Maybe (UF.UnisonFile Symbol Ann) ->
+  Maybe FileSummary ->
+  FileAnalysis
+mkSyntheticFileAnalysis uri implicitInfo mtf mpf mfs =
+  FileAnalysis
+    { fileUri = uri,
+      fileVersion = 0,
+      lexedSource = ("", []),
+      tokenMap = mempty,
+      parsedFile = mpf,
+      typecheckedFile = mtf,
+      notes = mempty,
+      diagnostics = mempty,
+      codeActions = mempty,
+      localBindingInfo = mempty,
+      implicitArgInfo = implicitInfo,
+      typeSignatureHints = mempty,
+      fileSummary = mfs,
+      documentSymbols = mempty
+    }
+
+-- | Build an empty 'FileSummary' with only 'termsByReference'
+-- populated. Used by the goto-def positive path test.
+mkSyntheticFileSummary ::
+  Map (Maybe Reference.Id) (Map Symbol (Ann, Term.Term Symbol Ann, Maybe (Type.Type Symbol Ann))) ->
+  FileSummary
+mkSyntheticFileSummary trmsByRef =
+  FileSummary
+    { dataDeclsBySymbol = mempty,
+      dataDeclsByReference = mempty,
+      effectDeclsBySymbol = mempty,
+      effectDeclsByReference = mempty,
+      termsBySymbol = mempty,
+      termsByReference = trmsByRef,
+      testWatchSummary = mempty,
+      exprWatchSummary = mempty,
+      fileNames = mempty
+    }
+
+-- | Hover should mention "Implicit argument; resolved from given …"
+-- when the cursor lands on a position recorded in 'implicitArgInfo'.
+implicitArgHoverTest :: Test ()
+implicitArgHoverTest = scope "implicit-arg hover" $ do
+  -- Anchor the implicit-arg note at line 1, columns 8-9 (LSP 0-based:
+  -- line 0, char 7-8). The chosen given is a builtin reference for
+  -- which the empty PPED falls back to printing the hash, giving us
+  -- a stable expected text.
+  let anchorInterval =
+        IM.ClosedInterval
+          (LSP.Position 0 7)
+          (LSP.Position 0 9)
+      givenRef = Reference.Builtin "Show.Nat"
+      implicitInfo = IM.singleton anchorInterval [givenRef]
+      uri = LSP.Uri "test-implicit"
+  hoverTxt <- runTestLsp $ do
+    let fa = mkSyntheticFileAnalysis uri implicitInfo Nothing Nothing Nothing
+    filesVar <- asks ULSP.checkedFilesVar
+    liftIO $ UnliftIO.atomically do
+      mvar <- UnliftIO.newTMVar fa
+      UnliftIO.modifyTVar' filesVar (Map.insert uri mvar)
+    -- Hover at line 0, char 8 (inside the recorded interval).
+    runMaybeT (Hover.hoverInfo uri (LSP.Position 0 8))
+  case hoverTxt of
+    Nothing -> crash "expected implicit-arg hover, got Nothing"
+    Just t -> do
+      let txt = Text.unpack t
+      let needle = "Implicit argument; resolved from given"
+      if Text.isInfixOf (Text.pack needle) t
+        then ok
+        else crash ("hover text missing implicit-arg phrase: " <> txt)
+
+-- | Goto-def should jump to the resolved given when the cursor lands
+-- on a position recorded in 'implicitArgInfo' and the given resolves
+-- to an in-file 'DerivedId'.
+implicitArgGotoDefTest :: Test ()
+implicitArgGotoDefTest = scope "implicit-arg goto-def" $ do
+  -- Negative case: builtin refs have no in-file location, so goto-def
+  -- should fail (return Nothing). This confirms that the implicit-arg
+  -- branch is consulted but produces no result — the localBinding
+  -- fallback also has nothing to return.
+  let anchorInterval =
+        IM.ClosedInterval
+          (LSP.Position 0 7)
+          (LSP.Position 0 9)
+      builtinRef = Reference.Builtin "Show.Nat"
+      builtinImplicitInfo = IM.singleton anchorInterval [builtinRef]
+      builtinUri = LSP.Uri "test-implicit-goto-builtin"
+  scope "builtin given returns Nothing" $ do
+    builtinResult <- runTestLsp $ do
+      let fa = mkSyntheticFileAnalysis builtinUri builtinImplicitInfo Nothing Nothing Nothing
+      filesVar <- asks ULSP.checkedFilesVar
+      liftIO $ UnliftIO.atomically do
+        mvar <- UnliftIO.newTMVar fa
+        UnliftIO.modifyTVar' filesVar (Map.insert builtinUri mvar)
+      runMaybeT (GoToDefinition.locationInfo builtinUri (LSP.Position 0 8))
+    case builtinResult of
+      Nothing -> ok -- expected: builtins have no source location
+      Just r -> crash ("expected no goto-def for builtin given, got: " <> show r)
+
+  -- Positive case: a 'DerivedId' given that points at a term defined
+  -- in the file resolves to the term's annotation range.
+  scope "in-file derived given returns its range" $ do
+    -- The resolved given lives at line 2, columns 3-7 in the file
+    -- (Unison file positions are 1-based). After uToLspPos this maps
+    -- to LSP Range (Position 1 2) (Position 1 6).
+    let givenAnn = Ann.Ann (Lexer.Pos 2 3) (Lexer.Pos 2 7)
+        expectedRange = LSP.Range (LSP.Position 1 2) (LSP.Position 1 6)
+    -- Build a 'Reference.Id' by parsing a derived reference text and
+    -- extracting its 'Id'. This avoids manually constructing a Hash.
+    derivedRefId <- case Reference.unsafeFromText "#abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd" of
+      Reference.DerivedId rid -> pure rid
+      _ -> crash "expected DerivedId from unsafeFromText"
+    let givenSym :: Symbol
+        givenSym = Var.named "myGiven"
+        givenTerm = Term.boolean givenAnn True -- placeholder, never inspected
+        termsByRef =
+          Map.singleton
+            (Just derivedRefId)
+            (Map.singleton givenSym (givenAnn, givenTerm, Nothing))
+        fileSummary' = mkSyntheticFileSummary termsByRef
+        givenRef = Reference.DerivedId derivedRefId
+        implicitInfo' = IM.singleton anchorInterval [givenRef]
+        uri = LSP.Uri "test-implicit-goto-derived"
+    derivedResult <- runTestLsp $ do
+      let fa = mkSyntheticFileAnalysis uri implicitInfo' Nothing Nothing (Just fileSummary')
+      filesVar <- asks ULSP.checkedFilesVar
+      liftIO $ UnliftIO.atomically do
+        mvar <- UnliftIO.newTMVar fa
+        UnliftIO.modifyTVar' filesVar (Map.insert uri mvar)
+      runMaybeT (GoToDefinition.locationInfo uri (LSP.Position 0 8))
+    expectEqual (Just expectedRange) derivedResult
+
+------------------------------------------------------------------------------
+-- Chunk F2: LSP diagnostics + code actions for implicit-resolution
+-- failures.
+--
+-- We exercise 'analyseNotes' directly with a synthetic
+-- 'Result.UnresolvedImplicit' note for each 'GR.ResolveError'
+-- variant, and verify the resulting diagnostic carries the expected
+-- string code and that the right code actions are produced.
+
+-- | Build a sample goal type. The renderer ('PrintError') falls back
+-- to a hash for an unknown 'Reference.Builtin' under an empty PPE,
+-- which is fine — F2's tests only check the diagnostic 'code' field
+-- and code-action shape, not the prose.
+fakeGoalType :: Type.Type Symbol Ann
+fakeGoalType = Type.builtin Ann.External "F2.TestGoal"
+
+-- | Construct an 'UnresolvedImplicit' note carrying the supplied
+-- 'ResolveError'. The apply-site location is fixed at line 1, col 1
+-- (one-based) for predictable diagnostic ranges.
+mkImplicitNote :: GR.ResolveError Symbol Ann -> Result.Note Symbol Ann
+mkImplicitNote err =
+  let pos = Lexer.Pos 1 1
+      pos' = Lexer.Pos 1 2
+      ann = Ann pos pos'
+   in Result.UnresolvedImplicit ann fakeGoalType err
+
+-- | Run 'FileAnalysis.analyseNotes' on a single 'UnresolvedImplicit'
+-- note and return the (diagnostics, code-actions) pair.
+runAnalyseImplicit ::
+  GR.ResolveError Symbol Ann ->
+  Test ([LSP.Diagnostic], [ULSP.RangedCodeAction])
+runAnalyseImplicit err = io do
+  let codebase = error "F2 test: codebase unused"
+  let ppe = PPE.empty
+  FileAnalysis.analyseNotes
+    codebase
+    (LSP.Uri "f2-test")
+    ppe
+    "f2-test"
+    [mkImplicitNote err]
+
+-- | Each 'ResolveError' variant should produce exactly one
+-- diagnostic, tagged with the expected string code, at Error
+-- severity, with source "unison".
+implicitResolveDiagnosticCodes :: Test ()
+implicitResolveDiagnosticCodes = scope "diagnostic codes per category" $ do
+  let cases :: [(String, GR.ResolveError Symbol Ann, Text)]
+      cases =
+        [ ( "NoGiven",
+            GR.NoGiven fakeGoalType [],
+            "implicit-no-given"
+          ),
+          ( "Ambiguous",
+            GR.Ambiguous fakeGoalType [],
+            "implicit-ambiguous"
+          ),
+          ( "DepthExceeded",
+            GR.DepthExceeded [],
+            "implicit-depth-exceeded"
+          ),
+          ( "Cycle",
+            GR.Cycle [],
+            "implicit-cycle"
+          ),
+          ( "UnresolvedMetavarInGoal",
+            GR.UnresolvedMetavarInGoal fakeGoalType,
+            "implicit-unresolved-metavar"
+          )
+        ]
+  for_ cases $ \(name, err, expectedCode) -> scope name $ do
+    (diags, _actions) <- runAnalyseImplicit err
+    case diags of
+      [d] -> do
+        let actualCode = d ^. LSP.code
+        let expected = Just (LSP.InR expectedCode)
+        if actualCode == expected
+          then pure ()
+          else
+            crash $
+              "expected diagnostic code "
+                <> show expected
+                <> " but got "
+                <> show actualCode
+        let sev = d ^. LSP.severity
+        when (sev /= Just LSP.DiagnosticSeverity_Error) $
+          crash $
+            "expected Error severity, got " <> show sev
+        ok
+      ds -> crash ("expected exactly one diagnostic, got " <> show (Prelude.length ds))
+
+-- | The 'NoGiven' code action must include a workspace edit that
+-- inserts a 'given _ : <T> = todo' skeleton at the top of the file
+-- (line 0, column 0).
+implicitResolveNoGivenCodeAction :: Test ()
+implicitResolveNoGivenCodeAction = scope "NoGiven code action inserts skeleton at file top" $ do
+  (_diags, actions) <- runAnalyseImplicit (GR.NoGiven fakeGoalType [])
+  case actions of
+    [rca] -> do
+      let ca = rca ^. LSP.codeAction
+      let title = ca ^. LSP.title
+      when (not (Text.isInfixOf "Define given" title)) $
+        crash ("expected title to mention 'Define given', got: " <> Text.unpack title)
+      case ca ^. LSP.edit of
+        Nothing -> crash "expected workspace edit on the NoGiven code action"
+        Just we -> case we ^. LSP.changes of
+          Nothing -> crash "expected workspace edit changes map"
+          Just changes -> case Map.lookup (LSP.Uri "f2-test") changes of
+            Nothing -> crash "expected an edit targeting the test URI"
+            Just edits -> case edits of
+              [e] -> do
+                let editRange = e ^. LSP.range
+                let expectedRange =
+                      LSP.Range (LSP.Position 0 0) (LSP.Position 0 0)
+                when (editRange /= expectedRange) $
+                  crash $
+                    "expected edit at file top, got " <> show editRange
+                let txt = e ^. LSP.newText
+                when (not (Text.isInfixOf "given" txt)) $
+                  crash ("expected 'given' in edit text, got: " <> Text.unpack txt)
+                ok
+              es -> crash ("expected one TextEdit, got " <> show (Prelude.length es))
+    _ -> crash ("expected exactly one code action, got " <> show (Prelude.length actions))

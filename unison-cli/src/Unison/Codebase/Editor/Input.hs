@@ -165,6 +165,9 @@ data Input
   | FindI Bool FindScope [String] -- isVerbose, findScope, query
   | FindShallowI Path'
   | ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
+  | -- | List every term in the current namespace whose metadata
+    -- contains the @##Builtin.Given@ sentinel.
+    GivensI
   | HistoryI (Maybe Int {- cap on number of results -}) (Maybe Int {- cap on diff elements shown -}) BranchId
   | -- An optional causal hash or branch to annotate.
     HistoryCommentI (Maybe BranchId2 {- causal to annotate -}) (Maybe Text {- comment -})
@@ -182,6 +185,12 @@ data Input
   | ListDependentsI (HQ.HashQualified Name)
   | LoadI (Maybe FilePath)
   | MakeStandaloneI String (HQ.HashQualified Name)
+  | -- | Mark the term at the given hash-qualified name as a given by
+    -- adding the @##Builtin.Given@ sentinel to its 'MdValues' (ADR-013).
+    MarkGivenI !(HQ'.HashQualified (Path.Split Path'))
+  | -- | Remove the @##Builtin.Given@ sentinel from the term at the
+    -- given hash-qualified name.
+    UnmarkGivenI !(HQ'.HashQualified (Path.Split Path'))
   | MergeBuiltinsI (Maybe Path)
   | MergeCommitI
   | MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)

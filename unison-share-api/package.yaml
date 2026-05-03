@@ -81,7 +81,9 @@ tests:
       - condition: false
         other-modules: Paths_unison_share_api
     dependencies:
+      - bytes
       - code-page
+      - containers
       - easytest
       - hedgehog
       - unison-share-api
@@ -90,10 +92,13 @@ tests:
       - raw-strings-qq
       - serialise
       - text
+      - unison-core
       - unison-hash
       - unison-prelude
+      - unison-codebase
       - unison-codebase-sqlite
       - unison-pretty-printer
+      - unison-util-serialization
       - vector
 
     main: Main.hs

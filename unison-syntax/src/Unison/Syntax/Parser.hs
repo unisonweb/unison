@@ -45,6 +45,10 @@ module Unison.Syntax.Parser
     rootFile,
     run',
     run,
+    runFile,
+    runFile',
+    recordGivenVar,
+    getGivenVars,
     semi,
     Unison.Syntax.Parser.seq,
     Unison.Syntax.Parser.seq',
@@ -65,6 +69,7 @@ where
 
 import Control.Monad.Reader (ReaderT (..), ask)
 import Control.Monad.Reader.Class (asks)
+import Control.Monad.State.Strict (StateT, evalStateT, get, modify, runStateT)
 import Crypto.Random qualified as Random
 import Data.Bool (bool)
 import Data.Bytes.Put (runPutS)
@@ -110,7 +115,17 @@ import Unison.Var qualified as Var
 debug :: Bool
 debug = False
 
-type P v m = P.ParsecT (Error v) Input (ReaderT (ParsingEnv m) m)
+-- | The parser monad. The inner 'StateT' carries a 'Set v' of variable
+-- names that were bound via the @given@ keyword (see ADR-010 chunk L2
+-- fixup). The set is populated by 'recordGivenVar' inside
+-- 'givenBindingBody' and surfaces to the typechecker as the canonical
+-- way to identify @given@-keyword origins, replacing the previous
+-- type-shape inspection that silently dropped premise-free givens like
+-- @given local : Ord a = …@. The 'StateT' is /below/ 'ParsecT' so that
+-- registrations do not get rolled back on parser backtracking; this is
+-- safe because 'givenBindingBody' is committed (no @try@) once the
+-- @given@ keyword is consumed.
+type P v m = P.ParsecT (Error v) Input (StateT (Set v) (ReaderT (ParsingEnv m) m))
 
 type Err v = P.ParseError Input (Error v)
 
@@ -197,10 +212,10 @@ uniqueName lenInBase32Hex = do
 
 resolveUniqueTypeGuid :: (Monad m, Var v) => v -> P v m Modifier
 resolveUniqueTypeGuid name0 = do
-  ParsingEnv {maybeNamespace, uniqueTypeGuid} <- ask
+  ParsingEnv {maybeNamespace, uniqueTypeGuid} <- lift (lift ask)
   let name = Name.unsafeParseVar (maybe id (Var.namespaced2 . Name.toVar) maybeNamespace name0)
   guid <-
-    lift (lift (uniqueTypeGuid name)) >>= \case
+    lift (lift (lift (uniqueTypeGuid name))) >>= \case
       Nothing -> uniqueName 32
       Just guid -> pure guid
   pure (Unique guid)
@@ -287,12 +302,42 @@ run' :: (Monad m, Ord v) => P v m a -> String -> String -> ParsingEnv m -> m (Ei
 run' p s name env =
   let lex = bool id (traceWith L.debugPreParse) debug . L.preParse $ L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-   in runReaderT (runParserT pTraced name . Input $ toList lex) env <&> \case
+   in runReaderT (evalStateT (runParserT pTraced name . Input $ toList lex) Set.empty) env <&> \case
         Left err -> Left (Nel.head (P.bundleErrors err))
         Right x -> Right x
 
 run :: (Monad m, Ord v) => P v m a -> String -> ParsingEnv m -> m (Either (Err v) a)
 run p s = run' p s ""
+
+-- | Variant of 'run'' that also returns the 'Set v' of @given@-bound
+-- variable names accumulated by 'recordGivenVar' during parsing.
+-- Callers that need this side channel (e.g.
+-- 'Unison.Syntax.FileParser.file') use this instead of plain 'run''
+-- so the typechecker can identify @given@-keyword origins per
+-- ADR-010 / chunk L2 fixup.
+runFile' :: (Monad m, Ord v) => P v m a -> String -> String -> ParsingEnv m -> m (Either (Err v) (a, Set v))
+runFile' p s name env =
+  let lex = bool id (traceWith L.debugPreParse) debug . L.preParse $ L.lexer name s
+      pTraced = traceRemainingTokens "parser receives" *> p
+   in runReaderT (runStateT (runParserT pTraced name . Input $ toList lex) Set.empty) env <&> \case
+        (Left err, _) -> Left (Nel.head (P.bundleErrors err))
+        (Right x, gs) -> Right (x, gs)
+
+runFile :: (Monad m, Ord v) => P v m a -> String -> ParsingEnv m -> m (Either (Err v) (a, Set v))
+runFile p s = runFile' p s ""
+
+-- | Record that a variable was bound via the @given@ keyword. Called
+-- from 'Unison.Syntax.TermParser.givenBindingBody' (and the file-level
+-- @given@ decl path) so the typechecker can recognise @given@ origins
+-- without inspecting the binding's type shape.
+recordGivenVar :: (Ord v, Monad m) => v -> P v m ()
+recordGivenVar v = lift (modify (Set.insert v))
+
+-- | Fetch the current accumulated set of @given@-bound variable names.
+-- Mostly useful for tests; production callers use 'runFile' / 'runFile''
+-- to capture the set at the end of a parse.
+getGivenVars :: (Monad m) => P v m (Set v)
+getGivenVars = lift get
 
 -- | Virtual pattern match on a lexeme.
 queryToken :: (Ord v) => (L.Lexeme -> Maybe a) -> P v m (L.Token a)

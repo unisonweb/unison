@@ -30,6 +30,7 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..), ShowDefinitionScope (..))
 import Unison.Codebase.Editor.Output
+import Unison.Codebase.Givens qualified as Givens
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -120,7 +121,13 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
         -- Unlikely that both original query list and misses list are both very long, but make a set out of original
         -- query anyway, to replace pathological O(n^2) with O(n log n)
         filter (`Set.member` originalQuerySet) misses0
-  showDefinitions outputLoc (`Set.member` originalQuerySet) pped terms types misses
+  -- Compute the set of term references in the result that are tagged
+  -- as givens in the current namespace (ADR-013). The renderer will
+  -- prefix these with the `given` marker.
+  currentBranch0 <- Cli.getCurrentBranch0
+  let isGivenRef :: TermReference -> Bool
+      isGivenRef r = Givens.isGiven (Referent.Ref r) currentBranch0
+  showDefinitions outputLoc (`Set.member` originalQuerySet) isGivenRef pped terms types misses
   where
     suffixify =
       case outputLoc of
@@ -141,20 +148,30 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
 showDefinitions ::
   OutputLocation ->
   (HQ.HashQualified Name -> Bool) ->
+  -- | Predicate: is this term reference tagged as a given (ADR-013)?
+  -- Tagged terms are rendered with a leading @given@ marker so the
+  -- output round-trips with the parser-side @given@ keyword (chunk
+  -- A2). Until A2 lands, the marker is emitted as a leading comment
+  -- line so the output stays parseable.
+  -- TODO Phase 4: drop the @-- given@ comment scaffold once the
+  -- parser-side @given@ keyword (chunk A2) lands and the printer
+  -- can emit the bare keyword. Search for "TODO Phase 4: -- given"
+  -- to find every site that needs to be reconciled.
+  (TermReference -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   [HQ.HashQualified Name] ->
   Cli ()
-showDefinitions outputLoc nameInOriginalQuery pped terms types misses = do
+showDefinitions outputLoc nameInOriginalQuery isGivenRef pped terms types misses = do
   Cli.Env {codebase, writeSource} <- ask
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
-    Nothing -> renderToConsole nameInOriginalQuery pped terms types
+    Nothing -> renderToConsole nameInOriginalQuery isGivenRef pped terms types
     Just (fp, relToFold) -> do
       mayTF <- use #latestTypecheckedFile
-      numRendered <- renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types
+      numRendered <- renderToFile codebase nameInOriginalQuery isGivenRef writeSource mayTF fp relToFold pped terms types
 
       when (numRendered > 0) do
         -- We set latestFile to be programmatically generated, if we
@@ -179,6 +196,8 @@ showDefinitions outputLoc nameInOriginalQuery pped terms types misses = do
 
 renderCodePretty ::
   (HQ.HashQualified Name -> Bool) ->
+  -- | Predicate: is this term reference a given? See 'showDefinitions'.
+  (TermReference -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Bool ->
   (TermReferenceId -> Bool) ->
@@ -187,7 +206,7 @@ renderCodePretty ::
   Defns (Set Symbol) (Set Symbol) ->
   -- Result is Nothing if nothing was rendered
   Maybe (Pretty Pretty.ColorText, Int)
-renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types excludeNames =
+renderCodePretty nameInOriginalQuery isGivenRef pped isSourceFile isTest terms types excludeNames =
   let -- Associate each term and type with their best unsuffixified name
       namedTerms :: Map (HQ.HashQualified Name) (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann))
       namedTerms =
@@ -297,24 +316,38 @@ renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types exclud
             maybe mempty (<> Pretty.newline) maybeDoc
               <> Pretty.prettyType pped (name, ref, typ)
 
+      -- Prefix used in front of given-tagged terms so the round-trip
+      -- to source includes the marker. Until the parser-side `given`
+      -- keyword lands (chunk A2) we emit it as a leading comment so
+      -- the output stays parseable. This is the read-side half of the
+      -- ADR-017 surface.
+      -- TODO Phase 4: -- given scaffold. Replace this leading
+      -- comment with the bare @given@ keyword once chunk A2 lands;
+      -- see the matching marker in 'showDefinitions' parameter
+      -- documentation.
+      givenMarker :: Pretty SyntaxText
+      givenMarker = "-- given\n"
+
       prettyTerms :: [Pretty SyntaxText]
       prettyTerms =
         termsWithMaybeDocs1
           & Map.toList
           & List.sortBy (\(n0, _) (n1, _) -> Name.compareAlphabetical n0 n1)
           & map \(name, ((ref, term), maybeDoc)) ->
-            maybe mempty (<> Pretty.newline) maybeDoc
+            (if isGivenRef ref then givenMarker else mempty)
+              <> maybe mempty (<> Pretty.newline) maybeDoc
               <> Pretty.prettyTerm pped isSourceFile (maybe False isTest (Reference.toId ref)) (name, ref, term)
    in NEL.nonEmpty (prettyTypes ++ prettyTerms)
         $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)), length prettyTerms + length prettyTypes)
 
 renderToConsole ::
   (HQ.HashQualified Name -> Bool) ->
+  (TermReference -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   Cli ()
-renderToConsole nameInOriginalQuery pped terms types = do
+renderToConsole nameInOriginalQuery isGivenRef pped terms types = do
   -- If we're writing to console we don't add test-watch syntax
   let isTest _ = False
   let isSourceFile = False
@@ -323,6 +356,7 @@ renderToConsole nameInOriginalQuery pped terms types = do
         fst
           <$> renderCodePretty
             nameInOriginalQuery
+            isGivenRef
             pped
             isSourceFile
             isTest
@@ -338,6 +372,7 @@ renderToFile ::
   (MonadIO m, Monoid a) =>
   Codebase IO Symbol a ->
   (HQ.HashQualified Name -> Bool) ->
+  (TermReference -> Bool) ->
   (Text -> Text -> Bool -> IO ()) ->
   Maybe (Either (UnisonFile.UnisonFile Symbol Ann) (UnisonFile.TypecheckedUnisonFile Symbol a)) ->
   FilePath ->
@@ -346,7 +381,7 @@ renderToFile ::
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   (m Int)
-renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types = do
+renderToFile codebase nameInOriginalQuery isGivenRef writeSource mayTF fp relToFold pped terms types = do
   -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
   -- already bound in the file
   let excludeNames =
@@ -379,7 +414,7 @@ renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped te
         (Map.keysSet terms & Set.mapMaybe Reference.toId)
   let isTest r = Set.member r testRefs
   let isSourceFile = True
-  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types excludeNames
+  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery isGivenRef pped isSourceFile isTest terms types excludeNames
   case mayRenderedCodePretty of
     Just (renderedCodePretty, numRendered) -> do
       let (renderedCodeText) = Pretty.toPlain 80 renderedCodePretty

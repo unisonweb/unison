@@ -53,6 +53,7 @@ typecheckingEnv =
       (ShouldUseTndr'Yes parsingEnv)
       []
       (\_ -> pure (External <$ Builtin.typeLookup))
+      []
       parsedFile
 
 parsedFile :: UF.UnisonFile Symbol Ann

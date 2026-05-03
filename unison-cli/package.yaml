@@ -116,6 +116,7 @@ tests:
       - condition: false
         other-modules: Paths_unison_cli
     dependencies:
+      - IntervalMap
       - base
       - code-page
       - containers
@@ -124,6 +125,7 @@ tests:
       - easytest
       - extra
       - here
+      - IntervalMap
       - lens
       - lsp
       - lsp-types

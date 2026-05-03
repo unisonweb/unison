@@ -32,7 +32,9 @@ import U.Codebase.Reference (Reference' (..), TermReferenceId, TypeReferenceId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
+import Unison.Cli.TypeCheck qualified as Cli.TypeCheck
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -225,10 +227,16 @@ parseAndTypecheck prettyUf parsingEnv = do
     liftIO do
       putStrLn "--- Scratch ---"
       putStrLn stringUf
+  -- Chunk L1: harvest the ambient given pool from the current branch
+  -- before entering the transaction. The branch fetch is an IO action
+  -- that runs in 'Cli'; the transaction itself stays IO-free apart
+  -- from the type lookups needed for each given's declared type.
+  branch0 <- Cli.getCurrentBranch0
   Cli.runTransaction do
     Parsers.parseFile "<update>" stringUf parsingEnv >>= \case
       Left _ -> pure Nothing
       Right uf -> do
+        ambientGivens <- Cli.TypeCheck.ambientGivensFromBranch env.codebase branch0
         typecheckingEnv <-
-          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) env.codebase [] uf
+          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) env.codebase [] ambientGivens uf
         pure (Result.result (FileParsers.synthesizeFile typecheckingEnv uf))

@@ -168,6 +168,9 @@
                                    name similar to 'foo'. Note
                                    that this is a very slow
                                    operation.
+  `find :given`                    lists every term in the
+                                   current namespace tagged as a
+                                   given (see also `givens`).
 
   debug.names.global
   Iteratively search names or hashes across all projects and branches.
@@ -356,6 +359,9 @@
                                    name similar to 'foo'. Note
                                    that this is a very slow
                                    operation.
+  `find :given`                    lists every term in the
+                                   current namespace tagged as a
+                                   given (see also `givens`).
 
   find-in
   `find`                           lists all definitions in the
@@ -394,6 +400,9 @@
                                    name similar to 'foo'. Note
                                    that this is a very slow
                                    operation.
+  `find :given`                    lists every term in the
+                                   current namespace tagged as a
+                                   given (see also `givens`).
 
   find-in.all
   `find`                           lists all definitions in the
@@ -432,6 +441,9 @@
                                    name similar to 'foo'. Note
                                    that this is a very slow
                                    operation.
+  `find :given`                    lists every term in the
+                                   current namespace tagged as a
+                                   given (see also `givens`).
 
   find.all
   `find`                           lists all definitions in the
@@ -470,6 +482,9 @@
                                    name similar to 'foo'. Note
                                    that this is a very slow
                                    operation.
+  `find :given`                    lists every term in the
+                                   current namespace tagged as a
+                                   given (see also `givens`).
 
   find.all.verbose
   `find.all.verbose` searches for definitions like `find.all`, but includes hashes and aliases in the results.
@@ -506,6 +521,10 @@
                                                        `srcbranch`
                                                        of
                                                        `srcproject`.
+
+  givens
+  `givens` lists every definition in the current namespace that
+  has been marked as a given.
 
   help (or ?)
   `help` shows general help and `help <cmd>` shows help for one command.
@@ -638,6 +657,11 @@
                          most recent scratch file.
   `load <scratch file>`  parses, typechecks, and evaluates the
                          given scratch file.
+
+  mark.given
+  `mark.given foo` marks `foo` as a given so it participates in
+  implicit resolution. The term hash of `foo` is unchanged; only
+  the namespace hash changes.
 
   merge
   `merge /branch` merges `branch` into the current branch
@@ -1011,6 +1035,9 @@
 
   undo
   `undo` reverts the most recent change to the codebase.
+
+  unmark.given
+  `unmark.given foo` removes the given tag from `foo`.
 
   unsafe.force-push (or push.unsafe-force)
   Like `push`, but forcibly overwrites the remote namespace.

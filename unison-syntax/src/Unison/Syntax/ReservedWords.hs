@@ -32,7 +32,17 @@ keywords =
       "use",
       "where",
       "with",
-      "∀"
+      "∀",
+      -- Implicit-parameter feature (chunk A2; ADRs 006, 010, 022).
+      -- `given` is a top-level declaration prefix and a let-block
+      -- statement opener; `summon` is an expression-position keyword
+      -- that takes a parenthesized type. Per ADR-022 the eventual
+      -- production rollout uses a one-release deprecation cycle;
+      -- for the prototype we hard-break, so user code that names a
+      -- definition or local `given` / `summon` must rename or use
+      -- backtick escaping (`` `given` ``).
+      "given",
+      "summon"
     ]
     <> typeModifiers
     <> typeOrAbility
@@ -56,7 +66,11 @@ reservedOperators =
       "|",
       "!",
       "'",
-      "==>"
+      "==>",
+      -- Implicit-parameter constraint arrow (per ADR-001).
+      -- Listed after "==>" so the longer match wins via the lexer's
+      -- alternation order (see 'symbolyKw' in Lexer/Unison.hs).
+      "=>"
     ]
 
 delimiters :: Set Char

@@ -12,6 +12,7 @@ loc :: Recorded loc -> loc
 loc (Placeholder loc _) = loc
 loc (Resolve loc _) = loc
 loc (MissingResultPlaceholder loc) = loc
+loc (Implicit loc) = loc
 
 nameb :: Blank loc -> Maybe String
 nameb (Recorded (Placeholder _ n)) = Just n
@@ -25,6 +26,11 @@ data Recorded loc
     Resolve loc String
   | -- A placeholder for a missing result at the end of a block
     MissingResultPlaceholder loc
+  | -- ADR-019 / chunk C2.2: a constraint-goal hole left at an
+    -- 'ImplicitArrow' apply-site by the typechecker. Filled by the
+    -- elaborator in chunk D1+ via given-resolution. Mirrors the way
+    -- TDNR's 'Resolve' blank is filled by 'applyTdnrDecisions'.
+    Implicit loc
   deriving (Show, Eq, Ord, Functor, Generic)
 
 -- | Blank is just a dummy annotation.

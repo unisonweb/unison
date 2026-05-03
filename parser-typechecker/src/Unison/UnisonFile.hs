@@ -87,7 +87,8 @@ emptyUnisonFile =
       dataDeclarationsId = Map.empty,
       effectDeclarationsId = Map.empty,
       terms = Map.empty,
-      watches = Map.empty
+      watches = Map.empty,
+      givenBindings = Set.empty
     }
 
 leftBiasedMerge :: forall v a. (Ord v) => UnisonFile v a -> UnisonFile v a -> UnisonFile v a
@@ -101,7 +102,13 @@ leftBiasedMerge lhs rhs =
           dataDeclarationsId = mergedDataDecls,
           effectDeclarationsId = mergedEffectDecls,
           terms = mergedTerms,
-          watches = mergedWatches
+          watches = mergedWatches,
+          -- Combine the given-binding sets from both files. Variables
+          -- not present in either side's terms have their entries
+          -- silently kept; downstream consumers only consult this set
+          -- when looking up a binding's variable, so unused entries
+          -- are harmless.
+          givenBindings = givenBindings lhs <> givenBindings rhs
         }
   where
     lhsTermNames =
@@ -174,8 +181,8 @@ hashTerms :: TypecheckedUnisonFile v a -> Map v (a, TermReference, Maybe WatchKi
 hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
 mapTerms :: (Term v a -> Term v a) -> UnisonFile v a -> UnisonFile v a
-mapTerms f (UnisonFileId fn datas effects terms watches) =
-  UnisonFileId fn datas effects terms' watches'
+mapTerms f (UnisonFileId fn datas effects terms watches gbs) =
+  UnisonFileId fn datas effects terms' watches' gbs
   where
     terms' = over (mapped . _2) f terms
     watches' = over (mapped . mapped . _3) f watches
@@ -207,7 +214,7 @@ mapTerms f (UnisonFileId fn datas effects terms watches) =
 -- then converting back to a "regular" UnisonFile with free variables in the
 -- terms.
 prepareRewrite :: (Monoid a, Var v) => UnisonFile v a -> ([v] -> Term v a -> Term v a, UnisonFile v a, UnisonFile v a -> UnisonFile v a)
-prepareRewrite uf@(UnisonFileId _fn _datas _effects _terms watches) =
+prepareRewrite uf@(UnisonFileId _fn _datas _effects _terms watches _gbs) =
   (freshen, mapTerms substs uf, mapTerms refToVar)
   where
     -- fn to replace free vars with unique refs
@@ -244,8 +251,8 @@ prepareRewrite uf@(UnisonFileId _fn _datas _effects _terms watches) =
 -- This function returns what symbols were modified.
 -- The `Set v` is symbols that should be left alone.
 rewrite :: (Var v, Eq a) => Set v -> (Term v a -> Maybe (Term v a)) -> UnisonFile v a -> ([v], UnisonFile v a)
-rewrite leaveAlone rewriteFn uf@(UnisonFileId fn datas effects _terms watches) =
-  (rewritten, UnisonFileId fn datas effects (Map.fromList $ unEitherTerms terms') (unEither <$> watches'))
+rewrite leaveAlone rewriteFn uf@(UnisonFileId fn datas effects _terms watches gbs) =
+  (rewritten, UnisonFileId fn datas effects (Map.fromList $ unEitherTerms terms') (unEither <$> watches') gbs)
   where
     terms' = go (termBindings uf)
     watches' = go <$> watches
@@ -383,7 +390,13 @@ discardTypes :: (Ord v) => TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes (TypecheckedUnisonFileId fn datas effects terms watches _) =
   let watches' = g . mconcat <$> List.multimap watches
       g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]
-   in UnisonFileId fn (coerce datas) (coerce effects) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches'
+   in -- 'givenBindings' is not preserved through typechecking — by the
+      -- time a 'TypecheckedUnisonFile' exists the typechecker has
+      -- already consumed the side channel. Producing 'discardTypes'
+      -- (mostly used for downstream tooling like the LSP) re-issues an
+      -- empty set; if a future caller needs it they can extend
+      -- 'TypecheckedUnisonFile' similarly.
+      UnisonFileId fn (coerce datas) (coerce effects) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches' Set.empty
 
 declsToTypeLookup :: (Var v) => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =
