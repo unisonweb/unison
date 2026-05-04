@@ -137,6 +137,7 @@ tests:
       - megaparsec
       - mtl
       - primitive
+      - process
       - stm
       - text
       - unison-core1
