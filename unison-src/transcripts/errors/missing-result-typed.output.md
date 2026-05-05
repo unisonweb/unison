@@ -26,4 +26,7 @@ definition:
 
 Try adding an expression at the end of the block.
 It should be of type Nat.
+
+Hint: Did you mean to use == (equality check) instead of =
+(which introduces a definition)?
 ```
