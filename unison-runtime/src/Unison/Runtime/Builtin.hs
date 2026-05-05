@@ -1270,6 +1270,9 @@ declareForeigns = do
 
   declareForeign Untracked 6 Crypto_Argon2_HashRaw
   declareForeign Untracked 6 Crypto_Argon2_VerifyRaw
+  declareForeign Untracked 1 Crypto_P256_publicKey_impl
+  declareForeign Untracked 2 Crypto_P256_signSha256_impl
+  declareForeign Untracked 3 Crypto_P256_verifySha256_impl
 
   declareForeignWrap Untracked murmur'hash Universal_murmurHash
   declareForeignWrap Untracked murmur'hash Universal_murmurHashUntyped

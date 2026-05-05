@@ -210,6 +210,7 @@ matchBuiltin (P.Nat _ n) = Just $ P.Nat () n
 matchBuiltin (P.Int _ n) = Just $ P.Int () n
 matchBuiltin (P.Text _ t) = Just $ P.Text () t
 matchBuiltin (P.Char _ c) = Just $ P.Char () c
+matchBuiltin (P.Bytes _ b) = Just $ P.Bytes () b
 matchBuiltin (P.Float _ d) = Just $ P.Float () d
 matchBuiltin _ = Nothing
 
@@ -804,7 +805,8 @@ builtinCase =
       Rf.natRef,
       Rf.floatRef,
       Rf.textRef,
-      Rf.charRef
+      Rf.charRef,
+      Rf.bytesRef
     ]
 
 determineType :: (Show a) => [P.Pattern a] -> PType
@@ -817,6 +819,7 @@ determineType = foldMap f
     f P.Boolean {} = PData Rf.booleanRef
     f P.Text {} = PData Rf.textRef
     f P.Char {} = PData Rf.charRef
+    f P.Bytes {} = PData Rf.bytesRef
     f P.SequenceLiteral {} = PData Rf.listRef
     f P.SequenceOp {} = PData Rf.listRef
     f (P.Constructor _ r _) = PData (r ^. ConstructorReference.reference_)

@@ -11,6 +11,6 @@ if version-equals ormolu "0.8.0.2"; then
     cd "$SCRIPTDIR/.."
     find . -name '*.hs' \
         -not -path "*/dist-newstyle/*" \
-        -not -path "*/.stack-work*/*" -print0 \
+        -not -path "*/*.stack-work*/*" -print0 \
         | xargs -0 ormolu --check-idempotence --mode "${mode}"
 fi

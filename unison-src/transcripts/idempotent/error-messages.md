@@ -128,9 +128,8 @@ x = 0xsf -- odd number of hex chars in a bytes literal
 
       1 | x = 0xsf -- odd number of hex chars in a bytes literal
 
-  I was expecting an even number of hexadecimal characters (one
-  of 0123456789abcdefABCDEF) after the 0xs. Underscores may be
-  used as separators between hex digits (e.g. 0xsAA_BB).
+  I was expecting an even number of hexidecimal characters (one
+  of 0123456789abcdefABCDEF) after the 0xs.
 ```
 
 ``` unison :error
@@ -144,9 +143,8 @@ x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 
       1 | x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 
-  I was expecting an even number of hexadecimal characters (one
-  of 0123456789abcdefABCDEF) after the 0xs. Underscores may be
-  used as separators between hex digits (e.g. 0xsAA_BB).
+  I was expecting an even number of hexidecimal characters (one
+  of 0123456789abcdefABCDEF) after the 0xs.
 ```
 
 ### Layout errors

@@ -21,6 +21,11 @@ data Ann
   | Ann {start :: L.Pos, end :: L.Pos}
   deriving (Eq, Ord, Show)
 
+-- | Checks whether an annotation has a concrete position in a file.
+isFileAnn :: Ann -> Bool
+isFileAnn (Ann _ _) = True
+isFileAnn _ = False
+
 startingLine :: Ann -> Maybe L.Line
 startingLine (Ann (L.line -> line) _) = Just line
 startingLine (GeneratedFrom a) = startingLine a
