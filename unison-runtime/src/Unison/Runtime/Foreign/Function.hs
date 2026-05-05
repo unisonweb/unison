@@ -15,7 +15,7 @@ module Unison.Runtime.Foreign.Function
   )
 where
 
-import Control.Concurrent (ThreadId)
+import Control.Concurrent (ThreadId, forkIO)
 import Control.Concurrent as SYS
   ( killThread,
     threadDelay,
@@ -417,8 +417,17 @@ foreignCallHelper = \case
     \(exe, map Util.Text.unpack -> args) ->
       withCreateProcess (proc exe args) $ \_ _ _ p ->
         exitDecode <$> waitForProcess p
-  IO_process_start -> mkForeign $ \(exe, map Util.Text.unpack -> args) ->
-    runInteractiveProcess exe args Nothing Nothing
+  IO_process_start -> mkForeign $ \(exe, map Util.Text.unpack -> args) -> do
+    handles@(_, _, _, ph) <- runInteractiveProcess exe args Nothing Nothing
+    -- Best-effort reaper for the OS-level child. Without this, if user-space
+    -- code drops the ProcessHandle without calling IO.process.wait or
+    -- IO.process.kill, the child becomes a zombie under the long-lived UCM/MCP
+    -- host process (see #6175). waitForProcess is concurrent-safe in
+    -- System.Process: a subsequent IO.process.wait from user-space serializes
+    -- on the handle's MVar and returns the same exit code, so semantics for
+    -- well-behaved programs are unchanged.
+    _ <- forkIO $ void $ waitForProcess ph
+    pure handles
   IO_process_kill -> mkForeign $ terminateProcess
   IO_process_wait -> mkForeign $
     \ph -> exitDecode <$> waitForProcess ph
