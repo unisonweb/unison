@@ -1,6 +1,6 @@
-:76:1:
-   |
-76 | <<<<<<< HEAD
-   | ^^
+:107:1:
+    |
+107 | <<<<<<< HEAD
+    | ^^
 unexpected "<<"
 expecting "  ", " <newline>", '>', '@', comment (delimited with “--”), end of input, or newline

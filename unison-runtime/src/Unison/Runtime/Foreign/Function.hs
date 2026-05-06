@@ -499,6 +499,38 @@ foreignCallHelper = \case
   Tls_ClientConfig_certificates_get ->
     mkForeign $
       \(client :: TLS.ClientParams) -> pure $ X.listCertificates $ TLS.sharedCAStore $ TLS.clientShared client
+  Tls_ClientConfig_alpn_set ->
+    let updateClient :: [Bytes.Bytes] -> TLS.ClientParams -> TLS.ClientParams
+        updateClient protocols client =
+          client
+            { TLS.clientHooks =
+                (TLS.clientHooks client)
+                  { TLS.onSuggestALPN = pure (Just (map Bytes.toArray protocols))
+                  }
+            }
+     in mkForeign $
+          \(protocols :: [Bytes.Bytes], params :: ClientParams) -> pure $ updateClient protocols params
+  Tls_ServerConfig_alpn_set ->
+    let updateServer :: [Bytes.Bytes] -> TLS.ServerParams -> TLS.ServerParams
+        updateServer protocols server =
+          server
+            { TLS.serverHooks =
+                (TLS.serverHooks server)
+                  { TLS.onALPNClientSuggest =
+                      Just $ \clientProtocols ->
+                        pure $
+                          foldr
+                            ( \protocol selected ->
+                                if Bytes.toArray protocol `elem` clientProtocols
+                                  then Bytes.toArray protocol
+                                  else selected
+                            )
+                            ""
+                            protocols
+                  }
+            }
+     in mkForeign $
+          \(protocols :: [Bytes.Bytes], params :: ServerParams) -> pure $ updateServer protocols params
   Tls_ClientConfig_validation_disableHostNameValidation ->
     let customChecks = X.defaultChecks {checkFQHN = False}
         customHooks = def {TLS.onServerCertificate = X.validate X.HashSHA256 defaultHooks customChecks}
@@ -553,6 +585,8 @@ foreignCallHelper = \case
          ) -> Tls socket <$> TLS.contextNew socket config
   Tls_handshake_impl_v3 -> mkForeignTls $
     \(tls :: Tls) -> TLS.handshake tls.context
+  Tls_negotiatedProtocol -> mkForeignTls $
+    \(tls :: Tls) -> fmap (fmap Bytes.fromArray) $ TLS.getNegotiatedProtocol tls.context
   Tls_send_impl_v3 ->
     mkForeignTls $
       \( tls :: Tls,
