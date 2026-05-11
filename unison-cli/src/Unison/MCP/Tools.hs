@@ -258,7 +258,7 @@ runTool :: Tool MCP
 runTool =
   Tool
     { toolName = toToolName RunTool,
-      toolDescription = "Execute/Run a given definition.",
+      toolDescription = "Execute/Run a given definition. If `code` is provided, it will be typechecked first and the definition will be run from the typechecked file without updating the codebase.",
       toolAnnotations =
         ToolAnnotations
           { title = Just "Run",
@@ -268,11 +268,15 @@ runTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(RunToolArguments {mainFunctionName, projectContext, args}) -> handleToolError $ do
+      toolHandler = \(RunToolArguments {mainFunctionName, projectContext, args, code}) -> handleToolError $ do
         let input = ExecuteI NoProf (HQ.NameOnly mainFunctionName) (Text.unpack <$> args)
-        output <- handleInputMCP projectContext [Right input]
-        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
-        pure $ textToolResult outputJSON
+        case code of
+          Nothing -> do
+            output <- handleInputMCP projectContext [Right input]
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $ textToolResult outputJSON
+          Just source ->
+            withCode source [input] projectContext
     }
 
 shareProjectReadmeTool :: Tool MCP
