@@ -1880,6 +1880,30 @@ renderParseErrors s = \case
                     <> "an acceptable error bound of the expected value.",
                 annotatedAsErrorSite s loc
               ]
+    go (Parser.PatternInFunctionDeclaration funcName loc) = (msg, ranges)
+      where
+        ranges = maybeToList $ rangeForAnnotated loc
+        name = renderVar funcName
+        msg =
+          Pr.indentN 2 . Pr.callout "😶" $
+            Pr.lines
+              [ Pr.wrap $
+                  "I found a pattern where I expected a variable name or `=`."
+                    <> "Unison does not support pattern matching in function declarations.",
+                "",
+                annotatedAsErrorSite s loc,
+                "",
+                Pr.wrap $
+                  "Use"
+                    <> Pr.backticked "case"
+                    <> "in the function body instead. For example:",
+                "",
+                Pr.indentN 4 . Pr.blue $
+                  Pr.lines
+                    [ name <> " arg = case arg of",
+                      "  ... -> ..."
+                    ]
+              ]
     go (Parser.UseEmpty tok) = (msg, ranges)
       where
         ranges = [rangeForToken tok]

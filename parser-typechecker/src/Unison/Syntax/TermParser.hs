@@ -1074,10 +1074,36 @@ binding = label "binding" do
         pure (ann v, v, vs)
   let lhs :: P v m (Ann, L.Token v, [L.Token v])
       lhs = infixLhs <|> prefixLhs
+  -- Tokens that look like patterns but aren't valid function argument names,
+  -- used to detect Haskell-style pattern matching in function heads.
+  let isPatternToken :: L.Lexeme -> Bool
+      isPatternToken = \case
+        L.Open "[" -> True -- list pattern, e.g. []
+        L.Open "(" -> True -- tuple or constructor pattern, e.g. (a, b) or (Just x)
+        L.Numeric _ -> True -- numeric literal, e.g. 42
+        L.Textual _ -> True -- text literal, e.g. "hello"
+        L.Character _ -> True -- char literal, e.g. ?x
+        _ -> False
   case typ of
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
-      (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
+      (lhsLoc, name, args) <-
+        P.try (lhs <* P.lookAhead (openBlockWith "="))
+          <|> do
+            -- Fallback: detect if user wrote Haskell-style pattern matching
+            -- in the function head (e.g. `isEmpty [] = true`).
+            -- We only check the prefix form here (not infix like `x + foo 8`),
+            -- and we verify that an `=` follows (before a statement boundary)
+            -- to avoid false positives for expressions like `(Nat.+) 1`.
+            (name, nextTok) <- P.try do
+              (_, name, _) <- prefixLhs
+              nextTok <- peekAny
+              guard (isPatternToken (L.payload nextTok))
+              -- Scan ahead (balancing open/close) to confirm a '=' follows
+              -- on this same statement, ruling out standalone expressions.
+              void $ P.lookAhead scanForEquals
+              pure (name, nextTok)
+            failCommitted (PatternInFunctionDeclaration (L.payload name) (ann nextTok))
       (_eqAnn, _bodySpanAnn, body) <- block "="
       verifyRelativeName' (fmap Name.unsafeParseVar name)
       let binding = mkBinding lhsLoc args body
@@ -1091,6 +1117,13 @@ binding = label "binding" do
       when (L.payload name /= L.payload nameT) $
         customFailure $
           SignatureNeedsAccompanyingBody nameT
+      -- Check for Haskell-style pattern matching in the function head.
+      nextTokMaybe <- optional peekAny
+      case nextTokMaybe of
+        Just nextTok
+          | isPatternToken (L.payload nextTok) ->
+              customFailure (PatternInFunctionDeclaration (L.payload name) (ann nextTok))
+        _ -> pure ()
       (_eqAnn, _bodySpanAnn, body) <- block "="
       let binding = mkBinding lhsLoc args body
       -- We don't actually use the span annotation from the block (yet) because it
@@ -1103,6 +1136,23 @@ binding = label "binding" do
     mkBinding lhsLoc args body =
       let annotatedArgs = args <&> \arg -> (ann arg, L.payload arg)
        in Term.lam' (lhsLoc <> ann body) annotatedArgs body
+    -- Scan forward (balancing open/close blocks) and succeed only if we find
+    -- `Open "="` at depth 0 before hitting a statement boundary (Semi or Close).
+    -- Used to distinguish `f [] = ...` (binding with pattern) from `f 1`
+    -- (standalone expression that happens to end with a pattern-like token).
+    scanForEquals :: P v m ()
+    scanForEquals = go 0
+      where
+        go :: Int -> P v m ()
+        go depth = do
+          tok <- P.anySingle
+          case L.payload tok of
+            L.Open "=" | depth == 0 -> pure ()
+            L.Open _ -> go (depth + 1)
+            L.Close | depth == 0 -> P.empty
+            L.Close -> go (depth - 1)
+            L.Semi _ | depth == 0 -> P.empty
+            _ -> go depth
 
 customFailure :: (P.MonadParsec e s m) => e -> m a
 customFailure = P.customFailure
