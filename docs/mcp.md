@@ -12,9 +12,9 @@ This approach allows agents to connect to UCM's MCP server directly via stdin/st
 
 Note that this causes an additional UCM to run as an entirely independent process for each agent you're using.
 
-#### Claude Code and IBM Bob
+#### Claude Code, IBM Bob, and Gemini CLI
 
-To configure the MCP for use with Claude Code, IBM Bob, and any tools which read the same `mcpServers` JSON config shape, edit the appropriate config JSON file:
+To configure the MCP for use with Claude Code, IBM Bob, Gemini CLI, and any tools which read the same `mcpServers` JSON config shape, edit the appropriate config JSON file:
 
 Claude Code:
 * On Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -24,6 +24,10 @@ Claude Code:
 IBM Bob:
 * Global: `~/.bob/settings/mcp_settings.json`
 * Project: `.bob/mcp.json`
+
+Gemini CLI:
+* Global: `~/.gemini/settings.json`
+* Project: `.gemini/settings.json`
 
 Configure a `unison` key in your `mcpServers` object as below. Replace `<path-to-ucm>` with the path to your `ucm` executable.
 E.g. on Mac this is likely `/opt/homebrew/bin/ucm`, you can run `which ucm` to find your UCM executable path.
@@ -52,7 +56,7 @@ _e.g._ my complete file on macOS looks like this:
 }
 ```
 
-After saving the file, restart the app. For Claude, you should then see a new "unison" option in the MCP server list. For Bob, make sure "Use MCP Servers" is enabled in the MCP settings, then manage or restart the `unison` server from there.
+After saving the file, restart the agent. For Claude, you should then see a new "unison" option in the MCP server list. For Bob, make sure "Use MCP Servers" is enabled in the MCP settings, then manage or restart the `unison` server from there. In Gemini CLI and Claude Code, check with `/mcp`.
 
 #### Codex
 
