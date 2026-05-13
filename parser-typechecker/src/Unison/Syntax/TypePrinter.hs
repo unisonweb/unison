@@ -133,8 +133,11 @@ prettyRaw im p tp = go im p tp
               | Var.name v == "()" ->
                   PP.parenthesizeIf (p >= 10) <$> arrows True True rest
             _ ->
-              PP.parenthesizeIf (p >= 0)
-                <$> ((<>) <$> go im 0 fst <*> arrows False False rest)
+              let parenthesizeArrows content
+                    | p >= 0 = PP.group $ fmt S.Parenthesis "(" <> PP.indentNAfterNewline 1 content <> fmt S.Parenthesis ")"
+                    | otherwise = content
+               in parenthesizeArrows
+                    <$> ((<>) <$> go im 0 fst <*> arrows False False rest)
         _ -> pure . fromString $ "bug: unexpected Arrow form in prettyRaw: " <> show t
       _ -> pure . fromString $ "bug: unexpected form in prettyRaw: " <> show tp
     -- Sort effects in effect lists by how they're printed rather than hash,
