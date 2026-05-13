@@ -1,0 +1,4 @@
+fileMain : '{IO, Exception} ()
+fileMain = do
+  _ = putBytes.impl (io2.IO.stdHandle StdOut) (Text.toUtf8 "hello from file\n")
+  ()
