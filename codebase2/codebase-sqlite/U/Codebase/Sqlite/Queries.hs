@@ -2840,6 +2840,7 @@ c2xTerm saveText saveDefn tm tp =
       C.Term.PFloat d -> pure $ C.Term.PFloat d
       C.Term.PText t -> C.Term.PText <$> lookupText t
       C.Term.PChar c -> pure $ C.Term.PChar c
+      C.Term.PBytes b -> pure $ C.Term.PBytes b
       C.Term.PConstructor r i ps -> C.Term.PConstructor <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat ps
       C.Term.PAs p -> C.Term.PAs <$> goPat p
       C.Term.PEffectPure p -> C.Term.PEffectPure <$> goPat p

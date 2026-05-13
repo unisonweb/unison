@@ -69,5 +69,6 @@ library
     , unison-core
     , unison-hash
     , unison-prelude
+    , unison-util-bytes
     , unison-util-recursion
   default-language: GHC2021

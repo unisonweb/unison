@@ -106,6 +106,9 @@ data ForeignFunc
   | Tls_ServerConfig_default
   | Tls_ClientConfig_certificates_set
   | Tls_ClientConfig_certificates_get
+  | Tls_ClientConfig_alpn_set
+  | Tls_ServerConfig_alpn_set
+  | Tls_negotiatedProtocol
   | Tls_ClientConfig_validation_disableHostNameValidation
   | Tls_ClientConfig_validation_disableCertificateValidation
   | Tls_ServerConfig_certificates_set
@@ -156,6 +159,9 @@ data ForeignFunc
   | Crypto_hmac
   | Crypto_Argon2_HashRaw
   | Crypto_Argon2_VerifyRaw
+  | Crypto_P256_publicKey_impl
+  | Crypto_P256_signSha256_impl
+  | Crypto_P256_verifySha256_impl
   | Crypto_Ed25519_sign_impl
   | Crypto_Ed25519_verify_impl
   | Crypto_Rsa_sign_impl
@@ -569,6 +575,9 @@ foreignFuncBuiltinName = \case
   Tls_ClientConfig_certificates_set -> "Tls.ClientConfig.certificates.set"
   Tls_ServerConfig_certificates_set -> "Tls.ServerConfig.certificates.set"
   Tls_ClientConfig_certificates_get -> "Tls.ClientConfig.certificates.get"
+  Tls_ClientConfig_alpn_set -> "Tls.ClientConfig.alpn.set"
+  Tls_ServerConfig_alpn_set -> "Tls.ServerConfig.alpn.set"
+  Tls_negotiatedProtocol -> "Tls.negotiatedProtocol"
   Tls_ServerConfig_certificates_get -> "Tls.ServerConfig.certificates.get"
   Tls_ClientConfig_validation_disableCertificateValidation -> "Tls.ClientConfig.validation.disableCertificateValidation"
   Tls_ClientConfig_validation_disableHostNameValidation -> "Tls.ClientConfig.validation.disableHostNameValidation"
@@ -618,6 +627,9 @@ foreignFuncBuiltinName = \case
   Crypto_hmac -> "crypto.hmac"
   Crypto_Argon2_HashRaw -> "crypto.argon2.hashRaw"
   Crypto_Argon2_VerifyRaw -> "crypto.argon2.verifyRaw"
+  Crypto_P256_publicKey_impl -> "crypto.P256.publicKey.impl"
+  Crypto_P256_signSha256_impl -> "crypto.P256.signSha256.impl"
+  Crypto_P256_verifySha256_impl -> "crypto.P256.verifySha256.impl"
   Crypto_Ed25519_sign_impl -> "crypto.Ed25519.sign.impl"
   Crypto_Ed25519_verify_impl -> "crypto.Ed25519.verify.impl"
   Crypto_Rsa_sign_impl -> "crypto.Rsa.sign.impl"

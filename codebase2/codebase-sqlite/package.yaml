@@ -35,6 +35,7 @@ dependencies:
   - unison-prelude
   - unison-sqlite
   - unison-util-base32hex
+  - unison-util-bytes
   - unison-util-file-embed
   - unison-util-serialization
   - unison-util-term

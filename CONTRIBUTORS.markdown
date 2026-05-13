@@ -100,3 +100,4 @@ The format for this list: name, GitHub handle
 * ChanningWalton (@channingwalton)
 * Taylor Fausak (@tfausak)
 * Gabriel Anderson (@andgate)
+* Alistair Roche (@aroche-p)

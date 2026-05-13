@@ -60,7 +60,7 @@ scratch/bob> branch.diff /alice /bob
   + (added), ~ (modified), - (deleted)
 ```
 
-You may also provide the hash of a branch:
+You may also provide reflog entries:
 
 ``` ucm
 scratch/bob> reflog
@@ -73,13 +73,13 @@ scratch/bob> reflog
        history.
 
        Branch        Hash          Description
-  1.   scratch/bob   #idu8gij628   update
-  2.   scratch/bob   #glh59bml46   Branch created from scratch/main
+  1.   scratch/bob   #l3m16lkm0r   update
+  2.   scratch/bob   #nrdil51ie8   Branch created from scratch/main
 
-scratch/bob> branch.diff #glh59bml46 1
+scratch/bob> branch.diff 2 1
 
   Changes on
-  #idu8gij628bch8jnm3aqdmnc2mr5ureie9bhci9ob7pv27cmequ4534lqklnhdu9jitkc1uhh6ku1n0n4fmcrlu1kktvi2lm6ovduqo:
+  #l3m16lkm0rjttrts86k3hvbq7ifup8kc6oj73999lbnjv1g1fdhc7oql81rjvle46579eqoporvqqaum2hioe6qe3rr6bagcsf3ocio:
 
   ~ bar : Nat
   ~ baz : Nat

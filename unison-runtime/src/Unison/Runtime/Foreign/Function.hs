@@ -15,7 +15,7 @@ module Unison.Runtime.Foreign.Function
   )
 where
 
-import Control.Concurrent (ThreadId)
+import Control.Concurrent (ThreadId, forkIO)
 import Control.Concurrent as SYS
   ( killThread,
     threadDelay,
@@ -184,6 +184,7 @@ import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.ANF.Serialize qualified as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin
+import Unison.Runtime.Crypto.P256 qualified as P256
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception (die, exn)
 import Unison.Runtime.FFI.DLL
@@ -416,8 +417,17 @@ foreignCallHelper = \case
     \(exe, map Util.Text.unpack -> args) ->
       withCreateProcess (proc exe args) $ \_ _ _ p ->
         exitDecode <$> waitForProcess p
-  IO_process_start -> mkForeign $ \(exe, map Util.Text.unpack -> args) ->
-    runInteractiveProcess exe args Nothing Nothing
+  IO_process_start -> mkForeign $ \(exe, map Util.Text.unpack -> args) -> do
+    handles@(_, _, _, ph) <- runInteractiveProcess exe args Nothing Nothing
+    -- Best-effort reaper for the OS-level child. Without this, if user-space
+    -- code drops the ProcessHandle without calling IO.process.wait or
+    -- IO.process.kill, the child becomes a zombie under the long-lived UCM/MCP
+    -- host process (see #6175). waitForProcess is concurrent-safe in
+    -- System.Process: a subsequent IO.process.wait from user-space serializes
+    -- on the handle's MVar and returns the same exit code, so semantics for
+    -- well-behaved programs are unchanged.
+    _ <- forkIO $ void $ waitForProcess ph
+    pure handles
   IO_process_kill -> mkForeign $ terminateProcess
   IO_process_wait -> mkForeign $
     \ph -> exitDecode <$> waitForProcess ph
@@ -489,6 +499,38 @@ foreignCallHelper = \case
   Tls_ClientConfig_certificates_get ->
     mkForeign $
       \(client :: TLS.ClientParams) -> pure $ X.listCertificates $ TLS.sharedCAStore $ TLS.clientShared client
+  Tls_ClientConfig_alpn_set ->
+    let updateClient :: [Bytes.Bytes] -> TLS.ClientParams -> TLS.ClientParams
+        updateClient protocols client =
+          client
+            { TLS.clientHooks =
+                (TLS.clientHooks client)
+                  { TLS.onSuggestALPN = pure (Just (map Bytes.toArray protocols))
+                  }
+            }
+     in mkForeign $
+          \(protocols :: [Bytes.Bytes], params :: ClientParams) -> pure $ updateClient protocols params
+  Tls_ServerConfig_alpn_set ->
+    let updateServer :: [Bytes.Bytes] -> TLS.ServerParams -> TLS.ServerParams
+        updateServer protocols server =
+          server
+            { TLS.serverHooks =
+                (TLS.serverHooks server)
+                  { TLS.onALPNClientSuggest =
+                      Just $ \clientProtocols ->
+                        pure $
+                          foldr
+                            ( \protocol selected ->
+                                if Bytes.toArray protocol `elem` clientProtocols
+                                  then Bytes.toArray protocol
+                                  else selected
+                            )
+                            ""
+                            protocols
+                  }
+            }
+     in mkForeign $
+          \(protocols :: [Bytes.Bytes], params :: ServerParams) -> pure $ updateServer protocols params
   Tls_ClientConfig_validation_disableHostNameValidation ->
     let customChecks = X.defaultChecks {checkFQHN = False}
         customHooks = def {TLS.onServerCertificate = X.validate X.HashSHA256 defaultHooks customChecks}
@@ -543,6 +585,8 @@ foreignCallHelper = \case
          ) -> Tls socket <$> TLS.contextNew socket config
   Tls_handshake_impl_v3 -> mkForeignTls $
     \(tls :: Tls) -> TLS.handshake tls.context
+  Tls_negotiatedProtocol -> mkForeignTls $
+    \(tls :: Tls) -> fmap (fmap Bytes.fromArray) $ TLS.getNegotiatedProtocol tls.context
   Tls_send_impl_v3 ->
     mkForeignTls $
       \( tls :: Tls,
@@ -650,6 +694,15 @@ foreignCallHelper = \case
   Crypto_Ed25519_verify_impl ->
     mkForeign $
       pure . verifyEd25519Wrapper
+  Crypto_P256_publicKey_impl ->
+    mkForeign $
+      pure . deriveP256PublicKeyWrapper
+  Crypto_P256_signSha256_impl ->
+    mkForeign $
+      pure . signP256Sha256Wrapper
+  Crypto_P256_verifySha256_impl ->
+    mkForeign $
+      pure . verifyP256Sha256Wrapper
   Crypto_Rsa_sign_impl ->
     mkForeign $
       pure . signRsaWrapper
@@ -1546,6 +1599,30 @@ verifyEd25519Wrapper (public0, msg0, sig0) = case validated of
       "ed25519: Secret key structure invalid"
     errMsg _ = "ed25519: unexpected error"
 
+deriveP256PublicKeyWrapper ::
+  Bytes.Bytes -> Either Failure Bytes.Bytes
+deriveP256PublicKeyWrapper private0 =
+  bimapFailure "p256" $
+    Bytes.fromByteString <$> P256.derivePublicKey (Bytes.toArray private0 :: ByteString)
+
+signP256Sha256Wrapper ::
+  (Bytes.Bytes, Bytes.Bytes) -> Either Failure Bytes.Bytes
+signP256Sha256Wrapper (private0, msg0) =
+  bimapFailure "p256" $
+    Bytes.fromByteString
+      <$> P256.signSha256
+        (Bytes.toArray private0 :: ByteString)
+        (Bytes.toArray msg0 :: ByteString)
+
+verifyP256Sha256Wrapper ::
+  (Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) -> Either Failure Bool
+verifyP256Sha256Wrapper (public0, msg0, sig0) =
+  bimapFailure "p256" $
+    P256.verifySha256
+      (Bytes.toArray public0 :: ByteString)
+      (Bytes.toArray msg0 :: ByteString)
+      (Bytes.toArray sig0 :: ByteString)
+
 signRsaWrapper ::
   (Bytes.Bytes, Bytes.Bytes) -> Either Failure Bytes.Bytes
 signRsaWrapper (secret0, msg0) = case validated of
@@ -1570,6 +1647,11 @@ verifyRsaWrapper (public0, msg0, sig0) = case validated of
     msg = Bytes.toArray msg0 :: ByteString
     sig = Bytes.toArray sig0 :: ByteString
     validated = Rsa.parseRsaPublicKey (Bytes.toArray public0 :: ByteString)
+
+bimapFailure :: Text -> Either Text a -> Either Failure a
+bimapFailure _ = \case
+  Left err -> Left (F.Failure Ty.cryptoFailureRef err unitValue)
+  Right value -> Right value
 
 -- | Hash a password with Argon2id using the provided options and salt.
 -- Takes: (memory KiB, iterations, parallelism, outputLen, password, salt)

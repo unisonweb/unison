@@ -395,18 +395,20 @@ getLit =
     MMT -> MM <$> getReferent
     MYT -> MY <$> getReference
 
-data BranchT = Test1T | Test2T | TestWT | TestTT
+data BranchT = Test1T | Test2T | TestWT | TestTT | TestYT
 
 instance Tag BranchT where
   tag2word Test1T = 0
   tag2word Test2T = 1
   tag2word TestWT = 2
   tag2word TestTT = 3
+  tag2word TestYT = 4
 
   word2tag 0 = pure Test1T
   word2tag 1 = pure Test2T
   word2tag 2 = pure TestWT
   word2tag 3 = pure TestTT
+  word2tag 4 = pure TestYT
   word2tag n = unknownTag "BranchT" n
 
 putBranch :: GBranch cix -> Builder
@@ -423,6 +425,8 @@ putBranch (TestW d m) =
   putTag TestWT <> putSection d <> putEnumMap pWord putSection m
 putBranch (TestT d m) =
   putTag TestTT <> putSection d <> putMap (putText . Util.Text.toText) putSection m
+putBranch (TestY d m) =
+  putTag TestYT <> putSection d <> putMap putBytes putSection m
 
 getBranch :: (PrimBase m) => Get m Branch
 getBranch =
@@ -437,6 +441,7 @@ getBranch =
         <*> getSection
     TestWT -> TestW <$> getSection <*> getEnumMap gWord getSection
     TestTT -> TestT <$> getSection <*> getMap (Util.Text.fromText <$> getText) getSection
+    TestYT -> TestY <$> getSection <*> getMap getBytes getSection
 
 gInt :: (PrimBase m) => Get m Int
 gInt = getVarInt

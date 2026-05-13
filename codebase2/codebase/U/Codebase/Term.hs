@@ -16,6 +16,7 @@ import U.Core.ABT qualified as ABT
 import U.Core.ABT.Var qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Prelude
+import Unison.Util.Bytes (Bytes)
 import Unison.Util.Recursion
 
 type ConstructorId = Word64
@@ -106,6 +107,7 @@ data Pattern t r
   | PFloat !Double
   | PText !t
   | PChar !Char
+  | PBytes !Bytes
   | PConstructor !r !ConstructorId [Pattern t r]
   | PAs (Pattern t r)
   | PEffectPure (Pattern t r)
@@ -220,6 +222,7 @@ rmapPatternM ft fr = go
       PFloat d -> pure $ PFloat d
       PText t -> PText <$> ft t
       PChar c -> pure $ PChar c
+      PBytes b -> pure $ PBytes b
       PConstructor r i ps -> PConstructor <$> fr r <*> pure i <*> (traverse go ps)
       PAs p -> PAs <$> go p
       PEffectPure p -> PEffectPure <$> go p

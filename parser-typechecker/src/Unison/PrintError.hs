@@ -851,7 +851,14 @@ renderTypeError e env src = case e of
           [ Pr.wrap "The last element of a block must be an expression, but this is a definition:",
             "",
             annotatedAsErrorSite src termSite,
-            Pr.wrap $ "Try adding an expression at the end of the block." <> msg
+            Pr.wrap $ "Try adding an expression at the end of the block." <> msg,
+            "",
+            Pr.wrap $
+              "Hint: Did you mean to use "
+                <> style Code "=="
+                <> " (equality check) instead of "
+                <> style Code "="
+                <> " (which introduces a definition)?"
           ]
     where
       msg = case expectedType of
@@ -960,7 +967,19 @@ renderTypeError e env src = case e of
               formatWrongs preambleSimilarNameRightType suggestionsSimilarNameRightType
         handleSuggestions (_, _, _, suggestionsWrongNameRightType, suggestionsSimilarNameWrongType)
           | not $ null (suggestionsSimilarNameWrongType ++ suggestionsWrongNameRightType) =
-              formatWrongs preambleDifferentNameWrongType (suggestionsSimilarNameWrongType ++ suggestionsWrongNameRightType)
+              let wrongs = formatWrongs preambleDifferentNameWrongType (suggestionsSimilarNameWrongType ++ suggestionsWrongNameRightType)
+               in mconcat
+                    [ case expectedType of
+                        Type.Var' (TypeVar.Existential {}) -> Pr.wrap ("its type could be anything.") <> "\n"
+                        _ ->
+                          mconcat
+                            [ "I think its type should be:",
+                              "\n\n",
+                              Pr.indentN 4 (style Type1 (renderType' env expectedType))
+                            ],
+                      "\n\n",
+                      wrongs
+                    ]
         handleSuggestions (_, _, _, _, _) = undefinedSymbolHelp
      in mconcat
           [ "I couldn't figure out what ",
@@ -1787,13 +1806,25 @@ renderParseErrors s = \case
           Just ts -> rangeForToken <$> Foldable.toList ts
         excerpt = showSource s ((\r -> (r, ErrorSite)) <$> ranges)
         msg = L.formatTrivialError unexpectedTokenStrs expectedTokenStrs
-     in [ ( Pr.lines
+        equalsHint
+          | Set.member "=" unexpectedTokenStrs =
+              [ "",
+                Pr.wrap $
+                  "Hint: Did you mean to use "
+                    <> style Code "=="
+                    <> " (equality check) instead of "
+                    <> style Code "="
+                    <> " (which introduces a definition)?"
+              ]
+          | otherwise = []
+     in [ ( Pr.lines $
               [ "I got confused here:",
                 "",
                 excerpt,
                 "",
                 style ErrorSite msg
-              ],
+              ]
+                <> equalsHint,
             ranges
           )
         ]

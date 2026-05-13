@@ -75139,8 +75139,8 @@ docLink (docEmbedTermLink do async) }}
 type server.WebSocketHandler
   = WebSocketHandler
       (WebSocket
-      -> ((Either Failure () ->{IO, Exception} ()) ->{IO, Exception} ())
-      ->{IO, Exception} ())
+       -> ((Either Failure () ->{IO, Exception} ()) ->{IO, Exception} ())
+       ->{IO, Exception} ())
 
 type Version
   = { major : Nat, minor : Nat }

@@ -749,6 +749,7 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
   Pattern.Nat _ u -> (fmt S.NumericLiteral $ l $ show u, vs)
   Pattern.Float _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
   Pattern.Text _ t -> (fmt S.TextLiteral $ l $ show t, vs)
+  Pattern.Bytes _ b -> (fmt S.BytesLiteral $ l ("0xs" <> show b), vs)
   TuplePattern pats
     | length pats /= 1 ->
         let (pats_printed, tail_vs) = patterns Bottom vs pats
@@ -1405,6 +1406,7 @@ countPatternUsages n usedTm = Pattern.foldMap' f
       Pattern.Float _ _ -> mempty
       Pattern.Text _ _ -> mempty
       Pattern.Char _ _ -> mempty
+      Pattern.Bytes _ _ -> mempty
       Pattern.As _ _ -> mempty
       Pattern.SequenceLiteral _ _ -> mempty
       Pattern.SequenceOp {} -> mempty
@@ -1696,6 +1698,7 @@ isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)] =
       Pattern.Float _ _ -> True
       Pattern.Text _ _ -> True
       Pattern.Char _ _ -> True
+      Pattern.Bytes _ _ -> True
       Pattern.Constructor _ _ ps -> any hasLiteral ps
       Pattern.As _ p -> hasLiteral p
       Pattern.EffectPure _ p -> hasLiteral p

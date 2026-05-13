@@ -181,6 +181,7 @@ refInPattern = \case
   Pattern.Float {} -> Nothing
   Pattern.Text {} -> Nothing
   Pattern.Char {} -> Nothing
+  Pattern.Bytes {} -> Nothing
   Pattern.Constructor _loc conRef _ -> Just (LD.ConReference conRef CT.Data)
   Pattern.As _loc _pat -> Nothing
   Pattern.EffectPure {} -> Nothing
@@ -317,6 +318,7 @@ findSmallestEnclosingPatternMatching pos pred pat
             Pattern.Float {} -> guardInFile *> pred pat
             Pattern.Text {} -> guardInFile *> pred pat
             Pattern.Char {} -> guardInFile *> pred pat
+            Pattern.Bytes {} -> guardInFile *> pred pat
             Pattern.Constructor _loc _conRef pats -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats)
             Pattern.As _loc p -> findSmallestEnclosingPatternMatching pos pred p
             Pattern.EffectPure _loc p -> findSmallestEnclosingPatternMatching pos pred p

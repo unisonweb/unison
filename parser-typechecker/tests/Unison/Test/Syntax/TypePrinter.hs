@@ -158,6 +158,16 @@ test =
         \-> c\n\
         \-> d"
         10,
+      -- #626: parenthesized arrow types should indent continuation lines
+      tc_diff_rtt
+        False
+        "(a -> b -> c) -> d -> e"
+        "(a\n\
+        \ -> b\n\
+        \ -> c)\n\
+        \-> d\n\
+        \-> e"
+        10,
       tc_diff_rtt
         False
         "a -> Pair b c -> d" -- ditto, and extra line breaks that seem superfluous in Pair

@@ -12,13 +12,22 @@ This approach allows agents to connect to UCM's MCP server directly via stdin/st
 
 Note that this causes an additional UCM to run as an entirely independent process for each agent you're using.
 
-#### Claude Code
+#### Claude Code, IBM Bob, and Gemini CLI
 
-To configure the MCP for use with Claude (and any tools which read Claude's json config), edit your Claude Desktop config JSON file, which is found:
+To configure the MCP for use with Claude Code, IBM Bob, Gemini CLI, and any tools which read the same `mcpServers` JSON config shape, edit the appropriate config JSON file:
 
+Claude Code:
 * On Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
 * On Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 * On Linux: `$HOME/.claude.json`
+
+IBM Bob:
+* Global: `~/.bob/settings/mcp_settings.json`
+* Project: `.bob/mcp.json`
+
+Gemini CLI:
+* Global: `~/.gemini/settings.json`
+* Project: `.gemini/settings.json`
 
 Configure a `unison` key in your `mcpServers` object as below. Replace `<path-to-ucm>` with the path to your `ucm` executable.
 E.g. on Mac this is likely `/opt/homebrew/bin/ucm`, you can run `which ucm` to find your UCM executable path.
@@ -47,7 +56,7 @@ _e.g._ my complete file on macOS looks like this:
 }
 ```
 
-After saving the file, restart the Claude Desktop app. You should then see a new "unison" option in the MCP server list.
+After saving the file, restart the agent. For Claude, you should then see a new "unison" option in the MCP server list. For Bob, make sure "Use MCP Servers" is enabled in the MCP settings, then manage or restart the `unison` server from there. In Gemini CLI and Claude Code, check with `/mcp`.
 
 #### Codex
 
@@ -75,6 +84,35 @@ Restart `codex`; you should now be able to see the Unison MCP server by entering
     • Tools: docs, get-current-project-context, lib-install, list-definition-dependencies, list-definition-dependents, list-library-definitions, list-local-projects, list-project-branches,
 list-project-definitions, list-project-libraries, search-by-type, search-definitions-by-name, share-project-readme, share-project-search, typecheck-code, view-definitions
 ```
+
+#### Kiro CLI
+
+Kiro CLI supports MCP servers at both global and workspace scope.
+
+**Workspace scope** (recommended — scoped to this project):
+
+Create `.kiro/settings/mcp.json` in the project root:
+
+``` json
+{
+  "mcpServers": {
+    "unison": {
+      "command": "<path-to-ucm>",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**Global scope** (available in all projects):
+
+``` bash
+kiro-cli mcp add --name unison --command <path-to-ucm> --args mcp --scope global
+```
+
+If you're using a custom agent (e.g. defined in `~/.kiro/agents/my-agent.json`), workspace and global MCP servers are not automatically included. Instead, add the same `mcpServers` entry above directly to the agent's JSON config file.
+
+After saving, restart Kiro CLI. You can verify the server is loaded with `/mcp` in chat.
 
 ### Connecting to a running UCM executable (not recommended)
 
