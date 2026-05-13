@@ -568,7 +568,8 @@ instance FromJSON DocsToolArguments where
 data RunToolArguments = RunToolArguments
   { projectContext :: ProjectContext,
     mainFunctionName :: Name,
-    args :: [Text]
+    args :: [Text],
+    code :: Maybe (Either FilePath Text)
   }
   deriving (Eq, Show)
 
@@ -593,6 +594,27 @@ instance HasInputSchema RunToolArguments where
                           "description" .= ("An argument to pass to the main function." :: Text)
                         ],
                     "description" .= ("The arguments to pass to the main function." :: Text)
+                  ],
+              "code"
+                .= object
+                  [ "description" .= ("Optional source code to typecheck before running. Allows running definitions without updating the codebase. Either the `sourceCode` key or the `filePath`, but not both." :: Text),
+                    "type" .= ("object" :: Text),
+                    "properties"
+                      .= object
+                        [ "sourceCode"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The source code to typecheck." :: Text)
+                              ],
+                          "filePath"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("An absolute file path to the source code." :: Text)
+                              ]
+                        ],
+                    "additionalProperties" .= False,
+                    "minProperties" .= (1 :: Int),
+                    "maxProperties" .= (1 :: Int)
                   ]
             ],
         "required" .= ["projectContext", "mainFunctionName", "args" :: Text]
@@ -606,7 +628,16 @@ instance FromJSON RunToolArguments where
       Left err -> fail $ "Invalid main function name: " ++ show err
       Right name -> pure name
     args <- o .: "args"
-    pure $ RunToolArguments {projectContext, mainFunctionName, args}
+    code <-
+      o .:? "code" >>= \case
+        Nothing -> pure Nothing
+        Just source ->
+          source .:? "filePath" >>= \case
+            Just filePath -> pure $ Just (Left filePath)
+            Nothing -> do
+              text <- source .: "sourceCode"
+              pure $ Just (Right text)
+    pure $ RunToolArguments {projectContext, mainFunctionName, args, code}
 
 data ProjectCodeToolArguments = ProjectCodeToolArguments
   { projectContext :: ProjectContext

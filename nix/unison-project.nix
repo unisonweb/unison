@@ -23,6 +23,7 @@ in
       conduit-extra = pkgs.haskell.lib.dontCheck hprev.conduit-extra;
       data-clist = pkgs.haskell.lib.dontCheck hprev.data-clist;
       fsnotify = pkgs.haskell.lib.dontCheck hprev.fsnotify;
+      filelock = pkgs.haskell.lib.dontCheck hprev.filelock;
       doctest-discover = pkgs.haskell.lib.dontCheck hprev.doctest-discover;
       haskeline = pkgs.haskell.lib.dontCheck hprev.haskeline;
       hs-mcp = pkgs.haskell.lib.dontCheck hprev.hs-mcp;
