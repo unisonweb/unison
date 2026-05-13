@@ -628,13 +628,15 @@ instance FromJSON RunToolArguments where
       Left err -> fail $ "Invalid main function name: " ++ show err
       Right name -> pure name
     args <- o .: "args"
-    code <- o .:? "code" >>= \case
-      Nothing -> pure Nothing
-      Just source -> source .:? "filePath" >>= \case
-        Just filePath -> pure $ Just (Left filePath)
-        Nothing -> do
-          text <- source .: "sourceCode"
-          pure $ Just (Right text)
+    code <-
+      o .:? "code" >>= \case
+        Nothing -> pure Nothing
+        Just source ->
+          source .:? "filePath" >>= \case
+            Just filePath -> pure $ Just (Left filePath)
+            Nothing -> do
+              text <- source .: "sourceCode"
+              pure $ Just (Right text)
     pure $ RunToolArguments {projectContext, mainFunctionName, args, code}
 
 data ProjectCodeToolArguments = ProjectCodeToolArguments
