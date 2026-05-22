@@ -32,6 +32,8 @@ module Unison.MCP.Types
     ReflogToolArguments (..),
     HistoryToolArguments (..),
     CreateBranchToolArguments (..),
+    CompileToolArguments (..),
+    LibUpgradeToolArguments (..),
     toToolName,
     fromToolName,
   )
@@ -106,6 +108,8 @@ data ToolKind
   | ReflogTool
   | HistoryTool
   | CreateBranchTool
+  | CompileTool
+  | LibUpgradeTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -140,7 +144,9 @@ kindNameMapping =
       (DiffUpdateTool, "diff-update"),
       (ReflogTool, "reflog"),
       (HistoryTool, "history"),
-      (CreateBranchTool, "create-branch")
+      (CreateBranchTool, "create-branch"),
+      (CompileTool, "compile"),
+      (LibUpgradeTool, "lib-upgrade")
     ]
 
 data ProjectDefinitionNameArgument = ProjectDefinitionNameArgument
@@ -568,7 +574,8 @@ instance FromJSON DocsToolArguments where
 data RunToolArguments = RunToolArguments
   { projectContext :: ProjectContext,
     mainFunctionName :: Name,
-    args :: [Text]
+    args :: [Text],
+    code :: Maybe (Either FilePath Text)
   }
   deriving (Eq, Show)
 
@@ -593,6 +600,27 @@ instance HasInputSchema RunToolArguments where
                           "description" .= ("An argument to pass to the main function." :: Text)
                         ],
                     "description" .= ("The arguments to pass to the main function." :: Text)
+                  ],
+              "code"
+                .= object
+                  [ "description" .= ("Optional source code to typecheck before running. Allows running definitions without updating the codebase. Either the `sourceCode` key or the `filePath`, but not both." :: Text),
+                    "type" .= ("object" :: Text),
+                    "properties"
+                      .= object
+                        [ "sourceCode"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The source code to typecheck." :: Text)
+                              ],
+                          "filePath"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("An absolute file path to the source code." :: Text)
+                              ]
+                        ],
+                    "additionalProperties" .= False,
+                    "minProperties" .= (1 :: Int),
+                    "maxProperties" .= (1 :: Int)
                   ]
             ],
         "required" .= ["projectContext", "mainFunctionName", "args" :: Text]
@@ -606,7 +634,16 @@ instance FromJSON RunToolArguments where
       Left err -> fail $ "Invalid main function name: " ++ show err
       Right name -> pure name
     args <- o .: "args"
-    pure $ RunToolArguments {projectContext, mainFunctionName, args}
+    code <-
+      o .:? "code" >>= \case
+        Nothing -> pure Nothing
+        Just source ->
+          source .:? "filePath" >>= \case
+            Just filePath -> pure $ Just (Left filePath)
+            Nothing -> do
+              text <- source .: "sourceCode"
+              pure $ Just (Right text)
+    pure $ RunToolArguments {projectContext, mainFunctionName, args, code}
 
 data ProjectCodeToolArguments = ProjectCodeToolArguments
   { projectContext :: ProjectContext
@@ -1100,6 +1137,77 @@ instance FromJSON CreateBranchToolArguments where
     sourceBranchProject <- fmap UnsafeProjectName <$> o .:? "sourceBranchProject"
     sourceBranchName <- fmap UnsafeProjectBranchName <$> o .:? "sourceBranchName"
     pure $ CreateBranchToolArguments {projectName, newBranchName, sourceType, sourceBranchProject, sourceBranchName}
+
+data CompileToolArguments = CompileToolArguments
+  { projectContext :: ProjectContext,
+    mainFunctionName :: Name,
+    outputPath :: Text
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema CompileToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "mainFunctionName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The main function to compile, e.g. `myMain` or `mynamespace.myprogram`." :: Text)
+                  ],
+              "outputPath"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("Output file path (without .uc extension). UCM writes the .uc file relative to the codebase directory." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "mainFunctionName", "outputPath" :: Text]
+      ]
+
+instance FromJSON CompileToolArguments where
+  parseJSON = withObject "CompileToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    mainFunctionName <- Name.unsafeParseText <$> o .: "mainFunctionName"
+    outputPath <- o .: "outputPath"
+    pure $ CompileToolArguments {projectContext, mainFunctionName, outputPath}
+
+-- | Each element is a pair (old, new); the list is flattened: [old1, new1, old2, new2, ...]
+data LibUpgradeToolArguments = LibUpgradeToolArguments
+  { projectContext :: ProjectContext,
+    oldLibName :: Text,
+    newLibName :: Text
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema LibUpgradeToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "oldLibName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The current library name segment to upgrade from, e.g. `unison_base_1_0_0`." :: Text)
+                  ],
+              "newLibName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The new library name segment to upgrade to, e.g. `unison_base_2_0_0`." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "oldLibName", "newLibName" :: Text]
+      ]
+
+instance FromJSON LibUpgradeToolArguments where
+  parseJSON = withObject "LibUpgradeToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    oldLibName <- o .: "oldLibName"
+    newLibName <- o .: "newLibName"
+    pure $ LibUpgradeToolArguments {projectContext, oldLibName, newLibName}
 
 nameKindMapping :: Map Text ToolKind
 nameKindMapping =

@@ -79,7 +79,9 @@ tools =
     deleteNamespaceTool,
     reflogTool,
     historyTool,
-    createBranchTool
+    createBranchTool,
+    compileTool,
+    libUpgradeTool
   ]
 
 currentProjectContext :: (MonadIO m, MonadReader Env m) => m ProjectContext
@@ -258,7 +260,7 @@ runTool :: Tool MCP
 runTool =
   Tool
     { toolName = toToolName RunTool,
-      toolDescription = "Execute/Run a given definition.",
+      toolDescription = "Execute/Run a given definition. If `code` is provided, it will be typechecked first and the definition will be run from the typechecked file without updating the codebase.",
       toolAnnotations =
         ToolAnnotations
           { title = Just "Run",
@@ -268,11 +270,15 @@ runTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(RunToolArguments {mainFunctionName, projectContext, args}) -> handleToolError $ do
+      toolHandler = \(RunToolArguments {mainFunctionName, projectContext, args, code}) -> handleToolError $ do
         let input = ExecuteI NoProf (HQ.NameOnly mainFunctionName) (Text.unpack <$> args)
-        output <- handleInputMCP projectContext [Right input]
-        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
-        pure $ textToolResult outputJSON
+        case code of
+          Nothing -> do
+            output <- handleInputMCP projectContext [Right input]
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $ textToolResult outputJSON
+          Just source ->
+            withCode source [input] projectContext
     }
 
 shareProjectReadmeTool :: Tool MCP
@@ -839,6 +845,49 @@ createBranchTool =
         dummyContext <- currentProjectContext
         let branchInput = Input.BranchI branchSource (ProjectAndBranch (Just projectName) newBranchName)
         output <- handleInputMCP dummyContext [Right branchInput]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+compileTool :: Tool MCP
+compileTool =
+  Tool
+    { toolName = toToolName CompileTool,
+      toolDescription = "Compile a Unison definition to a standalone .uc file. The file is written relative to the codebase directory. Run it with: ucm run.compiled <outputPath>.uc",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Compile",
+            readOnlyHint = Just False,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(CompileToolArguments {projectContext, mainFunctionName, outputPath}) -> handleToolError $ do
+        let input = MakeStandaloneI (Text.unpack outputPath) (HQ.NameOnly mainFunctionName)
+        output <- handleInputMCP projectContext [Right input]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+libUpgradeTool :: Tool MCP
+libUpgradeTool =
+  Tool
+    { toolName = toToolName LibUpgradeTool,
+      toolDescription = "Upgrade a library dependency from one version to another. Equivalent to `lib.upgrade old new` in UCM.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Lib Upgrade",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(LibUpgradeToolArguments {projectContext, oldLibName, newLibName}) -> handleToolError $ do
+        let segs = map NameSegment.unsafeParseText [oldLibName, newLibName]
+            input = UpgradeI segs
+        output <- handleInputMCP projectContext [Right input]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
