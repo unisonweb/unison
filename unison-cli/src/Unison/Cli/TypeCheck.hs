@@ -12,8 +12,6 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Givens qualified as Givens
-import Unison.Util.Relation qualified as Relation
-import Unison.Util.Star2 qualified as Star2
 import Unison.FileParsers qualified as FileParsers
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
@@ -30,6 +28,8 @@ import Unison.Typechecker.GivenResolver qualified as GivenResolver
 import Unison.Typechecker.Variance qualified as Variance
 import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UF
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Star2 qualified as Star2
 import Unison.Var qualified as Var
 
 computeTypecheckingEnvironment ::
