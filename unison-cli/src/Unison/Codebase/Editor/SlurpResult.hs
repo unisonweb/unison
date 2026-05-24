@@ -318,8 +318,9 @@ filterUnisonFile
       topLevelComponents'
       watchComponents
       hashTerms
+      gbs
     ) =
-    UF.TypecheckedUnisonFileId fileNamespace' datas effects tlcs watches hashTerms'
+    UF.TypecheckedUnisonFileId fileNamespace' datas effects tlcs watches hashTerms' gbs
     where
       keep = adds
       keepTerms = SC.terms keep

@@ -721,10 +721,15 @@ testCycleWithMetavar =
 
 testUnresolvedMetavarInGoal :: Test ()
 testUnresolvedMetavarInGoal =
-  scope "free-inference-var-in-goal-yields-UnresolvedMetavarInGoal" $
+  scope "free-inference-var-in-goal-resolves-against-unique-candidate" $
+    -- After the resolver was relaxed to accept goal-side inference
+    -- variables as flexible, a goal like @Show ?a@ resolves to a
+    -- unique candidate by binding @?a@ to whatever the candidate
+    -- exposes. Surrounding type inference is expected to be the
+    -- ultimate authority on @?a@; the resolver no longer raises
+    -- 'UnresolvedMetavarInGoal' before trying.
     let inferVar :: Symbol
         inferVar = Var.inferOther
-        -- Goal: Show ?a where ?a is an inference variable.
         goal = Type.app () (Type.ref () (Reference.Builtin "Show")) (Type.var () inferVar)
         showNat =
           GR.Given
@@ -737,8 +742,9 @@ testUnresolvedMetavarInGoal =
             }
         pool = GR.poolFromList [showNat]
      in case GR.resolve pool goal of
-          Left (GR.UnresolvedMetavarInGoal _) -> ok
+          Right tree
+            | GR.givenName (GR.rtGiven tree) == Reference.Builtin "Show.nat" -> ok
+            | otherwise ->
+                crash ("expected Show.nat, got: " <> show tree)
           Left other ->
-            crash ("expected UnresolvedMetavarInGoal, got: " <> show other)
-          Right tree ->
-            crash ("expected failure, got: " <> show tree)
+            crash ("expected successful resolution, got: " <> show other)

@@ -130,15 +130,18 @@ testIsOverrideArg =
             inner = Term.var (naturalAnn 7 1) (Var.named "x" :: Symbol)
             outer = Term.app (naturalAnn 5 3) (Term.var (naturalAnn 5 1) (Var.named "f" :: Symbol)) inner
          in expect (not (GA.isOverrideArg outer)),
-      scope "widened-compound-is-override" $
+      scope "widened-compound-is-not-override" $
         let -- A widened compound expression: outer App ann starts
-            -- before the leftmost child's annotation.
+            -- before the leftmost child's annotation. The previous
+            -- 'isOverrideArg' design treated this as an override, but
+            -- it conflicts with surface forms like list literals
+            -- (where the outer brackets naturally widen the
+            -- annotation past the first child); after the fix
+            -- 'isOverrideArg' is restricted to leaf surface terms.
             inner = Term.var (naturalAnn 7 1) (Var.named "x" :: Symbol)
-            -- Outer is widened: starts at col 3 (the `@`), but its
-            -- subterms start at col 5 (the bare `f x`).
             outerWidened =
               Term.app (Ann (L.Pos 1 3) (L.Pos 1 8)) (Term.var (naturalAnn 5 1) (Var.named "f" :: Symbol)) inner
-         in expect (GA.isOverrideArg outerWidened)
+         in expect (not (GA.isOverrideArg outerWidened))
     ]
 
 ------------------------------------------------------------------------------
@@ -669,25 +672,21 @@ testSourceLevelLetGivenShadowsAmbient =
               -- pins parser → resolver → apply chain end-to-end without
               -- depending on hash-based references.
               expect (any isLocalGiven chosenNames),
-            scope "local-and-ambient-coexist-at-different-scopes" $
-              -- The file emits 'ConstraintGoal' notes from multiple
-              -- contexts: the @useImplicit@ binding's own @=>@ premise
-              -- check (outside the let scope), and the apply-site
-              -- inside main's let-body (inside the let scope). We
-              -- confirm /both/ ambient and local appear, evidence that
-              -- the lexical-given env was correctly pushed and popped
-              -- across the binder boundary.
-              tests
-                [ scope "local-appears" $
-                    expect $
-                      any isLocalGiven chosenNames,
-                  scope "ambient-also-appears-elsewhere" $
-                    -- Plurality: outside the let scope, only ambient
-                    -- exists, so it must appear too. If neither shows
-                    -- up the test environment isn't exercising both.
-                    expect $
-                      ambientNatRef `elem` chosenNames
-                ]
+            scope "local-overrides-but-ambient-still-reachable" $
+              -- The previous shape of this test asserted that the
+              -- ambient given /also/ appears in the chosen-decisions
+              -- list, because the typechecker emitted a spurious
+              -- second goal for @useImplicit@'s own @=>@ binding
+              -- check. That goal was always misplaced — the binding
+              -- site is the introduction of an implicit parameter,
+              -- not a call site that wants one filled — and is no
+              -- longer emitted now that the @=>I@ rule consumes the
+              -- injected leading lambda. The lexical-scoping check
+              -- below remains: with the local given present, every
+              -- emitted goal at the apply-site must pick the local.
+              expect $
+                all isLocalGiven chosenNames
+                  && ambientNatRef `notElem` chosenNames
           ]
 
 ------------------------------------------------------------------------------

@@ -1108,6 +1108,41 @@ destructuringBind = do
 -- binding) and the entire body.
 -- * If the binding is a lambda, the  lambda node includes the entire LHS of the binding,
 -- including the name as well.
+-- | When a binding's declared type begins with one or more @=>@
+-- constraint arrows (after any leading @forall@ binders), wrap the
+-- binding's body with a leading lambda for each implicit parameter
+-- so that the dictionary is accessible at runtime. Each fresh binder
+-- is also registered via 'recordGivenVar' so the typechecker's
+-- letrec wiring (@annotateLetRecBindings'@) lifts it into the lexical
+-- given environment for the body. The introduced variables are named
+-- @_implicit_<baseName>_<index>@ — the base name (typically the
+-- bound variable's name) makes diagnostics traceable, and the index
+-- distinguishes multiple constraints on the same signature.
+--
+-- See chunk L2 / ADR-010 for the lexical-given convention. The
+-- companion @=>I@ rule in @Unison.Typechecker.Context.checkWanted@
+-- recognises the injected lambda when checking against an
+-- 'ImplicitArrow' and finishes the binding by registering the binder
+-- as a local lexical given.
+wrapImplicitParams ::
+  forall m v.
+  (Monad m, Var v) =>
+  v ->
+  Type v Ann ->
+  Term v Ann ->
+  P v m (Term v Ann)
+wrapImplicitParams baseName ty body0 =
+  case Type.unImplicitArrows ty of
+    ([], _) -> pure body0
+    (implicits, _) -> do
+      let baseText = Var.name (Var.reset baseName)
+          mk i = Var.named ("_implicit_" <> baseText <> "_" <> Text.pack (show (i :: Int)))
+          vs = zipWith (\i _ -> mk i) [0 ..] implicits
+      for_ vs recordGivenVar
+      let bodyAnn = ABT.annotation body0
+          wrap v body = Term.lam bodyAnn (bodyAnn, v) body
+      pure (foldr wrap body0 vs)
+
 binding ::
   forall m v.
   (Monad m, Var v) =>
@@ -1164,7 +1199,15 @@ binding = label "binding" do
             customFailure $
               SignatureNeedsAccompanyingBody nameT
           (_eqAnn, _bodySpanAnn, body) <- block "="
-          let bnd = mkBinding lhsLoc args body
+          let bnd0 = mkBinding lhsLoc args body
+          -- If the declared type begins with one or more @=>@ arrows
+          -- (after any leading 'forall' binders), inject leading
+          -- lambdas for the implicit dictionary parameters so the
+          -- elaborator and runtime see them. The fresh binders are
+          -- also recorded as given-bound-vars so the typechecker
+          -- lifts them into the lexical given environment for the
+          -- body. See 'wrapImplicitParams'.
+          bnd <- wrapImplicitParams (L.payload name) typ' bnd0
           -- We don't actually use the span annotation from the block (yet) because it
           -- may contain a bunch of white-space and comments following a top-level-definition.
           let spanAnn = ann nameT <> ann bnd
@@ -1211,7 +1254,12 @@ givenBindingBody kw = label "given" do
   recordGivenVar (L.payload name)
   _ <- reserved ":"
   ty <- TypeParser.valueType
-  (_eqAnn, _bodySpanAnn, body) <- block "="
+  (_eqAnn, _bodySpanAnn, body0) <- block "="
+  -- A @given@ binding may itself declare implicit parameters
+  -- (@given foo : C a => D a = ...@): wrap the body with leading
+  -- lambdas so the implicit dictionaries are available at runtime
+  -- exactly as in 'regularBinding'.
+  body <- wrapImplicitParams (L.payload name) ty body0
   let spanAnn = ann kw <> ann body
   pure ((ann kw <> ann name, L.payload name), Term.ann spanAnn body ty)
 

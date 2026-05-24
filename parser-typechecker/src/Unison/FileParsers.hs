@@ -350,35 +350,36 @@ synthesizeFile env0 uf = do
           ]
     for_ solvedImplicitNotes (Result.tell1 . Result.TypeInfo)
     let doTdnr = applyTdnrDecisions infos
-    let doImplicits =
-          GivenApply.applyGivenDecisions
+    -- Apply TDNR first, then implicit-dictionary insertion. The
+    -- implicit insertion runs over /all/ bindings as a single pass
+    -- so the decision queue stays aligned with the typechecker's
+    -- emission order — per-binding fresh queues caused bindings to
+    -- pop decisions intended for a sibling and inject the sibling's
+    -- locally-bound dictionary into a scope where it isn't bound.
+    let tdnredTerms :: [[(v, Term v, Type v)]]
+        tdnredTerms =
+          (fmap . fmap) (\(v, t, tp) -> (v, doTdnr t, tp)) topLevelComponents
+        flatBindings :: [(Int, (v, Term v, Type v))]
+        flatBindings = zip [0 ..] (concat tdnredTerms)
+        (rewrittenTerms, implicitNotesAll) =
+          GivenApply.applyGivenDecisionsAll
             infosWithImplicits
             (Typechecker.typeLookup env0)
-    -- Chunk F1: 'doImplicits' also produces 'ImplicitArgRef' info
-    -- notes recording each synthesized dictionary insertion. Collect
-    -- them so the LSP can build a position-indexed lookup.
-    let doTdnrInComponent (v, t, tp) =
-          let (t', implicitNotes) = doImplicits (doTdnr t)
-           in ((v, t', tp), implicitNotes)
-    let tlcsWithImplicitNotes =
-          topLevelComponents
-            & (fmap . fmap)
-              ( \vtt ->
-                  let (vtt', notes) = vtt & doTdnrInComponent
-                   in ( vtt'
-                          & \(v, t, tp) ->
-                            ( v,
-                              fromMaybe
-                                (error $ "Symbol from typechecked file not present in parsed file" <> show v)
-                                (definitionLocation v uf),
-                              t,
-                              tp
-                            ),
-                        notes
-                      )
-              )
-    let tdnredTlcs = (fmap . fmap) fst tlcsWithImplicitNotes
-    let implicitNotesAll = concatMap (concatMap snd) tlcsWithImplicitNotes
+            (map (\(_, (_, t, _)) -> t) flatBindings)
+        idxToRewritten :: Map Int (Term v)
+        idxToRewritten = Map.fromList (zip (map fst flatBindings) rewrittenTerms)
+    let tdnredTlcs :: [[(v, Ann, Term v, Type v)]]
+        tdnredTlcs =
+          let go i (v, _t, tp) =
+                let t' = idxToRewritten Map.! i
+                    a = fromMaybe (error $ "Symbol from typechecked file not present in parsed file" <> show v) (definitionLocation v uf)
+                 in (v, a, t', tp)
+              indexed :: [[(Int, (v, Term v, Type v))]]
+              indexed = snd $ List.mapAccumL stepComp 0 tdnredTerms
+              stepComp i comp =
+                let n = length comp
+                 in (i + n, zip [i .. i + n - 1] comp)
+           in (fmap . fmap) (\(i, vtt) -> go i vtt) indexed
     -- Emit the 'ImplicitArgRef' notes as 'TypeInfo' so that
     -- 'FileAnalysis' (and any other 'Note'-consumer) can pick them up.
     for_ implicitNotesAll (Result.tell1 . Result.TypeInfo)
@@ -398,6 +399,7 @@ synthesizeFile env0 uf = do
         (UF.effectDeclarationsId uf)
         terms'
         (map tlcKind watches')
+        uf.givenBindings
   where
     applyTdnrDecisions ::
       [Context.InfoNote v Ann] ->

@@ -296,35 +296,40 @@ resolveCounted ::
   Pool v loc ->
   Type v loc ->
   (Either (ResolveError v loc) (ResolutionTree v loc), Int)
-resolveCounted opts pool goal
-  -- D4: detect inference-only metavariables in the goal and short-
-  -- circuit. The resolver cannot meaningfully match such goals: any
-  -- candidate would head-unify with the metavar, leading to
-  -- spurious 'NoGiven' or 'Ambiguous' diagnostics that mislead
-  -- the user.
-  | goalHasInferenceVar goal =
-      (Left (UnresolvedMetavarInGoal goal), 0)
-  | otherwise =
-      let (result, finalSt) =
-            runState
-              (resolveImpl goal [] 0)
-              (initialState opts pool goal)
-       in (result, sWork finalSt)
+resolveCounted opts pool goal =
+  -- D4 previously short-circuited when the goal contained an
+  -- 'Var.Inference'-typed variable, on the theory that any candidate
+  -- would head-unify with the metavar and produce a spurious
+  -- diagnostic. In practice the resolver's unifier treats free
+  -- variables symmetrically and the constraint goal often carries
+  -- an unresolved metavar that surrounding inference has already
+  -- pinned — we just haven't substituted it into the note. We now
+  -- run the resolver unconditionally; if it succeeds the unifier
+  -- pins the metavar to the candidate, and if no candidate matches
+  -- the 'NoGiven' surface diagnostic accurately reports that there
+  -- is no instance — adding a type annotation is a special case of
+  -- that.
+  let (result, finalSt) =
+        runState
+          (resolveImpl goal [] 0)
+          (initialState opts pool goal)
+   in (result, sWork finalSt)
 
--- | Does the goal contain any free variable that was created by type
--- inference (a 'Var.Inference' kind)? Such variables are existentials
--- the surrounding inference has not yet pinned. The resolver treats
--- them as flexible during head-unification, which is fine for resolved
--- types but produces misleading errors when the user genuinely just
--- needs a type annotation.
-goalHasInferenceVar :: forall v loc. (Var v) => Type v loc -> Bool
-goalHasInferenceVar goal =
-  any isInferenceVar (Set.toList (ABT.freeVars goal))
-  where
-    isInferenceVar :: v -> Bool
-    isInferenceVar v = case Var.typeOf v of
-      Var.Inference _ -> True
-      _ -> False
+-- (Kept for reference: previously used to short-circuit resolution
+-- when the goal carried an unresolved metavariable. The check turned
+-- out to be too aggressive — a freshly-created existential whose
+-- substitution is in flight is indistinguishable from a permanently
+-- unconstrained one, but the unifier handles both correctly. The
+-- check is no longer consulted; if no candidate matches, 'NoGiven'
+-- is the right surface diagnostic.)
+
+-- | Whether a 'Var.Type' indicates a variable created by the
+-- typechecker's inference machinery. Used by 'matchHead' to decide
+-- which goal-side variables to treat as flexible.
+isInferenceVar :: Var.Type -> Bool
+isInferenceVar = \case
+  Var.Inference _ -> True
+  _ -> False
 
 ------------------------------------------------------------------------------
 -- The algorithm
@@ -469,7 +474,20 @@ matchHead goal g = do
   -- them at the call site). Implementation: pass the fresh set as
   -- the unifier's flexible-variable whitelist; everything else is
   -- treated rigid.
-  case unify mempty (Set.fromList fresh) concl' goal of
+  --
+  -- Exception: unresolved inference variables that surrounding type
+  -- inference hasn't yet pinned are also treated as flexible. When
+  -- the elaborator emits a 'ConstraintGoal' for a polymorphic
+  -- function used in a context that fully determines its type
+  -- elsewhere, the goal's existential may not have been substituted
+  -- into the note by the time the resolver runs. Treating those
+  -- existentials as flexible lets the unifier bind them to whatever
+  -- the candidate exposes — which is exactly what surrounding
+  -- inference will end up doing.
+  let inferenceVarsInGoal =
+        Set.filter (isInferenceVar . Var.typeOf) (ABT.freeVars goal)
+      flex = Set.fromList fresh `Set.union` inferenceVarsInGoal
+  case unify mempty flex concl' goal of
     Nothing -> pure Nothing
     Just s ->
       pure $

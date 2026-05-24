@@ -60,7 +60,14 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
     effectDeclarationsId' :: Map v (TypeReferenceId, EffectDeclaration v a),
     topLevelComponents' :: [[(v, a {- ann for whole binding -}, Term v a, Type v a)]],
     watchComponents :: [(WatchKind, [(v, a {- ann for whole watch -}, Term v a, Type v a)])],
-    hashTermsId :: Map v (a {- ann for whole binding -}, TermReferenceId, Maybe WatchKind, Term v a, Type v a)
+    hashTermsId :: Map v (a {- ann for whole binding -}, TermReferenceId, Maybe WatchKind, Term v a, Type v a),
+    -- | Names that the parser recorded as @given@ declarations.
+    -- Threaded through from 'UnisonFile.givenBindings' so the
+    -- @update@ / @add@ flow can mark each one as a given in the
+    -- namespace's metadata automatically (rather than requiring an
+    -- explicit follow-up @mark.given@). Empty for files with no
+    -- @given@ declarations.
+    givenBindings' :: Set v
   }
   deriving stock (Generic, Show)
 
@@ -89,10 +96,11 @@ pattern TypecheckedUnisonFile fn ds es tlcs wcs hts <-
     tlcs
     wcs
     (fmap (over _2 Reference.DerivedId) -> hts)
+    _
 
 instance (Ord v) => Functor (TypecheckedUnisonFile v) where
-  fmap f (TypecheckedUnisonFileId fn ds es tlcs wcs hashTerms) =
-    TypecheckedUnisonFileId fn' ds' es' tlcs' wcs' hashTerms'
+  fmap f (TypecheckedUnisonFileId fn ds es tlcs wcs hashTerms gbs) =
+    TypecheckedUnisonFileId fn' ds' es' tlcs' wcs' hashTerms' gbs
     where
       fn' = (fmap . first) f fn
       ds' = ds <&> \(refId, decl) -> (refId, fmap f decl)

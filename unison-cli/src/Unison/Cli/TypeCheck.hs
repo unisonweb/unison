@@ -12,6 +12,8 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Givens qualified as Givens
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Star2 qualified as Star2
 import Unison.FileParsers qualified as FileParsers
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
@@ -62,14 +64,17 @@ ambientGivensFromBranch ::
   Branch0 m ->
   Sqlite.Transaction [GivenElaborator.AmbientGiven Symbol Ann]
 ambientGivensFromBranch codebase b0 = do
+  -- Walk the namespace recursively so we catch givens nested in
+  -- sub-branches. The metadata that marks a referent as a given is
+  -- stored in the *enclosing* sub-branch's @terms_@, not in the
+  -- project root, so a flat scan of 'deepReferents b0' followed by
+  -- 'Givens.isGiven r b0' never finds anything past the top level.
+  -- 'Unison.Codebase.Editor.HandleInput.Givens.handleGivens' uses the
+  -- same recursive pattern. Per ADR-005, ambient resolution includes
+  -- the @lib@ subtree, so we do *not* prune libraries here.
   let givenRefs :: [Reference.TermReference]
-      givenRefs =
-        [ ref
-        | r <- Set.toList (Branch.deepReferents b0),
-          Givens.isGiven r b0,
-          Just ref <- [Referent.toTermReference r]
-        ]
-  fmap catMaybes . for givenRefs $ \r -> do
+      givenRefs = Set.toList (collectGivenRefs b0)
+  fmap catMaybes . for givenRefs $ \r ->
     Codebase.getTypeOfTerm codebase r >>= \case
       Nothing -> pure Nothing
       Just ty ->
@@ -79,6 +84,26 @@ ambientGivensFromBranch codebase b0 = do
               { GivenElaborator.ambientName = r,
                 GivenElaborator.ambientType = ty
               }
+  where
+    -- Mirror 'handleGivens': at each level, check the *direct* term
+    -- referents (via 'Star2.d1' of 'terms_') against this level's
+    -- metadata, then recurse into each child.
+    collectGivenRefs :: Branch0 m -> Set.Set Reference.TermReference
+    collectGivenRefs b =
+      let here :: Set.Set Reference.TermReference
+          here =
+            Set.fromList
+              [ ref
+              | (r, _seg) <- Relation.toList (Star2.d1 (view Branch.terms_ b)),
+                Givens.isGiven r b,
+                Just ref <- [Referent.toTermReference r]
+              ]
+          there :: Set.Set Reference.TermReference
+          there =
+            foldMap
+              (collectGivenRefs . Branch.head . snd)
+              (Map.toList (view Branch.children_ b))
+       in Set.union here there
 
 typecheckTerm ::
   Codebase IO Symbol Ann ->

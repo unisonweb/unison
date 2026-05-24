@@ -424,6 +424,7 @@ annIsFilePosition = \case
   Ann.External -> False
   Ann.Ann {} -> True
   Ann.GeneratedFrom ann -> annIsFilePosition ann
+  Ann.Synthetic ann -> annIsFilePosition ann
 
 -- | Okay, so currently during synthesis in typechecking the typechecker adds `Ann` nodes
 -- to the term specifying types of subterms. This is a problem because we the types in these

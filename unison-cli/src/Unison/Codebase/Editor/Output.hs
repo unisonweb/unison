@@ -92,6 +92,7 @@ import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.Typechecker.Context qualified as Context
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
@@ -286,6 +287,10 @@ data Output
     ParseErrors Text [Parser.Err Symbol]
   | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
   | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
+  | -- | An implicit-resolution failure surfaced from
+    -- 'Unison.FileParsers.synthesizeFile'. The payload list mirrors
+    -- 'Result.UnresolvedImplicit': @(loc, goal, error)@.
+    UnresolvedImplicits Path.Absolute Text PPE.PrettyPrintEnv [(Ann, Type Symbol Ann, GR.ResolveError Symbol Ann)]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure
@@ -588,6 +593,7 @@ outputShouldUsePager o = case o of
   LoadingFile {} -> False
   Typechecked {} -> False
   TypeErrors {} -> False
+  UnresolvedImplicits {} -> False
   Evaluated {} -> False
   EvaluationFailure {} -> False
   _ -> True
@@ -656,6 +662,7 @@ isFailure o = case o of
   ParseErrors {} -> True
   TypeWarns {} -> False
   TypeErrors {} -> True
+  UnresolvedImplicits {} -> True
   CompilerBugs {} -> True
   DisplayConflicts {} -> False
   EvaluationFailure {} -> True
