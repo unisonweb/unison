@@ -34,12 +34,12 @@ import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
-import Unison.Codebase.Givens qualified as Givens
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.DeleteBranch qualified as DeleteBranch
 import Unison.Codebase.Editor.HandleInput.Merge2 qualified as Merge
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Givens qualified as Givens
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPath, ProjectPathG (..))
@@ -79,8 +79,8 @@ import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Star2 qualified as Star2
 import Unison.Util.Set qualified as Set
+import Unison.Util.Star2 qualified as Star2
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
 

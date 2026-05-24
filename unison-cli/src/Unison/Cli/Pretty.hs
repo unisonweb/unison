@@ -112,10 +112,10 @@ import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified, styleHashQualified')
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
-import Unison.Typechecker.GivenApply qualified as GivenApply
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Typechecker.GivenApply qualified as GivenApply
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid qualified as Monoid

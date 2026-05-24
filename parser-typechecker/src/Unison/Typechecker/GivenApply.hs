@@ -596,7 +596,7 @@ stripImplicitArgsByType lookupTermType = go
       ABT.Tm (Term.App _ _) -> stripApps t
       ABT.Tm other -> ABT.tm' (ABT.annotation t) (fmap go other)
 
-    -- | Collect the apps spine, find the head, look up its declared
+    -- \| Collect the apps spine, find the head, look up its declared
     -- type, and skip args for each leading @=>@ in that type.
     stripApps :: Term v Ann -> Term v Ann
     stripApps tm =

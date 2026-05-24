@@ -92,8 +92,8 @@ import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
 import Unison.Util.Defns (Defns, DefnsF, DefnsF2, defnsAreEmpty)

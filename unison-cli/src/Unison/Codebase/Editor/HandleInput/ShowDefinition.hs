@@ -16,6 +16,7 @@ import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -26,17 +27,14 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.ABT qualified as ABT
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (UserObject))
 import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
-import Unison.LabeledDependency qualified as LD
-import Unison.Term qualified as Term
-import Unison.Typechecker.GivenApply qualified as GivenApply
 import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..), ShowDefinitionScope (..))
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Givens qualified as Givens
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -57,7 +55,9 @@ import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.NamePrinter (SyntaxText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
+import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Typechecker.GivenApply qualified as GivenApply
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Pretty (Pretty)
