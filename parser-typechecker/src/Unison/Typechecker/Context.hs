@@ -811,6 +811,36 @@ withLexicalGivens act = do
   modEnv (\e -> e {lexicalGivens = saved})
   pure a
 
+-- | Peel leading @=>@ arrows (and any intervening 'Forall' binders)
+-- off a synthesised type, emitting a 'ConstraintGoal' info note for
+-- each. The returned type is the conclusion after every implicit
+-- has been stripped, so subsequent typechecking sees the function
+-- as if its implicit arguments had been applied already. The
+-- corresponding dictionary insertions are performed by
+-- 'Unison.Typechecker.GivenApply' as a post-pass: it visits each
+-- 'Var'\'@/@'Ref'\'' leaf in the elaborated term, looks up its
+-- /original/ type, and wraps the leaf with @App leaf <dict>@ for
+-- each @=>@ found there.
+--
+-- 'goalLoc_' is the source location reported on each
+-- 'ConstraintGoal'; pass the location of the reference itself.
+peelLeadingImplicits ::
+  (Var v, Ord loc) =>
+  loc ->
+  Type v loc ->
+  M v loc (Type v loc)
+peelLeadingImplicits goalLoc_ = go
+  where
+    go ty = case ty of
+      Type.ImplicitArrow' i conc -> do
+        ctx <- getContext
+        scope_ <- getLexicalGivens
+        let goalTy = apply ctx i
+            goalScope = apply ctx <$> scope_
+        btw $ ConstraintGoal goalLoc_ goalTy goalScope
+        go conc
+      _ -> pure ty
+
 -- | ADR-010 / chunk L2 fixup: ask whether a variable name was bound via
 -- the @given@ keyword. The lookup compares against 'Var.reset' of @v@
 -- because the parser-side set holds the un-freshened names while the
@@ -1506,10 +1536,22 @@ synthesizeWanted trm@(Term.Var' v) = do
         -- early.
         (vs, t) <- ungeneralize' t
         vars <- getVariances
-        pure (discardCovariant vars (Set.fromList vs) t, [])
+        -- ADR-001 / chunk D-eager: when a variable's declared type
+        -- begins with one or more @=>@ arrows, peel each one off
+        -- eagerly here and emit a 'ConstraintGoal' info note for the
+        -- elaborator. This handles the case where the user references
+        -- a function with implicit parameters in a /non-application/
+        -- context — e.g. @Monoid.zero@ used directly as a value. The
+        -- D3 'GivenApply' rewrite walks each 'Term.Var\'' leaf and
+        -- wraps it with the resolved dictionary, so the runtime sees
+        -- the dictionaries applied positionally. When the var IS in
+        -- an application context, the implicit-arrows have already
+        -- been stripped here, so 'synthesizeApp' doesn't double-emit.
+        t' <- peelLeadingImplicits (ABT.annotation trm) t
+        pure (discardCovariant vars (Set.fromList vs) t', [])
 synthesizeWanted (Term.Ref' h) =
   compilerCrash $ UnannotatedReference h
-synthesizeWanted (Term.Ann' (Term.Ref' _) t)
+synthesizeWanted trm@(Term.Ann' (Term.Ref' _) t)
   -- innermost Ref annotation assumed to be correctly provided by
   -- `synthesizeClosed`
   --
@@ -1518,6 +1560,10 @@ synthesizeWanted (Term.Ann' (Term.Ref' _) t)
       t <- existentializeArrows t
       -- See note about ungeneralizing above in the Var case.
       t <- ungeneralize t
+      -- Mirror the 'Var\'' branch: peel leading @=>@ arrows eagerly
+      -- so that a top-level reference used outside an application
+      -- gets its implicit dictionaries inserted by 'GivenApply'.
+      t <- peelLeadingImplicits (ABT.annotation trm) t
       (,[]) <$> discard t
   | otherwise = compilerCrash $ FreeVarsInTypeAnnotation s
   where
@@ -3104,6 +3150,31 @@ checkWanted exact want m (Type.Forall' body) = do
     x <- extendUniversal v
     checkWanted exact want m $
       ABT.bindInheritAnnotation body (universal' () x)
+-- ADR-019 / chunk C2.2 +I: =>I on the check side. When the term is
+-- a lambda whose binder corresponds to the leading 'ImplicitArrow'
+-- (i.e. the parser injected a leading lambda for an implicit
+-- dictionary; see 'Unison.Syntax.TermParser.wrapImplicitParams'), we
+-- treat this as the introduction rule for implicit parameters: bind
+-- the lambda's variable to the constraint type and register it as a
+-- local lexical given before recursing on the body against the
+-- conclusion. This makes the implicit dictionary visible to any
+-- constraint goal raised inside the body so polymorphic constraints
+-- like @Monoid m@ can be discharged against the function's own
+-- @=>@ parameter rather than relying on an ambient given that does
+-- not exist for arbitrary @m@.
+checkWanted exact want (Term.Lam' boundVarAnn body) (Type.ImplicitArrow' i conc) = do
+  x <- ABT.freshen body freshenVar
+  markThenRetract0 x . withLexicalGivens $ do
+    extendContext (Ann x boundVarAnn i)
+    -- The synthetic reference shape matches
+    -- 'extendLexicalGivenFromBinding' so that the elaborator's
+    -- 'GivenApply.buildDictionary' strips the @Local.given.@ prefix
+    -- and emits a 'Term.var' pointing at this lambda's binder.
+    let ref = Reference.Builtin ("Local.given." <> Var.name (Var.reset x))
+    extendLexicalGiven ref i
+    body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
+    checkWanted exact want body conc
+  pure want
 -- ADR-019 / chunk C2.2: =>App on the check side. Checking a term
 -- against an 'ImplicitArrow' type doesn't ask the user to write the
 -- implicit argument; the elaborator (chunk D1+) fills it. We emit a

@@ -53,7 +53,7 @@ typeModifiers =
 
 typeOrAbility :: Set Text
 typeOrAbility =
-  Set.fromList ["type", "ability"]
+  Set.fromList ["type", "ability", "class"]
 
 reservedOperators :: Set Text
 reservedOperators =

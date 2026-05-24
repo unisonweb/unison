@@ -26,8 +26,12 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Editor.DisplayObject (DisplayObject)
+import Unison.ABT qualified as ABT
+import Unison.Codebase.Editor.DisplayObject (DisplayObject (UserObject))
 import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
+import Unison.LabeledDependency qualified as LD
+import Unison.Term qualified as Term
+import Unison.Typechecker.GivenApply qualified as GivenApply
 import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..), ShowDefinitionScope (..))
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Givens qualified as Givens
@@ -163,8 +167,77 @@ showDefinitions ::
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   [HQ.HashQualified Name] ->
   Cli ()
-showDefinitions outputLoc nameInOriginalQuery isGivenRef pped terms types misses = do
+showDefinitions outputLoc nameInOriginalQuery isGivenRef pped terms0 types misses = do
   Cli.Env {codebase, writeSource} <- ask
+  -- ADR-015 default elide-mode: pre-process every term being shown
+  -- by dropping apply-site arguments that fill leading @=>@ slots
+  -- in the function's declared type. The type lookup goes through
+  -- the codebase (terms loaded by 'view' have their source
+  -- annotations stripped, so the in-memory 'Ann.Synthetic' marker
+  -- is no longer present; the only reliable signal is the
+  -- function's declared type).
+  -- Term references whose types we need to look up to strip
+  -- implicit-fill arguments: every direct reference inside a body
+  -- (so we know which apply-site args are implicit) /and/ every
+  -- binding's own reference (so we can strip the parser-injected
+  -- leading lambda for the binding's @=>@ parameters).
+  let refsInTerms :: Set TermReference
+      refsInTerms =
+        Map.foldlWithKey'
+          ( \acc bindingRef dt -> case dt of
+              UserObject tm ->
+                let deps :: Set LD.LabeledDependency
+                    deps = Term.labeledDependencies tm
+                    trs =
+                      Set.fromList
+                        [ r | LD.TermReference r <- Set.toList deps
+                        ]
+                 in acc <> Set.insert bindingRef trs
+              _ -> Set.insert bindingRef acc
+          )
+          Set.empty
+          terms0
+  typesByRef <-
+    Cli.runTransaction $
+      Foldable.foldlM
+        ( \acc r -> case r of
+            Reference.DerivedId rid ->
+              Codebase.getTypeOfTerm codebase r >>= \case
+                Just ty -> pure (Map.insert (Reference.DerivedId rid) ty acc)
+                Nothing -> pure acc
+            Reference.Builtin _ ->
+              -- Builtin types live in 'Builtin' (no @=>@ arrows in
+              -- practice), so skipping them is safe and saves an
+              -- 'expectTypeOfTerm' lookup.
+              pure acc
+        )
+        Map.empty
+        (Set.toList refsInTerms)
+  let lookupTermType :: Term Symbol Ann -> Maybe (Type Symbol Ann)
+      lookupTermType t = case ABT.out t of
+        ABT.Tm (Term.Ref r) -> Map.lookup r typesByRef
+        ABT.Tm (Term.Ann _ ty) -> Just ty
+        _ -> Nothing
+      stripTerm :: Term Symbol Ann -> Term Symbol Ann
+      stripTerm = GivenApply.stripImplicitArgsByType lookupTermType
+      -- A top-level binding whose declared type starts with
+      -- @=>@ has a parser-injected @\\_implicit_<name>_<i> -> …@
+      -- prefix in its body. Strip the corresponding leading lambdas
+      -- before rendering so the surface form matches what the user
+      -- wrote.
+      terms :: Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
+      terms =
+        Map.mapWithKey
+          ( \ref dt -> case dt of
+              UserObject tm ->
+                let tm' = stripTerm tm
+                    tm'' = case Map.lookup ref typesByRef of
+                      Just ty -> GivenApply.stripLeadingImplicitLambdas ty tm'
+                      Nothing -> tm'
+                 in UserObject tm''
+              other -> other
+          )
+          terms0
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()

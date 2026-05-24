@@ -428,6 +428,10 @@ parseAndTypecheckUnisonFile names sourceName text = do
 
   maybeTypecheckedUnisonFile & onNothing do
     let tes = [err | Result.TypeError err <- toList notes]
+        ues =
+          [ (loc, goal, err)
+          | Result.UnresolvedImplicit loc goal err <- toList notes
+          ]
         cbs =
           [ bug
           | Result.CompilerBug (Result.TypecheckerBug bug) <-
@@ -437,6 +441,9 @@ parseAndTypecheckUnisonFile names sourceName text = do
     when (not (null tes)) do
       currentPath <- Cli.getCurrentPath
       Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
+    when (not (null ues)) do
+      currentPath <- Cli.getCurrentPath
+      Cli.respond (Output.UnresolvedImplicits currentPath text suffixifiedPPE ues)
     when (not (null cbs)) do
       Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
     Cli.returnEarlyWithoutOutput

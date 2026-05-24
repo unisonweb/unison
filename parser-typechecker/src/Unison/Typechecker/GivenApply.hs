@@ -97,21 +97,32 @@
 module Unison.Typechecker.GivenApply
   ( -- * Top-level entry point
     applyGivenDecisions,
+    applyGivenDecisionsAll,
 
     -- * Building dictionary terms
     buildDictionary,
 
     -- * Override detection (exposed for tests)
     isOverrideArg,
+
+    -- * Stripping for surface rendering
+    stripSyntheticArgs,
+    stripImplicitArgsByType,
+    stripLeadingImplicitLambdas,
   )
 where
 
 import Control.Monad.State.Strict (State, gets, modify', runState)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
+import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Lexer.Pos qualified as L
 import Unison.Parser.Ann (Ann (..))
+import Unison.Parser.Ann qualified as Ann
+import Unison.Reference (Reference)
+import Unison.Reference qualified as Reference
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -121,6 +132,7 @@ import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.Typechecker.TypeLookup (TypeLookup)
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Var (Var)
+import Unison.Var qualified as Var
 
 ------------------------------------------------------------------------------
 -- Top-level entry point
@@ -156,15 +168,65 @@ applyGivenDecisions ::
   -- synthesized dictionary insertion.
   (Term v Ann, [Context.InfoNote v Ann])
 applyGivenDecisions notes typeLookup tm =
-  let queue = collectDecisions notes
+  let (queue, byLoc) = collectDecisionsAndIndex notes
       tlcEnv = collectTopLevelTypes notes
       env0 =
         AppEnv
           { aeTypeLookup = typeLookup,
-            aeLocalTypes = tlcEnv
+            aeLocalTypes = tlcEnv,
+            aeByLoc = byLoc
           }
       (tm', st) = runState (rewrite env0 tm) (DState queue [])
    in (tm', reverse (dsImplicitNotes st))
+
+-- | Variant of 'applyGivenDecisions' that walks a sequence of
+-- top-level bindings as a single pass. The location-indexed
+-- decisions table ensures every dictionary insertion uses the
+-- decision emitted /at the same source location/, so a per-binding
+-- traversal order doesn't matter.
+applyGivenDecisionsAll ::
+  forall v.
+  (Var v) =>
+  [Context.InfoNote v Ann] ->
+  TypeLookup v Ann ->
+  -- | List of bindings to rewrite.
+  [Term v Ann] ->
+  -- | Rewritten terms (same order) and a flat list of
+  -- 'ImplicitArgRef' notes for the LSP.
+  ([Term v Ann], [Context.InfoNote v Ann])
+applyGivenDecisionsAll notes typeLookup terms =
+  let (queue, byLoc) = collectDecisionsAndIndex notes
+      tlcEnv = collectTopLevelTypes notes
+      env0 =
+        AppEnv
+          { aeTypeLookup = typeLookup,
+            aeLocalTypes = tlcEnv,
+            aeByLoc = byLoc
+          }
+      (tms', st) = runState (traverse (rewrite env0) terms) (DState queue [])
+   in (tms', reverse (dsImplicitNotes st))
+
+-- | Build both the legacy flat decision queue and a
+-- location-indexed map of decisions. The map keys each successful
+-- 'SolvedImplicit' decision by the source-position of the goal that
+-- produced it; the value is a list of decisions /in emission order/
+-- for that location (multiple emissions at one location are
+-- possible when a reference's type carries more than one @=>@).
+collectDecisionsAndIndex ::
+  [Context.InfoNote v Ann] ->
+  ([GR.ResolutionTree v Ann], Map Ann [GR.ResolutionTree v Ann])
+collectDecisionsAndIndex notes =
+  let flat = collectDecisions notes
+      indexed =
+        foldr
+          ( \n acc -> case n of
+              Context.SolvedImplicit loc _ (Right tree) ->
+                Map.insertWith (++) loc [tree] acc
+              _ -> acc
+          )
+          Map.empty
+          notes
+   in (flat, indexed)
 
 ------------------------------------------------------------------------------
 -- Collecting inputs from the info-note stream
@@ -199,7 +261,12 @@ collectTopLevelTypes = foldr step Map.empty
 -- | Read-only environment for the rewrite.
 data AppEnv v = AppEnv
   { aeTypeLookup :: !(TypeLookup v Ann),
-    aeLocalTypes :: !(Map v (Type v Ann))
+    aeLocalTypes :: !(Map v (Type v Ann)),
+    -- | Map from each goal's source location to the decision(s)
+    -- emitted there, in emission order. Used by 'wrapImplicitLeaves'
+    -- to look up the correct decision for a leaf without relying on
+    -- queue order alignment across multiple top-level bindings.
+    aeByLoc :: !(Map Ann [GR.ResolutionTree v Ann])
   }
 
 -- | Mutable state: the queue of decisions still to consume, plus a
@@ -258,13 +325,50 @@ rewrite ::
 rewrite env tt =
   let a = ABT.annotation tt :: Ann
    in case ABT.out tt of
-        ABT.Var _ -> pure tt
+        -- A bare 'Term.Var\'' or 'Term.Ref\'' may stand for a value
+        -- whose declared type begins with one or more @=>@ arrows
+        -- (e.g. a class accessor like @Monoid.zero@). The synthesis
+        -- pass eagerly emitted a 'ConstraintGoal' for each of those
+        -- arrows; we pop the corresponding decisions from the queue
+        -- here and wrap the leaf with @App leaf <dict>@ for each.
+        ABT.Var _ -> wrapImplicitLeaves env tt
         ABT.Cycle body -> ABT.cycle' a <$> rewrite env body
         ABT.Abs v body -> ABT.abs' a v <$> rewrite env body
         ABT.Tm body -> case body of
           -- Apply-site: this is where we may insert dictionaries.
           Term.App f x -> rewriteApply env tt f [x]
+          Term.Ref _ -> wrapImplicitLeaves env tt
           other -> ABT.tm' a <$> traverse (rewrite env) other
+
+-- | Pop one dictionary from the decision queue for each leading
+-- @=>@ in the leaf's declared type, then wrap the leaf with
+-- left-leaning 'App' nodes. Returns the leaf unchanged when it has
+-- no implicit prefix.
+wrapImplicitLeaves ::
+  forall v.
+  (Var v) =>
+  AppEnv v ->
+  Term v Ann ->
+  M v (Term v Ann)
+wrapImplicitLeaves env tm = case headType env tm of
+  Nothing -> pure tm
+  Just ty -> do
+    let leafAnn = ABT.annotation tm
+        decisions = fromMaybe [] (Map.lookup leafAnn (aeByLoc env))
+    peel tm (Type.unforall ty) decisions
+  where
+    peel ::
+      Term v Ann ->
+      Type v Ann ->
+      [GR.ResolutionTree v Ann] ->
+      M v (Term v Ann)
+    peel acc ty ds = case (ty, ds) of
+      (Type.ImplicitArrow' _ conc, tree : restDs) -> do
+        recordImplicit (ABT.annotation tm) tree
+        let dictTm = buildDictionary (ABT.annotation tm) tree
+            acc' = Term.app (ABT.annotation acc <> ABT.annotation dictTm) acc dictTm
+        peel acc' (Type.unforall conc) restDs
+      _ -> pure acc
 
 -- | Handle a chain of applications. We collect the spine
 -- (function and explicit args), then re-emit it with dictionary
@@ -369,13 +473,181 @@ rebuildApps a f args = case args of
 --
 -- becomes the term @Show.list Show.nat@: a 'Term.app' applying the
 -- chosen given to its premise dictionaries.
+--
+-- For /local/ givens — declared file-internally via @given x = ...@ or
+-- inside a @let given@ block — the resolver attaches a synthetic
+-- 'Reference.Builtin' of the form @Local.given.<name>@ (see
+-- 'Unison.Typechecker.Context.extendLexicalGivenFromBinding'). Such
+-- refs are not real builtins; the runtime can't evaluate them. We
+-- detect that prefix here and substitute a 'Term.var' that references
+-- the source-level binding by name, which the surrounding letrec
+-- scope makes available.
+--
+-- The /outermost/ node of the produced term is annotated with
+-- 'Ann.Synthetic' so the term printer can detect that the argument
+-- was inserted by the elaborator (not written by the user) and elide
+-- it from surface output — see ADR-015. Inner premise dictionaries
+-- keep their non-synthetic annotations because they may already
+-- correspond to user-named givens.
 buildDictionary :: (Var v) => Ann -> GR.ResolutionTree v Ann -> Term v Ann
 buildDictionary a tree =
-  let head_ = Term.ref a (GR.givenName (GR.rtGiven tree))
+  let head_ = headTermFor a (GR.givenName (GR.rtGiven tree))
       premises = map (buildDictionary a) (GR.rtChildren tree)
-   in case premises of
+      raw = case premises of
         [] -> head_
         _ -> Term.apps head_ (map (\p -> (a, p)) premises)
+   in markSyntheticTop raw
+
+-- | Replace the outermost annotation of a term with 'Ann.Synthetic'
+-- wrapping the original. Used to flag elaborator-inserted terms so
+-- the printer can elide them from surface output.
+markSyntheticTop :: Term v Ann -> Term v Ann
+markSyntheticTop t = ABT.annotate (Ann.Synthetic (ABT.annotation t)) t
+
+-- | Walk a term and drop every 'App' argument whose top annotation
+-- is 'Ann.Synthetic'. This recovers the user's original surface
+-- shape (modulo formatting) for terms whose implicit slots were
+-- filled in by 'applyGivenDecisions' / 'wrapImplicitLeaves' /and/
+-- whose synthesized markers have survived in memory (i.e. the term
+-- hasn't been round-tripped through the codebase, which strips
+-- annotations). Use this just before handing a term to a surface
+-- pretty-printer so @> foo@ watches render without the
+-- resolved-dictionary arguments.
+--
+-- For terms loaded /back/ from the codebase (e.g. via @view@), the
+-- 'Ann.Synthetic' marker is no longer present; use
+-- 'stripImplicitArgsByType' instead, which derives the implicit slots
+-- from the function's declared type.
+stripSyntheticArgs :: (Var v) => Term v Ann -> Term v Ann
+stripSyntheticArgs = go
+  where
+    go t = case ABT.out t of
+      ABT.Var _ -> t
+      ABT.Cycle body -> ABT.cycle' (ABT.annotation t) (go body)
+      ABT.Abs v body -> ABT.abs' (ABT.annotation t) v (go body)
+      ABT.Tm body -> case body of
+        Term.App f x
+          | Ann.isSynthetic (ABT.annotation x) -> go f
+          | otherwise -> ABT.tm' (ABT.annotation t) (Term.App (go f) (go x))
+        other -> ABT.tm' (ABT.annotation t) (fmap go other)
+
+-- | Drop leading 'Lam' binders from a term, one for each leading
+-- @=>@ in its declared type. Used when rendering a top-level
+-- binding whose body the parser wrapped with synthetic
+-- @\\_implicit_<name>_<i> -> …@ lambdas: the user wrote
+-- @foldMap f = body@, the typechecker sees
+-- @foldMap = \\_implicit_foldMap_0 -> \\f -> body@, and at print
+-- time we want the user's surface form back.
+stripLeadingImplicitLambdas ::
+  forall v.
+  (Var v, Ord v) =>
+  -- | The binding's declared type.
+  Type v Ann ->
+  -- | The binding's term.
+  Term v Ann ->
+  Term v Ann
+stripLeadingImplicitLambdas ty0 tm0 =
+  let n = countLeadingImplicits (Type.unforall ty0) :: Int
+   in go n tm0
+  where
+    countLeadingImplicits :: Type v Ann -> Int
+    countLeadingImplicits ty = case ty of
+      Type.ImplicitArrow' _ conc -> 1 + countLeadingImplicits conc
+      _ -> 0
+
+    go :: Int -> Term v Ann -> Term v Ann
+    go 0 t = t
+    go n t = case ABT.out t of
+      ABT.Tm (Term.Lam body) -> case ABT.out body of
+        ABT.Abs _v inner -> go (n - 1) inner
+        _ -> t
+      -- Unison stores type annotations as 'Term.Ann e t' nodes
+      -- around bindings. Recurse into the inner term but preserve
+      -- the surrounding 'Ann' so the printer keeps the type
+      -- signature in its output.
+      ABT.Tm (Term.Ann inner ty) ->
+        let inner' = go n inner
+         in Term.ann (ABT.annotation t) inner' ty
+      _ -> t
+
+-- | Walk a term and drop every apply-site argument that fills a
+-- leading @=>@ slot in the function's declared type. Unlike
+-- 'stripSyntheticArgs', this version derives "which slot is
+-- implicit" from a type lookup — so it works on terms loaded back
+-- from the codebase, whose source annotations have been stripped.
+--
+-- @lookupTermType@ receives the head of an apps chain (a 'Term.Ref'
+-- or 'Term.Var') and returns its declared type, if known. Heads
+-- that aren't found (e.g. inferred-type let-bound vars in scope)
+-- pass through unchanged.
+stripImplicitArgsByType ::
+  forall v.
+  (Var v) =>
+  (Term v Ann -> Maybe (Type v Ann)) ->
+  Term v Ann ->
+  Term v Ann
+stripImplicitArgsByType lookupTermType = go
+  where
+    go :: Term v Ann -> Term v Ann
+    go t = case ABT.out t of
+      ABT.Var _ -> t
+      ABT.Cycle body -> ABT.cycle' (ABT.annotation t) (go body)
+      ABT.Abs v body -> ABT.abs' (ABT.annotation t) v (go body)
+      ABT.Tm (Term.App _ _) -> stripApps t
+      ABT.Tm other -> ABT.tm' (ABT.annotation t) (fmap go other)
+
+    -- | Collect the apps spine, find the head, look up its declared
+    -- type, and skip args for each leading @=>@ in that type.
+    stripApps :: Term v Ann -> Term v Ann
+    stripApps tm =
+      let (head_, args) = collect tm []
+          recurseArgs xs = map (\(a, x) -> (a, go x)) xs
+       in case lookupTermType head_ of
+            Just ty ->
+              let nImplicits = countLeadingImplicits ty
+                  args' = drop nImplicits args
+               in rebuild (ABT.annotation tm) (go head_) (recurseArgs args')
+            Nothing ->
+              rebuild (ABT.annotation tm) (go head_) (recurseArgs args)
+
+    collect :: Term v Ann -> [(Ann, Term v Ann)] -> (Term v Ann, [(Ann, Term v Ann)])
+    collect t acc = case ABT.out t of
+      ABT.Tm (Term.App f x) -> collect f ((ABT.annotation t, x) : acc)
+      _ -> (t, acc)
+
+    rebuild :: Ann -> Term v Ann -> [(Ann, Term v Ann)] -> Term v Ann
+    rebuild outerAnn f = \case
+      [] -> f
+      args -> Term.apps f (map (\(a, x) -> (a, x)) args) `withTopAnn` outerAnn
+
+    withTopAnn :: Term v Ann -> Ann -> Term v Ann
+    withTopAnn t _outer = t
+
+    countLeadingImplicits :: Type v Ann -> Int
+    countLeadingImplicits ty0 =
+      let ty1 = Type.unforall ty0
+       in case ty1 of
+            Type.ImplicitArrow' _ conc -> 1 + countLeadingImplicits conc
+            _ -> 0
+
+-- | Pick the right surface form for a chosen given's reference. Local
+-- givens are encoded by 'extendLexicalGivenFromBinding' as the synthetic
+-- @Local.given.<name>@ builtin reference; replace those with a
+-- 'Term.var' so the runtime can resolve them through the enclosing
+-- letrec. All other references go through unchanged as 'Term.ref'.
+headTermFor :: (Var v) => Ann -> Reference -> Term v Ann
+headTermFor a r = case r of
+  Reference.Builtin name
+    | Just localName <- Text.stripPrefix localGivenPrefix name ->
+        Term.var a (Var.named localName)
+  _ -> Term.ref a r
+
+-- | Prefix used by 'Unison.Typechecker.Context' to mint synthetic
+-- references for file-internal givens. Kept in sync with the literal
+-- in @extendLexicalGivenFromBinding@ / the letrec hook in
+-- @annotateLetRecBindings'@.
+localGivenPrefix :: Text.Text
+localGivenPrefix = "Local.given."
 
 ------------------------------------------------------------------------------
 -- Override detection
@@ -396,21 +668,56 @@ buildDictionary a tree =
 -- The widening shifts the outer annotation's start strictly to the
 -- left of the inner term's natural start. We detect this by
 -- comparing the outer annotation's start position to the start of
--- the leftmost annotation among the term's sub-children. If the
--- outer is strictly earlier, the term was widened.
+-- the leftmost annotation among the term's sub-children.
 --
--- For terms with no inner sub-children (a single 'Var', 'Ref',
--- 'Builtin', or literal), we cannot reliably tell from annotations
--- alone — see the module-level comment for the limitation. We
--- return 'False' in that case (treat as non-override).
+-- This detection is unsafe when the term is itself a structural
+-- composite (a list literal @[1,2,3]@, a parenthesised expression,
+-- a constructor application, etc.) because the surrounding brackets
+-- /also/ shift the outer annotation strictly before the first inner
+-- child. Such terms must never be treated as overrides — they are
+-- the user's own explicit arguments at non-implicit slots.
+--
+-- The 'termLeaf'-only restriction below mirrors the parser's
+-- @overrideArg@: only single-leaf terms (Var, Ref, Builtin, literal,
+-- TermLink, TypeLink, Blank) can be @\@@-widened. Composite terms
+-- with sub-children are never overrides.
 isOverrideArg :: Term v Ann -> Bool
-isOverrideArg t =
-  case ABT.annotation t of
-    Ann outerStart _ ->
-      case innerLeftmostStart t of
-        Just innerStart -> outerStart < innerStart
-        Nothing -> False
+isOverrideArg t
+  | isLeafForOverride t,
+    Ann outerStart _ <- ABT.annotation t,
+    Just innerStart <- innerLeftmostStart t,
+    outerStart < innerStart =
+      True
+  | otherwise = False
+
+-- | Restricted predicate matching the same surface forms 'termLeaf'
+-- accepts for an @\@@-override (see
+-- @parser-typechecker/src/Unison/Syntax/TermParser.hs:overrideArg@).
+-- Returns 'True' only for atomic surface terms whose AST has no
+-- structural children; this is what lets us trust an outer-vs-inner
+-- annotation gap as a real override marker.
+--
+-- NOTE: As of this writing, single-leaf overrides (e.g. @f @ d@ where
+-- @d@ is a bare identifier) cannot be detected via annotation
+-- widening — the inner annotation is unavailable, so
+-- 'innerLeftmostStart' returns 'Nothing' for these and
+-- 'isOverrideArg' falls back to 'False'. Composite-leaf overrides
+-- like @f @ (g x)@ also do not match this predicate because the
+-- inner term has structural children, which would falsely conflict
+-- with structural composites like list literals @[1,2,3]@. Until the
+-- override path is rewired with an explicit AST marker, override
+-- detection is effectively disabled: every implicit slot is filled
+-- by the resolver. Users who want to override resolution must use
+-- the @let given@ shadowing form (ADR-010).
+isLeafForOverride :: Term v Ann -> Bool
+isLeafForOverride t = case ABT.out t of
+  ABT.Var _ -> True
+  ABT.Tm body -> case body of
+    Term.Ref _ -> True
+    Term.Constructor _ -> True
+    Term.Request _ -> True
     _ -> False
+  _ -> False
 
 -- | Find the leftmost source-position start among the term's direct
 -- structural children, if any. Returns 'Nothing' for a leaf.

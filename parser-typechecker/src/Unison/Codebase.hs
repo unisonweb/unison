@@ -345,6 +345,7 @@ installUcmDependencies c = do
             (Map.fromList Builtin.builtinEffectDecls)
             [Builtin.builtinTermsSrc Parser.Intrinsic]
             mempty
+            mempty
         )
   addDefsToCodebase c uf
 

@@ -187,6 +187,7 @@ annToRange = \case
   Ann.Intrinsic -> Nothing
   Ann.External -> Nothing
   Ann.GeneratedFrom a -> annToRange a
+  Ann.Synthetic a -> annToRange a
   Ann.Ann start end -> Just $ Range start end
 
 rangeToInterval :: Range -> Interval.Interval Pos.Pos

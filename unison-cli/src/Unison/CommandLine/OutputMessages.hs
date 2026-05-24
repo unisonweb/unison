@@ -1028,6 +1028,11 @@ notifyUser dir issueFn = \case
           intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
     pure $ showNote notes
+  UnresolvedImplicits _curPath src ppenv items -> do
+    let showNote =
+          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
+            . map (\(loc, goal, err) -> Result.UnresolvedImplicit loc goal err)
+    pure $ showNote items
   TypeWarns _curPath src ppenv warns ->
     pure $ renderTypeWarnings ppenv (Text.unpack src) warns
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs

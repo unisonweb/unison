@@ -549,6 +549,7 @@ loop e = do
                   (Map.fromList Builtin.builtinEffectDecls)
                   [Builtin.builtinTermsSrc Intrinsic]
                   mempty
+                  mempty
           Cli.runTransaction (Codebase.addDefsToCodebase env.codebase uf)
           -- add the names; note, there are more names than definitions
           -- due to builtin terms; so we don't just reuse `uf` above.
@@ -573,6 +574,7 @@ loop e = do
                   (Map.fromList Builtin.builtinDataDecls)
                   (Map.fromList Builtin.builtinEffectDecls)
                   [Builtin.builtinTermsSrc Intrinsic]
+                  mempty
                   mempty
           Cli.runTransaction do
             Codebase.addDefsToCodebase env.codebase uf
@@ -1318,6 +1320,7 @@ addWatch watchName (Just uf) = do
                 (UF.effectDeclarationsId' uf)
                 (UF.topLevelComponents' uf)
                 (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, ann, Term.var a v, ty)])])
+                (UF.givenBindings' uf)
             )
     _ -> addWatch watchName Nothing
 

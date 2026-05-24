@@ -664,7 +664,7 @@ lexemes eof =
               env <- S.get
               case topBlockName (layout env) of
                 -- '=' does not open a layout block if within a type declaration
-                Just t | t == "type" || Set.member (Text.pack t) typeModifiers -> pure [Token (Reserved "=") start end]
+                Just t | t == "type" || t == "class" || Set.member (Text.pack t) typeModifiers -> pure [Token (Reserved "=") start end]
                 Just _ -> S.put (env {opening = Just "="}) >> pure [Token (Open "=") start end]
                 _ -> err start LayoutError
 

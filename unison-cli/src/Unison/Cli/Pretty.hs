@@ -112,6 +112,7 @@ import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified, styleHashQualified')
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Typechecker.GivenApply qualified as GivenApply
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -462,9 +463,14 @@ prettyTerm pped isSourceFile isTest (n, r, dt) =
           ("builtin " <> prettyHashQualified n <> " :")
           (TypePrinter.prettySyntax (ppeBody n r) typ)
     UserObject tm ->
-      if isTest
-        then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm
-        else TermPrinter.prettyBinding (ppeBody n r) n tm
+      -- ADR-015 default elide-mode: drop any apply-site argument
+      -- the elaborator marked 'Ann.Synthetic' (a resolved
+      -- implicit-dictionary insertion) before handing the term to
+      -- the surface pretty-printer.
+      let tm' = GivenApply.stripSyntheticArgs tm
+       in if isTest
+            then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm'
+            else TermPrinter.prettyBinding (ppeBody n r) n tm'
   where
     commentBuiltin txt =
       if isSourceFile

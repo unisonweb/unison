@@ -271,9 +271,13 @@ typecheckedUnisonFile ::
   Map v (Reference.Id, EffectDeclaration v a) ->
   [[(v, a, Term v a, Type v a)]] ->
   [(WatchKind, [(v, a, Term v a, Type v a)])] ->
+  -- | Names recorded as @given@ by the parser. Forwarded into the
+  -- 'TypecheckedUnisonFile' so downstream commands (e.g. @add@) can
+  -- auto-mark them as namespace givens.
+  Set v ->
   TypecheckedUnisonFile v a
-typecheckedUnisonFile datas effects tlcs watches =
-  TypecheckedUnisonFileId Nothing datas effects tlcs watches hashImpl
+typecheckedUnisonFile datas effects tlcs watches gbs =
+  TypecheckedUnisonFileId Nothing datas effects tlcs watches hashImpl gbs
   where
     hashImpl :: (Map v (a, Reference.Id, Maybe WatchKind, Term v a, Type v a))
     hashImpl =
@@ -387,16 +391,10 @@ dependencies file =
     ]
 
 discardTypes :: (Ord v) => TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes (TypecheckedUnisonFileId fn datas effects terms watches _) =
+discardTypes (TypecheckedUnisonFileId fn datas effects terms watches _ gbs) =
   let watches' = g . mconcat <$> List.multimap watches
       g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]
-   in -- 'givenBindings' is not preserved through typechecking — by the
-      -- time a 'TypecheckedUnisonFile' exists the typechecker has
-      -- already consumed the side channel. Producing 'discardTypes'
-      -- (mostly used for downstream tooling like the LSP) re-issues an
-      -- empty set; if a future caller needs it they can extend
-      -- 'TypecheckedUnisonFile' similarly.
-      UnisonFileId fn (coerce datas) (coerce effects) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches' Set.empty
+   in UnisonFileId fn (coerce datas) (coerce effects) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches' gbs
 
 declsToTypeLookup :: (Var v) => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =

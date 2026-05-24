@@ -15,7 +15,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
 import Unison.DataDeclaration qualified as DD
-import Unison.DataDeclaration.Records (generateRecordAccessors)
+import Unison.DataDeclaration.Records (RecordKind (..), generateRecordAccessors)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
@@ -91,7 +91,7 @@ hashFieldAccessors ::
 hashFieldAccessors ppe declName vars declRef dd = do
   let accessors :: [(v, (), Term v ())]
       accessors =
-        generateRecordAccessors Var.namespaced id (map (,()) vars) declName declRef
+        generateRecordAccessors TypeRecord Var.namespaced id (map (,()) vars) declName declRef
 
   typecheckedAccessors <-
     for accessors \(v, _a, term) -> do

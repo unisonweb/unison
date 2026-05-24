@@ -1,6 +1,7 @@
 -- | This module contains various utilities related to the implementation of record types.
 module Unison.DataDeclaration.Records
   ( generateRecordAccessors,
+    RecordKind (..),
   )
 where
 
@@ -17,23 +18,42 @@ import Unison.Term qualified as Term
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
+-- | Which surface keyword introduced the record. 'ClassRecord' is for
+-- @class T a = { ... }@ declarations: the accessors elide setters and
+-- modifiers, and the caller is expected to attach a type annotation
+-- whose @T a@ parameter is implicit (an @=>@ arrow) so the dictionary
+-- gets threaded through by the implicit-resolution elaborator. See
+-- @Unison.Syntax.FileParser@ where this is wired.
+data RecordKind = TypeRecord | ClassRecord
+  deriving stock (Eq, Show)
+
 generateRecordAccessors ::
   (Semigroup a, Var v) =>
+  RecordKind ->
   (List.NonEmpty v -> v) ->
   (a -> a) ->
   [(v, a)] ->
   v ->
   TypeReference ->
   [(v, a, Term v a)]
-generateRecordAccessors namespaced generatedAnn fields typename typ =
+generateRecordAccessors kind namespaced generatedAnn fields typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
-    tm (fname, fieldAnn) i =
-      [ (namespaced (typename :| [fname]), ann, get),
-        (namespaced (typename :| [fname, Var.named "set"]), ann, set),
-        (namespaced (typename :| [fname, Var.named "modify"]), ann, modify)
-      ]
+    tm (fname, fieldAnn) i = case kind of
+      TypeRecord ->
+        [ (namespaced (typename :| [fname]), ann, get),
+          (namespaced (typename :| [fname, Var.named "set"]), ann, set),
+          (namespaced (typename :| [fname, Var.named "modify"]), ann, modify)
+        ]
+      ClassRecord ->
+        -- 'class' accessors emit only the getter; setters and
+        -- modifiers do not make sense when the dictionary is
+        -- threaded implicitly. The getter term is identical to the
+        -- type-record getter — the caller attaches the @=>@-bearing
+        -- type annotation that turns the leading lambda's binder
+        -- into a lexical given for the body.
+        [(namespaced (typename :| [fname]), ann, get)]
       where
         ann = generatedAnn fieldAnn
         conref = ConstructorReference typ 0
