@@ -41,6 +41,7 @@ library
       Unison.Codebase.Editor.DisplayObject
       Unison.Codebase.Editor.RemoteRepo
       Unison.Codebase.FileCodebase
+      Unison.Codebase.Classes
       Unison.Codebase.Givens
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError

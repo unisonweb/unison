@@ -79,6 +79,14 @@ etaReduce :: (Var v) => Term3 v a -> Term3 v a
 etaReduce (LamNamed' v (App' f (Var' v'))) | v == v' && Var.name v == "_eta" = f
 etaReduce tm = tm
 
+-- | True if the type is the 'Type.giveMarkerRef' sentinel injected
+-- by 'GivenApply.stripImplicitArgsByType' to mark an apply-chain
+-- head whose @=>@ slots were user-supplied via @give@.
+isGiveMarkerType :: Type v a -> Bool
+isGiveMarkerType ty = case ABT.out ty of
+  ABT.Tm (Type.Ref r) -> r == Type.giveMarkerRef
+  _ -> False
+
 goPretty :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Pretty SyntaxText
 goPretty ppe tm = runPretty (avoidShadowing tm ppe) $ pretty0 emptyAc $ printAnnotate ppe tm
 
@@ -422,6 +430,12 @@ pretty0
                         fmt S.ControlKeyword " with" `PP.hang` pbs
                       ]
                   else (fmt S.ControlKeyword "match " <> ps <> fmt S.ControlKeyword " with") `PP.hang` pbs
+          -- ADR-007: when 'stripImplicitArgsByType' decides the
+          -- leading @=>@ slot(s) of an application were user-supplied
+          -- (rather than resolver-picked), it tags the head with a
+          -- 'Type.giveMarkerRef' ascription. Render that as the @give@
+          -- keyword so the source round-trips back to a parse with
+          -- the matching 'Ann.Lowered' annotation.
           Apps' f args -> paren (p >= Application) <$> (PP.hang <$> goNormal (InfixOp Highest) f <*> PP.spacedTraverse (goNormal Application) args)
           t -> pure $ l "error: " <> l (show t)
     where
@@ -429,7 +443,20 @@ pretty0
       specialCases term go = do
         prettyDoc2_ a term >>= \case
           Just d -> pure d
-          Nothing -> notDoc go
+          Nothing -> case term of
+            -- ADR-007: when 'stripImplicitArgsByType' decides the
+            -- leading @=>@ slot(s) of an application were
+            -- user-supplied (rather than resolver-picked), it tags
+            -- the head with a 'Type.giveMarkerRef' ascription.
+            -- Render that as the @give@ keyword so the source
+            -- round-trips back to a parse with the matching
+            -- 'Ann.Lowered' annotation.
+            Apps' (Ann' inner t) args | isGiveMarkerType t ->
+              paren (p >= Application) <$> do
+                inner' <- pretty0 (ac (InfixOp Highest) Normal im doc) inner
+                args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
+                pure (fmt S.ControlKeyword "give " <> PP.hang inner' args')
+            _ -> notDoc go
         where
           notDoc go = do
             env <- ask

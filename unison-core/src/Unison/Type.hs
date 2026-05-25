@@ -363,6 +363,16 @@ booleanRef = Reference.Builtin "Boolean"
 textRef = Reference.Builtin "Text"
 charRef = Reference.Builtin "Char"
 listRef = Reference.Builtin "Sequence"
+
+-- | ADR-007: sentinel type reference used by 'GivenApply.stripImplicitArgsByType'
+-- to mark an apply-chain head whose declared @=>@ arrows were
+-- filled by the user via the @give@ keyword. The marker is purely
+-- print-time: 'TermPrinter' recognises @t : giveMarker@ on the head
+-- of an apply chain and emits @give @ at the surface. The reference
+-- name is unparseable as a regular identifier so user code can't
+-- accidentally summon it.
+giveMarkerRef :: TypeReference
+giveMarkerRef = Reference.Builtin "@@give-marker"
 bytesRef = Reference.Builtin "Bytes"
 effectRef = Reference.Builtin "Effect"
 termLinkRef = Reference.Builtin "Link.Term"
@@ -778,8 +788,21 @@ existentializeArrows newVar t = ABT.visit go t
     -- effect-attach the same way 'Arrow' does. Constraint resolution
     -- does not introduce abilities, but the codomain may still be an
     -- effectful arrow that needs a fresh ability variable.
+    --
+    -- Exception: when the codomain is itself an 'ImplicitArrow' (i.e.
+    -- chained constraints like @C1 => C2 => T@), we skip the
+    -- effect-row insertion. Per ADR-019 @=>@ carries no abilities, and
+    -- inserting an effect row between two @=>@s would break the
+    -- 'ImplicitArrow'' pattern in the @=>I@ checkWanted rule — the
+    -- pattern only sees through @Arrow'@/@Effect''@ tuples, not bare
+    -- 'Effect1'' wrappers — so the lambda binder for the second
+    -- constraint wouldn't be recognised.
     go t@(ImplicitArrow' a b) = case b of
       Effect1' _ _ -> Just $ do
+        a <- existentializeArrows newVar a
+        b <- existentializeArrows newVar b
+        pure $ implicitArrow (ABT.annotation t) a b
+      ImplicitArrow' _ _ -> Just $ do
         a <- existentializeArrows newVar a
         b <- existentializeArrows newVar b
         pure $ implicitArrow (ABT.annotation t) a b

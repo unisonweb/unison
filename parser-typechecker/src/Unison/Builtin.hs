@@ -13,6 +13,8 @@ module Unison.Builtin
     builtinTermsByType,
     builtinTermsByTypeMention,
     givenSentinelName,
+    classSentinelName,
+    classSentinelRef,
     givenSentinelRef,
     intrinsicTermReferences,
     intrinsicTypeReferences,
@@ -306,6 +308,21 @@ givenSentinelName = "Builtin.Given"
 givenSentinelRef :: R.Reference
 givenSentinelRef = R.Builtin givenSentinelName
 
+-- | The textual name of the sentinel builtin reference used to mark a
+-- /type/ declaration as having originated from the @class@ keyword.
+-- See ADR-013 (the same storage strategy as 'givenSentinelName').
+-- 'view' inspects this marker to decide whether to render the
+-- declaration with the @class@ keyword and record-field syntax.
+classSentinelName :: Text
+classSentinelName = "Builtin.Class"
+
+-- | The sentinel builtin reference used to tag a type declaration as
+-- a class. Carried by namespace metadata on the type ref (parallel to
+-- 'givenSentinelRef' for terms). Not registered as a callable term;
+-- only a tag.
+classSentinelRef :: R.Reference
+classSentinelRef = R.Builtin classSentinelName
+
 builtinConstructorType :: Map R.Reference CT.ConstructorType
 builtinConstructorType = Map.fromList [(R.Builtin r, ct) | B' r ct <- builtinTypesSrc]
 
@@ -400,6 +417,13 @@ typeOf a f r = maybe a f (Map.lookup r termRefTypes)
 builtinsSrc :: [BuiltinDSL]
 builtinsSrc =
   [ B "Any.unsafeExtract" $ forall1 "a" (\a -> anyt --> a),
+    -- ADR-006: the @summon@ builtin. Type @forall a. a => a@ — the
+    -- leading @=>@ makes the typechecker emit a 'ConstraintGoal' at
+    -- every reference and the resolver fills it from the surrounding
+    -- type context. Runtime behaviour is the identity function
+    -- (defined in 'Unison.Runtime.Builtin'). No longer a reserved
+    -- word; the name parser accepts @summon@ as an ordinary segment.
+    B "summon" $ forall1 "a" (\a -> a ==> a),
     B "Int.+" $ int --> int --> int,
     B "Int.-" $ int --> int --> int,
     B "Int.*" $ int --> int --> int,
@@ -1329,6 +1353,12 @@ pair l r = DD.pairType () `app` l `app` r
 a --> b = Type.arrow () a b
 
 infixr 9 -->
+
+-- | The implicit-arrow constructor (ADR-019) used in builtin signatures.
+(==>) :: Type -> Type -> Type
+a ==> b = Type.implicitArrow () a b
+
+infixr 9 ==>
 
 io, iof :: Type -> Type
 socket, threadId, handle, phandle, unit :: Type

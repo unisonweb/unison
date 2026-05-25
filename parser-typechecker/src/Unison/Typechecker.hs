@@ -36,6 +36,7 @@ import Unison.Blank qualified as B
 import Unison.Builtin.Decls qualified as BuiltinDecls
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Name qualified as Name
+import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Reference (Reference)
@@ -128,7 +129,7 @@ data Env v loc = Env
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
 synthesize ::
-  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc, Semigroup loc) =>
+  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   Context.PatternMatchCoverageCheckAndKindInferenceSwitch ->
   Env v loc ->
@@ -238,6 +239,7 @@ synthesizeAndResolve ::
   (BuiltinAnnotation loc) =>
   (Ord loc) =>
   (Show loc) =>
+  (Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   Env v loc ->
   TDNR f v loc (Type v loc)
@@ -288,7 +290,7 @@ liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 -- 3. No match at all. Throw an unresolved symbol at the user.
 typeDirectedNameResolution ::
   forall v loc f.
-  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Monoid loc, Show loc) =>
+  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Monoid loc, Show loc, Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   Notes v loc ->
   Type v loc ->
@@ -465,7 +467,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
 check ::
-  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc, Semigroup loc) =>
+  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   Env v loc ->
   Term v loc ->
@@ -495,6 +497,7 @@ wellTyped ::
   (Ord loc) =>
   (Show loc) =>
   (Semigroup loc) =>
+  (Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   Env v loc ->
   Term v loc ->

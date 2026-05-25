@@ -28,6 +28,15 @@ data Ann
     -- Pretty-printers detect this constructor and elide the arg from
     -- the surface rendering (per ADR-015's default elide-mode).
     Synthetic Ann
+  | -- ADR-007: tags a term whose leading @=>@ arrows should be
+    -- demoted to regular @->@ arrows at the typechecker site of
+    -- use. Produced by the @give@ keyword: writing @give f@ at the
+    -- source level means "give me the lowered version of f", so
+    -- subsequent application supplies the dictionary explicitly
+    -- instead of triggering implicit resolution. Annotation-aware
+    -- passes that don't care about the distinction should recurse
+    -- into the inner 'Ann' — same shape as 'Synthetic'.
+    Lowered Ann
   | Ann {start :: L.Pos, end :: L.Pos}
   deriving (Eq, Ord, Show)
 
@@ -40,6 +49,7 @@ startingLine :: Ann -> Maybe L.Line
 startingLine (Ann (L.line -> line) _) = Just line
 startingLine (GeneratedFrom a) = startingLine a
 startingLine (Synthetic a) = startingLine a
+startingLine (Lowered a) = startingLine a
 startingLine _ = Nothing
 
 -- | 'True' iff the annotation chain ends in a 'Synthetic' marker —
@@ -49,7 +59,20 @@ startingLine _ = Nothing
 isSynthetic :: Ann -> Bool
 isSynthetic (Synthetic _) = True
 isSynthetic (GeneratedFrom a) = isSynthetic a
+isSynthetic (Lowered a) = isSynthetic a
 isSynthetic _ = False
+
+-- | 'True' iff the annotation chain ends in a 'Lowered' marker —
+-- i.e. this term was the operand of the @give@ keyword (ADR-007)
+-- and its leading @=>@ arrows should be demoted to @->@ at the
+-- typechecker site of use, so dictionaries can be supplied as
+-- ordinary positional arguments instead of being filled by
+-- implicit resolution.
+isLowered :: Ann -> Bool
+isLowered (Lowered _) = True
+isLowered (GeneratedFrom a) = isLowered a
+isLowered (Synthetic a) = isLowered a
+isLowered _ = False
 
 instance Monoid Ann where
   mempty = External
@@ -66,6 +89,8 @@ instance Semigroup Ann where
   a <> GeneratedFrom b = a <> b
   Synthetic a <> b = Synthetic (a <> b)
   a <> Synthetic b = Synthetic (a <> b)
+  Lowered a <> b = Lowered (a <> b)
+  a <> Lowered b = Lowered (a <> b)
 
 -- | Checks whether an annotation contains a given position
 -- i.e. pos ∈ [start, end)
@@ -87,6 +112,7 @@ contains External _ = False
 contains (Ann start end) p = start <= p && p < end
 contains (GeneratedFrom ann) p = contains ann p
 contains (Synthetic ann) p = contains ann p
+contains (Lowered ann) p = contains ann p
 
 -- | Checks whether an annotation contains another annotation.
 --
@@ -112,11 +138,28 @@ encompasses (GeneratedFrom ann) other = encompasses ann other
 encompasses ann (GeneratedFrom other) = encompasses ann other
 encompasses (Synthetic ann) other = encompasses ann other
 encompasses ann (Synthetic other) = encompasses ann other
+encompasses (Lowered ann) other = encompasses ann other
+encompasses ann (Lowered other) = encompasses ann other
 encompasses (Ann start1 end1) (Ann start2 end2) =
   Just $ start1 <= start2 && end1 >= end2
 
 class Annotated a where
   ann :: a -> Ann
+
+-- | Predicate over a typechecker location indicating whether the
+-- term it annotates was wrapped with the @give@ keyword (ADR-007)
+-- and should have its leading @=>@ arrows demoted to @->@ during
+-- synthesis. Defaults to 'False' so that contexts whose @loc@ is
+-- not 'Ann' simply never see lowerings — the feature is purely
+-- source-level.
+class IsLoweredAnn loc where
+  isLoweredAnn :: loc -> Bool
+  isLoweredAnn _ = False
+
+instance IsLoweredAnn Ann where
+  isLoweredAnn = isLowered
+
+instance IsLoweredAnn ()
 
 instance Annotated Ann where
   ann = id

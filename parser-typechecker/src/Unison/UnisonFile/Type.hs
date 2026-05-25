@@ -24,12 +24,17 @@ data UnisonFile v a = UnisonFileId
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)],
     -- | ADR-010 / chunk L2 fixup: variable names that originated from
     -- the @given@ keyword. Populated by the parser via the side channel
-    -- in 'Unison.Syntax.Parser' (@StateT (Set v)@) and read by the
-    -- typechecker to identify @given@ origins without inspecting type
-    -- shape. Includes both file-level @given@ declarations and
-    -- @let given@ bindings inside term bodies. Empty for files with no
-    -- @given@ declarations.
-    givenBindings :: Set v
+    -- in 'Unison.Syntax.Parser' and read by the typechecker to identify
+    -- @given@ origins without inspecting type shape. Includes both
+    -- file-level @given@ declarations and @let given@ bindings inside
+    -- term bodies.
+    givenBindings :: Set v,
+    -- | ADR-007: type names declared with the @class@ keyword. The
+    -- @add@ / @update@ command uses this to mark each entry in the
+    -- namespace via 'Unison.Codebase.Classes.markClassAt' so @view@
+    -- can later recover the @class@ keyword (and record-field syntax)
+    -- on round-trip.
+    classBindings :: Set v
   }
   deriving stock (Generic, Show)
 
@@ -40,8 +45,9 @@ pattern UnisonFile ::
   Map v (a, Term v a) ->
   Map WatchKind [(v, a, Term v a)] ->
   Set v ->
+  Set v ->
   UnisonFile v a
-pattern UnisonFile fn ds es tms ws gbs <-
+pattern UnisonFile fn ds es tms ws gbs cbs <-
   UnisonFileId
     fn
     (fmap (first Reference.DerivedId) -> ds)
@@ -49,6 +55,7 @@ pattern UnisonFile fn ds es tms ws gbs <-
     tms
     ws
     gbs
+    cbs
 
 {-# COMPLETE UnisonFile #-}
 
@@ -64,10 +71,13 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
     -- | Names that the parser recorded as @given@ declarations.
     -- Threaded through from 'UnisonFile.givenBindings' so the
     -- @update@ / @add@ flow can mark each one as a given in the
-    -- namespace's metadata automatically (rather than requiring an
-    -- explicit follow-up @mark.given@). Empty for files with no
-    -- @given@ declarations.
-    givenBindings' :: Set v
+    -- namespace's metadata automatically.
+    givenBindings' :: Set v,
+    -- | ADR-007: type names that the parser recorded as @class@
+    -- declarations. Threaded through from 'UnisonFile.classBindings'
+    -- so @add@ / @update@ can mark each one via
+    -- 'Unison.Codebase.Classes.markClassAt'.
+    classBindings' :: Set v
   }
   deriving stock (Generic, Show)
 
@@ -97,10 +107,11 @@ pattern TypecheckedUnisonFile fn ds es tlcs wcs hts <-
     wcs
     (fmap (over _2 Reference.DerivedId) -> hts)
     _
+    _
 
 instance (Ord v) => Functor (TypecheckedUnisonFile v) where
-  fmap f (TypecheckedUnisonFileId fn ds es tlcs wcs hashTerms gbs) =
-    TypecheckedUnisonFileId fn' ds' es' tlcs' wcs' hashTerms' gbs
+  fmap f (TypecheckedUnisonFileId fn ds es tlcs wcs hashTerms gbs cbs) =
+    TypecheckedUnisonFileId fn' ds' es' tlcs' wcs' hashTerms' gbs cbs
     where
       fn' = (fmap . first) f fn
       ds' = ds <&> \(refId, decl) -> (refId, fmap f decl)

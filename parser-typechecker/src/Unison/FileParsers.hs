@@ -31,6 +31,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (TermReference, TypeReference)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
@@ -324,7 +325,32 @@ synthesizeFile env0 uf = do
     -- trees into 'App' nodes. The ambient pool comes from
     -- 'env0.ambientGivens', built by 'computeTypecheckingEnvironment'
     -- from the namespace's 'given'-tagged definitions (L1 wiring).
-    let ambient = Typechecker.ambientGivens env0
+    --
+    -- We additionally promote every file-local @given@-tagged
+    -- top-level binding into the ambient pool. The per-binding
+    -- 'extendLexicalGivenFromBinding' machinery only makes a given
+    -- visible to siblings that 'minimize' happened to order /after/
+    -- it in the resulting let-chain; siblings that come earlier in
+    -- the chain (because 'minimize' reordered independent SCCs) have
+    -- a 'ConstraintGoal' whose 'pgScope' snapshot is missing the
+    -- given. Top-level givens are conceptually file-global, so we
+    -- expose them to every goal via the ambient pool, sidestepping
+    -- minimize's ordering entirely.
+    let fileLocalGivens :: [GivenElaborator.AmbientGiven v Ann]
+        fileLocalGivens =
+          [ GivenElaborator.AmbientGiven
+              { GivenElaborator.ambientName =
+                  Reference.Builtin ("Local.given." <> Var.name (Var.reset v)),
+                GivenElaborator.ambientType = t
+              }
+            | tlc <- topLevelComponents,
+              (v, _, t) <- tlc,
+              Set.member (Var.reset v) (UF.givenBindings uf)
+          ]
+        ambient =
+          GivenElaborator.mergePool
+            (GivenElaborator.ambientPool fileLocalGivens)
+            (Typechecker.ambientGivens env0)
     let infosWithImplicits = GivenElaborator.elaborateInfoNotes ambient infos
     -- Phase-2 chunk D4: surface implicit-resolution failures as user
     -- diagnostics. Each 'SolvedImplicit' note whose decision is
@@ -400,6 +426,7 @@ synthesizeFile env0 uf = do
         terms'
         (map tlcKind watches')
         uf.givenBindings
+        uf.classBindings
   where
     applyTdnrDecisions ::
       [Context.InfoNote v Ann] ->

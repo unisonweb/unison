@@ -7,6 +7,7 @@ module Unison.DataDeclaration.Dependencies
     DD.labeledDeclDependenciesIncludingSelf,
     labeledDeclDependenciesIncludingSelfAndFieldAccessors,
     hashFieldAccessors,
+    hashClassFieldAccessors,
   )
 where
 
@@ -27,6 +28,7 @@ import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
 import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Term (Term)
+import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
@@ -112,6 +114,83 @@ hashFieldAccessors ppe declName vars declRef dd = do
       -- type. We do so here using `Type.cleanup`, mirroring what's
       -- done when typechecking a whole file and ensuring we get the
       -- same inferred type.
+      Just (Type.cleanup typ)
+
+    typecheckingEnv :: Typechecker.Env v ()
+    typecheckingEnv =
+      Typechecker.Env
+        { ambientAbilities = mempty,
+          typeLookup =
+            TypeLookup
+              { typeOfTerms = mempty,
+                dataDecls = Map.singleton declRef (void dd),
+                effectDecls = mempty
+              },
+          termsByShortname = mempty,
+          freeNameToFuzzyTermsByShortName = Map.empty,
+          topLevelComponents = Map.empty,
+          variances = defaultVariances,
+          ambientGivens = GivenResolver.poolFromList [],
+          givenBindings = mempty
+        }
+
+-- | Like 'hashFieldAccessors' but for /class/ accessors: wraps each
+-- generated getter with the @=>@-bearing annotation that
+-- 'annotateClassAccessor' attaches at parse time, so the resulting
+-- hashes match what's stored in the codebase for a class declaration.
+hashClassFieldAccessors ::
+  forall v.
+  (Var.Var v) =>
+  PrettyPrintEnv ->
+  v ->
+  [v] ->
+  TypeReference ->
+  DD.DataDeclaration v () ->
+  Maybe (Map v (TermReferenceId, Term v (), Type v ()))
+hashClassFieldAccessors ppe declName vars declRef dd = do
+  -- Records (and classes) have exactly one constructor.
+  [(_, ctorType)] <- Just (DD.constructors dd)
+  let ctorBody = case ctorType of
+        Type.ForallsNamed' _ t -> t
+        t -> t
+  ts <- Type.unArrows ctorBody
+  let fieldTypes = init ts
+  guard (length fieldTypes == length vars)
+  let tyvars = DD.bound dd
+      ann = ()
+      classRefT = Type.ref ann declRef
+      classApp = foldl' (\acc tyv -> Type.app ann acc (Type.var ann tyv)) classRefT tyvars
+      annotateAccessor fieldType (v, _a, body) =
+        let implicit = Type.implicitArrow ann classApp fieldType
+            quantified = Type.foralls ann tyvars implicit
+         in (v, ann, Term.ann ann body quantified)
+      rawAccessors :: [(v, (), Term v ())]
+      rawAccessors =
+        generateRecordAccessors ClassRecord Var.namespaced id (map (,()) vars) declName declRef
+      annotated = zipWith annotateAccessor fieldTypes rawAccessors
+
+  typecheckedAccessors <-
+    for annotated \(v, _a, term) -> do
+      typ <- typecheck term
+      Just (v, (term, typ, ()))
+
+  typecheckedAccessors
+    & Map.fromList
+    & Hashing.hashTermComponents
+    & Hashing.crashOnHashingWarning
+    & Map.map Tuple.drop4th
+    & Just
+  where
+    typecheck :: Term v () -> Maybe (Type v ())
+    typecheck term = do
+      typ <-
+        Result.result
+          ( Typechecker.synthesize
+              ppe
+              Typechecker.PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled
+              typecheckingEnv
+              term
+          )
       Just (Type.cleanup typ)
 
     typecheckingEnv :: Typechecker.Env v ()

@@ -31,8 +31,8 @@ import Data.Text qualified as Text
 import EasyTest
 import Text.RawString.QQ
 import Unison.ABT qualified as ABT
-import Unison.Lexer.Pos qualified as Pos
 import Unison.Parser.Ann (Ann (..))
+import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Ps
 import Unison.PrintError (renderParseErrorAsANSI)
 import Unison.Symbol (Symbol)
@@ -62,21 +62,29 @@ test =
       scope "override.structural" overrideArgWidensAnnotation
     ]
 
--- | @summon T@ in expression position. ADR-006 specifies the keyword.
+-- | @summon@ in expression position. ADR-006 specifies the builtin.
 --
--- These exercise the parser only; we use builtin types so the
--- name-resolution pass that follows the parser doesn't reject
--- references to Phase-2 standard-library types we haven't loaded.
+-- @summon@ is no longer a keyword: it is a regular term reference
+-- whose declared type @forall a. a => a@ drives implicit resolution
+-- via the normal machinery. The user pins the type either with an
+-- explicit annotation — @(summon : T)@ — or implicitly via the
+-- surrounding context (e.g. a function argument whose parameter
+-- type fixes it).
+--
+-- These exercise the parser only; the typechecker later wires the
+-- @=>@ on @summon@'s declared type to a 'ConstraintGoal'.
 summonExprs :: [String]
 summonExprs =
-  [ -- atomic type argument
-    "summon Nat",
+  [ -- bare reference (no annotation; typechecker will need context)
+    "summon",
+    -- explicit annotation
+    "(summon : Nat)",
     -- parenthesized list type
-    "summon [Nat]",
+    "(summon : [Nat])",
     -- nested: summon used as a function argument
-    "id (summon Nat)",
-    -- summon followed by a parenthesized arrow type
-    "summon (Nat -> Nat)"
+    "id (summon : Nat)",
+    -- annotation that is a parenthesized arrow type
+    "(summon : (Nat -> Nat))"
   ]
 
 -- | @let given name : T = body@ inside a let block. The block syntax
@@ -148,10 +156,10 @@ constraintInGivenSig =
       ]
   ]
 
--- | @\@@-positional explicit override at call sites (chunk A3,
--- ADR-007). The parser produces ordinary positional application;
--- the source range of each override argument is widened to include
--- the leading @\@@ so downstream chunks can recognise it.
+-- | @give@-prefix explicit dictionary at call sites (chunk A3,
+-- ADR-007). @give f@ syntactically demotes one leading @=>@ in
+-- @f@'s declared type to @->@, so the next argument fills the
+-- implicit slot positionally.
 --
 -- We use bare identifiers (not in the builtins-only parsing env) on
 -- purpose: at parse time these become free variables, which is
@@ -160,41 +168,40 @@ constraintInGivenSig =
 overrideApps :: [String]
 overrideApps =
   [ -- the canonical example from the design doc
-    "sort @ ordDescending xs",
+    "give sort ordDescending xs",
     -- override at the last position
-    "f @ d",
-    -- chained overrides: fills the first two implicit slots
-    "g @ d1 @ d2 x",
-    -- override sandwiched between regular args (mixed positions)
-    "h x @ d y",
+    "give f d",
+    -- chained overrides: fills two implicit slots (nest @give@)
+    "give (give g) d1 d2 x",
+    -- override sandwiched between regular args (parenthesized so it
+    -- binds tightly to its function head)
+    "h x (give id d) y",
     -- parenthesized dictionary expression as override argument
-    "f @ (mkOrd compare) xs",
+    "give f (mkOrd compare) xs",
     -- override-only call of a single-implicit function
-    "showD @ mockShow"
+    "give showD mockShow"
   ]
 
 -- | Realistic combinations that mix A1 ⊕ A2 ⊕ A3 features.
 combinations :: [String]
 combinations =
-  [ -- A2 ⊕ A3: the resolved override argument is itself a `summon`
-    -- expression that uses the A1 `=>` arrow inside the type.
-    "sort @ (summon (Ord a => Ord [a])) xs",
-    -- A2: `summon` inside the body of a `let given`.
+  [ -- A2 ⊕ A3: the @give@-supplied dictionary is itself a @summon@
+    -- expression with an A1 @=>@ arrow inside its annotation.
+    "give sort (summon : Ord a => Ord [a]) xs",
+    -- A2: @summon@ inside the body of a @let given@.
     unlines
       [ "let",
-        "  given d : Nat = summon Nat",
+        "  given d : Nat = (summon : Nat)",
         "  d"
       ],
-    -- A3: `@`-override applied to a function whose result is itself
-    -- supplied to a second `@`-override, chained.
-    "build @ d (resolve @ d2 x)",
-    -- Operator precedence around `summon`: the `+` binds tighter
-    -- than `summon`'s greedy type-argument parse only because the
-    -- type sits in parens.
-    "(summon Nat) + 1",
-    -- `summon` whose argument uses a constraint arrow followed by
+    -- A3: nested @give@ — supply an explicit dict to a function
+    -- whose result is itself given an explicit dict.
+    "give build d (give resolve d2 x)",
+    -- @(summon : Nat) + 1@: arithmetic against a summoned value.
+    "(summon : Nat) + 1",
+    -- @summon@ whose annotation uses a constraint arrow followed by
     -- an effect arrow (A1 plus existing effect grammar).
-    "summon (Monad m => (a ->{e} m b) -> m a -> m b)"
+    "(summon : Monad m => (a ->{e} m b) -> m a -> m b)"
   ]
 
 -- | Combinations that have to live at file scope because they
@@ -203,13 +210,13 @@ combinationFiles :: [String]
 combinationFiles =
   [ -- Top-level given whose body is a `summon` call.
     unlines
-      [ "given fortyTwo : Nat = summon Nat",
+      [ "given fortyTwo : Nat = (summon : Nat)",
         "main = fortyTwo"
       ],
-    -- Top-level given referenced through an `@`-override in `main`.
+    -- Top-level given referenced through a @give@-prefix in @main@.
     unlines
       [ "given d : Nat = 42",
-        "main = sort @ d xs"
+        "main = give sort d xs"
       ]
   ]
 
@@ -254,11 +261,17 @@ docRewrites =
 
 -- | Negative cases for @summon@ (chunk A2 carry-over). Each pair is
 -- @(source, why)@; @why@ shows up in the test scope name.
+--
+-- ADR-006 made @summon@ a regular term reference rather than a
+-- keyword, so the previous "summon with no argument" parse-failure
+-- case is gone: bare @summon@ is now a syntactically valid term.
+-- (The typechecker still rejects it without surrounding type
+-- context — but that is a /typecheck/ failure, not a parse one.)
 summonNegatives :: [(String, String)]
 summonNegatives =
-  [ -- A2 carry-over (b): `summon` with no argument.
-    ("summon", "summon with no argument"),
-    -- `summon` followed only by a closing token.
+  [ -- `summon` followed by a stray closing token in expression
+    -- position: still a parse failure because @)@ cannot follow an
+    -- identifier here.
     ("summon )", "summon followed by stray closing paren")
   ]
 
@@ -311,53 +324,33 @@ letGivenNegatives =
     )
   ]
 
--- | Negative cases for @\@@-override (A3 carry-over): malformed
--- override syntax must be rejected, not silently accepted.
+-- | Negative cases for @give@-prefix (A3 carry-over): malformed
+-- @give@ syntax must be rejected, not silently accepted.
 overrideNegatives :: [(String, String)]
 overrideNegatives =
-  [ -- A3 carry-over (a): `f @` with no following argument.
-    ("f @", "override @ with no following arg"),
-    -- A3 carry-over (b): `@d` at the head of a term (no preceding
-    -- function). The `@`-override is an *argument-position* construct.
-    ("@d", "leading @ at term head"),
-    -- A3 carry-over (c): double `@` token.
-    ("f @ @ x", "double @")
+  [ -- @give@ with no following term.
+    ("give", "give with no following term")
   ]
 
--- | Structural test (A3 carry-over): parsing @f \@ d@ must produce an
--- application whose second argument has its annotation widened to
--- include the leading @\@@ token. The cheap observable: the start
--- column of the override-arg's annotation is strictly less than the
--- start column of the bare leaf @d@ would have been. Since the
--- leading @\@@ is at column 3 and @d@ is at column 5 in the source
--- @"f @ d"@, the widened annotation must start at column 3.
---
--- This pins the contract that downstream chunks (D2/D3) rely on.
+-- | Structural test (A3 carry-over): parsing @give f d@ must produce
+-- an application whose /function/ head has its annotation wrapped
+-- with 'Ann.Lowered'. That's the discriminator downstream chunks
+-- (typechecker, GivenApply) rely on to skip the implicit-resolution
+-- machinery at @f@'s use-site.
 overrideArgWidensAnnotation :: Test ()
-overrideArgWidensAnnotation = scope "ann widened by leading @" $
-  case runIdentity (Ps.parse @_ @Symbol TP.term "f @ d" Common.parsingEnv) of
+overrideArgWidensAnnotation = scope "give wraps head annotation with Lowered" $
+  case runIdentity (Ps.parse @_ @Symbol TP.term "give f d" Common.parsingEnv) of
     Left e ->
-      crash . Text.unpack $ renderParseErrorAsANSI 60 "f @ d" e
+      crash . Text.unpack $ renderParseErrorAsANSI 60 "give f d" e
     Right t -> case Term.unApps t of
-      Just (_f, [arg]) ->
-        case ABT.annotation arg of
-          Ann startPos _ ->
-            -- `f` is at column 1, ` ` at column 2, `@` at column 3,
-            -- ` ` at column 4, `d` at column 5. The widened arg
-            -- annotation must start at the `@` (column 3), not at
-            -- the bare `d` (column 5).
-            let col = Pos.column startPos
-             in if col < 5 && col >= 3
-                  then ok
-                  else do
-                    note $ "expected widened ann start column in [3,5); got " ++ show col
-                    note $ "full annotation: " ++ show (ABT.annotation arg)
-                    crash "override-arg annotation was not widened"
-          _ -> do
-            note $ "expected an Ann annotation, got: " ++ show (ABT.annotation arg)
-            crash "non-Ann annotation on parsed override-arg"
+      Just (f, [_arg]) ->
+        case ABT.annotation f of
+          Ann.Lowered _ -> ok
+          a -> do
+            note $ "expected Lowered annotation on function head; got: " ++ show a
+            crash "give-prefix did not wrap head with Ann.Lowered"
       _ -> do
-        note $ "expected `f @ d` to parse as one application with one arg; got: " ++ show t
+        note $ "expected `give f d` to parse as one application with one arg; got: " ++ show t
         crash "structural mismatch"
 
 parsesTerm :: String -> Test ()

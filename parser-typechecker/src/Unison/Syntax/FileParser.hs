@@ -364,6 +364,11 @@ checkForDuplicateTermsAndConstructors fn datas effects terms watches = do
   -- bindings nested inside term bodies (both invoke 'givenBindingBody'
   -- which calls 'recordGivenVar').
   gbs <- getGivenVars
+  -- ADR-007: also pull the @class@-keyword names so the @add@/@update@
+  -- command can mark them in namespace metadata via
+  -- 'Unison.Codebase.Classes.markClassAt'. Without this the
+  -- declaration round-trips through @view@ as a plain @type@.
+  cbs <- getClassDeclVars
   pure
     UnisonFileId
       { fileNamespace = fn,
@@ -371,7 +376,8 @@ checkForDuplicateTermsAndConstructors fn datas effects terms watches = do
         effectDeclarationsId = effects,
         terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
         watches,
-        givenBindings = gbs
+        givenBindings = gbs,
+        classBindings = cbs
       }
   where
     effectDecls :: [DataDeclaration v Ann]
