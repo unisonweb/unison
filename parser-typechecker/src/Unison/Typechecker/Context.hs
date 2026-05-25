@@ -94,12 +94,12 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.KindInference qualified as KindInference
 import Unison.Name (Name)
+import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
 import Unison.PatternMatchCoverage.Class (EnumeratedConstructors (..), Pmc, traverseConstructorTypes)
 import Unison.PatternMatchCoverage.Class qualified as Pmc
-import Unison.Parser.Ann qualified as Ann
 import Unison.PatternMatchCoverage.ListPat qualified as ListPat
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)

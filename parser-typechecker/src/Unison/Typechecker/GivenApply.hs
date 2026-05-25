@@ -655,7 +655,7 @@ stripImplicitArgsByType isGivenRef lookupTermType = go
             Nothing ->
               rebuild (ABT.annotation tm) (go head_) (recurseArgs args)
 
-    -- | An arg "looks auto-resolved" iff it could plausibly be what
+    -- \| An arg "looks auto-resolved" iff it could plausibly be what
     -- the resolver picked: either a namespace-given top-level
     -- reference (ambient pool), or a local 'Var' (lexical given
     -- bound by @=>I@ or a @let given@). Anything else (a non-given
@@ -668,7 +668,7 @@ stripImplicitArgsByType isGivenRef lookupTermType = go
       ABT.Var _ -> True
       _ -> False
 
-    -- | Wrap the apply-chain head with a sentinel 'Term.Ann' whose
+    -- \| Wrap the apply-chain head with a sentinel 'Term.Ann' whose
     -- type is 'Type.giveMarkerRef'. The surface 'TermPrinter'
     -- recognises this sentinel on an @Apps'@ head and renders the
     -- chain with a leading @give @ keyword. The sentinel is a

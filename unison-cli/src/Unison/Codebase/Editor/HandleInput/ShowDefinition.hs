@@ -28,11 +28,11 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Classes qualified as Classes
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (UserObject))
 import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..), ShowDefinitionScope (..))
 import Unison.Codebase.Editor.Output
-import Unison.Codebase.Classes qualified as Classes
 import Unison.Codebase.Givens qualified as Givens
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
@@ -56,8 +56,6 @@ import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.NamePrinter (SyntaxText)
-import Unison.Util.Pretty qualified as Pretty.Util
-import Unison.Util.SyntaxText qualified as S
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -67,7 +65,9 @@ import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Pretty qualified as Pretty.Util
 import Unison.Util.Set qualified as Set
+import Unison.Util.SyntaxText qualified as S
 import Unison.WatchKind qualified as WatchKind
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.

@@ -373,11 +373,17 @@ listRef = Reference.Builtin "Sequence"
 -- accidentally summon it.
 giveMarkerRef :: TypeReference
 giveMarkerRef = Reference.Builtin "@@give-marker"
+
 bytesRef = Reference.Builtin "Bytes"
+
 effectRef = Reference.Builtin "Effect"
+
 termLinkRef = Reference.Builtin "Link.Term"
+
 typeLinkRef = Reference.Builtin "Link.Type"
+
 integerRef = Reference.Builtin "Integer"
+
 naturalRef = Reference.Builtin "Natural"
 
 builtinIORef, fileHandleRef, filePathRef, threadIdRef, socketRef :: TypeReference

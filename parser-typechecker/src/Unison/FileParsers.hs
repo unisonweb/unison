@@ -343,9 +343,9 @@ synthesizeFile env0 uf = do
                   Reference.Builtin ("Local.given." <> Var.name (Var.reset v)),
                 GivenElaborator.ambientType = t
               }
-            | tlc <- topLevelComponents,
-              (v, _, t) <- tlc,
-              Set.member (Var.reset v) (UF.givenBindings uf)
+          | tlc <- topLevelComponents,
+            (v, _, t) <- tlc,
+            Set.member (Var.reset v) (UF.givenBindings uf)
           ]
         ambient =
           GivenElaborator.mergePool
