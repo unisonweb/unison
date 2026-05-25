@@ -116,7 +116,7 @@ file = do
           ( \case
               SynDecl'Data decl
                 | Just fields <- decl.fields,
-                  Just (ref, _) <-
+                  Just (ref, dataDecl) <-
                     Map.lookup (maybe id Var.namespaced2 maybeNamespaceVar decl.name.payload) (UF.datas env) ->
                     let kind = if decl.isClass then ClassRecord else TypeRecord
                         rawAccessors =
@@ -130,14 +130,29 @@ file = do
                      in case kind of
                           TypeRecord -> rawAccessors
                           ClassRecord ->
-                            map
-                              ( annotateClassAccessor
-                                  decl.name.payload
-                                  decl.tyvars
-                                  ref
-                                  fields
-                              )
-                              rawAccessors
+                            -- The fields-with-resolved-types pair the
+                            -- field name from the parsed declaration
+                            -- with its type as it appears in the
+                            -- /resolved/ constructor — references in
+                            -- the resolved type have been bound to
+                            -- the namespace (e.g. @Text@ resolves to
+                            -- its builtin), which the typechecker
+                            -- needs when checking the accessor's
+                            -- generated body against our @=>@
+                            -- annotation. Falling back to the parsed
+                            -- field type would leave external types
+                            -- as free vars and fail with
+                            -- "I don't know about the type Text".
+                            let resolvedFieldTypes =
+                                  resolveClassFieldTypes dataDecl fields
+                             in map
+                                  ( annotateClassAccessor
+                                      decl.name.payload
+                                      decl.tyvars
+                                      ref
+                                      resolvedFieldTypes
+                                  )
+                                  rawAccessors
               _ -> []
           )
           unNamespacedSynDecls
@@ -450,6 +465,34 @@ annotateClassAccessor className tyvars classRef classFields (vname, a, body) =
 
     qualifyField :: v -> v -> v
     qualifyField cn fn = Var.namespaced (cn :| [fn])
+
+-- | Pair each parsed field name with its corresponding type as it
+-- appears in the /resolved/ data-declaration's constructor — that
+-- form has every type reference bound to the namespace (e.g.
+-- @Text@ → its builtin reference), which is what the typechecker
+-- needs when validating the accessor's generated body against the
+-- class's @=>@-bearing annotation. Records have exactly one
+-- constructor and its declared type is
+-- @forall tyvars. T1 -> T2 -> … -> Tn -> Self@; the inputs of that
+-- arrow chain are the field types in the same order the record
+-- syntax declared them.
+resolveClassFieldTypes ::
+  forall v.
+  (Var v) =>
+  DataDeclaration v Ann ->
+  [(L.Token v, Type v Ann)] ->
+  [(L.Token v, Type v Ann)]
+resolveClassFieldTypes dataDecl fields =
+  case DataDeclaration.constructors' dataDecl of
+    [(_, _, ctorType)] ->
+      let (inputs, _) = peelInputs (Type.unforall' ctorType)
+       in zipWith (\(tok, _) ty -> (tok, ty)) fields inputs
+    _ -> fields
+  where
+    peelInputs ty = case ty of
+      (_vs, Type.Arrow' i o) ->
+        let (rest, conc) = peelInputs ([], o) in (i : rest, conc)
+      (_, t) -> ([], t)
 
 stanza :: (Monad m, Var v) => P v m (Stanza v (Term v Ann))
 stanza = watchExpression <|> unexpectedAction <|> binding
