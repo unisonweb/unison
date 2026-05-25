@@ -31,9 +31,6 @@ Expected: `x` and `y`, `X`, and `Y` exist as above. UCM tells you this.
 ``` ucm
 > add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -61,9 +58,6 @@ Also, `Z` is an alias for `X`.
 
 ``` ucm
 > add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 ```
@@ -93,9 +87,6 @@ Expected: `x` is now `3` and `X` has constructor `Three`. UCM tells you the old 
 ``` ucm
 > update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -123,9 +114,6 @@ Expected: `x` is now `2` and `X` is `Two`. UCM says the old definition was also 
 
 ``` ucm
 > update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 ```
