@@ -451,11 +451,12 @@ pretty0
             -- Render that as the @give@ keyword so the source
             -- round-trips back to a parse with the matching
             -- 'Ann.Lowered' annotation.
-            Apps' (Ann' inner t) args | isGiveMarkerType t ->
-              paren (p >= Application) <$> do
-                inner' <- pretty0 (ac (InfixOp Highest) Normal im doc) inner
-                args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
-                pure (fmt S.ControlKeyword "give " <> PP.hang inner' args')
+            Apps' (Ann' inner t) args
+              | isGiveMarkerType t ->
+                  paren (p >= Application) <$> do
+                    inner' <- pretty0 (ac (InfixOp Highest) Normal im doc) inner
+                    args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
+                    pure (fmt S.ControlKeyword "give " <> PP.hang inner' args')
             _ -> notDoc go
         where
           notDoc go = do

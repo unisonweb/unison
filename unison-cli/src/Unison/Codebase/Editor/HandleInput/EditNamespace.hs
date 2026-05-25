@@ -17,11 +17,11 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Classes qualified as Classes
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
 import Unison.Codebase.Editor.Input (OutputLocation (..))
-import Unison.Codebase.Classes qualified as Classes
 import Unison.Codebase.Givens qualified as Givens
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration (Decl)
