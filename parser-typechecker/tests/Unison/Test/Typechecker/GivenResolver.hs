@@ -1,12 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Phase-2 chunk D1 tests for the implicit-resolution port. Mirrors
--- the spike's 15-test matrix (see
--- @spike\/implicits\/test\/Main.hs@), retargeted at real
+-- | Tests for the implicit-resolution algorithm, targeting real
 -- 'Unison.Type.Type' values.
 --
--- Tests are organised into the six success-criteria groups from
--- @docs\/implicits-plan.md@ §4.2 plus a small "sanity" group.
+-- Tests are organised into six success-criteria groups plus a small
+-- "sanity" group.
 module Unison.Test.Typechecker.GivenResolver (test) where
 
 import Data.List (sort)
@@ -83,7 +81,7 @@ tv :: Symbol -> Ty
 tv = Type.var ()
 
 -- | Givens are keyed by 'Reference'; we use 'Builtin' so equality
--- comparisons match the spike's by-name semantics.
+-- comparisons use by-name semantics.
 gname :: Text -> Reference
 gname = Reference.Builtin
 

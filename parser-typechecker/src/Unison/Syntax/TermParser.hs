@@ -915,11 +915,11 @@ term4 = do
     [] -> func
     _ -> Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
   where
-    -- ADR-007: @give f@ is a prefix syntactic transformation that
-    -- demotes f's leading `=>` arrows to `->`. The result is f with
-    -- its outer annotation wrapped in 'Ann.Lowered'; the typechecker
-    -- ('synthesizeWanted', Var/Ref clauses) checks this flag and
-    -- skips 'peelLeadingImplicits', then converts each leading
+    -- @give f@ is a prefix syntactic transformation that demotes f's
+    -- leading `=>` arrows to `->`. The result is f with its outer
+    -- annotation wrapped in 'Ann.Lowered'; the typechecker
+    -- ('synthesizeWanted', Var/Ref clauses) checks this flag and skips
+    -- 'peelLeadingImplicits', then converts each leading
     -- 'ImplicitArrow' to a regular 'Arrow'. Subsequent application
     -- supplies the dictionary positionally as an ordinary explicit
     -- argument.
@@ -1077,8 +1077,7 @@ destructuringBind = do
 -- bound variable's name) makes diagnostics traceable, and the index
 -- distinguishes multiple constraints on the same signature.
 --
--- See chunk L2 / ADR-010 for the lexical-given convention. The
--- companion @=>I@ rule in @Unison.Typechecker.Context.checkWanted@
+-- The companion @=>I@ rule in @Unison.Typechecker.Context.checkWanted@
 -- recognises the injected lambda when checking against an
 -- 'ImplicitArrow' and finishes the binding by registering the binder
 -- as a local lexical given.
@@ -1118,8 +1117,7 @@ binding = label "binding" do
   -- We commit as soon as we see the `given` keyword (no `P.try`); a
   -- malformed `given` is a hard parse error rather than a backtrack
   -- to `regularBinding`, which would otherwise produce a confusing
-  -- "expected binding got `given`" message. See chunk A2;
-  -- ADR-010, ADR-022.
+  -- "expected binding got `given`" message.
   P.optional (reserved "given") >>= \case
     Just kw -> givenBindingBody kw
     Nothing -> regularBinding
@@ -1181,11 +1179,11 @@ binding = label "binding" do
 -- block contexts (i.e., `let given name : T = body`). The remaining
 -- form is: name, `:`, type, `=`, body.
 --
--- For now (chunk A2) the parser produces an ordinary type-annotated
--- binding. The `given` tag itself is namespace metadata (chunk B1),
--- not part of the term AST. The leading-keyword source range is
--- preserved by the binding's annotation so downstream phases can
--- recognise the statement when wiring up implicit resolution.
+-- The parser produces an ordinary type-annotated binding. The
+-- `given` tag itself is namespace metadata, not part of the term AST.
+-- The leading-keyword source range is preserved by the binding's
+-- annotation so downstream phases can recognise the statement when
+-- wiring up implicit resolution.
 --
 -- The caller commits to this branch as soon as it sees `given`; this
 -- function does NOT use `P.try`, so a malformed body produces a
@@ -1204,11 +1202,11 @@ givenBindingBody ::
 givenBindingBody kw = label "given" do
   name <- prefixTermName
   verifyRelativeName' (fmap Name.unsafeParseVar name)
-  -- ADR-010 / chunk L2 fixup: record this variable name in the parser's
-  -- given-binding side channel so the typechecker can identify @given@
-  -- origins by name rather than inspecting type shape. This makes the
-  -- canonical premise-free form @given local : Ord a = …@ work without
-  -- relying on the type beginning with @=>@.
+  -- Record this variable name in the parser's given-binding side
+  -- channel so the typechecker can identify @given@ origins by name
+  -- rather than inspecting type shape. This makes the canonical
+  -- premise-free form @given local : Ord a = …@ work without relying
+  -- on the type beginning with @=>@.
   recordGivenVar (L.payload name)
   _ <- reserved ":"
   ty <- TypeParser.valueType

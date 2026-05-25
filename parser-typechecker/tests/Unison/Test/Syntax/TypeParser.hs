@@ -1,16 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Snapshot tests for the type-signature parser, exercising the
--- implicit-parameter constraint-arrow @=>@ syntax introduced by
--- chunk A1 of the implicits feature (see
--- @docs/implicits-phase-2-chunks.md@ and ADR-001).
+-- implicit-parameter constraint-arrow @=>@ syntax.
 --
--- Round-trip pretty-printing is a Phase 4 deliverable; for now these
--- tests ensure that:
+-- These tests ensure that:
 --
---   * positive examples from @docs/implicits-plan.md@ §1.2 parse;
---   * malformed @=>@ usages produce parse errors (no spurious
---     successes that downstream phases would have to clean up).
+--   * positive examples parse;
+--   * malformed @=>@ usages produce parse errors.
 module Unison.Test.Syntax.TypeParser where
 
 import Control.Monad (join)
@@ -31,7 +27,7 @@ test =
       scope "lexer-distinguishes-arrows" $ tests (parses <$> arrowDistinctions)
     ]
 
--- | Examples taken from @docs/implicits-plan.md@ §1.2 (consuming givens).
+-- | Positive examples of consuming givens.
 positives :: [String]
 positives =
   [ -- single constraint
@@ -52,14 +48,13 @@ positives =
     "(Show a) => a -> Text",
     -- constraint on a higher-arity type
     "Functor f => f a -> f a",
-    -- A1 carry-over: given-conclusion form, plan §1.2.
-    -- A constraint followed directly by a constraint-shaped conclusion
-    -- (no arrow, just `Show (List a)`) must parse: this is the
-    -- "given Show (List a) requires Show a" reading of `=>`.
+    -- Given-conclusion form. A constraint followed directly by a
+    -- constraint-shaped conclusion (no arrow, just `Show (List a)`)
+    -- must parse: this is the "given Show (List a) requires Show a"
+    -- reading of `=>`.
     "Show a => Show (List a)",
-    -- A1 carry-over: constraint combined with an effect-arrow body.
-    -- Plan §1.2 explicitly lists the `(Monad m) => (a ->{e} m b) -> ...`
-    -- form; the body uses the existing `->{eff}` arrow syntax.
+    -- Constraint combined with an effect-arrow body. The body uses
+    -- the existing `->{eff}` arrow syntax.
     "(Monad m) => (a ->{e} m b) -> m a -> m b"
   ]
 
@@ -75,10 +70,6 @@ arrowDistinctions =
 
 -- | Negative cases: malformed constraint arrows. Each of these should
 -- fail to parse as a value type.
---
--- We don't assert a specific error class because the cheapest A1
--- behaviour is "generic parse failure"; A4's snapshot suite will
--- pin precise diagnostics.
 negatives :: [(String, String)]
 negatives =
   [ ("=> Foo", "missing LHS"),
@@ -86,9 +77,9 @@ negatives =
     ("Show a =>", "missing RHS after multi-token LHS"),
     ("=> => Foo", "double constraint arrow"),
     ("Show => => Foo", "constraint arrow with no body between two LHSes"),
-    -- A1 carry-over: ADR-001 forbids nested `=>` chains. The user
-    -- must group constraints with parens: `(Show a, Eq a) => T`.
-    ("Show a => Eq a => T", "nested =>: ADR-001 requires (..., ...) => grouping")
+    -- Nested `=>` chains are forbidden. The user must group constraints
+    -- with parens: `(Show a, Eq a) => T`.
+    ("Show a => Eq a => T", "nested =>: requires (..., ...) => grouping")
   ]
 
 parses :: String -> Test ()

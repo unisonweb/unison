@@ -26,16 +26,16 @@ data Ann
     -- apply-site of the function being called), so LSP queries that
     -- find a node "at" a position still find this synthesised arg.
     -- Pretty-printers detect this constructor and elide the arg from
-    -- the surface rendering (per ADR-015's default elide-mode).
+    -- the surface rendering (the default elide-mode).
     Synthetic Ann
-  | -- ADR-007: tags a term whose leading @=>@ arrows should be
-    -- demoted to regular @->@ arrows at the typechecker site of
-    -- use. Produced by the @give@ keyword: writing @give f@ at the
-    -- source level means "give me the lowered version of f", so
-    -- subsequent application supplies the dictionary explicitly
-    -- instead of triggering implicit resolution. Annotation-aware
-    -- passes that don't care about the distinction should recurse
-    -- into the inner 'Ann' — same shape as 'Synthetic'.
+  | -- Tags a term whose leading @=>@ arrows should be demoted to
+    -- regular @->@ arrows at the typechecker site of use. Produced
+    -- by the @give@ keyword: writing @give f@ at the source level
+    -- means "give me the lowered version of f", so subsequent
+    -- application supplies the dictionary explicitly instead of
+    -- triggering implicit resolution. Annotation-aware passes that
+    -- don't care about the distinction should recurse into the
+    -- inner 'Ann' — same shape as 'Synthetic'.
     Lowered Ann
   | Ann {start :: L.Pos, end :: L.Pos}
   deriving (Eq, Ord, Show)
@@ -63,11 +63,11 @@ isSynthetic (Lowered a) = isSynthetic a
 isSynthetic _ = False
 
 -- | 'True' iff the annotation chain ends in a 'Lowered' marker —
--- i.e. this term was the operand of the @give@ keyword (ADR-007)
--- and its leading @=>@ arrows should be demoted to @->@ at the
--- typechecker site of use, so dictionaries can be supplied as
--- ordinary positional arguments instead of being filled by
--- implicit resolution.
+-- i.e. this term was the operand of the @give@ keyword and its
+-- leading @=>@ arrows should be demoted to @->@ at the typechecker
+-- site of use, so dictionaries can be supplied as ordinary
+-- positional arguments instead of being filled by implicit
+-- resolution.
 isLowered :: Ann -> Bool
 isLowered (Lowered _) = True
 isLowered (GeneratedFrom a) = isLowered a
@@ -147,11 +147,10 @@ class Annotated a where
   ann :: a -> Ann
 
 -- | Predicate over a typechecker location indicating whether the
--- term it annotates was wrapped with the @give@ keyword (ADR-007)
--- and should have its leading @=>@ arrows demoted to @->@ during
--- synthesis. Defaults to 'False' so that contexts whose @loc@ is
--- not 'Ann' simply never see lowerings — the feature is purely
--- source-level.
+-- term it annotates was wrapped with the @give@ keyword and should
+-- have its leading @=>@ arrows demoted to @->@ during synthesis.
+-- Defaults to 'False' so that contexts whose @loc@ is not 'Ann'
+-- simply never see lowerings — the feature is purely source-level.
 class IsLoweredAnn loc where
   isLoweredAnn :: loc -> Bool
   isLoweredAnn _ = False

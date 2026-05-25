@@ -27,10 +27,10 @@ data F' r a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
-  | -- | Mirror of 'Unison.Type.ImplicitArrow' (ADR-019) in the V2
-    -- codebase representation. Treated like 'Arrow' by everything but
-    -- the elaborator (Phase 2 chunks D2/D3); needed here so that the
-    -- conversion between the in-memory and on-disk type ASTs round-trips.
+  | -- | Mirror of 'Unison.Type.ImplicitArrow' in the V2 codebase
+    -- representation. Treated like 'Arrow' by everything but the
+    -- elaborator; needed here so that the conversion between the
+    -- in-memory and on-disk type ASTs round-trips.
     ImplicitArrow a a
   deriving (Foldable, Functor, Eq, Ord, Show, Traversable)
 

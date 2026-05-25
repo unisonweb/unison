@@ -401,12 +401,11 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches _gbs cb
     prettyTerms = Map.foldrWithKey (\k v -> (prettyTerm accessorNames k v :)) [] terms
     prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
 
-    -- ADR-007: rendering the file from the typechecked form should
-    -- preserve the @class@ keyword for any data declaration whose
-    -- parser-side var name was recorded in 'classBindings'. Without
-    -- this, the dependents-update path re-renders @class@es as plain
-    -- @type@s and loses both the field syntax and (eventually) the
-    -- ability to round-trip.
+    -- Rendering the file from the typechecked form should preserve
+    -- the @class@ keyword for any data declaration whose parser-side
+    -- var name was recorded in 'classBindings'. Without this, the
+    -- dependents-update path re-renders @class@es as plain @type@s
+    -- and loses both the field syntax and the ability to round-trip.
     classRefSet :: Set TypeReference
     classRefSet =
       Set.fromList
@@ -481,8 +480,8 @@ prettyTerm pped isSourceFile isTest (n, r, dt) =
           ("builtin " <> prettyHashQualified n <> " :")
           (TypePrinter.prettySyntax (ppeBody n r) typ)
     UserObject tm ->
-      -- ADR-015 default elide-mode: drop any apply-site argument
-      -- the elaborator marked 'Ann.Synthetic' (a resolved
+      -- Default elide-mode: drop any apply-site argument the
+      -- elaborator marked 'Ann.Synthetic' (a resolved
       -- implicit-dictionary insertion) before handing the term to
       -- the surface pretty-printer.
       let tm' = GivenApply.stripSyntheticArgs tm

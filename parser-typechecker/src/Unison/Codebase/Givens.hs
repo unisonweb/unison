@@ -7,7 +7,7 @@
 -- sentinel itself is the builtin reference @##Builtin.Given@; it has no
 -- runtime behaviour and is never invoked.
 --
--- Per ADR-013, this gives us:
+-- This representation gives us:
 --
 --   * No schema change: 'MdValues' is already serialised in the SQLite
 --     codebase and included in the namespace (causal) hash via
@@ -19,9 +19,6 @@
 -- Per-referent (not per-name) granularity: V1's 'Star2' metadata is
 -- keyed on the referent, so marking one name marks every alias of the
 -- same referent within that namespace. See 'isGivenAt' for details.
---
--- Higher-level UCM commands (@given@, @find :given@, etc.) live in
--- chunk B2 and consume the helpers in this module.
 module Unison.Codebase.Givens
   ( -- * Sentinel reference
     givenSentinel,
@@ -76,8 +73,7 @@ isGiven :: Referent -> Branch0 m -> Bool
 isGiven = hasGivenSentinel
 
 -- | All name segments at which the supplied term referent appears and
--- is marked as a given. Useful for @find :given@-style filters
--- (chunk B2).
+-- is marked as a given. Useful for @find :given@-style filters.
 namesMarkedGiven :: Referent -> Branch0 m -> Set.Set NameSegment
 namesMarkedGiven r b
   | hasGivenSentinel r b = Relation.lookupDom r (Star2.d1 (view terms_ b))

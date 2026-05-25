@@ -25,7 +25,7 @@ data Note v loc
   | TypeError (Context.ErrorNote v loc)
   | TypeInfo (Context.InfoNote v loc)
   | CompilerBug (CompilerBug v loc)
-  | -- | ADR-019 / chunk D4: an implicit-resolution failure. Surfaced
+  | -- | An implicit-resolution failure. Surfaced
     -- by 'Unison.FileParsers.synthesizeFile' after running the
     -- 'Unison.Typechecker.GivenElaborator' over the typechecker's
     -- 'Context.ConstraintGoal' info notes. The 'GR.ResolveError'

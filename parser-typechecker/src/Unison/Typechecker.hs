@@ -106,21 +106,20 @@ data Env v loc = Env
     freeNameToFuzzyTermsByShortName :: Map Name.Name (Map Name.Name [Either Name.Name (NamedReference v loc)]),
     topLevelComponents :: Map Name.Name (NamedReference v loc),
     variances :: Map Reference [Variance],
-    -- | Phase-2 chunk L1: the ambient pool of namespace-level givens
-    -- (terms tagged via 'Unison.Codebase.Givens.givenSentinel' that the
-    -- typechecker can use to satisfy 'ImplicitArrow' constraints in
-    -- the file under elaboration). Populated by 'computeTypecheckingEnvironment'
-    -- from the namespace; defaults to an empty pool when typechecking
+    -- | The ambient pool of namespace-level givens (terms tagged via
+    -- 'Unison.Codebase.Givens.givenSentinel' that the typechecker can
+    -- use to satisfy 'ImplicitArrow' constraints in the file under
+    -- elaboration). Populated by 'computeTypecheckingEnvironment' from
+    -- the namespace; defaults to an empty pool when typechecking
     -- contexts that don't have a namespace (e.g. some test setups).
     ambientGivens :: GR.Pool v loc,
-    -- | ADR-010 / chunk L2 fixup: variable names bound via the @given@
-    -- keyword in the file under elaboration. Populated by the parser's
-    -- side channel (see 'Unison.Syntax.Parser') and surfaced via
-    -- 'UF.UnisonFile.givenBindings'. Replaces the previous shape-based
-    -- predicate ('Type.unImplicitArrows' . declared type) which
-    -- silently dropped premise-free givens like
-    -- @given local : Ord a = …@. The set covers both file-level and
-    -- block-scoped @let given@ bindings.
+    -- | Variable names bound via the @given@ keyword in the file under
+    -- elaboration. Populated by the parser's side channel (see
+    -- 'Unison.Syntax.Parser') and surfaced via
+    -- 'UF.UnisonFile.givenBindings'. The set covers both file-level
+    -- and block-scoped @let given@ bindings, including premise-free
+    -- givens like @given local : Ord a = …@ which a purely shape-based
+    -- predicate over the declared type would miss.
     givenBindings :: Set v
   }
   deriving stock (Generic)
@@ -143,15 +142,14 @@ synthesize ppe pmccSwitch env t =
             pmccSwitch
             env.variances
             (TypeVar.liftType <$> env.ambientAbilities)
-            -- ADR-010 / chunk C2.1: lexical given environment is empty
-            -- at the top of the typechecker pipeline. Chunk C2.3 will
-            -- thread top-level @given@ decls into 'Env' so this picks
-            -- them up.
+            -- The lexical given environment starts empty at the top
+            -- of the typechecker pipeline; top-level @given@ decls are
+            -- discovered by walking the file.
             Map.empty
-            -- ADR-010 / chunk L2 fixup: thread the parser-collected
-            -- @given@-keyword names into the typechecker so the
-            -- letrec/let predicates can recognise @given@ origins by
-            -- name rather than by type shape.
+            -- Thread the parser-collected @given@-keyword names into
+            -- the typechecker so the letrec/let predicates can
+            -- recognise @given@ origins by name rather than by type
+            -- shape.
             env.givenBindings
             env.typeLookup
             (TypeVar.liftTerm t)

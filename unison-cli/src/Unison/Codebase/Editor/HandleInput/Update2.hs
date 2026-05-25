@@ -315,9 +315,9 @@ handleUpdate2 = do
                 Map.member v (UF.hashTermsId secondTuf)
               ]
         autoMarkGivens path givenNames
-        -- ADR-007: also auto-mark every type the parser tagged with
-        -- the @class@ keyword. Same pattern as givens, but on the
-        -- type namespace instead of the term namespace.
+        -- Also auto-mark every type the parser tagged with the
+        -- @class@ keyword. Same pattern as givens, but on the type
+        -- namespace instead of the term namespace.
         let classNames :: [Name]
             classNames =
               [ Name.unsafeParseVar v

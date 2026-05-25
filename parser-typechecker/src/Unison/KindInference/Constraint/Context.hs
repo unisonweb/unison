@@ -12,12 +12,11 @@ data ConstraintContext v loc
   = AppAbs !(UVar v loc) !(UVar v loc)
   | AppArg !(UVar v loc) !(UVar v loc) !(UVar v loc)
   | AppArrow loc !(Type v loc) !(Type v loc)
-  | -- | ADR-019 / chunk C2.1: kind constraint introduced by an
-    -- 'Type.ImplicitArrow' (the @=>@ form). Distinguished from
-    -- 'AppArrow' so kind-error messages can point at @=>@ rather than
-    -- @->@. Currently the kind structure is identical to that of
-    -- 'AppArrow' (both sides must be of kind @Type@); the distinction
-    -- exists for diagnostic precision.
+  | -- | Kind constraint introduced by an 'Type.ImplicitArrow' (the
+    -- @=>@ form). Distinguished from 'AppArrow' so kind-error messages
+    -- can point at @=>@ rather than @->@. Currently the kind structure
+    -- is identical to that of 'AppArrow' (both sides must be of kind
+    -- @Type@); the distinction exists for diagnostic precision.
     AppImplicitArrow loc !(Type v loc) !(Type v loc)
   | Annotation
   | EffectsList

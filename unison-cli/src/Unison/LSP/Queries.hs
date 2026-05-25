@@ -160,7 +160,7 @@ refInType typ = case ABT.out typ of
   ABT.Tm f -> case f of
     Type.Ref ref -> Just ref
     Type.Arrow _a _b -> Nothing
-    -- ADR-019: 'ImplicitArrow' has no top-level reference, same as 'Arrow'.
+    -- 'ImplicitArrow' has no top-level reference, same as 'Arrow'.
     Type.ImplicitArrow _a _b -> Nothing
     Type.Effect _a _b -> Nothing
     Type.App _a _b -> Nothing
@@ -367,7 +367,7 @@ findSmallestEnclosingTypeMatching pos pred typ
             ABT.Tm f -> case f of
               Type.Ref {} -> guardInFile *> pred typ
               Type.Arrow a b -> findSmallestEnclosingTypeMatching pos pred a <|> findSmallestEnclosingTypeMatching pos pred b
-              -- ADR-019: 'ImplicitArrow' descends like 'Arrow'.
+              -- 'ImplicitArrow' descends like 'Arrow'.
               Type.ImplicitArrow a b -> findSmallestEnclosingTypeMatching pos pred a <|> findSmallestEnclosingTypeMatching pos pred b
               Type.Effect effs rhs ->
                 -- There's currently a bug in the annotations for effects which cause them to

@@ -2,41 +2,40 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Phase-2 chunk D2: drive the standalone resolver
+-- | Drive the standalone resolver
 -- ('Unison.Typechecker.GivenResolver') from real typechecker output.
 --
--- D1 ported the resolver into the codebase as a pure function on
--- @Type.Type v loc@. C2.1 added a lexical given environment to
--- 'Unison.Typechecker.Context'. C2.2 emits 'Context.ConstraintGoal'
--- info notes at every @ImplicitArrow@ apply-site, each carrying the
--- goal type, the apply-site location, and a snapshot of the lexical
--- given environment.
+-- The typechecker emits 'Context.ConstraintGoal' info notes at every
+-- @ImplicitArrow@ apply-site, each carrying the goal type, the
+-- apply-site location, and a snapshot of the lexical given
+-- environment.
 --
 -- This module is the bridge: given a sequence of typechecker info
 -- notes plus a list of /ambient/ givens (top-level givens harvested
--- from the namespace per @Unison.Codebase.Givens.namesMarkedGiven@,
--- chunk B1), it constructs a per-goal 'GR.Pool' and calls 'GR.resolve'
--- once per goal. The verdict is recorded as a 'Context.SolvedImplicit'
--- info note so that the D3 post-pass can walk the term and substitute
--- the resolved dictionary terms back into the AST — exactly how
--- 'applyTdnrDecisions' walks 'Context.Decision' notes today (see
+-- from the namespace per @Unison.Codebase.Givens.namesMarkedGiven@),
+-- it constructs a per-goal 'GR.Pool' and calls 'GR.resolve' once per
+-- goal. The verdict is recorded as a 'Context.SolvedImplicit' info
+-- note so that a post-pass can walk the term and substitute the
+-- resolved dictionary terms back into the AST — exactly how
+-- 'applyTdnrDecisions' walks 'Context.Decision' notes (see
 -- @parser-typechecker/src/Unison/FileParsers.hs:329@).
 --
 -- ## Pool construction
 --
 -- Each goal has its own pool because the lexical-given snapshot is
--- per-goal (the goal at a deep let-binding sees more local givens than
--- the goal at top level). The ambient pool is shared across all goals
--- in the file.
+-- per-goal (the goal at a deep let-binding sees more local givens
+-- than the goal at top level). The ambient pool is shared across all
+-- goals in the file.
 --
 -- For each goal:
 --
--- 1. Take the 'goalScope' map (lexical givens captured by C2.1) and
---    decompose each entry's type with 'decomposeGivenType'. The
---    resulting 'GR.Given' records are tagged with @Lexical 0@ — D2
---    does not yet preserve binder-depth, so all lexical givens are
---    treated as equally inner. ADR-008's most-inner-wins rule still
---    chooses lexical over ambient correctly because @Lexical 0 < Ambient@.
+-- 1. Take the 'goalScope' map (lexical givens captured by the
+--    typechecker) and decompose each entry's type with
+--    'decomposeGivenType'. The resulting 'GR.Given' records are
+--    tagged with @Lexical 0@; binder-depth is not preserved, so all
+--    lexical givens are treated as equally inner. The
+--    most-inner-wins rule still chooses lexical over ambient
+--    correctly because @Lexical 0 < Ambient@.
 --
 -- 2. Append the supplied ambient pool, tagged @Ambient@.
 --
@@ -45,36 +44,31 @@
 -- ## Decomposition (top-level givens)
 --
 -- The user-facing API for top-level givens is a name in the namespace
--- whose 'MdValues' contains 'Unison.Codebase.Givens.givenSentinel' (B1).
+-- whose 'MdValues' contains 'Unison.Codebase.Givens.givenSentinel'.
 -- The caller (FileParsers / the file-elaboration entry point) is
 -- responsible for resolving each such name to its 'Reference' and
 -- 'Type.Type' and passing the result here as a list of 'AmbientGiven'
 -- records.
 --
--- The decomposition itself is straightforward: strip leading @forall@s
--- to extract 'givenTyVars'; walk the @ImplicitArrow@ chain in the body
--- to extract premises; what remains is the conclusion. (Outer 'Arrow's
--- — i.e. value-level parameters — are part of the conclusion. A
--- @Show a => List a -> Text@ given concludes @List a -> Text@, with
--- premise @Show a@.)
+-- Decomposition: strip leading @forall@s to extract 'givenTyVars';
+-- walk the @ImplicitArrow@ chain in the body to extract premises;
+-- what remains is the conclusion. (Outer 'Arrow's — i.e. value-level
+-- parameters — are part of the conclusion. A @Show a => List a ->
+-- Text@ given concludes @List a -> Text@, with premise @Show a@.)
 --
 -- ## Lexical-depth convention
 --
--- Per ADR-008 the resolver picks lexical-inner candidates over
--- lexical-outer ones at the same subsumption level. The 'goalScope'
--- snapshot we receive from C2.1 is a flat 'Map' that does /not/ carry
--- depth — it is simply "every given visible at the apply-site". For
--- D2 we tag every lexical given with @GR.Lexical 0@: the resolver's
--- ordering rule then uses 'Ambient' only when no lexical hit exists,
--- and ties between two equally-lexical givens are broken by
--- specificity (also fine).
+-- The resolver picks lexical-inner candidates over lexical-outer ones
+-- at the same subsumption level. The 'goalScope' snapshot is a flat
+-- 'Map' that does /not/ carry depth — it is simply "every given
+-- visible at the apply-site". We tag every lexical given with
+-- @GR.Lexical 0@: the resolver's ordering rule then uses 'Ambient'
+-- only when no lexical hit exists, and ties between two
+-- equally-lexical givens are broken by specificity.
 --
--- A future chunk may extend C2.1 to track binder depth so the resolver
--- can distinguish two lexical givens of different scopes.
+-- ## Shared-metavar awareness
 --
--- ## Shared-metavar awareness (ADR-023)
---
--- D2 runs the resolver as a /post-pass/ over the typechecker's info
+-- Resolution runs as a /post-pass/ over the typechecker's info
 -- notes, after all inference has reached its fixed point. By that
 -- point 'substituteSolved' (in 'Context') has already been applied to
 -- every 'ConstraintGoal' (its wildcard arm propagates the final
@@ -84,19 +78,9 @@
 -- standalone unifier treats them as flexible variables when the
 -- candidate's freshened skolems suggest, and otherwise rigid.
 --
--- Because we are post-typechecker and not interleaved with it, the
--- 'metavar-invalidation' rule from ADR-023 (Option A) is satisfied
--- trivially: there is no later substitution that can invalidate a
--- memoized resolution. Memoization is per-call to 'GR.resolve' and is
--- discarded between goals; that is sound because each goal carries an
--- independent type, and even when the type variables happen to share
--- names across goals the per-goal memo table is fresh.
---
--- A future refactor that interleaves resolution with the @M v loc@
--- monad — folding the resolver back into the typechecker proper —
--- would need to revisit this and either invalidate memo entries on
--- substitution (per ADR-023) or restrict memoization to fully-applied
--- goal types. We defer that decision; D2 stays standalone.
+-- Memoization is per-call to 'GR.resolve' and is discarded between
+-- goals; that is sound because each goal carries an independent
+-- type.
 module Unison.Typechecker.GivenElaborator
   ( -- * Top-level givens
     AmbientGiven (..),
@@ -300,11 +284,10 @@ resolveOne ambient PendingGoal {pgLoc, pgType, pgScope} =
 -- premises + conclusion exactly like an ambient given; the only
 -- difference is the 'GR.givenScope' tag.
 --
--- D2 does not yet track binder depth, so every lexical given gets
--- @Lexical 0@. ADR-008's most-inner-wins rule between two lexical
--- givens at the same depth therefore degenerates into the
--- specificity ordering — fine for D2's tests, and revisable in a
--- later chunk by extending C2.1's snapshot to carry depth.
+-- Binder depth is not tracked, so every lexical given gets
+-- @Lexical 0@. The most-inner-wins rule between two lexical givens
+-- at the same depth therefore degenerates into the specificity
+-- ordering.
 lexicalPool :: (Var v) => Map Reference (Type v loc) -> GR.Pool v loc
 lexicalPool m = GR.poolFromList (map mk (Map.toList m))
   where

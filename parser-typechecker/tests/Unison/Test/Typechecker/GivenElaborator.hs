@@ -1,16 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Integration tests for "Unison.Typechecker.GivenElaborator" (chunk
--- D2). We run the typechecker over small terms whose signatures
--- contain @ImplicitArrow@ parameters, confirm that 'ConstraintGoal'
--- info notes are emitted, then drive the elaborator and check the
+-- | Integration tests for "Unison.Typechecker.GivenElaborator". We
+-- run the typechecker over small terms whose signatures contain
+-- @ImplicitArrow@ parameters, confirm that 'ConstraintGoal' info
+-- notes are emitted, then drive the elaborator and check the
 -- resulting 'SolvedImplicit' decisions.
 --
 -- Three flavours of given source are exercised:
 --
 --   * a /lexical/ given (built programmatically through
---     'Context.synthesizeClosed''s initial-givens parameter — A2's
---     parser support is not on this branch);
+--     'Context.synthesizeClosed''s initial-givens parameter);
 --   * a /namespace/ (top-level / ambient) given supplied via the
 --     elaborator's 'AmbientGiven' API;
 --   * the /failure/ path: a goal with no matching given in either
@@ -45,15 +44,14 @@ test =
         scope "missing-given-yields-error" testMissingGiven,
         scope "no-implicit-no-decisions" testNoImplicit,
         scope "lexical-shadows-ambient" testLexicalShadowsAmbient,
-        -- L2: @let given@ at the AST level extends lexicalGivens.
+        -- @let given@ at the AST level extends lexicalGivens.
         scope "let-given-extends-lexical-givens" testLetGivenExtendsLexical,
         scope "let-given-shadows-ambient" testLetGivenShadowsAmbient,
-        -- L2 fixup: premise-free @given local : C = …@ (no @=>@ in
-        -- the type) — the canonical ADR-010 example. Before the fix
-        -- the type-shape predicate silently dropped this binding;
-        -- the parser-tagged side channel makes it work.
+        -- Premise-free @given local : C = …@ (no @=>@ in the type).
+        -- The parser-tagged side channel is what makes this binding
+        -- register as a lexical given even though the type-shape
+        -- predicate alone wouldn't accept it.
         scope "let-given-premise-free-extends-lexical-givens" testLetGivenPremiseFree,
-        -- D4 carry-overs from D2 review.
         scope "ambiguous-given-yields-error" testAmbiguousGiven,
         scope "depth-exceeded-yields-error" testDepthExceeded,
         scope "cycle-with-metavar-regression" testCycleWithMetavar,
@@ -109,7 +107,7 @@ hType =
     otherConstraintTy
     (Type.implicitArrow () constraintTy (Type.arrow () (Type.nat ()) (Type.nat ())))
 
--- Witness term used by the L2 'let given' tests: a builtin whose
+-- Witness term used by the 'let given' tests: a builtin whose
 -- declared type is the *conclusion* (TestC). The binding annotation is
 -- @OtherC => TestC@; checking the body against that annotation peels
 -- the leading 'ImplicitArrow' (emitting an OtherC goal) and recurses on
@@ -247,8 +245,7 @@ testLexicalResolution =
   scope "single-lexical-given-resolves-single-implicit" $
     -- Build the lexical-given snapshot at the surface level, lift to
     -- Context.Type, and pass it as the typechecker's initial givens
-    -- map. A2's parser sugar (@let given x = ...@) is not on this
-    -- branch, so we exercise the same code path programmatically.
+    -- map. We exercise the same code path programmatically.
     let lexicalRef = Reference.Builtin "LexicalShowNat"
         surfaceGivens = Map.singleton lexicalRef constraintTy
         givens = TypeVar.liftType <$> surfaceGivens
@@ -296,7 +293,7 @@ testNoImplicit =
      in expectEqual 0 (length decisions)
 
 ------------------------------------------------------------------------------
--- 6. Lexical given wins over ambient at the same goal type (ADR-008)
+-- 6. Lexical given wins over ambient at the same goal type
 ------------------------------------------------------------------------------
 
 -- The two-implicit signature lets us test both layers in the same
@@ -331,12 +328,12 @@ testLexicalShadowsAmbient =
           expect (ambientShowNatRef `elem` names)
 
 ------------------------------------------------------------------------------
--- L2: @let given@ at the AST level. A binding whose declared type
--- begins with an 'ImplicitArrow' should be picked up by the
--- typechecker's lexical-given environment so a 'ConstraintGoal' inside
--- the let-body resolves against it.
+-- @let given@ at the AST level. A binding whose declared type begins
+-- with an 'ImplicitArrow' should be picked up by the typechecker's
+-- lexical-given environment so a 'ConstraintGoal' inside the let-body
+-- resolves against it.
 --
--- We construct the AST that A2's parser would produce for
+-- We construct the AST that the parser would produce for
 --
 -- @
 --   let given local : TestC = body
@@ -344,20 +341,17 @@ testLexicalShadowsAmbient =
 -- @
 --
 -- by hand: a non-top 'singleLet' whose binding is a 'Term.Ann' with
--- declared type @TestC@... but @TestC@ alone has no @=>@ so it isn't
--- a given. The minimal shape that triggers chunk L2's wiring is a
--- declared type that contains at least one 'ImplicitArrow'; i.e. the
--- given's type itself takes a premise. The simplest two-layer test:
--- give the local a /derived/ given of shape @TestC => TestC@ — its
--- conclusion matches the goal and its premise is satisfied by the
--- ambient @TestC@ given. The resolver must then choose the lexical
--- candidate (per 'GR.Lexical 0 < GR.Ambient').
+-- a declared type that contains at least one 'ImplicitArrow'; i.e.
+-- the given's type itself takes a premise. The simplest two-layer
+-- test: give the local a /derived/ given of shape @TestC => TestC@
+-- — its conclusion matches the goal and its premise is satisfied by
+-- the ambient @TestC@ given. The resolver must then choose the
+-- lexical candidate (per 'GR.Lexical 0 < GR.Ambient').
 --
 -- Note: the resolver records 'givenName' as a synthetic
 -- @Reference.Builtin "Local.given.<varname>"@ for local lexical
--- givens; chunk L2 doesn't yet plumb a fully-applied dictionary back
--- through the rewriter, but the 'SolvedImplicit' info note carries
--- the chosen ref, which is what these tests assert on.
+-- givens. The 'SolvedImplicit' info note carries the chosen ref,
+-- which is what these tests assert on.
 ------------------------------------------------------------------------------
 
 testLetGivenExtendsLexical :: Test ()
@@ -368,7 +362,7 @@ testLetGivenExtendsLexical =
     --    in f 42        -- f : TestC => Nat -> Nat
     -- @
     --
-    -- The binding's declared type begins with '=>', so chunk L2's
+    -- The binding's declared type begins with '=>', so
     -- 'extendLexicalGivenFromBinding' wires a synthetic
     -- @Local.given.local : OtherC => TestC@ into the lexical-given env
     -- before checking the body. The apply-site goal is @TestC@; the
@@ -403,9 +397,9 @@ testLetGivenExtendsLexical =
             defaultVariances
             []
             Map.empty
-            -- ADR-010 / chunk L2 fixup: the parser tags @given@-bound
-            -- vars; programmatic tests stand in for that here by
-            -- handing the typechecker the same set directly.
+            -- The parser tags @given@-bound vars; programmatic tests
+            -- stand in for that here by handing the typechecker the
+            -- same set directly.
             (Set.singleton localVar)
             typeLookup
             (TypeVar.liftTerm term)
@@ -425,8 +419,8 @@ testLetGivenExtendsLexical =
             scope "lexical-local-was-chosen" $
               -- The TestC goal at the let-body's apply-site must be
               -- solved by the local lexical given. The synthetic ref
-              -- 'Local.given.local' is the resolver's witness that L2's
-              -- wiring threaded the binding into the lexical scope.
+              -- 'Local.given.local' is the resolver's witness that the
+              -- binding was threaded into the lexical scope.
               expect (expectedRef `elem` solvedNames)
           ]
 
@@ -440,7 +434,7 @@ testLetGivenShadowsAmbient =
     --
     -- This time we *also* supply an ambient TestC. The resolver must
     -- still pick the local 'shadow' (per 'GR.Lexical 0 < GR.Ambient'
-    -- in 'filterMostInner'), demonstrating that the L2 wiring threads
+    -- in 'filterMostInner'), demonstrating that the wiring threads
     -- the local with 'Lexical 0' rather than mistakenly tagging it
     -- 'Ambient'.
     let localVar = Var.named @Symbol "shadow"
@@ -494,18 +488,15 @@ testLetGivenShadowsAmbient =
           ]
 
 ------------------------------------------------------------------------------
--- L2 fixup: premise-free @let given local : TestC = …@. This is the
--- canonical ADR-010 example: the binding's declared type has no @=>@
--- premises. Before the fix the predicate
--- @null . fst . unImplicitArrows@ silently dropped this binding, so
--- the lexical given environment was never extended and the apply-site
--- goal failed to resolve. After the parser-tagged side channel the
--- typechecker recognises the binding by name and registers it.
+-- Premise-free @let given local : TestC = …@. The binding's declared
+-- type has no @=>@ premises. The typechecker recognises the binding
+-- by name (via the parser-tagged side channel) and registers it in
+-- the lexical given environment.
 --
 -- Test setup: the local has type @TestC@ (no premises). The body of
 -- the let mentions @f 42@, where @f : TestC => Nat -> Nat@. With no
 -- ambient TestC supplied, the only way the apply-site resolves is via
--- the local — which requires L2's letrec hook to register it. We
+-- the local — which requires the letrec hook to register it. We
 -- simulate the parser's tagging by populating 'givenBindings' with
 -- the local's variable name directly.
 ------------------------------------------------------------------------------
@@ -519,7 +510,7 @@ testLetGivenPremiseFree =
         -- is a witness reference whose declared type matches.
         givenBody = Term.ref () witnessLetGivenRef
         -- Note the absence of @Type.implicitArrow@ here: the type is
-        -- a plain conclusion. Pre-fix this would not register.
+        -- a plain conclusion.
         givenBinding = Term.ann () givenBody constraintTy
         letBody = Term.app () (Term.ref () fRef) (Term.nat () 42)
         term =
@@ -557,9 +548,9 @@ testLetGivenPremiseFree =
           ]
 
 ------------------------------------------------------------------------------
--- D4 carry-over: Ambiguous reaches the elaborator end-to-end (D2 only
--- exercised NoGiven). Two ambient givens of identical conclusion both
--- match the goal; the resolver must yield 'Ambiguous'.
+-- Ambiguous reaches the elaborator end-to-end. Two ambient givens of
+-- identical conclusion both match the goal; the resolver must yield
+-- 'Ambiguous'.
 ------------------------------------------------------------------------------
 
 ambientShowNatA :: Elab.AmbientGiven Symbol ()
@@ -595,9 +586,9 @@ testAmbiguousGiven =
             crash ("expected one decision, got " <> show (length xs))
 
 ------------------------------------------------------------------------------
--- D4 carry-over: DepthExceeded surfaces through the elaborator. We
--- build a self-referential given (Self requires Self) with no base
--- case; the resolver must bail with DepthExceeded (or NoGiven via the
+-- DepthExceeded surfaces through the elaborator. We build a
+-- self-referential given (Self requires Self) with no base case; the
+-- resolver must bail with DepthExceeded (or NoGiven via the
 -- per-branch cycle short-circuit, depending on memoization order).
 ------------------------------------------------------------------------------
 
@@ -662,11 +653,11 @@ testDepthExceeded =
             crash ("expected one decision, got " <> show (length xs))
 
 ------------------------------------------------------------------------------
--- D4 carry-over: cycle/metavar regression. A mutually-recursive given
--- pair (FooFromBar / BarFromFoo) where the goal type carries an
--- inference variable in a non-conclusion position. This exercises the
--- now-fixed `cycleHit` widened-flex behavior: the per-branch cycle
--- check must compare alpha-renamed fresh copies as equivalent goals.
+-- Cycle/metavar regression. A mutually-recursive given pair
+-- (FooFromBar / BarFromFoo) where the goal type carries an inference
+-- variable in a non-conclusion position. Exercises the `cycleHit`
+-- widened-flex behavior: the per-branch cycle check must compare
+-- alpha-renamed fresh copies as equivalent goals.
 --
 -- We construct the goal directly (without going through synthesis) so
 -- we can place a fresh free variable in the goal that cycleHit must
@@ -713,10 +704,9 @@ testCycleWithMetavar =
             crash ("expected failure, got: " <> show t)
 
 ------------------------------------------------------------------------------
--- D4: unresolved metavar in the goal yields its own dedicated error
--- variant. We construct a goal with a free variable whose 'Var.typeOf'
--- is 'Inference' (not user-named) and check the resolver short-
--- circuits to 'UnresolvedMetavarInGoal'.
+-- A goal carrying an inference variable can still resolve when the
+-- pool has a unique head-matching candidate: the resolver binds the
+-- metavar against the candidate's exposed type.
 ------------------------------------------------------------------------------
 
 testUnresolvedMetavarInGoal :: Test ()

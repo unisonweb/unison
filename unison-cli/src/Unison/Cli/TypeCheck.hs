@@ -36,9 +36,9 @@ computeTypecheckingEnvironment ::
   FileParsers.ShouldUseTndr Sqlite.Transaction ->
   Codebase IO Symbol Ann ->
   [Type Symbol Ann] ->
-  -- | Ambient givens harvested from the namespace (chunk L1).
-  -- Build with 'ambientGivensFromBranch' or pass @[]@ if no namespace
-  -- is in scope.
+  -- | Ambient givens harvested from the namespace. Build with
+  -- 'ambientGivensFromBranch' or pass @[]@ if no namespace is in
+  -- scope.
   [GivenElaborator.AmbientGiven Symbol Ann] ->
   UnisonFile Symbol Ann ->
   Sqlite.Transaction (Typechecker.Env Symbol Ann)
@@ -50,7 +50,7 @@ computeTypecheckingEnvironment shouldUseTndr codebase ambientAbilities ambientGi
     ambientGivens
     unisonFile
 
--- | Phase-2 chunk L1: harvest the ambient given pool from a 'Branch0'.
+-- | Harvest the ambient given pool from a 'Branch0'.
 --
 -- Walks the branch's 'deepReferents' and keeps any term referent
 -- carrying 'Unison.Codebase.Givens.givenSentinel' in its metadata.
@@ -70,8 +70,8 @@ ambientGivensFromBranch codebase b0 = do
   -- project root, so a flat scan of 'deepReferents b0' followed by
   -- 'Givens.isGiven r b0' never finds anything past the top level.
   -- 'Unison.Codebase.Editor.HandleInput.Givens.handleGivens' uses the
-  -- same recursive pattern. Per ADR-005, ambient resolution includes
-  -- the @lib@ subtree, so we do *not* prune libraries here.
+  -- same recursive pattern. Ambient resolution includes the @lib@
+  -- subtree, so we do *not* prune libraries here.
   let givenRefs :: [Reference.TermReference]
       givenRefs = Set.toList (collectGivenRefs b0)
   fmap catMaybes . for givenRefs $ \r ->

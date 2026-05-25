@@ -1,13 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Tests for "Unison.Typechecker.GivenApply" (chunk D3): the
--- post-typecheck pass that walks a term and substitutes resolved
--- implicit arguments into 'App' nodes.
+-- | Tests for "Unison.Typechecker.GivenApply": the post-typecheck
+-- pass that walks a term and substitutes resolved implicit arguments
+-- into 'App' nodes.
 --
--- These tests build small terms programmatically (the file-level
--- parser support for @given@ declarations from chunk A2 is on this
--- branch but not yet wired into the file's lexical-given collection;
--- that wiring is for a later C-stream chunk). We exercise the
+-- These tests build small terms programmatically and exercise the
 -- elaborate-then-apply pipeline directly:
 --
 --  1. Build a term that mentions a function with an @ImplicitArrow@
@@ -55,8 +52,7 @@ test =
         scope "source-level-end-to-end" testSourceLevelEndToEnd,
         scope "source-level-let-given-shadows-ambient" testSourceLevelLetGivenShadowsAmbient,
         scope "source-level-file-internal-given" testSourceLevelFileInternalGiven,
-        -- L2 fixup: premise-free givens at file scope (the canonical
-        -- ADR-010 example) and inside a @let@ block.
+        -- Premise-free givens at file scope and inside a @let@ block.
         scope "source-level-file-given-premise-free" testSourceLevelFileGivenPremiseFree,
         scope "source-level-let-given-premise-free" testSourceLevelLetGivenPremiseFree,
         scope "override-skips-decision" testOverrideSkipsDecision,
@@ -104,8 +100,9 @@ testBuildDictionary =
 naturalAnn :: Int -> Int -> Ann
 naturalAnn col len = Ann (L.Pos 1 col) (L.Pos 1 (col + len))
 
--- A widened Ann simulating A3's `ann atTok <> ann d`: shift start
--- by 2 (one for `@`, one for the space) but keep the end the same.
+-- A widened Ann simulating the override syntax's `ann atTok <> ann d`:
+-- shift start by 2 (one for `@`, one for the space) but keep the end
+-- the same.
 widenedAnn :: Int -> Int -> Ann
 widenedAnn col len = Ann (L.Pos 1 (col - 2)) (L.Pos 1 (col + len))
 
@@ -132,11 +129,10 @@ testIsOverrideArg =
          in expect (not (GA.isOverrideArg outer)),
       scope "widened-compound-is-not-override" $
         let -- A widened compound expression: outer App ann starts
-            -- before the leftmost child's annotation. The previous
-            -- 'isOverrideArg' design treated this as an override, but
-            -- it conflicts with surface forms like list literals
-            -- (where the outer brackets naturally widen the
-            -- annotation past the first child); after the fix
+            -- before the leftmost child's annotation. Treating this
+            -- as an override would conflict with surface forms like
+            -- list literals (where the outer brackets naturally widen
+            -- the annotation past the first child), so
             -- 'isOverrideArg' is restricted to leaf surface terms.
             inner = Term.var (naturalAnn 7 1) (Var.named "x" :: Symbol)
             outerWidened =
@@ -197,7 +193,7 @@ typeLookup =
 -- The term is built at the user-facing 'Term.Term Symbol Ann' shape;
 -- we lift it to 'Context.Term' with 'TypeVar.liftTerm' before
 -- synthesis (which lives in the 'TypeVar'-wrapped world), then run
--- D3 on the original surface term.
+-- the apply pass on the original surface term.
 elaborateAndApply ::
   Term Symbol Ann ->
   GR.Pool Symbol Ann ->
@@ -347,10 +343,11 @@ testEndToEndChained =
 -- 5. Override skips decision
 ------------------------------------------------------------------------------
 
--- This test simulates A3's `f @ d x` syntax. We construct a term
--- that already has a *widened*-annotation argument at the implicit
--- slot, then verify D3 leaves the slot alone (no dictionary
--- inserted) even though the typechecker emitted a constraint goal.
+-- This test simulates the `f @ d x` override syntax. We construct a
+-- term that already has a *widened*-annotation argument at the
+-- implicit slot, then verify the apply pass leaves the slot alone (no
+-- dictionary inserted) even though the typechecker emitted a
+-- constraint goal.
 testOverrideSkipsDecision :: Test ()
 testOverrideSkipsDecision =
   scope "f @userOverride 42 keeps user's override and skips elaborator" $
@@ -376,8 +373,8 @@ testOverrideSkipsDecision =
                 userOverride
             )
             (Term.nat External 42)
-        -- Even though we provide an ambient given, D3 should NOT
-        -- consume it because the override-arg is widened.
+        -- Even though we provide an ambient given, the apply pass
+        -- should NOT consume it because the override-arg is widened.
         ambient = Elab.ambientPool [ambientGiven]
         res =
           Context.synthesizeClosed
@@ -435,8 +432,8 @@ testMissingDecision =
   scope "no ambient, no lexical given ⇒ term unchanged, error preserved on info notes" $
     let term = Term.app External (Term.ref External fImplicitRef) (Term.nat External 42)
         rewritten = elaborateAndApply term (GR.poolFromList [])
-     in -- D3 leaves the unsuccessful slot alone; the term keeps its
-        -- original arity. (D4 will surface the error.)
+     in -- The apply pass leaves the unsuccessful slot alone; the
+        -- term keeps its original arity.
         case ABT.out rewritten of
           ABT.Tm (Term.App f arg) -> do
             case ABT.out f of
@@ -448,16 +445,13 @@ testMissingDecision =
           o -> crash ("expected App, got: " <> show o)
 
 ------------------------------------------------------------------------------
--- 8. Property: D3 does not strip the widened annotation on override
--- arguments. (The spec calls for `parse(print(elaborate(t)))`
--- preserving override markers, but the printer for '=>' is Phase 4;
--- we test the necessary precondition: D3 is non-destructive on
--- override-arg annotations.)
+-- Property: the apply pass does not strip the widened annotation on
+-- override arguments.
 ------------------------------------------------------------------------------
 
 testOverrideMarkerPreserved :: Test ()
 testOverrideMarkerPreserved =
-  scope "D3 preserves widened annotations on override-arg slots" $
+  scope "apply pass preserves widened annotations on override-arg slots" $
     let userOverrideRef = Reference.Builtin "UserOverride"
         widenedOuter = Ann (L.Pos 1 3) (L.Pos 1 20)
         userOverride =
@@ -487,7 +481,7 @@ testOverrideMarkerPreserved =
           o -> crash ("expected App, got: " <> show o)
 
 ------------------------------------------------------------------------------
--- 9. Source-level end-to-end pin: parser ⇒ typechecker ⇒ resolver
+-- Source-level end-to-end pin: parser ⇒ typechecker ⇒ resolver
 --
 -- The other end-to-end tests above ('testEndToEndSingle' /
 -- 'testEndToEndChained') build their input terms programmatically with
@@ -502,18 +496,11 @@ testOverrideMarkerPreserved =
 -- typechecker's info-note stream contains:
 --
 --   1. A 'ConstraintGoal' (proving the parser produced an
---      'ImplicitArrow' that C2.2 then saw at the apply-site).
+--      'ImplicitArrow' that the typechecker then saw at the apply-site).
 --   2. A 'SolvedImplicit' whose decision is @Right ResolutionTree@
---      (proving the chunk L1 wiring threaded the ambient pool through
---      to the resolver, and that resolution succeeded against the
---      supplied ambient given).
+--      (proving the ambient pool reached the resolver, and that
+--      resolution succeeded against the supplied ambient given).
 --   3. The chosen given's reference matches what we supplied.
---
--- Before chunk L1, 'synthesizeFile' passed @Map.empty@ as the ambient
--- pool, so namespace givens never participated in resolution and only
--- the failure path was observable from a file-level program. With L1
--- in place, an ambient pool plumbed through 'computeTypecheckingEnvironment'
--- reaches the resolver and the success path is now observable here.
 ------------------------------------------------------------------------------
 
 testSourceLevelEndToEnd :: Test ()
@@ -564,15 +551,14 @@ testSourceLevelEndToEnd =
               -- generalization may duplicate the goal across components.
               expect (not (null constraintGoals)),
             scope "solved-implicit-emitted-on-success-path" $
-              -- L1 wiring: the ambient pool reached the resolver, so
-              -- at least one goal must have been solved with a
-              -- 'ResolutionTree' decision.
+              -- The ambient pool reached the resolver, so at least one
+              -- goal must have been solved with a 'ResolutionTree'
+              -- decision.
               expect (not (null solvedImplicitTrees)),
             scope "no-unresolved-implicits-when-given-is-supplied" $
               -- With a satisfying ambient given supplied, no
-              -- 'UnresolvedImplicit' note should be surfaced — the
-              -- whole point of L1 is that namespace givens now feed
-              -- the resolver.
+              -- 'UnresolvedImplicit' note should be surfaced —
+              -- namespace givens feed the resolver.
               expect (null unresolved),
             scope "chosen-given-is-the-supplied-one" $
               -- The resolver picked /our/ ambient given, not some
@@ -585,16 +571,16 @@ testSourceLevelEndToEnd =
           ]
 
 ------------------------------------------------------------------------------
--- Source-level: chunk L2 — `let given` shadows ambient
+-- Source-level: `let given` shadows ambient
 --
 -- The same parse=>synthesize=>resolve pipeline as 'testSourceLevelEndToEnd',
 -- but exercising a @let given@ binding inside a function body. Both
 -- an ambient given (passed via 'parseAndSynthesizeAsFileWithGivens')
--- and a local @let given@ binding match the apply-site goal; per
--- ADR-008 the local should win.
+-- and a local @let given@ binding match the apply-site goal; the
+-- local should win (lexical-inner-wins).
 --
--- The synthetic reference for a local @let given@ is built by chunk L2
--- as @Reference.Builtin "Local.given.<varname>"@; see
+-- The synthetic reference for a local @let given@ is built as
+-- @Reference.Builtin "Local.given.<varname>"@; see
 -- 'extendLexicalGivenFromBinding' in 'Unison.Typechecker.Context'.
 -- Asserting on the *prefix* of the chosen ref's name lets the test
 -- pin the parser → resolver → apply chain end-to-end without
@@ -604,17 +590,17 @@ testSourceLevelEndToEnd =
 testSourceLevelLetGivenShadowsAmbient :: Test ()
 testSourceLevelLetGivenShadowsAmbient =
   scope "let given local with => shadows the ambient given at the same goal" $
-    -- For chunk L2 to register a binding as a lexical given, the
-    -- binding's declared type must begin with at least one
-    -- 'ImplicitArrow' (the same signal C2.3 uses to emit 'GivenDecl'
-    -- notes). To avoid the trivial @Nat => Nat@ cycle (where the
-    -- local's premise is the same as the goal, so the resolver
-    -- short-circuits the lexical branch and falls back to ambient), we
-    -- make the local's premise a /different/ type — @Boolean@ — and
-    -- supply an ambient Boolean given to satisfy that premise. The
-    -- apply-site goal is still @Nat@; both an ambient @Nat@ and the
-    -- lexical @Boolean => Nat@ produce a successful tree, and per
-    -- ADR-008's lexical-inner-wins rule the local must be chosen.
+    -- For a binding to register as a lexical given, the binding's
+    -- declared type must begin with at least one 'ImplicitArrow' (the
+    -- same signal the typechecker uses to emit 'GivenDecl' notes). To
+    -- avoid the trivial @Nat => Nat@ cycle (where the local's premise
+    -- is the same as the goal, so the resolver short-circuits the
+    -- lexical branch and falls back to ambient), we make the local's
+    -- premise a /different/ type — @Boolean@ — and supply an ambient
+    -- Boolean given to satisfy that premise. The apply-site goal is
+    -- still @Nat@; both an ambient @Nat@ and the lexical
+    -- @Boolean => Nat@ produce a successful tree, and the
+    -- lexical-inner-wins rule selects the local.
     let src =
           unlines
             [ "useImplicit : Nat => Nat -> Nat",
@@ -667,37 +653,29 @@ testSourceLevelLetGivenShadowsAmbient =
               -- The TestC apply-site goal must be solved by the lexical
               -- local given. The synthetic ref (synthetic
               -- @Reference.Builtin "Local.given.<varname>"@) is the
-              -- resolver's witness that L2's wiring threaded the
-              -- binding into the lexical scope. Asserting on the prefix
-              -- pins parser → resolver → apply chain end-to-end without
+              -- resolver's witness that the binding was threaded into
+              -- the lexical scope. Asserting on the prefix pins the
+              -- parser → resolver → apply chain end-to-end without
               -- depending on hash-based references.
               expect (any isLocalGiven chosenNames),
             scope "local-overrides-but-ambient-still-reachable" $
-              -- The previous shape of this test asserted that the
-              -- ambient given /also/ appears in the chosen-decisions
-              -- list, because the typechecker emitted a spurious
-              -- second goal for @useImplicit@'s own @=>@ binding
-              -- check. That goal was always misplaced — the binding
-              -- site is the introduction of an implicit parameter,
-              -- not a call site that wants one filled — and is no
-              -- longer emitted now that the @=>I@ rule consumes the
-              -- injected leading lambda. The lexical-scoping check
-              -- below remains: with the local given present, every
-              -- emitted goal at the apply-site must pick the local.
+              -- With the local given present, every emitted goal at
+              -- the apply-site must pick the local.
               expect $
                 all isLocalGiven chosenNames
                   && ambientNatRef `notElem` chosenNames
           ]
 
 ------------------------------------------------------------------------------
--- Source-level: file-internal given (review carry-over from L1).
+-- Source-level: file-internal given.
 --
--- L1 only harvests givens from the *namespace* (codebase-committed
--- definitions). A given declared in the same .u file as the consumer
--- never reaches L1's ambient pool because it isn't part of the
--- codebase yet. L2's in-typechecker lexical-given env handles this:
--- 'annotateLetRecBindings'' registers every given-shaped top-level
--- binding into 'lexicalGivens', so consumers in the same file see it.
+-- The ambient pool only harvests givens from the *namespace*
+-- (codebase-committed definitions). A given declared in the same .u
+-- file as the consumer never reaches the ambient pool because it
+-- isn't part of the codebase yet. The in-typechecker lexical-given
+-- env handles this: 'annotateLetRecBindings'' registers every
+-- given-shaped top-level binding into 'lexicalGivens', so consumers
+-- in the same file see it.
 --
 -- This test exercises a self-contained .u file with no ambient pool
 -- and no library deps. The file declares its own given and a function
@@ -708,9 +686,9 @@ testSourceLevelLetGivenShadowsAmbient =
 testSourceLevelFileInternalGiven :: Test ()
 testSourceLevelFileInternalGiven =
   scope "file-internal given resolves the consumer's implicit slot" $
-    -- Uses the @given@ keyword (per ADR-010 / chunk L2 fixup the
-    -- @=>@-in-the-type heuristic no longer suffices — only bindings
-    -- explicitly declared via @given@ become candidates).
+    -- Uses the @given@ keyword: only bindings explicitly declared
+    -- via @given@ become candidates (a plain @=>@ in the type does
+    -- not on its own register a binding as a given).
     let src =
           unlines
             [ "given fileGiven : Boolean => Nat = 99",
@@ -723,8 +701,9 @@ testSourceLevelFileInternalGiven =
             ]
         -- The /only/ ambient is Boolean (used as the file-internal
         -- given's premise). No ambient Nat is supplied — if the
-        -- file-internal given isn't picked up by L2, resolution fails
-        -- with NoGiven and the test catches it via UnresolvedImplicit.
+        -- file-internal given isn't picked up by the lexical-given
+        -- wiring, resolution fails with NoGiven and the test catches
+        -- it via UnresolvedImplicit.
         ambientBoolRef :: Reference.Reference
         ambientBoolRef = Reference.Builtin "Test.ambientBoolFI"
         ambientBool =
@@ -760,25 +739,23 @@ testSourceLevelFileInternalGiven =
               expect (not (null solvedTrees)),
             scope "file-internal-given-was-chosen" $
               -- The Nat goal at @useImplicit 42@'s apply-site must
-              -- resolve via @fileGiven@ — visible only because L2's
-              -- 'annotateLetRecBindings'' wiring registered it as a
-              -- lexical-scope given, not because it's in the
-              -- ambient (codebase-derived) pool.
+              -- resolve via @fileGiven@ — visible only because
+              -- 'annotateLetRecBindings'' registered it as a
+              -- lexical-scope given, not because it's in the ambient
+              -- (codebase-derived) pool.
               expect (any isLocalGiven chosenNames)
           ]
 
 ------------------------------------------------------------------------------
--- Source-level: chunk L2 fixup — premise-free file-level @given@
+-- Source-level: premise-free file-level @given@
 --
--- The canonical ADR-010 example. The given's type has no @=>@
--- premises (just the conclusion), so the previous shape-based
--- predicate ('null . fst . unImplicitArrows') silently dropped it.
--- After the fix, the parser tags the @given@-bound variable name
--- and the typechecker registers the binding by name.
+-- The given's type has no @=>@ premises (just the conclusion). The
+-- parser tags the @given@-bound variable name and the typechecker
+-- registers the binding by name.
 --
--- Source: a self-contained file declaring @given showNat : Show Nat = …@
--- and a consumer @print : Show a => a -> Text@. Resolution must
--- succeed against the in-file given alone (no ambients supplied).
+-- Source: a self-contained file declaring a premise-free given and a
+-- consumer whose declared type uses @=>@. Resolution must succeed
+-- against the in-file given alone (no ambients supplied).
 ------------------------------------------------------------------------------
 
 testSourceLevelFileGivenPremiseFree :: Test ()
@@ -830,31 +807,24 @@ testSourceLevelFileGivenPremiseFree =
           ]
 
 ------------------------------------------------------------------------------
--- Source-level: chunk L2 fixup — premise-free @let given@
+-- Source-level: premise-free @let given@
 --
 -- Like 'testSourceLevelFileGivenPremiseFree' but the given is bound
 -- inside a @let@ block in the body of @main@. The variable @local@
--- has type @Nat@ — no @=>@ at all — so this is exactly the
--- "@given local : Ord a = …@" canonical example, just at @Nat@ for
--- self-containment.
+-- has type @Nat@ — no @=>@ at all.
 ------------------------------------------------------------------------------
 
 testSourceLevelLetGivenPremiseFree :: Test ()
 testSourceLevelLetGivenPremiseFree =
   scope "premise-free `let given` (no `=>`) resolves the consumer's slot" $
-    -- The local @given fileGiven : Nat = 7@ has no premises (the
-    -- canonical ADR-010 example). The consumer's premise is @Boolean@
-    -- (intentionally different from the local's conclusion), satisfied
-    -- by an ambient. The apply-site goal is @Boolean@ — wait, that
-    -- would not exercise the local. Redesign: the consumer's premise
-    -- is @Nat@ (matches the local's conclusion). Pre-fix this test
-    -- would be silently dropped by the shape predicate; post-fix the
-    -- parser-tagged side channel registers @local@ and the apply-site
-    -- @Nat@ goal resolves through it. The ambient @Nat@ is supplied
-    -- so the consumer's /own/ @Nat =>@ definition-site check (which
-    -- happens outside the let scope) is also satisfied; the test then
-    -- asserts that the apply-site /inside/ the let chooses the local
-    -- (per ADR-008's lexical-inner-wins rule).
+    -- The local @given fileGiven : Nat = 7@ has no premises. The
+    -- consumer's premise is @Nat@ (matches the local's conclusion).
+    -- The parser-tagged side channel registers @local@ and the
+    -- apply-site @Nat@ goal resolves through it. The ambient @Nat@ is
+    -- supplied so the consumer's /own/ @Nat =>@ definition-site check
+    -- (which happens outside the let scope) is also satisfied; the
+    -- test then asserts that the apply-site /inside/ the let chooses
+    -- the local (lexical-inner-wins).
     let src =
           unlines
             [ "useImplicit : Nat => Nat -> Nat",
@@ -898,10 +868,7 @@ testSourceLevelLetGivenPremiseFree =
               expect (not (null solvedTrees)),
             scope "premise-free-let-given-was-chosen" $
               -- The Nat goal at the apply-site inside the let body
-              -- must resolve to the lexical local (per ADR-008's
-              -- lexical-inner-wins). Pre-fix the local was silently
-              -- dropped by the shape predicate; post-fix the
-              -- parser-tagged side channel registers it.
+              -- must resolve to the lexical local (lexical-inner-wins).
               expect (any isLocalGiven chosenNames)
           ]
 

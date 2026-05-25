@@ -614,9 +614,9 @@ any'extract =
       TMatch v $
         MatchData Ty.anyRef (mapSingleton 0 $ ([BX], TAbs v1 (TVar v1))) Nothing
 
--- | ADR-006: @summon : forall a. a => a@ is the identity function.
--- The leading @=>@ on its declared type makes the elaborator insert
--- the resolved dictionary as the argument, and we just hand that
+-- | @summon : forall a. a => a@ is the identity function. The
+-- leading @=>@ on its declared type makes the elaborator insert the
+-- resolved dictionary as the argument, and we just hand that
 -- dictionary back unchanged.
 summon'id :: SuperNormal Reference Symbol
 summon'id =

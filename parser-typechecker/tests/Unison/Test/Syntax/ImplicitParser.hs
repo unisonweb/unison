@@ -1,28 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
--- | Snapshot tests for the implicit-parameters surface syntax,
--- consolidating chunks A1, A2, and A3 (parser-only).
+-- | Snapshot tests for the implicit-parameters surface syntax.
 --
---   * A1 ('=>' constraint arrow): see also @TypeParser.hs@; this
---     module exercises the constraint arrow in *term* contexts
---     (inside @summon@ and inside @given@ signatures).
---   * A2: top-level @given@ declarations, @summon T@ expressions, and
---     @let given@ block statements. See ADR-006 (@summon@ syntax),
---     ADR-010 (@given@ as the declaration keyword), and ADR-022 (the
---     keyword-migration policy).
---   * A3: @\@@-positional explicit override at call sites — @f \@ d x@
+--   * '=>' constraint arrow: see also @TypeParser.hs@; this module
+--     exercises the constraint arrow in *term* contexts (inside
+--     @summon@ and inside @given@ signatures).
+--   * Top-level @given@ declarations, @summon T@ expressions, and
+--     @let given@ block statements.
+--   * @\@@-positional explicit override at call sites — @f \@ d x@
 --     fills @f@'s next implicit slot with @d@, then applies to @x@.
---     See ADR-007. The same @\@@ token is also used in pattern
---     position (as-patterns, e.g. @Foo\@Bar@) and in doc-block
---     position (@\@rewrite@); all three uses are confirmed below to
---     coexist.
+--     The same @\@@ token is also used in pattern position
+--     (as-patterns, e.g. @Foo\@Bar@) and in doc-block position
+--     (@\@rewrite@); all three uses are confirmed below to coexist.
 --
--- These are parser-only tests: A2 desugars @summon T@ to a typed
--- hole and a @given@ declaration to a regular type-annotated
--- binding; A3 desugars @f \@ d@ to ordinary positional application
--- (with the argument's source range widened to include the leading
--- @\@@). Semantics land in chunks C and D.
+-- These are parser-only tests: @summon T@ desugars to a typed hole
+-- and a @given@ declaration to a regular type-annotated binding;
+-- @f \@ d@ desugars to ordinary positional application (with the
+-- argument's source range widened to include the leading @\@@).
 module Unison.Test.Syntax.ImplicitParser where
 
 import Data.Functor.Identity (Identity (..))
@@ -62,14 +57,13 @@ test =
       scope "override.structural" overrideArgWidensAnnotation
     ]
 
--- | @summon@ in expression position. ADR-006 specifies the builtin.
+-- | @summon@ in expression position.
 --
--- @summon@ is no longer a keyword: it is a regular term reference
--- whose declared type @forall a. a => a@ drives implicit resolution
--- via the normal machinery. The user pins the type either with an
--- explicit annotation — @(summon : T)@ — or implicitly via the
--- surrounding context (e.g. a function argument whose parameter
--- type fixes it).
+-- @summon@ is a regular term reference whose declared type
+-- @forall a. a => a@ drives implicit resolution via the normal
+-- machinery. The user pins the type either with an explicit
+-- annotation — @(summon : T)@ — or implicitly via the surrounding
+-- context (e.g. a function argument whose parameter type fixes it).
 --
 -- These exercise the parser only; the typechecker later wires the
 -- @=>@ on @summon@'s declared type to a 'ConstraintGoal'.
@@ -112,10 +106,10 @@ letGivens =
 -- the same keyword path as the let-block tests but at file scope.
 --
 -- We restrict to types that resolve in the builtins-only parsing
--- environment (@Common.parsingEnv@); the Phase-2 standard library
--- types like @Show@/@Ord@ are not in scope here, so we use @Nat@
--- and @[Nat]@ as stand-ins. The point is to exercise the
--- @given@-keyword grammar, not to typecheck.
+-- environment (@Common.parsingEnv@); standard library types like
+-- @Show@/@Ord@ are not in scope here, so we use @Nat@ and @[Nat]@
+-- as stand-ins. The point is to exercise the @given@-keyword
+-- grammar, not to typecheck.
 topLevelGivens :: [String]
 topLevelGivens =
   [ unlines
@@ -127,15 +121,14 @@ main = ones
 |]
   ]
 
--- | A1 ⊕ A2 carry-over: a @given@ whose declared type uses the A1
--- constraint arrow @=>@. Exercises the wiring between
--- @givenBindingBody@'s type-annotation slot and
--- 'TypeParser.valueType'.
+-- | A @given@ whose declared type uses the constraint arrow @=>@.
+-- Exercises the wiring between @givenBindingBody@'s type-annotation
+-- slot and 'TypeParser.valueType'.
 --
 -- We exercise this through @let given@ (term position) rather than
 -- file scope so we don't depend on type-name resolution: the file
--- parser would reject unknown type names like @Foo@/@Bar@ that the
--- Phase-2 stdlib supplies; @TP.term@ doesn't run that pass.
+-- parser would reject unknown type names like @Foo@/@Bar@; @TP.term@
+-- doesn't run that pass.
 constraintInGivenSig :: [String]
 constraintInGivenSig =
   [ unlines
@@ -156,10 +149,9 @@ constraintInGivenSig =
       ]
   ]
 
--- | @give@-prefix explicit dictionary at call sites (chunk A3,
--- ADR-007). @give f@ syntactically demotes one leading @=>@ in
--- @f@'s declared type to @->@, so the next argument fills the
--- implicit slot positionally.
+-- | @give@-prefix explicit dictionary at call sites. @give f@
+-- syntactically demotes one leading @=>@ in @f@'s declared type to
+-- @->@, so the next argument fills the implicit slot positionally.
 --
 -- We use bare identifiers (not in the builtins-only parsing env) on
 -- purpose: at parse time these become free variables, which is
@@ -182,25 +174,25 @@ overrideApps =
     "give showD mockShow"
   ]
 
--- | Realistic combinations that mix A1 ⊕ A2 ⊕ A3 features.
+-- | Realistic combinations that mix multiple implicit-syntax features.
 combinations :: [String]
 combinations =
-  [ -- A2 ⊕ A3: the @give@-supplied dictionary is itself a @summon@
-    -- expression with an A1 @=>@ arrow inside its annotation.
+  [ -- The @give@-supplied dictionary is itself a @summon@ expression
+    -- with a @=>@ arrow inside its annotation.
     "give sort (summon : Ord a => Ord [a]) xs",
-    -- A2: @summon@ inside the body of a @let given@.
+    -- @summon@ inside the body of a @let given@.
     unlines
       [ "let",
         "  given d : Nat = (summon : Nat)",
         "  d"
       ],
-    -- A3: nested @give@ — supply an explicit dict to a function
-    -- whose result is itself given an explicit dict.
+    -- Nested @give@ — supply an explicit dict to a function whose
+    -- result is itself given an explicit dict.
     "give build d (give resolve d2 x)",
     -- @(summon : Nat) + 1@: arithmetic against a summoned value.
     "(summon : Nat) + 1",
     -- @summon@ whose annotation uses a constraint arrow followed by
-    -- an effect arrow (A1 plus existing effect grammar).
+    -- an effect arrow.
     "(summon : Monad m => (a ->{e} m b) -> m a -> m b)"
   ]
 
@@ -223,8 +215,8 @@ combinationFiles =
 -- | The same @\@@ token still parses as an as-pattern in pattern
 -- position. Pattern-context @\@@ is handled by 'pHqNamey' in
 -- 'TermParser.hs' (~line 410), a different parser entry-point from
--- the term-application path that A3 modified, so the two grammars
--- are syntactically disjoint.
+-- the term-application path, so the two grammars are syntactically
+-- disjoint.
 asPatterns :: [String]
 asPatterns =
   [ unlines
@@ -243,8 +235,8 @@ asPatterns =
 -- | The @\@rewrite@ syntax — the third use of the @\@@ token —
 -- is parsed in 'rewriteBlock' (line ~104) using
 -- 'openBlockWith \"\@rewrite\"'. It lives entirely outside
--- 'term4'\'s application path, so A3's changes do not affect it.
--- The form is @\@rewrite term LHS ==> RHS@ and friends.
+-- 'term4'\'s application path, so the application-path changes do
+-- not affect it. The form is @\@rewrite term LHS ==> RHS@ and friends.
 docRewrites :: [String]
 docRewrites =
   [ unlines
@@ -259,14 +251,13 @@ docRewrites =
       ]
   ]
 
--- | Negative cases for @summon@ (chunk A2 carry-over). Each pair is
--- @(source, why)@; @why@ shows up in the test scope name.
+-- | Negative cases for @summon@. Each pair is @(source, why)@; @why@
+-- shows up in the test scope name.
 --
--- ADR-006 made @summon@ a regular term reference rather than a
--- keyword, so the previous "summon with no argument" parse-failure
--- case is gone: bare @summon@ is now a syntactically valid term.
--- (The typechecker still rejects it without surrounding type
--- context — but that is a /typecheck/ failure, not a parse one.)
+-- @summon@ is a regular term reference rather than a keyword, so
+-- bare @summon@ is a syntactically valid term. (The typechecker
+-- still rejects it without surrounding type context — but that is
+-- a /typecheck/ failure, not a parse one.)
 summonNegatives :: [(String, String)]
 summonNegatives =
   [ -- `summon` followed by a stray closing token in expression
@@ -275,19 +266,19 @@ summonNegatives =
     ("summon )", "summon followed by stray closing paren")
   ]
 
--- | Negative cases for @given@ at top level / in files (A2 carry-over).
+-- | Negative cases for @given@ at top level / in files.
 givenFileNegatives :: [(String, String)]
 givenFileNegatives =
-  [ -- A2 carry-over (a): `given` declaration with no body.
+  [ -- `given` declaration with no body.
     ( unlines
         [ "given x : Nat",
           "main = x"
         ],
       "given with no body"
     ),
-    -- A2 carry-over (c): top-level `given x = …` with no `:` annotation.
-    -- ADR-010 requires the type annotation; the annotation drives
-    -- C2.3's signature-checking and C2.2's constraint-goal emission.
+    -- Top-level `given x = …` with no `:` annotation. The type
+    -- annotation is required; it drives signature-checking and
+    -- constraint-goal emission downstream.
     ( unlines
         [ "given x = 42",
           "main = x"
@@ -303,10 +294,10 @@ givenFileNegatives =
     )
   ]
 
--- | Negative cases for @let given@ inside a let-block (A2 carry-over).
+-- | Negative cases for @let given@ inside a let-block.
 letGivenNegatives :: [(String, String)]
 letGivenNegatives =
-  [ -- A2 carry-over (d): `let given x = …` with no annotation.
+  [ -- `let given x = …` with no annotation.
     ( unlines
         [ "let",
           "  given x = 42",
@@ -324,19 +315,19 @@ letGivenNegatives =
     )
   ]
 
--- | Negative cases for @give@-prefix (A3 carry-over): malformed
--- @give@ syntax must be rejected, not silently accepted.
+-- | Negative cases for @give@-prefix: malformed @give@ syntax must
+-- be rejected, not silently accepted.
 overrideNegatives :: [(String, String)]
 overrideNegatives =
   [ -- @give@ with no following term.
     ("give", "give with no following term")
   ]
 
--- | Structural test (A3 carry-over): parsing @give f d@ must produce
--- an application whose /function/ head has its annotation wrapped
--- with 'Ann.Lowered'. That's the discriminator downstream chunks
--- (typechecker, GivenApply) rely on to skip the implicit-resolution
--- machinery at @f@'s use-site.
+-- | Structural test: parsing @give f d@ must produce an application
+-- whose /function/ head has its annotation wrapped with
+-- 'Ann.Lowered'. That's the discriminator downstream (typechecker,
+-- GivenApply) relies on to skip the implicit-resolution machinery
+-- at @f@'s use-site.
 overrideArgWidensAnnotation :: Test ()
 overrideArgWidensAnnotation = scope "give wraps head annotation with Lowered" $
   case runIdentity (Ps.parse @_ @Symbol TP.term "give f d" Common.parsingEnv) of
@@ -372,8 +363,7 @@ parsesFile s = scope (label s) $
 
 -- | Negative-test helper for term-parser inputs. The parser is
 -- expected to fail; on failure we record the error message so a
--- reviewer can confirm it is helpful (Part 4 of the A4 acceptance
--- criteria).
+-- reviewer can confirm it is helpful.
 failsToParseTerm :: (String, String) -> Test ()
 failsToParseTerm (s, why) = scope (label (s ++ "  -- " ++ why)) $
   case runIdentity (Ps.parse @_ @Symbol TP.term s Common.parsingEnv) of
@@ -413,10 +403,6 @@ failsToParseFile (s, why) = scope (label (s ++ "  -- " ++ why)) $
 --     with @\" / \"@ so two rule lists differ in their label.
 --   * For all other multi-line fixtures, use the first non-empty
 --     content line.
---
--- This addresses the @label@-collision carry-overs flagged in both
--- the A2 review (let-given fixtures) and the A3 review (doc-rewrite
--- fixtures).
 label :: String -> String
 label s = case filter (not . null) . map trim $ lines s of
   [] -> ""

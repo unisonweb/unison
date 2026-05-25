@@ -1,19 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | ADR-019 / chunk C2.3: tests for @given@-declaration validation.
+-- | Tests for @given@-declaration validation.
 --
 -- A top-level binding like
 --
 -- > given Show.list : forall a. Show a => Show (List a) = body
 --
--- typechecks under the C2.2 'ImplicitArrow' machinery: the body is
--- checked against the conclusion @Show (List a)@ after the implicit
--- @Show a@ parameter is stripped via 'checkWanted''s 'ImplicitArrow'
--- clause. C2.3 sits on top of that: when validation succeeds, a
--- 'Context.GivenDecl' info note is emitted carrying the binding's
--- variable, declared type, and stripped conclusion. 'synthesizeFile'
--- (and the UCM command surface in B2) consume these notes to mark
--- namespace metadata via 'Unison.Codebase.Givens.markGivenAt'.
+-- typechecks under the 'ImplicitArrow' machinery: the body is checked
+-- against the conclusion @Show (List a)@ after the implicit @Show a@
+-- parameter is stripped via 'checkWanted''s 'ImplicitArrow' clause.
+-- When validation succeeds, a 'Context.GivenDecl' info note is
+-- emitted carrying the binding's variable, declared type, and
+-- stripped conclusion. 'synthesizeFile' (and the UCM command surface)
+-- consume these notes to mark namespace metadata via
+-- 'Unison.Codebase.Givens.markGivenAt'.
 --
 -- Cases covered:
 --
@@ -23,8 +23,8 @@
 --   2. constraint-bearing given (single @=>@):
 --      @given f : C => Nat = 42@ — emits exactly one 'GivenDecl'
 --      note with conclusion @Nat@.
---   3. polymorphic constraint-bearing given (the spec's running
---      example shape): @given f : forall a. C a => Nat = 42@ —
+--   3. polymorphic constraint-bearing given:
+--      @given f : forall a. C a => Nat = 42@ —
 --      emits a 'GivenDecl' note whose conclusion has the @forall a.@
 --      stripped (since 'Type.unImplicitArrows' looks through outer
 --      'Type.Forall').
@@ -57,15 +57,15 @@ test =
       ]
 
 -- | A plain @given f : Nat = 42@ binding has no implicit arrows in
--- its declared type. C2.3 should /not/ emit a 'GivenDecl' note for
--- it — the note is gated on the presence of at least one
--- 'ImplicitArrow' in the signature.
+-- its declared type, so /no/ 'GivenDecl' note should be emitted —
+-- the note is gated on the presence of at least one 'ImplicitArrow'
+-- in the signature.
 monomorphicNoNoteTest :: Test ()
 monomorphicNoNoteTest =
   let f = Var.named @Symbol "f"
       -- We desugar a top-level binding into a singleton letrec so
       -- the typechecker hits 'annotateLetRecBindings'' (where the
-      -- C2.3 emission lives).
+      -- GivenDecl emission lives).
       binding = Term.ann () (Term.nat () 42) (Type.nat ())
       term =
         Term.letRec'
@@ -84,9 +84,8 @@ singleConstraintEmitsNoteTest =
       cTy = Type.ref () cRef
       -- declared: C => Nat
       declared = Type.implicitArrow () cTy (Type.nat ())
-      -- body: 42 — matches the conclusion 'Nat' directly. Per
-      -- ADR-019 / C2.2, checking against an 'ImplicitArrow' recurses
-      -- on the conclusion.
+      -- body: 42 — matches the conclusion 'Nat' directly. Checking
+      -- against an 'ImplicitArrow' recurses on the conclusion.
       body = Term.nat () 42
       binding = Term.ann () body declared
       term =
@@ -94,9 +93,9 @@ singleConstraintEmitsNoteTest =
           True
           [(f, (), binding)]
           (constUnit ())
-      -- ADR-010 / chunk L2 fixup: the parser tags @given@-bound vars,
-      -- so this programmatic test stands in for the parser by handing
-      -- the typechecker the same set directly.
+      -- The parser tags @given@-bound vars; this programmatic test
+      -- stands in for the parser by handing the typechecker the same
+      -- set directly.
       notes = runClosedWithGivens (Set.singleton f) term
       decls = givenDecls notes
    in tests
@@ -141,8 +140,9 @@ polymorphicEmitsNoteTest =
 
 -- | A given whose body's type does /not/ match the declared
 -- conclusion produces a type error. The existing 'Mismatch'
--- machinery (driven by C2.2's @=>App@ recursion into the conclusion)
--- is the error path; C2.3 inherits it without modification.
+-- machinery (driven by the @=>App@ recursion into the conclusion) is
+-- the error path; @given@-declaration validation inherits it without
+-- modification.
 bodyMismatchTest :: Test ()
 bodyMismatchTest =
   let f = Var.named @Symbol "f"
@@ -192,10 +192,10 @@ runClosed = runClosedWithGivens Set.empty
 -- | Like 'runClosed' but pre-populates the typechecker's
 -- 'givenBindings' set with the supplied variable names — used by tests
 -- that programmatically construct a binding the parser would have
--- tagged via the @given@ keyword. (After the L2 fixup, the predicate
--- is name-based; without this set the typechecker correctly refuses
--- to emit 'GivenDecl' / 'extendLexicalGivenFromBinding' for an
--- arbitrary type-annotated binding.)
+-- tagged via the @given@ keyword. The predicate is name-based;
+-- without this set the typechecker correctly refuses to emit
+-- 'GivenDecl' / 'extendLexicalGivenFromBinding' for an arbitrary
+-- type-annotated binding.
 runClosedWithGivens ::
   Set.Set Symbol ->
   Term.Term Symbol () ->

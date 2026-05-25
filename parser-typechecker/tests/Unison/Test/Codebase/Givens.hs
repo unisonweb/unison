@@ -118,12 +118,11 @@ test =
         expect (mdBefore `Set.isSubsetOf` mdAfter)
         -- The only new entry is the sentinel.
         expect (Set.delete Givens.givenSentinel mdAfter == mdBefore),
-      scope "marking does not change the term hash (ADR-014)" do
-        -- ADR-014 promises that marking a definition as a given does
-        -- not perturb its term hash: only the enclosing namespace
-        -- hash changes, because the sentinel lives in 'MdValues' and
-        -- not in the term itself. We exercise the marking pipeline
-        -- on a sample term:
+      scope "marking does not change the term hash" do
+        -- Marking a definition as a given must not perturb its term
+        -- hash: only the enclosing namespace hash changes, because
+        -- the sentinel lives in 'MdValues' and not in the term
+        -- itself. We exercise the marking pipeline on a sample term:
         --
         --   1. Build a 'Reference' from a term via 'hashClosedTerm'
         --      and place a referent for it under a name in a branch.
@@ -172,7 +171,7 @@ test =
         expect (referentsAfter == Set.singleton sampleReferent')
         -- The recomputed hash matches both the pre-marking hash
         -- and the term reference embedded in the post-marking
-        -- referent. Byte-for-byte identical per ADR-014.
+        -- referent. Byte-for-byte identical.
         expect (hashBefore == hashAfter)
         let referentRefs =
               Set.map (\case Referent.Ref r -> Just r; _ -> Nothing) referentsAfter

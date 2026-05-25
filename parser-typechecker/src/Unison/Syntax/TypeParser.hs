@@ -34,19 +34,18 @@ type TypeP v m = P v m (Type v Ann)
 valueType :: (Monad m, Var v) => TypeP v m
 valueType = constrainedType <|> forAll (constrainedType <|> type1) <|> type1
 
--- | Parse the implicit-parameter constraint-arrow form introduced by
--- ADR-001:
+-- | Parse the implicit-parameter constraint-arrow form:
 --
 -- > Show a => a -> Text
 -- > (Monad m, Traversable t) => (a -> m b) -> t a -> m (t b)
 -- > Functor f => (a -> b) -> f a -> f b
 --
--- Per ADR-019, multi-constraint signatures @(C1 a, C2 b) => T@ desugar
--- to a right-folded chain of 'ImplicitArrow's:
+-- Multi-constraint signatures @(C1 a, C2 b) => T@ desugar to a
+-- right-folded chain of 'ImplicitArrow's:
 -- @ImplicitArrow C1a (ImplicitArrow C2b T)@. This distinguishes the
 -- constraint arrow @=>@ from the explicit function arrow @->@ in the
--- type AST, and the printer (chunk P1) renders @ImplicitArrow@ chains
--- back as @=>@ tuples so signatures round-trip.
+-- type AST; the printer renders @ImplicitArrow@ chains back as @=>@
+-- tuples so signatures round-trip.
 constrainedType :: (Monad m, Var v) => TypeP v m
 constrainedType = do
   cs <- P.try constraintContext

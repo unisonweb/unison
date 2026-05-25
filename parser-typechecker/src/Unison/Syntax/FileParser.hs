@@ -357,15 +357,15 @@ checkForDuplicateTermsAndConstructors fn datas effects terms watches = do
             & fmap Set.toList
             & Map.toList
     P.customFailure (DuplicateTermNames dupeList)
-  -- ADR-010 / chunk L2 fixup: pull the parser-side @given@-keyword
-  -- names out of the parser's state side channel and stamp them onto
-  -- the 'UnisonFile' so the typechecker can recognise @given@ origins
-  -- by name. Includes both file-level @given@ decls and @let given@
-  -- bindings nested inside term bodies (both invoke 'givenBindingBody'
-  -- which calls 'recordGivenVar').
+  -- Pull the parser-side @given@-keyword names out of the parser's
+  -- state side channel and stamp them onto the 'UnisonFile' so the
+  -- typechecker can recognise @given@ origins by name. Includes both
+  -- file-level @given@ decls and @let given@ bindings nested inside
+  -- term bodies (both invoke 'givenBindingBody' which calls
+  -- 'recordGivenVar').
   gbs <- getGivenVars
-  -- ADR-007: also pull the @class@-keyword names so the @add@/@update@
-  -- command can mark them in namespace metadata via
+  -- Also pull the @class@-keyword names so the @add@/@update@ command
+  -- can mark them in namespace metadata via
   -- 'Unison.Codebase.Classes.markClassAt'. Without this the
   -- declaration round-trips through @view@ as a plain @type@.
   cbs <- getClassDeclVars

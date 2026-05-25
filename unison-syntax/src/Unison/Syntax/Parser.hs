@@ -121,16 +121,16 @@ debug = False
 -- | Parser-side state for tracking which surface-syntax forms each
 -- name originated from. Currently two parallel sets:
 --
---   * @givenBoundVars@ — names bound via the @given@ keyword
---     (ADR-010 chunk L2 fixup), populated by 'recordGivenVar'.
---     The typechecker uses this to identify @given@-keyword origins
---     without inspecting the binding's type shape.
+--   * @givenBoundVars@ — names bound via the @given@ keyword,
+--     populated by 'recordGivenVar'. The typechecker uses this to
+--     identify @given@-keyword origins without inspecting the
+--     binding's type shape.
 --
 --   * @classDeclVars@ — type names declared with the @class@
---     keyword (ADR-007), populated by 'recordClassDeclVar'. The
---     'add' / 'update' commands consult this set so the namespace
---     can be marked with the class sentinel, which @view@ then
---     reads when rendering the declaration.
+--     keyword, populated by 'recordClassDeclVar'. The 'add' /
+--     'update' commands consult this set so the namespace can be
+--     marked with the class sentinel, which @view@ then reads when
+--     rendering the declaration.
 data ParserState v = ParserState
   { givenBoundVars :: Set v,
     classDeclVars :: Set v
@@ -335,9 +335,9 @@ run p s = run' p s ""
 -- | Variant of 'run'' that also returns the 'ParserState' of names
 -- accumulated by registrations during parsing. Callers that need
 -- these side channels (e.g. 'Unison.Syntax.FileParser.file') use this
--- instead of plain 'run'' so the typechecker can identify @given@-keyword
--- origins (ADR-010 / chunk L2 fixup) and the @add@ command can mark
--- @class@-declared types (ADR-007) in namespace metadata.
+-- instead of plain 'run'' so the typechecker can identify
+-- @given@-keyword origins and the @add@ command can mark
+-- @class@-declared types in namespace metadata.
 runFile' :: (Monad m, Ord v) => P v m a -> String -> String -> ParsingEnv m -> m (Either (Err v) (a, ParserState v))
 runFile' p s name env =
   let lex = bool id (traceWith L.debugPreParse) debug . L.preParse $ L.lexer name s
@@ -364,8 +364,8 @@ getGivenVars = lift (gets givenBoundVars)
 
 -- | Record that a type variable was declared with the @class@
 -- keyword. Called from 'Unison.Syntax.DeclParser' when the @class@
--- alternative of the type-or-class header fires (ADR-007). The
--- 'add' / 'update' commands consult this set via 'classDeclVars' in
+-- alternative of the type-or-class header fires. The 'add' /
+-- 'update' commands consult this set via 'classDeclVars' in
 -- 'ParserState' to mark the type in namespace metadata (via
 -- 'Unison.Codebase.Classes.markClassAt') so @view@ can later
 -- recover the @class@ keyword on the round-trip.

@@ -1,26 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Phase-2 chunk D4 property tests for the implicit-resolution
--- algorithm. Per the chunk spec we exercise:
+-- | Property tests for the implicit-resolution algorithm:
 --
---   * /Cycle\/metavar interaction/. The spike's cycle tests are all
---     ground; this stresses the per-branch cycle short-circuit when
---     the goal carries an inference variable. The invariant is
---     /termination plus a structured failure/ — a hang, a runtime
---     exception, or a 'Right' decision (we built the pool to be
---     unsolvable) all count as bugs.
+--   * /Cycle\/metavar interaction/. Stresses the per-branch cycle
+--     short-circuit when the goal carries an inference variable. The
+--     invariant is /termination plus a structured failure/ — a hang,
+--     a runtime exception, or a 'Right' decision (we built the pool
+--     to be unsolvable) all count as bugs.
 --
---   * /Diamond + shared metavar/. ADR-023's metavar-invalidation rule
---     says: when a metavar that appears in a memoized goal becomes
---     bound, the memo entry is no longer trustworthy. The spike's
---     diamond test verified the work-count bound on ground goals; we
---     extend it to the case where the same metavar appears in two
---     paths through the diamond, and one path resolves it. The
---     correctness invariant is that both paths agree on the metavar
---     binding at the end (they reach the same dictionary), or the
---     resolver reports a structured error — but never a /silently/
---     wrong choice.
+--   * /Diamond + shared metavar/. The metavar-invalidation rule says:
+--     when a metavar that appears in a memoized goal becomes bound,
+--     the memo entry is no longer trustworthy. We exercise the case
+--     where the same metavar appears in two paths through the
+--     diamond, and one path resolves it. The correctness invariant
+--     is that both paths agree on the metavar binding at the end
+--     (they reach the same dictionary), or the resolver reports a
+--     structured error — but never a /silently/ wrong choice.
 --
 -- Tests are randomised over a small space of pool shapes; each scope
 -- runs ~25 iterations.
@@ -251,8 +247,8 @@ propDiamondSharedMetavar = do
           expectEqual 3 work
           -- Both children of Show.map must be the same Show.list
           -- chosen the same way. The shared metavar (a := <ground>)
-          -- got bound at the first child; ADR-023 says the second
-          -- visit reuses the memoized success.
+          -- got bound at the first child; the second visit reuses
+          -- the memoized success.
           case rtChildren tree of
             [child1, child2] -> do
               expectEqual (givenName (rtGiven child1)) (givenName (rtGiven child2))

@@ -94,12 +94,12 @@ computeTypecheckingEnvironment ::
   ShouldUseTndr m ->
   [Type v] ->
   (DefnsF Set TermReference TypeReference -> m (TL.TypeLookup v Ann)) ->
-  -- | Ambient givens harvested from the namespace (chunk L1). Each
-  -- entry is a top-level term tagged via
-  -- 'Unison.Codebase.Givens.givenSentinel' together with its declared
-  -- type; 'ambientPool' decomposes the type into the resolver's
-  -- @(tyVars, premises, conclusion)@ shape. Pass @[]@ when there is no
-  -- namespace context (e.g. a fresh test environment).
+  -- | Ambient givens harvested from the namespace. Each entry is a
+  -- top-level term tagged via 'Unison.Codebase.Givens.givenSentinel'
+  -- together with its declared type; 'ambientPool' decomposes the
+  -- type into the resolver's @(tyVars, premises, conclusion)@ shape.
+  -- Pass @[]@ when there is no namespace context (e.g. a fresh test
+  -- environment).
   [GivenElaborator.AmbientGiven v Ann] ->
   UnisonFile v ->
   m (Typechecker.Env v Ann)
@@ -116,8 +116,8 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf ambien
             topLevelComponents = Map.empty,
             variances = Variance.fromTypeLookup tl,
             ambientGivens = GivenElaborator.ambientPool ambientGivens,
-            -- ADR-010 / chunk L2 fixup: thread the parser-collected
-            -- @given@-bound variable names through to the typechecker.
+            -- Thread the parser-collected @given@-bound variable
+            -- names through to the typechecker.
             givenBindings = uf.givenBindings
           }
     ShouldUseTndr'Yes parsingEnv -> do
@@ -213,8 +213,8 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf ambien
             topLevelComponents = Map.empty,
             variances = Variance.fromTypeLookup typeLookup,
             ambientGivens = GivenElaborator.ambientPool ambientGivens,
-            -- ADR-010 / chunk L2 fixup: thread the parser-collected
-            -- @given@-bound variable names through to the typechecker.
+            -- Thread the parser-collected @given@-bound variable
+            -- names through to the typechecker.
             givenBindings = uf.givenBindings
           }
 
@@ -319,12 +319,12 @@ synthesizeFile env0 uf = do
             -- The Var.reset removes any freshening added during typechecking
             pure (Var.reset v, tm, typ)
        in traverse (traverse addTypesToTopLevelBindings) tlcsFromTypechecker
-    -- Phase-2 chunks D2 + D3 + L1: drive given-resolution from the
-    -- 'ConstraintGoal' info notes the typechecker emitted (chunk
-    -- C2.2), then walk each top-level term and substitute resolution
-    -- trees into 'App' nodes. The ambient pool comes from
-    -- 'env0.ambientGivens', built by 'computeTypecheckingEnvironment'
-    -- from the namespace's 'given'-tagged definitions (L1 wiring).
+    -- Drive given-resolution from the 'ConstraintGoal' info notes the
+    -- typechecker emitted, then walk each top-level term and
+    -- substitute resolution trees into 'App' nodes. The ambient pool
+    -- comes from 'env0.ambientGivens', built by
+    -- 'computeTypecheckingEnvironment' from the namespace's
+    -- 'given'-tagged definitions.
     --
     -- We additionally promote every file-local @given@-tagged
     -- top-level binding into the ambient pool. The per-binding
@@ -352,23 +352,23 @@ synthesizeFile env0 uf = do
             (GivenElaborator.ambientPool fileLocalGivens)
             (Typechecker.ambientGivens env0)
     let infosWithImplicits = GivenElaborator.elaborateInfoNotes ambient infos
-    -- Phase-2 chunk D4: surface implicit-resolution failures as user
-    -- diagnostics. Each 'SolvedImplicit' note whose decision is
-    -- 'Left _' becomes a 'Result.UnresolvedImplicit' note. We tell
-    -- them all and fail the result if any were emitted, so the
-    -- compiler does not silently proceed with an under-applied term.
+    -- Surface implicit-resolution failures as user diagnostics. Each
+    -- 'SolvedImplicit' note whose decision is 'Left _' becomes a
+    -- 'Result.UnresolvedImplicit' note. We tell them all and fail the
+    -- result if any were emitted, so the compiler does not silently
+    -- proceed with an under-applied term.
     let implicitFailures =
           [ Result.UnresolvedImplicit loc ty err
           | (loc, ty, Left err) <- GivenElaborator.implicitDecisions infosWithImplicits
           ]
     Result.tellNotes (Seq.fromList implicitFailures)
     when (not (null implicitFailures)) (Fail.fail "implicit resolution failed")
-    -- Chunk L1: surface 'SolvedImplicit' info notes as 'TypeInfo' so
-    -- downstream consumers (LSP, tests, transcripts) can observe which
-    -- given was chosen for each apply-site. The 'GivenElaborator'
-    -- adds these as plain 'Context.InfoNote's appended to the
-    -- typechecker's stream; they need an explicit 'tell' here to
-    -- become part of the file's 'Result' notes.
+    -- Surface 'SolvedImplicit' info notes as 'TypeInfo' so downstream
+    -- consumers (LSP, tests, transcripts) can observe which given was
+    -- chosen for each apply-site. The 'GivenElaborator' adds these as
+    -- plain 'Context.InfoNote's appended to the typechecker's stream;
+    -- they need an explicit 'tell' here to become part of the file's
+    -- 'Result' notes.
     let solvedImplicitNotes =
           [ note'
           | note'@(Context.SolvedImplicit {}) <-
@@ -444,8 +444,8 @@ synthesizeFile env0 uf = do
                 Just $ replacement
           _ -> Nothing
 
--- | ADR-019 / chunk C2.3: extract the @given@-declaration metadata
--- from the typechecker's info-notes stream.
+-- | Extract the @given@-declaration metadata from the typechecker's
+-- info-notes stream.
 --
 -- A 'Context.GivenDecl' note is emitted for every top-level binding
 -- whose declared type begins (after stripping any leading 'Forall')
@@ -454,14 +454,14 @@ synthesizeFile env0 uf = do
 -- 'Var.reset' applied so callers see the user-written variable name
 -- (un-freshened).
 --
--- Consumers: chunk B2's UCM command surface, which marks each named
+-- Consumers: the UCM command surface, which marks each named
 -- definition as a given via 'Unison.Codebase.Givens.markGivenAt'
--- after the file's hashes are computed; chunk D3's elaborator, which
+-- after the file's hashes are computed; the elaborator, which
 -- substitutes resolved dictionary terms into apply sites.
 --
--- Per ADR-005 the namespace is the instance set; this helper does
--- not itself touch any namespace metadata. It only provides the data
--- the caller needs to do the marking.
+-- The namespace is the instance set; this helper does not itself
+-- touch any namespace metadata. It only provides the data the caller
+-- needs to do the marking.
 givenDeclVars ::
   (Var v) =>
   [Context.InfoNote v Ann] ->

@@ -1143,9 +1143,8 @@ notifyUser dir issueFn = \case
         existDeletes = not (List.null deletedTypes && List.null deletedTerms)
         existChanges = existAdds || existUpdates || existDeletes
 
-    -- ADR-007: when the parser tagged the type as a @class@,
-    -- render its slurp entry with the @class@ keyword in place of
-    -- @type@.
+    -- When the parser tagged the type as a @class@, render its slurp
+    -- entry with the @class@ keyword in place of @type@.
     let isClassName n = Set.member n classRefs
         renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
         renderType name decl =

@@ -186,7 +186,7 @@ data Input
   | LoadI (Maybe FilePath)
   | MakeStandaloneI String (HQ.HashQualified Name)
   | -- | Mark the term at the given hash-qualified name as a given by
-    -- adding the @##Builtin.Given@ sentinel to its 'MdValues' (ADR-013).
+    -- adding the @##Builtin.Given@ sentinel to its 'MdValues'.
     MarkGivenI !(HQ'.HashQualified (Path.Split Path'))
   | -- | Remove the @##Builtin.Given@ sentinel from the term at the
     -- given hash-qualified name.

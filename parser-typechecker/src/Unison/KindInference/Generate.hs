@@ -67,11 +67,10 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
                   ParentConstraint (IsType k2 (Provenance ctx $ ABT.annotation cod)) codConstraints
                 ]
             )
-      -- ADR-019: 'ImplicitArrow' has the same kind structure as 'Arrow'
-      -- (both sides must be of kind Type). Chunk C2.1 carry-over: tag
-      -- the resulting constraint with 'AppImplicitArrow' so kind errors
-      -- can point at @=>@ rather than @->@. Divergent typechecker
-      -- treatment beyond this is added in chunks D2/D3.
+      -- 'ImplicitArrow' has the same kind structure as 'Arrow' (both
+      -- sides must be of kind Type); tag the resulting constraint with
+      -- 'AppImplicitArrow' so kind errors can point at @=>@ rather
+      -- than @->@.
       Type.ImplicitArrow dom cod -> do
         let ctx = AppImplicitArrow annotation dom cod
         k1 <- freshVar dom
@@ -326,7 +325,7 @@ withInstantiatedConstructorType declType tyParams0 constructorType0 k =
       goArrow :: Type.Type v loc -> Gen v loc [GeneratedConstraint v loc]
       goArrow = \case
         Type.Arrow' _ o -> goArrow o
-        -- ADR-019: 'ImplicitArrow' walks the result spine like 'Arrow'.
+        -- 'ImplicitArrow' walks the result spine like 'Arrow'.
         Type.ImplicitArrow' _ o -> goArrow o
         Type.Effect' es _ -> goEffs es
         resultTyp@(Type.Apps' f xs)

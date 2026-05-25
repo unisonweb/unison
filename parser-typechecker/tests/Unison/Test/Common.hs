@@ -76,12 +76,11 @@ parseAndSynthesizeAsFile ambient filename s =
   parseAndSynthesizeAsFileWithGivens ambient [] filename s
 
 -- | Like 'parseAndSynthesizeAsFile' but also threads an explicit list
--- of ambient givens through 'computeTypecheckingEnvironment', and —
--- crucially — surfaces the typechecker's info notes on the /success/
--- path too. The original 'parseAndSynthesizeAsFile' silently dropped
--- notes when typechecking succeeded, which makes it useless for
--- asserting on 'TypeInfo' notes (e.g. 'SolvedImplicit') emitted by the
--- chunk L1 elaborator. Used by the source-level e2e test in
+-- of ambient givens through 'computeTypecheckingEnvironment', and
+-- surfaces the typechecker's info notes on the /success/ path too.
+-- 'parseAndSynthesizeAsFile' silently drops notes when typechecking
+-- succeeds, which makes it useless for asserting on 'TypeInfo' notes
+-- (e.g. 'SolvedImplicit'). Used by the source-level e2e test in
 -- "Unison.Test.Typechecker.GivenApply".
 parseAndSynthesizeAsFileWithGivens ::
   [Type Symbol] ->

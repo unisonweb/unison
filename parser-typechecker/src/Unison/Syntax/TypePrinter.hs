@@ -124,12 +124,12 @@ prettyRaw im p tp = go im p tp
             if p < 0 && not Settings.debugRevealForalls && all Var.universallyQuantifyIfFree vs
               then ifM (willCaptureType vs) (prettyForall p) (go im p body)
               else paren (p >= 0) <$> prettyForall (-1)
-      -- ADR-019 / chunk P1: a leading chain of 'ImplicitArrow's prints
-      -- as a @=>@ constraint context. Walk the spine to collect /all/
-      -- leading constraints, then emit them as a single @=>@ tuple
-      -- followed by the conclusion. A single constraint prints bare
-      -- (e.g. @Show a => a -> Text@); two or more print as a parenthesised
-      -- comma list (e.g. @(Show a, Eq a) => [a] -> [a]@).
+      -- A leading chain of 'ImplicitArrow's prints as a @=>@
+      -- constraint context. Walk the spine to collect /all/ leading
+      -- constraints, then emit them as a single @=>@ tuple followed by
+      -- the conclusion. A single constraint prints bare (e.g. @Show a
+      -- => a -> Text@); two or more print as a parenthesised comma
+      -- list (e.g. @(Show a, Eq a) => [a] -> [a]@).
       --
       -- The conclusion is printed at precedence -1 so an inner @->@ chain
       -- is /not/ parenthesised; the @=>@ constraint context binds looser
@@ -209,10 +209,9 @@ prettyRaw im p tp = go im p tp
 -- of constraint types and the (non-implicit-arrow) conclusion. A type with
 -- no implicit arrows at the head returns @([], t)@ unchanged.
 --
--- ADR-019: @(C1 a, C2 b) => T@ is encoded as
--- @ImplicitArrow C1a (ImplicitArrow C2b T)@. This function unfolds that
--- chain so the printer can emit it as a single @=>@ context, matching
--- the surface syntax in @docs/implicits-plan.md@ §1.2.
+-- @(C1 a, C2 b) => T@ is encoded as
+-- @ImplicitArrow C1a (ImplicitArrow C2b T)@. This function unfolds
+-- that chain so the printer can emit it as a single @=>@ context.
 splitImplicitConstraints :: Type v a -> ([Type v a], Type v a)
 splitImplicitConstraints t = case t of
   ImplicitArrow' c rest ->

@@ -131,8 +131,8 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
         -- query anyway, to replace pathological O(n^2) with O(n log n)
         filter (`Set.member` originalQuerySet) misses0
   -- Compute the set of term references in the result that are tagged
-  -- as givens in the current namespace (ADR-013). The renderer will
-  -- prefix these with the `given` marker.
+  -- as givens in the current namespace. The renderer will prefix
+  -- these with the `given` marker.
   currentBranch0 <- Cli.getCurrentBranch0
   -- 'Givens.isGiven' only inspects the supplied branch's own
   -- metadata; given-marked terms living in sub-namespaces (the
@@ -181,15 +181,9 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
 showDefinitions ::
   OutputLocation ->
   (HQ.HashQualified Name -> Bool) ->
-  -- | Predicate: is this term reference tagged as a given (ADR-013)?
-  -- Tagged terms are rendered with a leading @given@ marker so the
-  -- output round-trips with the parser-side @given@ keyword (chunk
-  -- A2). Until A2 lands, the marker is emitted as a leading comment
-  -- line so the output stays parseable.
-  -- TODO Phase 4: drop the @-- given@ comment scaffold once the
-  -- parser-side @given@ keyword (chunk A2) lands and the printer
-  -- can emit the bare keyword. Search for "TODO Phase 4: -- given"
-  -- to find every site that needs to be reconciled.
+  -- | Predicate: is this term reference tagged as a given? Tagged
+  -- terms are rendered with a leading @given@ marker so the output
+  -- round-trips with the parser-side @given@ keyword.
   (TermReference -> Bool) ->
   -- | Predicate: is this type tagged as a class? Class-tagged types
   -- render with the @class@ keyword and record-style field syntax.
@@ -201,13 +195,13 @@ showDefinitions ::
   Cli ()
 showDefinitions outputLoc nameInOriginalQuery isGivenRef isClassRef pped terms0 types misses = do
   Cli.Env {codebase, writeSource} <- ask
-  -- ADR-015 default elide-mode: pre-process every term being shown
-  -- by dropping apply-site arguments that fill leading @=>@ slots
-  -- in the function's declared type. The type lookup goes through
-  -- the codebase (terms loaded by 'view' have their source
-  -- annotations stripped, so the in-memory 'Ann.Synthetic' marker
-  -- is no longer present; the only reliable signal is the
-  -- function's declared type).
+  -- Default elide-mode: pre-process every term being shown by
+  -- dropping apply-site arguments that fill leading @=>@ slots in
+  -- the function's declared type. The type lookup goes through the
+  -- codebase (terms loaded by 'view' have their source annotations
+  -- stripped, so the in-memory 'Ann.Synthetic' marker is no longer
+  -- present; the only reliable signal is the function's declared
+  -- type).
   -- Term references whose types we need to look up to strip
   -- implicit-fill arguments: every direct reference inside a body
   -- (so we know which apply-site args are implicit) /and/ every
@@ -238,12 +232,13 @@ showDefinitions outputLoc nameInOriginalQuery isGivenRef isClassRef pped terms0 
                 Just ty -> pure (Map.insert (Reference.DerivedId rid) ty acc)
                 Nothing -> pure acc
             Reference.Builtin _ ->
-              -- ADR-006: the @summon@ builtin (and any future builtin
-              -- with a @=>@ in its declared type) needs to be known
-              -- to 'stripImplicitArgsByType' so the elaborator-filled
+              -- The @summon@ builtin (and any future builtin with a
+              -- @=>@ in its declared type) needs to be known to
+              -- 'stripImplicitArgsByType' so the elaborator-filled
               -- dictionary argument can be elided from @view@ output.
-              -- 'Builtin.termRefTypes' carries unit annotations; promote
-              -- them to 'Intrinsic' so they fit the @Ann@-typed map.
+              -- 'Builtin.termRefTypes' carries unit annotations;
+              -- promote them to 'Intrinsic' so they fit the
+              -- @Ann@-typed map.
               case Map.lookup r Builtin.termRefTypes of
                 Just ty -> pure (Map.insert r ((const Intrinsic) <$> ty) acc)
                 Nothing -> pure acc
@@ -428,10 +423,10 @@ renderCodePretty nameInOriginalQuery isGivenRef isClassRef pped isSourceFile isT
             maybe mempty (<> Pretty.newline) maybeDoc
               <> Pretty.prettyTypeWithClasses isClassRef pped (name, ref, typ)
 
-      -- ADR-007: emit the `given` keyword as the actual surface
-      -- syntax now that the parser recognises it. The leading
-      -- `given ` reads as a prefix to the binding's signature line,
-      -- matching how the user originally wrote @given Show.nat : T = …@.
+      -- Emit the `given` keyword as the actual surface syntax. The
+      -- leading `given ` reads as a prefix to the binding's signature
+      -- line, matching how the user originally wrote @given Show.nat
+      -- : T = …@.
       givenMarker :: Pretty SyntaxText
       givenMarker = Pretty.Util.withSyntax S.DataTypeKeyword "given "
 

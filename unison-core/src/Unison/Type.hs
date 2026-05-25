@@ -48,16 +48,12 @@ data F a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
-  | -- | An implicit-arrow position. Behaves at the term level like 'Arrow',
-    -- but the elaborator (Phase 2.D) fills the argument by given-resolution
-    -- rather than the user supplying it explicitly. Multi-constraint
-    -- signatures @(C1 a, C2 b) => T@ desugar to nested @ImplicitArrow@:
-    -- @ImplicitArrow C1a (ImplicitArrow C2b T)@.
-    --
-    -- See ADR-019 for the representation choice and ADR-014 for hashing.
-    -- Divergent typechecker behavior between 'Arrow' and 'ImplicitArrow'
-    -- is introduced by chunks D2 and D3; until then most consumers treat
-    -- 'ImplicitArrow' identically to 'Arrow'.
+  | -- | An implicit-arrow position. Behaves at the term level like
+    -- 'Arrow', but the elaborator fills the argument by
+    -- given-resolution rather than the user supplying it explicitly.
+    -- Multi-constraint signatures @(C1 a, C2 b) => T@ desugar to
+    -- nested @ImplicitArrow@: @ImplicitArrow C1a (ImplicitArrow C2b
+    -- T)@. Hashed with a distinct tag from 'Arrow'.
     ImplicitArrow a a
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
@@ -111,9 +107,7 @@ monotype t = Monotype <$> ABT.visit isMono t
 arity :: Type v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
--- ADR-019: 'ImplicitArrow' contributes to arity like 'Arrow' for now.
--- Chunks D2/D3 may revisit so that implicit parameters are counted
--- separately from explicit ones.
+-- 'ImplicitArrow' contributes to arity like 'Arrow'.
 arity (ImplicitArrow' _ o) = 1 + arity o
 arity (Ann' a _) = arity a
 arity _ = 0
@@ -220,15 +214,15 @@ unPure (Effect'' [] t) = Just t
 unPure (Effect'' _ _) = Nothing
 unPure t = Just t
 
--- | Extract the spine of a (possibly mixed) chain of explicit and implicit
--- arrows. ADR-019: 'ImplicitArrow' contributes to the spine the same way
--- 'Arrow' does — its left-hand side becomes one element of the spine.
--- Consumers that need to distinguish implicit vs explicit positions
--- (i.e. the elaborator, chunks D2/D3) must walk the AST directly rather
--- than rely on this view; existing consumers like 'DeclPrinter',
+-- | Extract the spine of a (possibly mixed) chain of explicit and
+-- implicit arrows. 'ImplicitArrow' contributes to the spine the same
+-- way 'Arrow' does — its left-hand side becomes one element of the
+-- spine. Consumers that need to distinguish implicit vs explicit
+-- positions (the elaborator) must walk the AST directly rather than
+-- rely on this view; existing consumers like 'DeclPrinter',
 -- 'TypePrinter', 'Variance.split', and 'Context.checkWanted's
--- argument-extractor only care about argument count, which is what this
--- view preserves.
+-- argument-extractor only care about argument count, which is what
+-- this view preserves.
 unArrows :: Type v a -> Maybe [Type v a]
 unArrows t =
   case go t of [_] -> Nothing; l -> Just l
@@ -237,11 +231,11 @@ unArrows t =
     go (ImplicitArrow' i o) = i : go o
     go o = [o]
 
--- | Like 'unArrows' but also surfaces effect annotations. ADR-019:
--- 'ImplicitArrow' contributes a spine element with no attached effects
--- (constraint resolution does not introduce abilities). When mixing
--- implicit and explicit arrows, each implicit position adds an entry to
--- the result list.
+-- | Like 'unArrows' but also surfaces effect annotations.
+-- 'ImplicitArrow' contributes a spine element with no attached
+-- effects (constraint resolution does not introduce abilities). When
+-- mixing implicit and explicit arrows, each implicit position adds
+-- an entry to the result list.
 unEffectfulArrows ::
   Type v a -> Maybe (Type v a, [(Maybe [Type v a], Type v a)])
 unEffectfulArrows t = case t of
@@ -258,8 +252,8 @@ unEffectfulArrows t = case t of
     go (ImplicitArrow' i o) = (Nothing, i) : go o
     go t = [(Nothing, t)]
 
--- | ADR-019 / chunk C2.3: strip the leading constraint context from a
--- type, returning the list of constraint types and the conclusion.
+-- | Strip the leading constraint context from a type, returning the
+-- list of constraint types and the conclusion.
 --
 -- For a type of shape
 --
@@ -270,18 +264,12 @@ unEffectfulArrows t = case t of
 -- (which is what the parser produces from @C1 a, C2 b => T@), this
 -- returns @([C1 a, C2 b], T)@. Outermost 'Forall' binders are first
 -- looked through using 'unForalls'; if the body does not begin with
--- 'ImplicitArrow', the empty list and the original (un-foralled) body
--- are returned.
---
--- The 'Forall' binders are /preserved/ in the conclusion via the
--- @vs@ list returned in the second component for callers that need to
--- reconstruct the polytype. Most consumers (e.g. C2.3's @given@-decl
--- validator) only care about the structural shape and can ignore the
--- binders.
+-- 'ImplicitArrow', the empty list and the original (un-foralled)
+-- body are returned.
 --
 -- Note: this does not look through ability annotations; constraint
--- arrows from @=>@ never carry abilities (per ADR-019), so a
--- well-formed implicit-arrow chain has no intervening 'Effect1'.
+-- arrows from @=>@ never carry abilities, so a well-formed
+-- implicit-arrow chain has no intervening 'Effect1'.
 unImplicitArrows :: Type v a -> ([Type v a], Type v a)
 unImplicitArrows t = case unForalls t of
   Just (_vs, body) -> goImplicit body
@@ -334,7 +322,7 @@ unEffects1 _ = Nothing
 isArrow :: (ABT.Var v) => Type v a -> Bool
 isArrow (ForallNamed' _ t) = isArrow t
 isArrow (Arrow' _ _) = True
--- ADR-019: 'ImplicitArrow' is also a function-shaped type.
+-- 'ImplicitArrow' is also a function-shaped type.
 isArrow (ImplicitArrow' _ _) = True
 isArrow _ = False
 
@@ -364,13 +352,13 @@ textRef = Reference.Builtin "Text"
 charRef = Reference.Builtin "Char"
 listRef = Reference.Builtin "Sequence"
 
--- | ADR-007: sentinel type reference used by 'GivenApply.stripImplicitArgsByType'
--- to mark an apply-chain head whose declared @=>@ arrows were
--- filled by the user via the @give@ keyword. The marker is purely
--- print-time: 'TermPrinter' recognises @t : giveMarker@ on the head
--- of an apply chain and emits @give @ at the surface. The reference
--- name is unparseable as a regular identifier so user code can't
--- accidentally summon it.
+-- | Sentinel type reference used by
+-- 'GivenApply.stripImplicitArgsByType' to mark an apply-chain head
+-- whose declared @=>@ arrows were filled by the user via the @give@
+-- keyword. The marker is purely print-time: 'TermPrinter' recognises
+-- @t : giveMarker@ on the head of an apply chain and emits @give @
+-- at the surface. The reference name is unparseable as a regular
+-- identifier so user code can't accidentally summon it.
 giveMarkerRef :: TypeReference
 giveMarkerRef = Reference.Builtin "@@give-marker"
 
@@ -594,8 +582,8 @@ arrow a i o = ABT.tm' a (Arrow i o)
 arrow' :: (Semigroup a, Ord v) => Type v a -> Type v a -> Type v a
 arrow' i o = arrow (ABT.annotation i <> ABT.annotation o) i o
 
--- | Smart constructor for 'ImplicitArrow'. Used by the parser for @=>@
--- (Phase 2 chunk A1) and by the elaborator (Phase 2.D).
+-- | Smart constructor for 'ImplicitArrow'. Used by the parser for
+-- @=>@ and by the elaborator.
 implicitArrow :: (Ord v) => a -> Type v a -> Type v a -> Type v a
 implicitArrow a i o = ABT.tm' a (ImplicitArrow i o)
 
@@ -790,19 +778,19 @@ existentializeArrows newVar t = ABT.visit go t
         b <- existentializeArrows newVar b
         let ann = ABT.annotation t
         pure $ arrow ann a (effect ann [var ann e] b)
-    -- ADR-019 / chunk C2.1 carry-over: 'ImplicitArrow' participates in
-    -- effect-attach the same way 'Arrow' does. Constraint resolution
-    -- does not introduce abilities, but the codomain may still be an
-    -- effectful arrow that needs a fresh ability variable.
+    -- 'ImplicitArrow' participates in effect-attach the same way
+    -- 'Arrow' does. Constraint resolution does not introduce
+    -- abilities, but the codomain may still be an effectful arrow
+    -- that needs a fresh ability variable.
     --
-    -- Exception: when the codomain is itself an 'ImplicitArrow' (i.e.
-    -- chained constraints like @C1 => C2 => T@), we skip the
-    -- effect-row insertion. Per ADR-019 @=>@ carries no abilities, and
-    -- inserting an effect row between two @=>@s would break the
+    -- Exception: when the codomain is itself an 'ImplicitArrow'
+    -- (chained constraints like @C1 => C2 => T@), we skip the
+    -- effect-row insertion. @=>@ carries no abilities, and inserting
+    -- an effect row between two @=>@s would break the
     -- 'ImplicitArrow'' pattern in the @=>I@ checkWanted rule — the
-    -- pattern only sees through @Arrow'@/@Effect''@ tuples, not bare
-    -- 'Effect1'' wrappers — so the lambda binder for the second
-    -- constraint wouldn't be recognised.
+    -- pattern only sees through @Arrow'@/@Effect''@ tuples, not
+    -- bare 'Effect1'' wrappers — so the lambda binder for the
+    -- second constraint wouldn't be recognised.
     go t@(ImplicitArrow' a b) = case b of
       Effect1' _ _ -> Just $ do
         a <- existentializeArrows newVar a
@@ -828,8 +816,8 @@ purifyArrows = ABT.visitPure go
       _ -> Just $ arrow ann a (effect ann [] b)
       where
         ann = ABT.annotation t
-    -- ADR-019 / chunk C2.1 carry-over: strip in 'ImplicitArrow' codomain
-    -- the same way as 'Arrow' so effect-stripping is uniform.
+    -- Strip in 'ImplicitArrow' codomain the same way as 'Arrow' so
+    -- effect-stripping is uniform.
     go t@(ImplicitArrow' a b) = case b of
       Effect1' _ _ -> Nothing
       _ -> Just $ implicitArrow ann a (effect ann [] b)
@@ -898,7 +886,7 @@ removePureEffects keepEmptied t
 
     keepVarsT pos (Arrow' i o) =
       keepVarsT (not pos) i <> keepVarsT pos o
-    -- ADR-019: 'ImplicitArrow' has the same variance as 'Arrow'.
+    -- 'ImplicitArrow' has the same variance as 'Arrow'.
     keepVarsT pos (ImplicitArrow' i o) =
       keepVarsT (not pos) i <> keepVarsT pos o
     keepVarsT pos (Effect1' e o) =
@@ -930,8 +918,7 @@ editFunctionResult f = go
       ABT.Tm (Arrow i o) ->
         (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Arrow i x) $ go o
       -- 'ImplicitArrow' behaves like 'Arrow' here for purposes of
-      -- following the function-result spine. (Divergent treatment
-      -- arrives in chunks D2/D3.)
+      -- following the function-result spine.
       ABT.Tm (ImplicitArrow i o) ->
         (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ ImplicitArrow i x) $ go o
       ABT.Abs v r ->
@@ -943,8 +930,8 @@ functionResult = go False
   where
     go inArr (ForallNamed' _ body) = go inArr body
     go _inArr (Arrow' _i o) = go True o
-    -- ADR-019: traverse 'ImplicitArrow' like 'Arrow' to find the
-    -- ultimate function result.
+    -- Traverse 'ImplicitArrow' like 'Arrow' to find the ultimate
+    -- function result.
     go _inArr (ImplicitArrow' _i o) = go True o
     go _inArr (Effect1' _e body) = go True body
     go inArr t = if inArr then Just t else Nothing
@@ -1049,8 +1036,7 @@ instance (Show a) => Show (F a) where
       go p (Arrow i o) =
         showParen (p > 0) $ showsPrec (p + 1) i <> s " -> " <> showsPrec p o
       -- For 'Show', render 'ImplicitArrow' as @=>@ to make debugging
-      -- output unambiguous; the user-facing pretty-printer renders it as
-      -- @->@ until Phase 4. See ADR-019/ADR-015.
+      -- output unambiguous.
       go p (ImplicitArrow i o) =
         showParen (p > 0) $ showsPrec (p + 1) i <> s " => " <> showsPrec p o
       go p (Ann t k) =

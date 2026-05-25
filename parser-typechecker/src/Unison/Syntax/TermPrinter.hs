@@ -430,9 +430,9 @@ pretty0
                         fmt S.ControlKeyword " with" `PP.hang` pbs
                       ]
                   else (fmt S.ControlKeyword "match " <> ps <> fmt S.ControlKeyword " with") `PP.hang` pbs
-          -- ADR-007: when 'stripImplicitArgsByType' decides the
-          -- leading @=>@ slot(s) of an application were user-supplied
-          -- (rather than resolver-picked), it tags the head with a
+          -- When 'stripImplicitArgsByType' decides the leading @=>@
+          -- slot(s) of an application were user-supplied (rather than
+          -- resolver-picked), it tags the head with a
           -- 'Type.giveMarkerRef' ascription. Render that as the @give@
           -- keyword so the source round-trips back to a parse with
           -- the matching 'Ann.Lowered' annotation.
@@ -444,13 +444,12 @@ pretty0
         prettyDoc2_ a term >>= \case
           Just d -> pure d
           Nothing -> case term of
-            -- ADR-007: when 'stripImplicitArgsByType' decides the
-            -- leading @=>@ slot(s) of an application were
-            -- user-supplied (rather than resolver-picked), it tags
-            -- the head with a 'Type.giveMarkerRef' ascription.
-            -- Render that as the @give@ keyword so the source
-            -- round-trips back to a parse with the matching
-            -- 'Ann.Lowered' annotation.
+            -- When 'stripImplicitArgsByType' decides the leading @=>@
+            -- slot(s) of an application were user-supplied (rather
+            -- than resolver-picked), it tags the head with a
+            -- 'Type.giveMarkerRef' ascription. Render that as the
+            -- @give@ keyword so the source round-trips back to a
+            -- parse with the matching 'Ann.Lowered' annotation.
             Apps' (Ann' inner t) args
               | isGiveMarkerType t ->
                   paren (p >= Application) <$> do

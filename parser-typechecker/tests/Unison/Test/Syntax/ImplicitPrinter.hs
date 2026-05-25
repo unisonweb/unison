@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Round-trip property tests for the @=>@ constraint-arrow syntax
--- (chunk P1). For each fixture we:
+-- | Round-trip property tests for the @=>@ constraint-arrow syntax.
+-- For each fixture we:
 --
 --   1. parse the source as a value type;
 --   2. pretty-print the parsed type via 'Unison.Syntax.TypePrinter';
@@ -9,9 +9,7 @@
 --   4. assert the two ABTs are structurally equal (modulo annotations).
 --
 -- This pins the contract that @view@\/@edit@\/@update@ of declarations
--- containing @=>@ preserve the constraint-arrow syntax: without the
--- printer arm added in chunk P1, step 2 would emit @->@ for implicit
--- positions and the second parse would yield a different AST.
+-- containing @=>@ preserve the constraint-arrow syntax.
 --
 -- We use 'Unison.Test.Common.t', which calls 'TypeParser.valueType'
 -- under the builtins-only parsing env and applies
@@ -60,8 +58,7 @@ roundTrip s = scope (label s) $ do
       note $ "reparsed : " <> show reparsed
       crash "round-trip mismatch"
 
--- | Fixtures cover the corpus the printer must reproduce, drawn from
--- @docs/implicits-plan.md@ §1.2 and the A4 parser snapshot suite:
+-- | Fixtures cover the corpus the printer must reproduce:
 --
 --   * single-constraint signatures (@Show a => a -> Text@);
 --   * tuple-of-constraints signatures (@(Show a, Eq a) => [a] -> [a]@);

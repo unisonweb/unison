@@ -145,6 +145,6 @@ unhashComponent componentHash refToVar m =
             Type.Effects as -> ABT.tm () $ Type.Effects as
             Type.Forall a -> ABT.tm () $ Type.Forall a
             Type.IntroOuter a -> ABT.tm () $ Type.IntroOuter a
-            -- ADR-019: implicit arrows round-trip through the V2
-            -- codebase representation.
+            -- Implicit arrows round-trip through the V2 codebase
+            -- representation.
             Type.ImplicitArrow a b -> ABT.tm () $ Type.ImplicitArrow a b

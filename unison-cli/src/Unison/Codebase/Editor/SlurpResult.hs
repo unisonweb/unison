@@ -134,9 +134,9 @@ pretty isPast ppe sr =
           shown ++ case sz of
             0 -> []
             n -> [P.shown n <> " more"]
-      -- ADR-007: surface the @class@ keyword in slurp summaries for
-      -- types whose parser-side var name was recorded as a class
-      -- binding. Mirrors the @view@ render path.
+      -- Surface the @class@ keyword in slurp summaries for types
+      -- whose parser-side var name was recorded as a class binding.
+      -- Mirrors the @view@ render path.
       classRefSet :: Set Reference =
         Set.fromList
           [ Reference.DerivedId r

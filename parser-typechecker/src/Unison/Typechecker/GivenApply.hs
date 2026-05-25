@@ -2,9 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Phase-2 chunk D3: post-typecheck pass that walks a term and
--- substitutes resolved implicit arguments into 'App' nodes, mirroring
--- the @applyTdnrDecisions@ pattern (see
+-- | Post-typecheck pass that walks a term and substitutes resolved
+-- implicit arguments into 'App' nodes, mirroring the
+-- @applyTdnrDecisions@ pattern (see
 -- @parser-typechecker/src/Unison/FileParsers.hs:329@).
 --
 -- ## Inputs
@@ -14,8 +14,9 @@
 --
 --     * 'Context.SolvedImplicit': one per resolved implicit slot,
 --       carrying either a 'GR.ResolutionTree' (success) or a
---       'GR.ResolveError' (failure). Errors are left in place for
---       chunk D4 to surface; D3 only consumes successes.
+--       'GR.ResolveError' (failure). Errors are left in place for a
+--       downstream pass to surface; only successes are consumed
+--       here.
 --
 --     * 'Context.TopLevelComponent': the inferred types of let-rec
 --       bindings, used to look up the types of locally-defined
@@ -23,8 +24,8 @@
 --
 -- * A 'TL.TypeLookup': the typechecker's view of every 'Term.Ref''
 --   the term mentions. Used to compute how many leading
---   'Type.ImplicitArrow's a function carries before its first explicit
---   argument.
+--   'Type.ImplicitArrow's a function carries before its first
+--   explicit argument.
 --
 -- ## Strategy
 --
@@ -33,7 +34,7 @@
 -- peeled 'ImplicitArrow' arrows during inference. Apply-sites are
 -- visited top-down, function-first, then arguments left-to-right.
 --
--- D3 walks the term in the same order, holding a queue of pending
+-- We walk the term in the same order, holding a queue of pending
 -- decisions. At each apply-site @Apps' f args@:
 --
 --  1. Look up the type of @f@. For 'Ref'' we consult the supplied
@@ -46,14 +47,14 @@
 --     pop a 'SolvedImplicit' decision from the queue (matching the
 --     order in which the typechecker emitted them).
 --
---  3. **Override skip (per A3's annotation-widening contract).**
+--  3. **Override skip (annotation-widening contract).**
 --     Before consuming a decision, examine the /next user-supplied
---     argument/. If its annotation has been widened by A3's
---     @\@@-positional override syntax (i.e. the outer 'Ann' starts at
---     a column strictly /before/ the start of the leftmost annotation
---     among its sub-terms), the user has already supplied this
---     implicit explicitly. We do /not/ pop a decision, leave the arg
---     untouched, and move on.
+--     argument/. If its annotation has been widened by the
+--     @\@@-positional override syntax (i.e. the outer 'Ann' starts
+--     at a column strictly /before/ the start of the leftmost
+--     annotation among its sub-terms), the user has already supplied
+--     this implicit explicitly. We do /not/ pop a decision, leave
+--     the arg untouched, and move on.
 --
 --  4. Otherwise, build a 'Term.Term' for the resolution tree (a
 --     left-leaning chain of 'Term.app' nodes terminating in
@@ -64,13 +65,13 @@
 --
 -- ## Errors and overrides
 --
--- D3 leaves error decisions ('Left ResolveError') untouched: the term
--- keeps the original arity, and a downstream rendering pass (chunk
--- D4) translates the error into a user-facing diagnostic. This is
--- the same separation TDNR uses today: 'applyTdnrDecisions' silently
--- skips 'SolvedBlank' notes whose 'Resolution' yielded no
--- substitution; the user-facing error surfaces from the stored
--- 'Suggestion's via 'Result.Note'.
+-- Error decisions ('Left ResolveError') are left untouched: the term
+-- keeps the original arity, and a downstream rendering pass
+-- translates the error into a user-facing diagnostic. This is the
+-- same separation TDNR uses: 'applyTdnrDecisions' silently skips
+-- 'SolvedBlank' notes whose 'Resolution' yielded no substitution;
+-- the user-facing error surfaces from the stored 'Suggestion's via
+-- 'Result.Note'.
 --
 -- ## Limitations
 --
@@ -78,22 +79,19 @@
 --   sub-term annotations to compare against. For a single-leaf
 --   override (e.g. @f \@ d@ where @d@ is a bare identifier) the
 --   inner annotation is unavailable and we fall back to /not/
---   treating the slot as overridden. The user-visible effect is the
---   same as before A3 landed: the resolver's chosen dictionary will
---   be used. To force an override on a single leaf, the user can
---   wrap the argument in parentheses (@f \@ (d)@) — the parens
---   produce a non-leaf node whose inner annotation is recoverable.
---   This limitation is recorded in chunks.md as a follow-up for
---   chunk A4.
+--   treating the slot as overridden. To force an override on a
+--   single leaf, the user can wrap the argument in parentheses (@f
+--   \@ (d)@) — the parens produce a non-leaf node whose inner
+--   annotation is recoverable.
 --
 -- * For function expressions whose type cannot be looked up
 --   syntactically (e.g. a higher-order callback, a complex
---   expression head), D3 leaves the apply site alone. In practice
---   such functions cannot have implicit parameters in their
+--   expression head), this pass leaves the apply site alone. In
+--   practice such functions cannot have implicit parameters in their
 --   /surface/ type, since 'ImplicitArrow' is only valid in declared
---   signatures (per ADR-019); inferred types of expressions never
---   contain 'ImplicitArrow'. So this is not a soundness gap, just a
---   reminder that D3 is syntax-directed.
+--   signatures; inferred types of expressions never contain
+--   'ImplicitArrow'. So this is not a soundness gap, just a reminder
+--   that the pass is syntax-directed.
 module Unison.Typechecker.GivenApply
   ( -- * Top-level entry point
     applyGivenDecisions,
@@ -149,10 +147,10 @@ import Unison.Var qualified as Var
 --
 -- Alongside the rewritten term we return a list of
 -- 'Context.ImplicitArgRef' notes (one per inserted dictionary), so
--- downstream consumers (chunk F1's LSP integration) can detect
--- synthesized arguments at a given source position. The notes are
--- anchored at the source location of the function head, since the
--- synthesized argument has no surface range.
+-- downstream consumers (the LSP integration) can detect synthesized
+-- arguments at a given source position. The notes are anchored at
+-- the source location of the function head, since the synthesized
+-- argument has no surface range.
 applyGivenDecisions ::
   forall v.
   (Var v) =>
@@ -269,8 +267,8 @@ data AppEnv v = AppEnv
   }
 
 -- | Mutable state: the queue of decisions still to consume, plus a
--- collected list of 'ImplicitArgRef' info notes (chunk F1) recording
--- each synthesized insertion. Notes are pushed in reverse order; the
+-- collected list of 'ImplicitArgRef' info notes recording each
+-- synthesized insertion. Notes are pushed in reverse order; the
 -- caller of 'applyGivenDecisions' reverses them.
 data DState v = DState
   { dsQueue :: [GR.ResolutionTree v Ann],
@@ -390,21 +388,19 @@ rewriteApply env outer f args = case ABT.out f of
         -- No type info; leave the apply chain alone (no implicits to insert).
         pure (rebuildApps (ABT.annotation outer) f' args')
       Just ft ->
-        -- ADR-007: if f was wrapped with @give@, demote /every/
-        -- leading @=>@ in its type to @->@ so 'interleave' consumes
-        -- the next args as regular positional arguments instead of
-        -- popping decisions from the queue. The typechecker has
-        -- already suppressed the matching 'ConstraintGoal' emissions
-        -- for those slots, so popping here would mis-align the queue.
+        -- If f was wrapped with @give@, demote /every/ leading @=>@
+        -- in its type to @->@ so 'interleave' consumes the next args
+        -- as regular positional arguments instead of popping
+        -- decisions from the queue. The typechecker has already
+        -- suppressed the matching 'ConstraintGoal' emissions for
+        -- those slots, so popping here would mis-align the queue.
         -- 'lowerAll' must descend through any leading 'Forall'
         -- quantifiers before reaching the @=>@ chain, otherwise a
         -- type like @forall a. C a => a -> a@ falls into the
-        -- catch-all branch unchanged and 'interleave' below sees
-        -- the un-lowered 'ImplicitArrow' and pops a sibling
-        -- binding's resolved dictionary off the queue — leaking
-        -- that dictionary's locally-bound variables into this
-        -- scope (the @_implicit_<name>_<i>@ free-var hashing
-        -- crash).
+        -- catch-all branch unchanged and 'interleave' below sees the
+        -- un-lowered 'ImplicitArrow' and pops a sibling binding's
+        -- resolved dictionary off the queue — leaking that
+        -- dictionary's locally-bound variables into this scope.
         let lowerAll ty = case ty of
               Type.ForallNamed' v body -> Type.forAll (ABT.annotation ty) v (lowerAll body)
               Type.ImplicitArrow' i o -> Type.arrow (ABT.annotation ty) i (lowerAll o)
@@ -441,11 +437,11 @@ interleave outerAnn f0 ty0 args0 =
     headLoc = ABT.annotation f0
     go f ty args = case ty of
       -- Implicit: pop a resolved-dictionary decision from the queue
-      -- and apply it. (ADR-007: when @give f@ is in effect at this
-      -- call site, the caller of 'interleave' has already demoted
-      -- the leading @=>@ to @->@ in @ty@, so we never enter this
-      -- branch for that slot — the explicit dictionary the user
-      -- supplied falls through to the 'Arrow'' case below.)
+      -- and apply it. (When @give f@ is in effect at this call site,
+      -- the caller of 'interleave' has already demoted the leading
+      -- @=>@ to @->@ in @ty@, so we never enter this branch for that
+      -- slot — the explicit dictionary the user supplied falls
+      -- through to the 'Arrow'' case below.)
       Type.ImplicitArrow' _ conc -> do
         mDec <- popDecision
         case mDec of
@@ -453,8 +449,8 @@ interleave outerAnn f0 ty0 args0 =
             -- Queue empty: leave the rest alone.
             pure (rebuildApps outerAnn f args)
           Just tree -> do
-            -- Chunk F1: record the synthesized insertion so the LSP
-            -- can detect implicit args at the head's source position.
+            -- Record the synthesized insertion so the LSP can detect
+            -- implicit args at the head's source position.
             recordImplicit headLoc tree
             let dictTm = buildDictionary outerAnn tree
                 f' = Term.app (ABT.annotation f <> ABT.annotation dictTm) f dictTm
@@ -504,9 +500,9 @@ rebuildApps a f args = case args of
 -- The /outermost/ node of the produced term is annotated with
 -- 'Ann.Synthetic' so the term printer can detect that the argument
 -- was inserted by the elaborator (not written by the user) and elide
--- it from surface output — see ADR-015. Inner premise dictionaries
--- keep their non-synthetic annotations because they may already
--- correspond to user-named givens.
+-- it from surface output. Inner premise dictionaries keep their
+-- non-synthetic annotations because they may already correspond to
+-- user-named givens.
 buildDictionary :: (Var v) => Ann -> GR.ResolutionTree v Ann -> Term v Ann
 buildDictionary a tree =
   let head_ = headTermFor a (GR.givenName (GR.rtGiven tree))
@@ -626,9 +622,9 @@ stripImplicitArgsByType isGivenRef lookupTermType = go
     -- type, and decide what to do with the leading @=>@-filling args.
     -- If every such arg looks like an auto-resolved dictionary
     -- (namespace-tagged @given@ reference), strip them — this is the
-    -- ADR-015 elide-mode default. Otherwise the user wrote @give@ at
-    -- this call site; keep the args and tag the head with
-    -- 'Ann.Lowered' so the printer emits the @give @ prefix.
+    -- default elide-mode. Otherwise the user wrote @give@ at this
+    -- call site; keep the args and tag the head with 'Ann.Lowered'
+    -- so the printer emits the @give @ prefix.
     --
     -- The head's own annotation can itself carry 'Ann.Lowered'
     -- (the parser puts it there when it sees the @give@ keyword,
@@ -722,39 +718,10 @@ localGivenPrefix = "Local.given."
 -- Override detection
 ------------------------------------------------------------------------------
 
--- | True iff the argument's annotation has been widened by A3's
--- @\@@-positional override syntax (per
--- @parser-typechecker/src/Unison/Syntax/TermParser.hs:~967@):
---
--- @
---   overrideArg = do
---     atTok <- reserved "@"
---     d <- termLeaf
---     let widened = ann atTok <> ann d
---     pure d {ABT.annotation = widened}
--- @
---
--- The widening shifts the outer annotation's start strictly to the
--- left of the inner term's natural start. We detect this by
--- comparing the outer annotation's start position to the start of
--- the leftmost annotation among the term's sub-children.
---
--- This detection is unsafe when the term is itself a structural
--- composite (a list literal @[1,2,3]@, a parenthesised expression,
--- a constructor application, etc.) because the surrounding brackets
--- /also/ shift the outer annotation strictly before the first inner
--- child. Such terms must never be treated as overrides — they are
--- the user's own explicit arguments at non-implicit slots.
---
--- The 'termLeaf'-only restriction below mirrors the parser's
--- @overrideArg@: only single-leaf terms (Var, Ref, Builtin, literal,
--- TermLink, TypeLink, Blank) can be @\@@-widened. Composite terms
--- with sub-children are never overrides.
--- | ADR-007: was a heuristic for detecting @\@@-override args via
--- annotation widening. Now that the override path goes through the
--- @give@-prefix syntax (which tags the /function/ with
--- 'Ann.Lowered' so 'rewriteApply' demotes the type before
--- 'interleave' sees it), there's no need to inspect the arg. Kept
--- as a stub so external callers compile; always returns 'False'.
+-- | Override detection stub. The override path goes through the
+-- @give@-prefix syntax, which tags the /function/ with 'Ann.Lowered'
+-- so 'rewriteApply' demotes the type before 'interleave' sees it, so
+-- no per-argument inspection is needed. Always returns 'False'; kept
+-- exported so external callers compile.
 isOverrideArg :: Term v Ann -> Bool
 isOverrideArg _ = False

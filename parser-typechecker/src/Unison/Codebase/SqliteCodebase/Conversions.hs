@@ -359,7 +359,7 @@ type2to1' convertRef =
       V2.Type.Effects as -> V1.Type.Effects as
       V2.Type.Forall a -> V1.Type.Forall a
       V2.Type.IntroOuter a -> V1.Type.IntroOuter a
-      -- ADR-019: implicit arrows round-trip between V1 and V2 representations.
+      -- Implicit arrows round-trip between V1 and V2 representations.
       V2.Type.ImplicitArrow i o -> V1.Type.ImplicitArrow i o
       where
         convertKind = \case
@@ -388,7 +388,7 @@ type1to2' convertRef =
       V1.Type.Effects as -> V2.Type.Effects as
       V1.Type.Forall a -> V2.Type.Forall a
       V1.Type.IntroOuter a -> V2.Type.IntroOuter a
-      -- ADR-019: implicit arrows round-trip between V1 and V2 representations.
+      -- Implicit arrows round-trip between V1 and V2 representations.
       V1.Type.ImplicitArrow i o -> V2.Type.ImplicitArrow i o
       where
         convertKind = \case

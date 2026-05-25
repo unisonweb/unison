@@ -2,10 +2,9 @@
 -- commands.
 --
 -- These commands toggle and inspect the @##Builtin.Given@ sentinel
--- stored in 'Unison.Codebase.Branch.Type.MdValues' (ADR-013). They
--- are pure namespace operations: per ADR-014, the term hash of the
--- referent is unchanged when (un)marking, so dependents are not
--- disturbed.
+-- stored in 'Unison.Codebase.Branch.Type.MdValues'. They are pure
+-- namespace operations: the term hash of the referent is unchanged
+-- when (un)marking, so dependents are not disturbed.
 module Unison.Codebase.Editor.HandleInput.Givens
   ( handleMarkGiven,
     handleUnmarkGiven,

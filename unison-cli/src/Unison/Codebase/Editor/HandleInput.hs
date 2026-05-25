@@ -973,12 +973,12 @@ handleFindI isVerbose fscope ws input = do
       case ws of
         [] -> pure (List.sortBy SR.compareByName (SR.fromNames names))
         -- given-set filter: list every term in the search branch whose
-        -- metadata carries the @##Builtin.Given@ sentinel (ADR-013).
-        -- Consumes 'Unison.Codebase.Givens.metadataValuesFor' through
-        -- 'isGiven'. The metadata for a referent at @ns.foo@ lives
-        -- in @ns@'s 'Star2', not in the parent's, so we must walk
-        -- children and consult 'isGiven' at each level rather than
-        -- checking the top-level branch alone.
+        -- metadata carries the @##Builtin.Given@ sentinel. Consumes
+        -- 'Unison.Codebase.Givens.metadataValuesFor' through 'isGiven'.
+        -- The metadata for a referent at @ns.foo@ lives in @ns@'s
+        -- 'Star2', not in the parent's, so we must walk children and
+        -- consult 'isGiven' at each level rather than checking the
+        -- top-level branch alone.
         [":given"] -> do
           let givenReferents :: Set Referent
               givenReferents = collectGivenReferents searchBranch

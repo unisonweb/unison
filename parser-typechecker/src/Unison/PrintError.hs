@@ -1434,13 +1434,14 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
     curly = wrap "{" "}"
     renderType0 env f p t = f (ABT.annotation t) $ case t of
       Type.Ref' r -> showTypeRef env r
-      -- ADR-019 / chunk P1: a leading chain of 'ImplicitArrow's renders
-      -- as a @=>@ constraint context. Walk the spine to collect every
-      -- leading constraint, emit them as a single @=>@ tuple (single
+      -- A leading chain of 'ImplicitArrow's renders as a @=>@
+      -- constraint context. Walk the spine to collect every leading
+      -- constraint, emit them as a single @=>@ tuple (single
       -- constraints print bare; two or more print as a parenthesised
-      -- comma list), then recurse on the conclusion. The conclusion is
-      -- rendered at precedence 0 so it is /not/ parenthesised: @=>@
-      -- binds looser than @->@. Mirrors the helper in @TypePrinter.hs@.
+      -- comma list), then recurse on the conclusion. The conclusion
+      -- is rendered at precedence 0 so it is /not/ parenthesised:
+      -- @=>@ binds looser than @->@. Mirrors the helper in
+      -- @TypePrinter.hs@.
       _
         | (cs@(_ : _), conclusion) <- splitImplicitConstraints t ->
             let renderedCs = case cs of
@@ -1487,8 +1488,8 @@ spaces = intercalateMap " "
 commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
 
--- | Walk the leading chain of 'Type.ImplicitArrow's, returning the list
--- of constraint types and the conclusion. ADR-019: @(C1, C2) => T@ is
+-- | Walk the leading chain of 'Type.ImplicitArrow's, returning the
+-- list of constraint types and the conclusion. @(C1, C2) => T@ is
 -- encoded as @ImplicitArrow C1 (ImplicitArrow C2 T)@; this peels the
 -- chain so the error renderer can emit it as a single @=>@ context.
 -- Mirrors 'Unison.Syntax.TypePrinter.splitImplicitConstraints'.
@@ -1612,12 +1613,12 @@ printNoteWithSource _env _s (CompilerBug c) =
 printNoteWithSource env s (Result.UnresolvedImplicit loc goal err) =
   renderImplicitResolutionError env s loc goal err
 
--- | Render a 'GR.ResolveError' produced by implicit resolution
--- (chunk D4). The four primary categories ('NoGiven', 'Ambiguous',
--- 'DepthExceeded', 'Cycle') and the goal-metavar refinement
--- ('UnresolvedMetavarInGoal') each get a distinct, helpful header
--- and supporting context. NearMisses on 'NoGiven' show /why/ each
--- candidate didn't work, threading the same renderer recursively.
+-- | Render a 'GR.ResolveError' produced by implicit resolution. The
+-- four primary categories ('NoGiven', 'Ambiguous', 'DepthExceeded',
+-- 'Cycle') and the goal-metavar refinement ('UnresolvedMetavarInGoal')
+-- each get a distinct, helpful header and supporting context.
+-- NearMisses on 'NoGiven' show /why/ each candidate didn't work,
+-- threading the same renderer recursively.
 renderImplicitResolutionError ::
   forall v a.
   (Var v, Annotated a, Show a, Ord a) =>

@@ -52,9 +52,9 @@ verifyClosedTermTest =
               for_ errors expectUnknownSymbol
     ]
 
--- | ADR-010 / chunk C2.1: confirms the lexical given environment is
--- threaded through nested binding forms ('Lam', 'Let1') without
--- disturbing the typechecker's result. Two expectations:
+-- | Confirms the lexical given environment is threaded through
+-- nested binding forms ('Lam', 'Let1') without disturbing the
+-- typechecker's result. Two expectations:
 --
 --   1. Typechecking a nested term (a let-binding whose RHS is a
 --      lambda, then applied to a literal) succeeds — exercises the
@@ -63,8 +63,7 @@ verifyClosedTermTest =
 --      effect.
 --
 --   2. Passing a non-empty initial givens map produces the same
---      outcome as passing 'Map.empty', confirming the seed is not yet
---      consulted by inference (chunks D1+ will change this).
+--      outcome as passing 'Map.empty'.
 --
 -- The match-arm and letrec wrappers are exercised indirectly by the
 -- existing typechecker test suite — every transcript with a 'match'
@@ -77,11 +76,9 @@ lexicalGivensThreadingTest =
           Right _ -> ok
           Left err -> crash err,
       scope "typechecks-with-nonempty-givens" $
-        -- A non-empty givens map should be accepted and ignored by
-        -- inference (until chunks D1+ wire up resolution). The map
-        -- value is meaningless to the typechecker today; what we
-        -- verify is that 'synthesizeClosed' with a populated initial
-        -- env produces the same outcome as with an empty one.
+        -- A non-empty givens map should be accepted. We verify that
+        -- 'synthesizeClosed' with a populated initial env produces
+        -- the same outcome as with an empty one.
         let nonEmpty =
               Map.singleton
                 -- Any builtin reference works as a placeholder key;
@@ -131,10 +128,10 @@ lexicalGivensThreadingTest =
               | otherwise ->
                   Left ("unexpected type errors: " <> show (length errs))
 
--- | ADR-019 / chunk C2.2: confirms inference emits a 'ConstraintGoal'
--- info note for each 'ImplicitArrow' parameter at an apply-site, with
--- the right type and the lexical given environment captured into the
--- goal's scope snapshot.
+-- | Confirms inference emits a 'ConstraintGoal' info note for each
+-- 'ImplicitArrow' parameter at an apply-site, with the right type
+-- and the lexical given environment captured into the goal's scope
+-- snapshot.
 --
 -- Strategy: register a builtin term reference @f@ in the 'TypeLookup'
 -- whose declared type is @C => Nat -> Nat@ (a single implicit
@@ -144,11 +141,10 @@ lexicalGivensThreadingTest =
 --   1. exactly one 'ConstraintGoal' note appears (one implicit slot);
 --   2. its 'goalType' equals the constraint type @C@;
 --   3. with a non-empty initial @lexicalGivens@ map, the goal's
---      'goalScope' captures it faithfully (proves C2.1's env reaches
---      C2.2's emission point).
+--      'goalScope' captures it faithfully.
 --
 -- Multi-constraint signatures @(C1, C2) =>@ desugar to nested
--- 'ImplicitArrow' per ADR-019; the same emission code recurses, so a
+-- 'ImplicitArrow'; the same emission code recurses, so a
 -- two-implicit case is exercised by the existing fixed-point on the
 -- conclusion. We test the single-implicit case here for clarity.
 constraintGoalEmissionTest :: Test ()

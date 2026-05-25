@@ -32,10 +32,9 @@ test =
               x = forAll () v (nat () --> effect () [vt, builtin () "eff"] (nat ())) :: Type Symbol ()
               y = forAll () v2 (nat () --> effect () [vt2] (nat ())) :: Type Symbol ()
           expect . not $ Typechecker.isSubtype x y,
-        -- ADR-019 / chunk C1.1: 'ImplicitArrow' is a distinct AST node
-        -- from 'Arrow' and must hash distinctly (per ADR-014). The
-        -- v2-hashing entry point used here is the same one the codebase
-        -- uses to compute type hashes for storage.
+        -- 'ImplicitArrow' is a distinct AST node from 'Arrow' and must
+        -- hash distinctly. The v2-hashing entry point used here is the
+        -- same one the codebase uses to compute type hashes for storage.
         scope "ImplicitArrow hashes distinctly from Arrow" $ do
           let v = Var.named "x" :: Symbol
               vt = var () v :: Type Symbol ()
@@ -45,8 +44,8 @@ test =
               refA = HashingConvert.typeToReference tArrow
               refI = HashingConvert.typeToReference tImplicit
           expect (refA /= refI),
-        -- ADR-019: a type containing 'ImplicitArrow' produces a stable
-        -- hash, demonstrating the v2-hashing tokenizer handles the new
+        -- A type containing 'ImplicitArrow' produces a stable hash,
+        -- demonstrating the v2-hashing tokenizer handles the new
         -- constructor. Two structurally identical types must hash equal.
         scope "ImplicitArrow hashing is stable" $ do
           let v = Var.named "x" :: Symbol

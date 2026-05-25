@@ -406,10 +406,10 @@ analyseNotes codebase fileUri ppe src notes = do
       Result.UnknownSymbol _ loc ->
         pure (noteDiagnostic note (singleRange loc), [])
       Result.UnresolvedImplicit loc goal err -> do
-        -- Phase-2 chunk F2: surface implicit-resolution failures as
-        -- categorized diagnostics, plus per-category code actions.
+        -- Surface implicit-resolution failures as categorized
+        -- diagnostics, plus per-category code actions.
         --
-        -- The diagnostic message is rendered by D4's
+        -- The diagnostic message is rendered by
         -- 'renderImplicitResolutionError' (via 'printNoteWithSource')
         -- so we share text with the CLI. We additionally tag each
         -- diagnostic with a short string code so editors can dispatch

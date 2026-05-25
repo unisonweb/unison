@@ -1,18 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Phase-2 chunk D4 message-rendering tests for the four (plus one)
--- implicit-resolution error categories. These tests exercise
--- 'Unison.PrintError.printNoteWithSource' on hand-built
--- 'Result.UnresolvedImplicit' notes, and assert the rendered output
--- contains category-specific phrases plus the relevant supporting
--- detail (near-miss listing, candidate listing, chain rendering, etc.).
+-- | Message-rendering tests for the implicit-resolution error
+-- categories. These tests exercise 'Unison.PrintError.printNoteWithSource'
+-- on hand-built 'Result.UnresolvedImplicit' notes, and assert the
+-- rendered output contains category-specific phrases plus the
+-- relevant supporting detail (near-miss listing, candidate listing,
+-- chain rendering, etc.).
 --
--- This is the assert-message variant of "≥4 distinct golden-file
--- tests" called for in the chunk spec. Asserting on substrings rather
--- than full byte-for-byte goldens keeps the tests robust to
--- color-text and word-wrap perturbations while still verifying the
--- user-visible categorical distinctions are present.
+-- Asserting on substrings rather than full byte-for-byte goldens
+-- keeps the tests robust to color-text and word-wrap perturbations
+-- while still verifying the user-visible categorical distinctions
+-- are present.
 module Unison.Test.Typechecker.ImplicitErrorRendering (test) where
 
 import Data.List (isInfixOf)

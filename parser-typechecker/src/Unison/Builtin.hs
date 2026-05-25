@@ -292,9 +292,6 @@ intrinsicTermReferences = Map.keysSet termRefTypes
 -- | The textual name of the sentinel builtin reference used to mark a
 -- definition as a "given" via namespace metadata. This corresponds to the
 -- hash-prefix syntax @##Builtin.Given@.
---
--- See ADR-013 (given-set storage) and ADR-002 (givenness namespace
--- metadata).
 givenSentinelName :: Text
 givenSentinelName = "Builtin.Given"
 
@@ -303,14 +300,12 @@ givenSentinelName = "Builtin.Given"
 -- registered as a callable term (it has no type and is not in
 -- 'termRefTypes'); it exists solely as a tag carried by namespace
 -- metadata, where its presence indicates givenness.
---
--- See @docs/architecture/decisions/ADR-013-given-set-storage.md@.
 givenSentinelRef :: R.Reference
 givenSentinelRef = R.Builtin givenSentinelName
 
 -- | The textual name of the sentinel builtin reference used to mark a
 -- /type/ declaration as having originated from the @class@ keyword.
--- See ADR-013 (the same storage strategy as 'givenSentinelName').
+-- Uses the same metadata-tag storage strategy as 'givenSentinelName'.
 -- 'view' inspects this marker to decide whether to render the
 -- declaration with the @class@ keyword and record-field syntax.
 classSentinelName :: Text
@@ -417,12 +412,11 @@ typeOf a f r = maybe a f (Map.lookup r termRefTypes)
 builtinsSrc :: [BuiltinDSL]
 builtinsSrc =
   [ B "Any.unsafeExtract" $ forall1 "a" (\a -> anyt --> a),
-    -- ADR-006: the @summon@ builtin. Type @forall a. a => a@ — the
-    -- leading @=>@ makes the typechecker emit a 'ConstraintGoal' at
-    -- every reference and the resolver fills it from the surrounding
-    -- type context. Runtime behaviour is the identity function
-    -- (defined in 'Unison.Runtime.Builtin'). No longer a reserved
-    -- word; the name parser accepts @summon@ as an ordinary segment.
+    -- The @summon@ builtin. Type @forall a. a => a@ — the leading
+    -- @=>@ makes the typechecker emit a 'ConstraintGoal' at every
+    -- reference and the resolver fills it from the surrounding type
+    -- context. Runtime behaviour is the identity function (defined in
+    -- 'Unison.Runtime.Builtin').
     B "summon" $ forall1 "a" (\a -> a ==> a),
     B "Int.+" $ int --> int --> int,
     B "Int.-" $ int --> int --> int,
@@ -1354,7 +1348,7 @@ a --> b = Type.arrow () a b
 
 infixr 9 -->
 
--- | The implicit-arrow constructor (ADR-019) used in builtin signatures.
+-- | The implicit-arrow constructor used in builtin signatures.
 (==>) :: Type -> Type -> Type
 a ==> b = Type.implicitArrow () a b
 

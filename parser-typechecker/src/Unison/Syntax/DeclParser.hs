@@ -57,12 +57,11 @@ data SynDataDecl v = SynDataDecl
     -- | 'True' iff this declaration was parsed with the @class@
     -- keyword instead of @type@. Class declarations are sugared
     -- record types whose accessors take the record as an /implicit/
-    -- parameter (an @=>@ arrow per ADR-001) and emit only the
-    -- getters — no setters or modifiers — so a method call like
-    -- @Monoid.op acc x@ relies on the resolver to thread the chosen
-    -- 'Monoid' dictionary in. See @generateRecordAccessors@ for the
-    -- accessor-emission split. Always 'False' for ordinary @type@
-    -- declarations.
+    -- parameter (an @=>@ arrow) and emit only the getters — no
+    -- setters or modifiers — so a method call like @Monoid.op acc x@
+    -- relies on the resolver to thread the chosen 'Monoid' dictionary
+    -- in. See @generateRecordAccessors@ for the accessor-emission
+    -- split. Always 'False' for ordinary @type@ declarations.
     isClass :: !Bool
   }
   deriving stock (Generic)
@@ -120,12 +119,12 @@ synDataDeclP modifier0 = do
       classKw = (True,) <$> (fmap void (reserved "class") <|> openBlockWith "class")
   (classFlag, typeToken) <- typeKw <|> classKw
   (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
-  -- ADR-007: when the user used the @class@ keyword, record the type
-  -- name in the parser's side-channel so the @add@ / @update@ command
-  -- can mark the namespace metadata with 'classSentinel'. This makes
-  -- the @class@ keyword recoverable on the @view@ round-trip even
-  -- though the underlying data declaration is the same as if it were
-  -- written with @type@.
+  -- When the user used the @class@ keyword, record the type name in
+  -- the parser's side-channel so the @add@ / @update@ command can mark
+  -- the namespace metadata with 'classSentinel'. This makes the
+  -- @class@ keyword recoverable on the @view@ round-trip even though
+  -- the underlying data declaration is the same as if it were written
+  -- with @type@.
   when classFlag $ recordClassDeclVar (L.payload name)
   let tyvars = L.payload <$> typeArgs
   eq <- reserved "="

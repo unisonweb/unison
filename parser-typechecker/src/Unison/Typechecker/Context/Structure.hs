@@ -329,10 +329,9 @@ apply' solved t = go t
       Type.Var' (TypeVar.Existential _ v) ->
         maybe t (\(Type.Monotype t') -> go t') (Map.lookup v solved)
       Type.Arrow' i o -> Type.arrow a (go i) (go o)
-      -- ADR-019 / chunk C2.2 (carry-over from C1.1): 'ImplicitArrow'
-      -- substitution mirrors 'Arrow'. Without this clause 'apply'' would
-      -- crash on any type containing @=>@ — including the constraint
-      -- goals emitted by 'synthesizeApp'.
+      -- 'ImplicitArrow' substitution mirrors 'Arrow'. Without this
+      -- clause 'apply'' would crash on any type containing @=>@ —
+      -- including the constraint goals emitted by 'synthesizeApp'.
       Type.ImplicitArrow' i o -> Type.implicitArrow a (go i) (go o)
       Type.App' x y -> Type.app a (go x) (go y)
       Type.Ann' v k -> Type.ann a (go v) k

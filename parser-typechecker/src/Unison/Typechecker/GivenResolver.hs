@@ -3,12 +3,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Phase-2 chunk D1 port of the implicit-resolution spike
--- (@spike\/implicits\/src\/Implicits\/Resolve.hs@) adapted to use the
--- real 'Unison.Type.Type' AST.
+-- | Implicit-resolution algorithm operating over the 'Unison.Type.Type'
+-- AST.
 --
--- This module is exercised by unit tests only; D2 wires it into the
--- typechecker. The algorithm (per @docs\/implicits-plan.md@ §1.3) is:
+-- The algorithm is:
 --
 -- @
 --   resolve(T, stack, depth) =
@@ -18,19 +16,14 @@
 --     ... try each, picking most-specific or reporting ambiguity
 -- @
 --
--- Refinements applied since the spike:
+-- Key properties:
 --
 -- * Specificity uses *one-way* matching of *declared* conclusions
---   ('oneWayMatch'), per the post-spike refinement in ADR-008. The
---   candidate-under-comparison's quantified variables are flexible;
---   the other candidate's are rigid.
+--   ('oneWayMatch'). The candidate-under-comparison's quantified
+--   variables are flexible; the other candidate's are rigid.
 --
 -- * Memoization is per-top-level-resolve, keyed on the goal type, and
---   caches both successes and failures (per ADR-023 Option A). The
---   metavar-binding invalidation rule from ADR-023 is a no-op here in
---   D1 because the resolver does not yet share metavariables with the
---   outer typechecker; D2 will add invalidation when the outer
---   substitution is plumbed in.
+--   caches both successes and failures.
 --
 -- ## Unification choice
 --
@@ -40,11 +33,9 @@
 -- 'TypeVar.Existential' / 'TypeVar.Universal' wrapping). They cannot
 -- be reused without dragging in the entire context state.
 --
--- The spike's standalone Robinson unifier is a far better fit: the
--- resolver freshens each candidate's quantified variables to its own
--- pool and unifies with the goal under a pure substitution. We port
--- it verbatim, retargeted at 'Type.F'. D2 will revisit this when the
--- resolver runs inside the typechecker monad.
+-- A standalone Robinson unifier is a far better fit: the resolver
+-- freshens each candidate's quantified variables to its own pool and
+-- unifies with the goal under a pure substitution.
 module Unison.Typechecker.GivenResolver
   ( -- * Givens and pool
     Given (..),
@@ -94,8 +85,8 @@ type Substitution v loc = Map v (Type v loc)
 
 -- | Lexical depth or ambient scope. Smaller 'Lexical' values are
 -- *more* inner (e.g. @Lexical 0@ is the innermost binder); 'Ambient'
--- is the outermost. Per ADR-008, lexical-inner candidates win over
--- ambient ones at the same subsumption level.
+-- is the outermost. Lexical-inner candidates win over ambient ones at
+-- the same subsumption level.
 data Scope = Lexical !Int | Ambient
   deriving stock (Eq, Ord, Show)
 
@@ -149,7 +140,7 @@ data ResolutionTree v loc = ResolutionTree
   deriving stock (Show)
 
 -- | Resolution errors. Keep these structured so the rendering pass
--- (chunk D4) can format them.
+-- can format them.
 data ResolveError v loc
   = -- | No matching given for the goal; near-misses are candidates
     -- whose conclusions head-unified with the goal but whose premises
@@ -163,17 +154,16 @@ data ResolveError v loc
   | -- | Hard cycle: the goal recurred along its own chain. Currently
     -- emitted only when the resolver detects a self-referential goal
     -- with no escape hatch. The list is the chain at the point of
-    -- detection (outermost first). Per ADR-009, ordinary cycles
-    -- short-circuit per-branch and surface as 'NoGiven'; this
-    -- variant is the explicit hard-cycle diagnosis exposed for D4
-    -- rendering.
+    -- detection (outermost first). Ordinary cycles short-circuit
+    -- per-branch and surface as 'NoGiven'; this variant is the
+    -- explicit hard-cycle diagnosis exposed for rendering.
     Cycle [Type v loc]
   | -- | The goal contained an unresolved metavariable (an inference
     -- variable that was not pinned by surrounding inference). The
     -- resolver cannot meaningfully proceed: head-unification would
-    -- accept any candidate. D4 surfaces this as a distinct
-    -- diagnostic so the user is told to add a type annotation rather
-    -- than chasing a missing given.
+    -- accept any candidate. Surfaced as a distinct diagnostic so the
+    -- user is told to add a type annotation rather than chasing a
+    -- missing given.
     --
     -- The 'Type' is the goal as the resolver saw it (with the
     -- metavar still present).
@@ -195,7 +185,7 @@ data NearMiss v loc = NearMiss
 
 data ResolveOptions = ResolveOptions
   { -- | Maximum chain depth before bailing with 'DepthExceeded'.
-    -- Default 50, per ADR-009.
+    -- Default 50.
     optMaxDepth :: !Int
   }
   deriving stock (Eq, Show)
@@ -228,7 +218,7 @@ data RState v loc = RState
     sUsed :: !(Set v),
     -- | Memoization table: 'MemoKey' to either error or success.
     -- Cleared between top-level 'resolve' calls. Caches both hits and
-    -- misses (per ADR-023).
+    -- misses.
     sMemo :: !(Map (MemoKey v) (Either (ResolveError v loc) (ResolutionTree v loc))),
     -- | Number of memo *misses* — distinct sub-goals attempted.
     -- Exposed via 'resolveCounted' so tests can verify the diamond
@@ -297,31 +287,19 @@ resolveCounted ::
   Type v loc ->
   (Either (ResolveError v loc) (ResolutionTree v loc), Int)
 resolveCounted opts pool goal =
-  -- D4 previously short-circuited when the goal contained an
-  -- 'Var.Inference'-typed variable, on the theory that any candidate
-  -- would head-unify with the metavar and produce a spurious
-  -- diagnostic. In practice the resolver's unifier treats free
-  -- variables symmetrically and the constraint goal often carries
-  -- an unresolved metavar that surrounding inference has already
-  -- pinned — we just haven't substituted it into the note. We now
-  -- run the resolver unconditionally; if it succeeds the unifier
-  -- pins the metavar to the candidate, and if no candidate matches
-  -- the 'NoGiven' surface diagnostic accurately reports that there
-  -- is no instance — adding a type annotation is a special case of
-  -- that.
+  -- The resolver runs unconditionally even when the goal contains an
+  -- 'Var.Inference'-typed variable. The unifier treats free variables
+  -- symmetrically and the constraint goal often carries an unresolved
+  -- metavar that surrounding inference has already pinned. If
+  -- resolution succeeds the unifier pins the metavar to the
+  -- candidate; if no candidate matches, the 'NoGiven' surface
+  -- diagnostic accurately reports that there is no instance — adding
+  -- a type annotation is a special case of that.
   let (result, finalSt) =
         runState
           (resolveImpl goal [] 0)
           (initialState opts pool goal)
    in (result, sWork finalSt)
-
--- (Kept for reference: previously used to short-circuit resolution
--- when the goal carried an unresolved metavariable. The check turned
--- out to be too aggressive — a freshly-created existential whose
--- substitution is in flight is indistinguishable from a permanently
--- unconstrained one, but the unifier handles both correctly. The
--- check is no longer consulted; if no candidate matches, 'NoGiven'
--- is the right surface diagnostic.)
 
 -- | Whether a 'Var.Type' indicates a variable created by the
 -- typechecker's inference machinery. Used by 'matchHead' to decide
@@ -350,7 +328,7 @@ resolveImpl goal stack depth = do
       -- Per-branch cycle detection: if any in-flight goal unifies
       -- with the new goal, *this branch* fails. Other candidates may
       -- still succeed; the overall query may still succeed via a
-      -- non-cyclic alternative. Per ADR-009.
+      -- non-cyclic alternative.
       if any (cycleHit goal) stack
         then pure (Left (NoGiven goal []))
         else do
@@ -376,17 +354,14 @@ gets' f = fmap f get
 -- @Foo a@ vs. @Foo b@ where the renamed copy was produced by
 -- 'freshenGiven' on a recursive given.
 --
--- D1 carry-over: the original implementation passed @Set.empty@ for
--- the flex set, which makes 'unify' equivalent to structural equality
--- modulo annotations. With closed monotype goals (D1's tests) the
--- distinction was unobservable, but in D2 the goal can carry
--- metavariables that outer inference has not yet pinned, so we widen
--- the flex set to /all/ free variables in either side.
+-- The flex set is /all/ free variables on either side because the
+-- goal can carry metavariables that outer inference has not yet
+-- pinned.
 --
 -- Note: this is intentionally a /heuristic/ for cycle pruning; it is
 -- safe to over-approximate (a false-positive cycle just causes /this
 -- branch/ to fail, while other candidates may still resolve the goal,
--- per ADR-009's per-branch cycle policy).
+-- under the per-branch cycle policy).
 cycleHit :: (Var v, Ord loc) => Type v loc -> Type v loc -> Bool
 cycleHit a b =
   let flex = ABT.freeVars a `Set.union` ABT.freeVars b
@@ -522,7 +497,7 @@ tryCandidate goal stack depth cand =
         Left err -> pure (Miss (NearMiss (candGiven cand) err))
 
 ------------------------------------------------------------------------------
--- Specificity ordering (ADR-008 refined: one-way match of declared
+-- Specificity ordering (one-way match of declared
 -- conclusions; the pattern's quantified variables are flexible, the
 -- target's are rigid).
 ------------------------------------------------------------------------------
@@ -671,9 +646,9 @@ structuralEq = (==)
 -- σ(@pat@) = @target@, treating *only* variables in @flex@ as
 -- unifiable? Variables in @target@ are rigid by construction.
 --
--- Used for specificity comparisons (ADR-008): a candidate whose
--- pattern *one-way matches* another's conclusion is more general
--- than that other.
+-- Used for specificity comparisons: a candidate whose pattern
+-- *one-way matches* another's conclusion is more general than that
+-- other.
 oneWayMatch ::
   forall v loc.
   (Var v, Ord loc) =>
