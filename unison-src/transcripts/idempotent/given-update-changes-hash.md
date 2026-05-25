@@ -1,18 +1,15 @@
-# ADR-016 scenario (a): updating a given changes the dependent term's hash
+# Scenario: updating a given changes the dependent term's hash
 
 When a definition is annotated as a `given` in the namespace, the
-elaborator can resolve constraint goals against it (chunk D4 wires
-the namespace ambient pool; for D3 we exercise the parser/typechecker
-plumbing only).
+elaborator can resolve constraint goals against it.
 
-The exit criterion from `docs/implicits-plan.md` §5.6: *"working update
-through a given changes the hash."* This transcript captures the hash
-of an elaborated term, updates the given it elaborates against, and
-confirms the dependent term acquires a new hash on re-elaboration.
+This transcript captures the hash of an elaborated term, updates the
+given it elaborates against, and confirms the dependent term acquires
+a new hash on re-elaboration.
 
-ADR-014 spells out *why*: an elaborated term hashes against the
-resolved dictionary's hash via the existing `App` machinery. So when
-the dictionary's hash changes, so does the elaborated term's hash.
+Why: an elaborated term hashes against the resolved dictionary's hash
+via the existing `App` machinery. So when the dictionary's hash
+changes, so does the elaborated term's hash.
 
 ``` ucm :hide
 > builtins.merge
@@ -20,10 +17,9 @@ the dictionary's hash changes, so does the elaborated term's hash.
 
 Define a tiny `Show` ability stand-in (a record-style data type
 holding the rendering function), a given `Show.nat` that conforms to
-it, and a consumer `foo` that depends on it. Until D4 wires the
-namespace ambient pool we make the dependency explicit by calling
-`Show.nat` by name; D4's resolver substitutes that call automatically
-from a constraint goal.
+it, and a consumer `foo` that depends on it. The consumer references
+the given by name; the resolver can substitute that call
+automatically from a constraint goal.
 
 ``` unison
 unique type Show a = Show (a -> Text)
@@ -87,9 +83,9 @@ Show.nat = Show.Show (n -> "n=" ++ Nat.toText n)
   Done.
 ```
 
-Re-record `foo`'s hash (call it H2). Per ADR-016 + ADR-014: the new
-hash differs from H1; the old hash H1 remains valid for any code
-that already references it (content addressing — ADR-002 principle 2).
+Re-record `foo`'s hash (call it H2). The new hash differs from H1;
+the old hash H1 remains valid for any code that already references
+it (content addressing).
 
 ``` ucm
 > names foo

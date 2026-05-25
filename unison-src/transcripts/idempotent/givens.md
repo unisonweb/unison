@@ -1,8 +1,8 @@
 # `mark.given`, `unmark.given`, and `givens`
 
 These commands toggle and inspect the @\#\#Builtin.Given@ sentinel
-stored in namespace metadata (ADR-013). The term hash of the marked
-definition is unchanged (ADR-014); only the namespace hash changes.
+stored in namespace metadata. The term hash of the marked
+definition is unchanged; only the namespace hash changes.
 
 ``` ucm :hide
 > builtins.mergeio lib.builtins
@@ -118,9 +118,8 @@ Unmarking an unmarked definition is a no-op with a clear message.
 ## `view` surfaces a given marker
 
 When a definition is tagged as a given, `view` prepends a marker so
-the parser-side @given@ keyword (chunk A2) can round-trip with the
-namespace tag. Until A2 lands, the marker is rendered as a leading
-@-- given@ comment.
+the parser-side @given@ keyword can round-trip with the namespace
+tag.
 
 ``` ucm
 > mark.given foo

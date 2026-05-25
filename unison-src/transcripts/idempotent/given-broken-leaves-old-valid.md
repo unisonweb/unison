@@ -1,22 +1,20 @@
-# ADR-016 scenario (b): breaking a given leaves dependent terms valid
+# Scenario: breaking a given leaves dependent terms valid
 
-The exit criterion from `docs/implicits-plan.md` §5.6: *"breaking a
-given leaves dependent terms valid (hashed against the old) but
-breaks new code."*
+Breaking a given leaves dependent terms valid (hashed against the
+old) but breaks new code.
 
-ADR-014 grounds this: an elaborated term hashes against the resolved
-dictionary's hash via the existing `App` machinery, so the dependent
-term retains its old resolution after the given is removed (content
-addressing — ADR-002 principle 2). New code that *would* re-elaborate
-against the missing given fails fresh.
+Why: an elaborated term hashes against the resolved dictionary's
+hash via the existing `App` machinery, so the dependent term retains
+its old resolution after the given is removed (content addressing).
+New code that *would* re-elaborate against the missing given fails
+fresh.
 
 ``` ucm :hide
 > builtins.merge
 ```
 
-Define `Show`, the given `Show.nat`, and a consumer `foo`. As in
-scenario (a), the consumer references the given by name until D4
-wires the namespace ambient pool.
+Define `Show`, the given `Show.nat`, and a consumer `foo`. The
+consumer references the given by name.
 
 ``` unison
 unique type Show a = Show (a -> Text)
@@ -45,8 +43,7 @@ foo n = match Show.nat with Show.Show f -> f n
 ```
 
 Record `foo`'s and `Show.nat`'s hashes; `foo`'s body references
-`Show.nat`'s hash via the elaborated `App`, exactly as ADR-014
-prescribes.
+`Show.nat`'s hash via the elaborated `App`.
 
 ``` ucm
 > names foo

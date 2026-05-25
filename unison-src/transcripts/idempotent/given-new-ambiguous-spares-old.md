@@ -1,18 +1,14 @@
-# ADR-016 scenario (c): a new ambiguous given doesn't disturb old code
+# Scenario: a new ambiguous given doesn't disturb old code
 
-The exit criterion from `docs/implicits-plan.md` §5.6: *"introducing
-a second matching given causes new code to fail with ambiguity but
-doesn't disturb existing code."*
+Introducing a second matching given causes new code to fail with
+ambiguity but doesn't disturb existing code.
 
-ADR-014 explains why old code is undisturbed: an elaborated term
-hashes against the resolved dictionary's hash via the existing `App`
-machinery, so the old term has a fixed reference and a fixed hash
-regardless of what new givens appear. New code re-elaborates fresh
-and the resolver (D4) reports `Ambiguous` per ADR-005.
+Why old code is undisturbed: an elaborated term hashes against the
+resolved dictionary's hash via the existing `App` machinery, so the
+old term has a fixed reference and a fixed hash regardless of what
+new givens appear. New code re-elaborates fresh and the resolver
+reports `Ambiguous`.
 
-For D3 we exercise the parser/typechecker plumbing only: the
-resolver pool is supplied externally (the namespace ambient pool is
-empty until D4), so the "Ambiguous" error itself surfaces in chunk D4.
 Here we pin the codebase shape — two equally-good `Show Nat` givens
 present — and confirm pre-existing code's hash is unchanged.
 
@@ -60,8 +56,8 @@ Capture the original hash of `foo` (call it H1).
 ```
 
 Now add a *second* given of the same type, `Show.alternateNat`. The
-elaborator (D4) will see two equally-applicable candidates for any
-fresh `Show Nat` constraint and must report `Ambiguous`.
+elaborator will see two equally-applicable candidates for any fresh
+`Show Nat` constraint and must report `Ambiguous`.
 
 ``` unison
 given Show.alternateNat : Show Nat = Show.Show (n -> "n=" ++ Nat.toText n)
@@ -83,7 +79,7 @@ given Show.alternateNat : Show Nat = Show.Show (n -> "n=" ++ Nat.toText n)
 
 `foo`'s hash is unchanged (still H1). It was elaborated against
 `Show.nat` at original definition time and that resolution is baked
-into the term's hash forever (ADR-014, ADR-002 principle 2).
+into the term's hash forever (content addressing).
 
 ``` ucm
 > names foo
