@@ -30,9 +30,6 @@ bar = 99
 ``` ucm
 > add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -132,8 +129,7 @@ namespace tag. Until A2 lands, the marker is rendered as a leading
 
 > view foo
 
-  -- given
-  foo : Nat
+  given foo : Nat
   foo = 42
 ```
 
@@ -183,9 +179,6 @@ myNs.alpha = 1
 
 ``` ucm
 > add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 ```
@@ -248,9 +241,6 @@ deep.nested.beta = 7
 
 ``` ucm
 > add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 
