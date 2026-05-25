@@ -17,6 +17,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
+import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -31,6 +32,7 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject (UserObject))
 import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..), ShowDefinitionScope (..))
 import Unison.Codebase.Editor.Output
+import Unison.Codebase.Classes qualified as Classes
 import Unison.Codebase.Givens qualified as Givens
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
@@ -40,19 +42,22 @@ import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
-import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann (Ann (Intrinsic))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (TermReference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
+import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.NamePrinter (SyntaxText)
+import Unison.Util.Pretty qualified as Pretty.Util
+import Unison.Util.SyntaxText qualified as S
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -129,9 +134,33 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
   -- as givens in the current namespace (ADR-013). The renderer will
   -- prefix these with the `given` marker.
   currentBranch0 <- Cli.getCurrentBranch0
-  let isGivenRef :: TermReference -> Bool
-      isGivenRef r = Givens.isGiven (Referent.Ref r) currentBranch0
-  showDefinitions outputLoc (`Set.member` originalQuerySet) isGivenRef pped terms types misses
+  -- 'Givens.isGiven' only inspects the supplied branch's own
+  -- metadata; given-marked terms living in sub-namespaces (the
+  -- common case for class accessors and dot-qualified givens like
+  -- @Monoid.nat@) wouldn't be detected. Walk the whole tree once
+  -- and collect every given-marked referent.
+  let givenReferents :: Set Referent =
+        let go b acc =
+              let here = Set.filter (\r -> Givens.isGiven r b) (Branch.deepReferents b)
+                  acc' = acc <> here
+                  children = b ^. Branch.children_
+               in foldr (\child a -> go (Branch.head child) a) acc' (Map.elems children)
+         in go currentBranch0 Set.empty
+      isGivenRef :: TermReference -> Bool
+      isGivenRef r = Set.member (Referent.Ref r) givenReferents
+      -- Walk the whole tree to collect every class-marked type, so
+      -- the printer renders them with the @class@ keyword and
+      -- record-style field syntax.
+      classTypeRefs :: Set TypeReference =
+        let go b acc =
+              let here = Set.filter (\r -> Classes.isClass r b) (Branch.deepTypeReferences b)
+                  acc' = acc <> here
+                  children = b ^. Branch.children_
+               in foldr (\child a -> go (Branch.head child) a) acc' (Map.elems children)
+         in go currentBranch0 Set.empty
+      isClassRef :: TypeReference -> Bool
+      isClassRef r = Set.member r classTypeRefs
+  showDefinitions outputLoc (`Set.member` originalQuerySet) isGivenRef isClassRef pped terms types misses
   where
     suffixify =
       case outputLoc of
@@ -162,12 +191,15 @@ showDefinitions ::
   -- can emit the bare keyword. Search for "TODO Phase 4: -- given"
   -- to find every site that needs to be reconciled.
   (TermReference -> Bool) ->
+  -- | Predicate: is this type tagged as a class? Class-tagged types
+  -- render with the @class@ keyword and record-style field syntax.
+  (TypeReference -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   [HQ.HashQualified Name] ->
   Cli ()
-showDefinitions outputLoc nameInOriginalQuery isGivenRef pped terms0 types misses = do
+showDefinitions outputLoc nameInOriginalQuery isGivenRef isClassRef pped terms0 types misses = do
   Cli.Env {codebase, writeSource} <- ask
   -- ADR-015 default elide-mode: pre-process every term being shown
   -- by dropping apply-site arguments that fill leading @=>@ slots
@@ -206,10 +238,15 @@ showDefinitions outputLoc nameInOriginalQuery isGivenRef pped terms0 types misse
                 Just ty -> pure (Map.insert (Reference.DerivedId rid) ty acc)
                 Nothing -> pure acc
             Reference.Builtin _ ->
-              -- Builtin types live in 'Builtin' (no @=>@ arrows in
-              -- practice), so skipping them is safe and saves an
-              -- 'expectTypeOfTerm' lookup.
-              pure acc
+              -- ADR-006: the @summon@ builtin (and any future builtin
+              -- with a @=>@ in its declared type) needs to be known
+              -- to 'stripImplicitArgsByType' so the elaborator-filled
+              -- dictionary argument can be elided from @view@ output.
+              -- 'Builtin.termRefTypes' carries unit annotations; promote
+              -- them to 'Intrinsic' so they fit the @Ann@-typed map.
+              case Map.lookup r Builtin.termRefTypes of
+                Just ty -> pure (Map.insert r ((const Intrinsic) <$> ty) acc)
+                Nothing -> pure acc
         )
         Map.empty
         (Set.toList refsInTerms)
@@ -219,7 +256,7 @@ showDefinitions outputLoc nameInOriginalQuery isGivenRef pped terms0 types misse
         ABT.Tm (Term.Ann _ ty) -> Just ty
         _ -> Nothing
       stripTerm :: Term Symbol Ann -> Term Symbol Ann
-      stripTerm = GivenApply.stripImplicitArgsByType lookupTermType
+      stripTerm = GivenApply.stripImplicitArgsByType isGivenRef lookupTermType
       -- A top-level binding whose declared type starts with
       -- @=>@ has a parser-injected @\\_implicit_<name>_<i> -> …@
       -- prefix in its body. Strip the corresponding leading lambdas
@@ -241,10 +278,10 @@ showDefinitions outputLoc nameInOriginalQuery isGivenRef pped terms0 types misse
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
-    Nothing -> renderToConsole nameInOriginalQuery isGivenRef pped terms types
+    Nothing -> renderToConsole nameInOriginalQuery isGivenRef isClassRef pped terms types
     Just (fp, relToFold) -> do
       mayTF <- use #latestTypecheckedFile
-      numRendered <- renderToFile codebase nameInOriginalQuery isGivenRef writeSource mayTF fp relToFold pped terms types
+      numRendered <- renderToFile codebase nameInOriginalQuery isGivenRef isClassRef writeSource mayTF fp relToFold pped terms types
 
       when (numRendered > 0) do
         -- We set latestFile to be programmatically generated, if we
@@ -271,6 +308,8 @@ renderCodePretty ::
   (HQ.HashQualified Name -> Bool) ->
   -- | Predicate: is this term reference a given? See 'showDefinitions'.
   (TermReference -> Bool) ->
+  -- | Predicate: is this type a class? See 'showDefinitions'.
+  (TypeReference -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Bool ->
   (TermReferenceId -> Bool) ->
@@ -279,7 +318,7 @@ renderCodePretty ::
   Defns (Set Symbol) (Set Symbol) ->
   -- Result is Nothing if nothing was rendered
   Maybe (Pretty Pretty.ColorText, Int)
-renderCodePretty nameInOriginalQuery isGivenRef pped isSourceFile isTest terms types excludeNames =
+renderCodePretty nameInOriginalQuery isGivenRef isClassRef pped isSourceFile isTest terms types excludeNames =
   let -- Associate each term and type with their best unsuffixified name
       namedTerms :: Map (HQ.HashQualified Name) (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann))
       namedTerms =
@@ -387,19 +426,14 @@ renderCodePretty nameInOriginalQuery isGivenRef pped isSourceFile isTest terms t
           & List.sortBy (\(n0, _) (n1, _) -> Name.compareAlphabetical n0 n1)
           & map \(name, ((ref, typ), maybeDoc)) ->
             maybe mempty (<> Pretty.newline) maybeDoc
-              <> Pretty.prettyType pped (name, ref, typ)
+              <> Pretty.prettyTypeWithClasses isClassRef pped (name, ref, typ)
 
-      -- Prefix used in front of given-tagged terms so the round-trip
-      -- to source includes the marker. Until the parser-side `given`
-      -- keyword lands (chunk A2) we emit it as a leading comment so
-      -- the output stays parseable. This is the read-side half of the
-      -- ADR-017 surface.
-      -- TODO Phase 4: -- given scaffold. Replace this leading
-      -- comment with the bare @given@ keyword once chunk A2 lands;
-      -- see the matching marker in 'showDefinitions' parameter
-      -- documentation.
+      -- ADR-007: emit the `given` keyword as the actual surface
+      -- syntax now that the parser recognises it. The leading
+      -- `given ` reads as a prefix to the binding's signature line,
+      -- matching how the user originally wrote @given Show.nat : T = …@.
       givenMarker :: Pretty SyntaxText
-      givenMarker = "-- given\n"
+      givenMarker = Pretty.Util.withSyntax S.DataTypeKeyword "given "
 
       prettyTerms :: [Pretty SyntaxText]
       prettyTerms =
@@ -416,11 +450,12 @@ renderCodePretty nameInOriginalQuery isGivenRef pped isSourceFile isTest terms t
 renderToConsole ::
   (HQ.HashQualified Name -> Bool) ->
   (TermReference -> Bool) ->
+  (TypeReference -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   Cli ()
-renderToConsole nameInOriginalQuery isGivenRef pped terms types = do
+renderToConsole nameInOriginalQuery isGivenRef isClassRef pped terms types = do
   -- If we're writing to console we don't add test-watch syntax
   let isTest _ = False
   let isSourceFile = False
@@ -430,6 +465,7 @@ renderToConsole nameInOriginalQuery isGivenRef pped terms types = do
           <$> renderCodePretty
             nameInOriginalQuery
             isGivenRef
+            isClassRef
             pped
             isSourceFile
             isTest
@@ -446,6 +482,7 @@ renderToFile ::
   Codebase IO Symbol a ->
   (HQ.HashQualified Name -> Bool) ->
   (TermReference -> Bool) ->
+  (TypeReference -> Bool) ->
   (Text -> Text -> Bool -> IO ()) ->
   Maybe (Either (UnisonFile.UnisonFile Symbol Ann) (UnisonFile.TypecheckedUnisonFile Symbol a)) ->
   FilePath ->
@@ -454,7 +491,7 @@ renderToFile ::
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   (m Int)
-renderToFile codebase nameInOriginalQuery isGivenRef writeSource mayTF fp relToFold pped terms types = do
+renderToFile codebase nameInOriginalQuery isGivenRef isClassRef writeSource mayTF fp relToFold pped terms types = do
   -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
   -- already bound in the file
   let excludeNames =
@@ -487,7 +524,7 @@ renderToFile codebase nameInOriginalQuery isGivenRef writeSource mayTF fp relToF
         (Map.keysSet terms & Set.mapMaybe Reference.toId)
   let isTest r = Set.member r testRefs
   let isSourceFile = True
-  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery isGivenRef pped isSourceFile isTest terms types excludeNames
+  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery isGivenRef isClassRef pped isSourceFile isTest terms types excludeNames
   case mayRenderedCodePretty of
     Just (renderedCodePretty, numRendered) -> do
       let (renderedCodeText) = Pretty.toPlain 80 renderedCodePretty

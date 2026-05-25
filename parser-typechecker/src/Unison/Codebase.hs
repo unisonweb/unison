@@ -346,6 +346,7 @@ installUcmDependencies c = do
             [Builtin.builtinTermsSrc Parser.Intrinsic]
             mempty
             mempty
+            mempty
         )
   addDefsToCodebase c uf
 

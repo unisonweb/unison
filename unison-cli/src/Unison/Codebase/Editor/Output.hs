@@ -309,6 +309,7 @@ data Output
       !PPE.PrettyPrintEnv
       !(DefnsF (Map Name) SR.TermSlurp SR.TypeSlurp)
       !(Map Referent (NESet Name))
+      !(Set Name) -- names the parser tagged as 'class' bindings
       !Bool -- merging? (can expand later to include: upgrading?)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.

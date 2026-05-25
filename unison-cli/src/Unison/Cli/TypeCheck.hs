@@ -115,7 +115,7 @@ typecheckTerm ::
     )
 typecheckTerm codebase tm = do
   let v = Symbol 0 (Var.Inference Var.Other)
-  let file = UF.UnisonFileId Nothing mempty mempty (Map.singleton v (External, tm)) mempty mempty
+  let file = UF.UnisonFileId Nothing mempty mempty (Map.singleton v (External, tm)) mempty mempty mempty
   typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   let typecheckingEnv =
         Typechecker.Env

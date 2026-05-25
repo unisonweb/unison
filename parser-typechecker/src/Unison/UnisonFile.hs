@@ -88,7 +88,8 @@ emptyUnisonFile =
       effectDeclarationsId = Map.empty,
       terms = Map.empty,
       watches = Map.empty,
-      givenBindings = Set.empty
+      givenBindings = Set.empty,
+      classBindings = Set.empty
     }
 
 leftBiasedMerge :: forall v a. (Ord v) => UnisonFile v a -> UnisonFile v a -> UnisonFile v a
@@ -108,7 +109,8 @@ leftBiasedMerge lhs rhs =
           -- silently kept; downstream consumers only consult this set
           -- when looking up a binding's variable, so unused entries
           -- are harmless.
-          givenBindings = givenBindings lhs <> givenBindings rhs
+          givenBindings = givenBindings lhs <> givenBindings rhs,
+          classBindings = classBindings lhs <> classBindings rhs
         }
   where
     lhsTermNames =
@@ -181,8 +183,8 @@ hashTerms :: TypecheckedUnisonFile v a -> Map v (a, TermReference, Maybe WatchKi
 hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
 mapTerms :: (Term v a -> Term v a) -> UnisonFile v a -> UnisonFile v a
-mapTerms f (UnisonFileId fn datas effects terms watches gbs) =
-  UnisonFileId fn datas effects terms' watches' gbs
+mapTerms f (UnisonFileId fn datas effects terms watches gbs cbs) =
+  UnisonFileId fn datas effects terms' watches' gbs cbs
   where
     terms' = over (mapped . _2) f terms
     watches' = over (mapped . mapped . _3) f watches
@@ -214,7 +216,7 @@ mapTerms f (UnisonFileId fn datas effects terms watches gbs) =
 -- then converting back to a "regular" UnisonFile with free variables in the
 -- terms.
 prepareRewrite :: (Monoid a, Var v) => UnisonFile v a -> ([v] -> Term v a -> Term v a, UnisonFile v a, UnisonFile v a -> UnisonFile v a)
-prepareRewrite uf@(UnisonFileId _fn _datas _effects _terms watches _gbs) =
+prepareRewrite uf@(UnisonFileId _fn _datas _effects _terms watches _gbs _cbs) =
   (freshen, mapTerms substs uf, mapTerms refToVar)
   where
     -- fn to replace free vars with unique refs
@@ -251,8 +253,8 @@ prepareRewrite uf@(UnisonFileId _fn _datas _effects _terms watches _gbs) =
 -- This function returns what symbols were modified.
 -- The `Set v` is symbols that should be left alone.
 rewrite :: (Var v, Eq a) => Set v -> (Term v a -> Maybe (Term v a)) -> UnisonFile v a -> ([v], UnisonFile v a)
-rewrite leaveAlone rewriteFn uf@(UnisonFileId fn datas effects _terms watches gbs) =
-  (rewritten, UnisonFileId fn datas effects (Map.fromList $ unEitherTerms terms') (unEither <$> watches') gbs)
+rewrite leaveAlone rewriteFn uf@(UnisonFileId fn datas effects _terms watches gbs cbs) =
+  (rewritten, UnisonFileId fn datas effects (Map.fromList $ unEitherTerms terms') (unEither <$> watches') gbs cbs)
   where
     terms' = go (termBindings uf)
     watches' = go <$> watches
@@ -275,9 +277,13 @@ typecheckedUnisonFile ::
   -- 'TypecheckedUnisonFile' so downstream commands (e.g. @add@) can
   -- auto-mark them as namespace givens.
   Set v ->
+  -- | Type names recorded as @class@ declarations by the parser.
+  -- Forwarded so @add@ / @update@ can mark them in namespace metadata
+  -- via 'Unison.Codebase.Classes.markClassAt'.
+  Set v ->
   TypecheckedUnisonFile v a
-typecheckedUnisonFile datas effects tlcs watches gbs =
-  TypecheckedUnisonFileId Nothing datas effects tlcs watches hashImpl gbs
+typecheckedUnisonFile datas effects tlcs watches gbs cbs =
+  TypecheckedUnisonFileId Nothing datas effects tlcs watches hashImpl gbs cbs
   where
     hashImpl :: (Map v (a, Reference.Id, Maybe WatchKind, Term v a, Type v a))
     hashImpl =
@@ -391,10 +397,10 @@ dependencies file =
     ]
 
 discardTypes :: (Ord v) => TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes (TypecheckedUnisonFileId fn datas effects terms watches _ gbs) =
+discardTypes (TypecheckedUnisonFileId fn datas effects terms watches _ gbs cbs) =
   let watches' = g . mconcat <$> List.multimap watches
       g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]
-   in UnisonFileId fn (coerce datas) (coerce effects) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches' gbs
+   in UnisonFileId fn (coerce datas) (coerce effects) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches' gbs cbs
 
 declsToTypeLookup :: (Var v) => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =

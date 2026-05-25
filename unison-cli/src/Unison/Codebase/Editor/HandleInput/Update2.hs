@@ -39,6 +39,7 @@ import Unison.Codebase.Editor.HandleInput.DeleteBranch qualified as DeleteBranch
 import Unison.Codebase.Editor.HandleInput.Merge2 qualified as Merge
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Classes qualified as Classes
 import Unison.Codebase.Givens qualified as Givens
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
@@ -314,6 +315,17 @@ handleUpdate2 = do
                 Map.member v (UF.hashTermsId secondTuf)
               ]
         autoMarkGivens path givenNames
+        -- ADR-007: also auto-mark every type the parser tagged with
+        -- the @class@ keyword. Same pattern as givens, but on the
+        -- type namespace instead of the term namespace.
+        let classNames :: [Name]
+            classNames =
+              [ Name.unsafeParseVar v
+              | v <- Set.toList (UF.classBindings' secondTuf),
+                Map.member v (UF.dataDeclarationsId' secondTuf)
+                  || Map.member v (UF.effectDeclarationsId' secondTuf)
+              ]
+        autoMarkClasses path classNames
         #latestTypecheckedFile .= Nothing
 
         -- Special case: we are running a successful `update` on a merge/update/upgrade branch that has a parent (such
@@ -505,3 +517,31 @@ autoMarkGivens _path names = do
       steps = concatMap stepsForName names
   when (not (null steps)) $
     Cli.stepManyAt pb "update.auto-mark.given" steps
+
+-- | After @update@ persists the typechecked file, mark every type
+-- name the parser tagged with @class@ as a namespace class. Mirrors
+-- 'autoMarkGivens' but consults the type-namespace ('Branch.types_')
+-- and uses 'Classes.markClassAt'. @view@ later reads the marker to
+-- render the declaration with the @class@ keyword and record syntax.
+autoMarkClasses :: ProjectPath -> [Name] -> Cli ()
+autoMarkClasses _path [] = pure ()
+autoMarkClasses _path names = do
+  projectRoot <- Cli.getCurrentProjectRoot0
+  pb <- Cli.getCurrentProjectBranch
+  let stepsForName :: Name -> [(Path.Absolute, Branch0 IO -> Branch0 IO)]
+      stepsForName name =
+        let revSegs = Name.reverseSegments name
+            seg = NonEmpty.head revSegs
+            parentSegsRev = NonEmpty.tail revSegs
+            parentPath = Path.fromList (reverse parentSegsRev)
+            parentAbs = Path.Absolute parentPath
+            parentBranch = Branch.getAt0 parentPath projectRoot
+            refs =
+              [ r
+              | (r, s) <- Relation.toList (Star2.d1 (view Branch.types_ parentBranch)),
+                s == seg
+              ]
+         in [(parentAbs, Classes.markClassAt r seg) | r <- refs]
+      steps = concatMap stepsForName names
+  when (not (null steps)) $
+    Cli.stepManyAt pb "update.auto-mark.class" steps

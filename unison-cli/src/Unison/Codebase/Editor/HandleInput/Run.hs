@@ -159,7 +159,7 @@ getTerm mainName =
 createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli (TypecheckedUnisonFile Symbol Ann)
 createWatcherFile v tm typ =
   Cli.getLatestTypecheckedFile >>= \case
-    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, External, tm, typ)])] mempty)
+    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, External, tm, typ)])] mempty mempty)
     Just uf ->
       let v2 = Var.freshIn (Set.fromList [v]) v
        in pure $
@@ -170,6 +170,7 @@ createWatcherFile v tm typ =
               -- what about main's component? we have dropped them if they existed.
               [(magicMainWatcherString, [(v2, External, tm, typ)])]
               (UF.givenBindings' uf)
+              (UF.classBindings' uf)
 
 -- | synthesize the type of forcing a term
 --

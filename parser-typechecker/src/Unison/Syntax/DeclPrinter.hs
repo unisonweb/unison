@@ -3,7 +3,14 @@ module Unison.Syntax.DeclPrinter
     prettyDeclW,
     prettyDeclHeader,
     prettyDeclOrBuiltinHeader,
+    prettyDeclWithClasses,
+    prettyDeclWWithClasses,
+    prettyDeclHeaderWithClasses,
+    prettyDeclOrBuiltinHeaderWithClasses,
     getFieldAndAccessorNames,
+    getClassFieldNames,
+    IsClassRef,
+    noClasses,
     AccessorName,
     RenderUniqueTypeGuids (..),
   )
@@ -51,6 +58,18 @@ type SyntaxText = S.SyntaxText' Reference
 
 type AccessorName = Name
 
+-- | Predicate: is a given TypeReference known to be a class
+-- declaration in the surrounding context? Threaded through the
+-- pretty-printer so that class types get rendered with the
+-- @class@ keyword and record-style field syntax instead of the
+-- default @type T = T <fields>@ rendering. The default for callers
+-- that have no class information is 'noClasses' (always 'False').
+type IsClassRef = TypeReference -> Bool
+
+-- | Default 'IsClassRef' that treats no type as a class.
+noClasses :: IsClassRef
+noClasses _ = False
+
 -- | Should we render unique type guids? Usually no, but in `merge` it's helpful.
 data RenderUniqueTypeGuids
   = RenderUniqueTypeGuids'No
@@ -64,9 +83,20 @@ prettyDeclW ::
   HQ.HashQualified Name ->
   DD.Decl v a ->
   Writer (Set AccessorName) (Pretty SyntaxText)
-prettyDeclW ppe guid r hq = \case
+prettyDeclW = prettyDeclWWithClasses noClasses
+
+prettyDeclWWithClasses ::
+  (Var v) =>
+  IsClassRef ->
+  PrettyPrintEnvDecl ->
+  RenderUniqueTypeGuids ->
+  TypeReference ->
+  HQ.HashQualified Name ->
+  DD.Decl v a ->
+  Writer (Set AccessorName) (Pretty SyntaxText)
+prettyDeclWWithClasses isClassRef ppe guid r hq = \case
   Left e -> pure $ prettyEffectDecl ppe guid r hq e
-  Right dd -> prettyDataDecl ppe guid r hq dd
+  Right dd -> prettyDataDecl isClassRef ppe guid r hq dd
 
 prettyDecl ::
   (Var v) =>
@@ -76,7 +106,19 @@ prettyDecl ::
   HQ.HashQualified Name ->
   DD.Decl v a ->
   Pretty SyntaxText
-prettyDecl ppe guid r hq d = fst . runWriter $ prettyDeclW ppe guid r hq d
+prettyDecl = prettyDeclWithClasses noClasses
+
+prettyDeclWithClasses ::
+  (Var v) =>
+  IsClassRef ->
+  PrettyPrintEnvDecl ->
+  RenderUniqueTypeGuids ->
+  TypeReference ->
+  HQ.HashQualified Name ->
+  DD.Decl v a ->
+  Pretty SyntaxText
+prettyDeclWithClasses isClassRef ppe guid r hq d =
+  fst . runWriter $ prettyDeclWWithClasses isClassRef ppe guid r hq d
 
 prettyEffectDecl ::
   (Var v) =>
@@ -155,16 +197,53 @@ orderConstructors ppe r dd ctype =
 prettyDataDecl ::
   forall v a.
   (Var v) =>
+  IsClassRef ->
   PrettyPrintEnvDecl ->
   RenderUniqueTypeGuids ->
   TypeReference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
   Writer (Set AccessorName) (Pretty SyntaxText)
-prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) guid r name dd =
-  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
-    <$> constructor `traverse` (orderConstructors unsuffixifiedPPE r dd CT.Data)
+prettyDataDecl isClassRef (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) guid r name dd =
+  if isClass
+    then renderClass
+    else renderDefault
   where
+    isClass = isClassRef r
+
+    renderDefault =
+      (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
+        <$> constructor `traverse` (orderConstructors unsuffixifiedPPE r dd CT.Data)
+
+    -- 'class' types render as @class T tyvars = { f : T1, g : T2 }@.
+    -- They have exactly one constructor; if the field-name lookup
+    -- fails for any reason, we keep the @class@ header and fall back
+    -- to the positional constructor body so we still surface the
+    -- class-ness of the declaration on @view@.
+    renderClass = case getClassFieldNames unsuffixifiedPPE r name dd of
+      Nothing ->
+        (classHeader <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
+          <$> constructor `traverse` (orderConstructors unsuffixifiedPPE r dd CT.Data)
+      Just (fieldNames, ts) -> do
+        tell $
+          Set.fromList $
+            [ declName `Name.joinDot` fieldName
+            | HQ.NameOnly declName <- [name],
+              fieldName <- fieldNames
+            ]
+        let body =
+              P.group $
+                fmt S.DelimiterChar "{ "
+                  <> P.sep
+                    (fmt S.DelimiterChar "," <> " " `P.orElse` "\n      ")
+                    (field <$> zip fieldNames ts)
+                  <> fmt S.DelimiterChar " }"
+        pure (classHeader <> body)
+
+    classHeader =
+      prettyDataHeaderWithClasses isClassRef guid r name dd
+        <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
+
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
     constructor' n t = case Type.unArrows t of
@@ -299,6 +378,66 @@ getFieldAndAccessorNames env r hqTypename dd = do
         )
     else Nothing
 
+-- | Like 'getFieldAndAccessorNames' but for class declarations: the
+-- accessor hashes carry the @=>@-bearing type annotation that
+-- 'annotateClassAccessor' added at parse time, so we use
+-- 'hashClassFieldAccessors' to reproduce them. Classes have only
+-- getters (no setter / modifier), so we return the field names and
+-- the field types (already resolved through the constructor).
+getClassFieldNames ::
+  forall v a.
+  (Var v) =>
+  PrettyPrintEnv ->
+  TypeReference ->
+  HQ.HashQualified Name ->
+  DataDeclaration v a ->
+  Maybe ([Name], [Type.Type v a])
+getClassFieldNames env r hqTypename dd = do
+  typename <- HQ.toName hqTypename
+  [(_, typ)] <- Just (DD.constructors dd)
+
+  let vars :: [v]
+      vars = [Var.freshenId (fromIntegral n) (Var.named ("_" <> Text.pack (show n))) | n <- [0 .. Type.arity typ - 1]]
+
+  hashes <- DD.hashClassFieldAccessors env (Name.toVar typename) vars r (void dd)
+
+  let accessorNamesByHash =
+        hashes
+          & Map.elems
+          & map \(refId, _term, _typ) ->
+            (refId, HQ.toText (PPE.termName env (Referent.fromTermReferenceId refId)))
+
+  let fieldNamesByHash =
+        Map.fromList
+          [ (ref, f)
+          | (ref, n) <- accessorNamesByHash,
+            let typenameText = Name.toText typename,
+            typenameText `Text.isPrefixOf` n,
+            let rest = Text.drop (Text.length typenameText + 1) n,
+            (f, suffix) <- pure $ Text.span (/= '.') rest,
+            suffix == ""
+          ]
+
+  -- All accessors must have resolved to field names (no trailing
+  -- @.set@/@.modify@ are expected for classes).
+  guard (Map.size fieldNamesByHash == length accessorNamesByHash)
+
+  -- Pull the field types from the constructor's arrow chain.
+  ts <- case typ of
+    Type.ForallsNamed' _ inner -> Type.unArrows inner
+    _ -> Type.unArrows typ
+  let fieldTypes = init ts
+
+  let fieldNames =
+        [ Name.unsafeParseText name
+        | v <- vars,
+          Just (ref, _, _) <- [Map.lookup (Var.namespaced (Name.toVar typename :| [v])) hashes],
+          Just name <- [Map.lookup ref fieldNamesByHash]
+        ]
+
+  guard (length fieldNames == length fieldTypes)
+  Just (fieldNames, fieldTypes)
+
 prettyModifier :: RenderUniqueTypeGuids -> DD.Modifier -> Pretty SyntaxText
 prettyModifier _ DD.Structural = fmt S.DataTypeModifier "structural"
 prettyModifier RenderUniqueTypeGuids'No (DD.Unique _guid) = mempty
@@ -314,6 +453,26 @@ prettyDataHeader guid name dd =
       styleHashQualified'' (fmt $ S.HashQualifier name) name,
       P.sep " " (fmt S.DataTypeParams . P.text . Var.name <$> DD.bound dd)
     ]
+
+-- | Like 'prettyDataHeader' but emits the @class@ keyword instead of
+-- @type@ when @isClassRef r@ is 'True'.
+prettyDataHeaderWithClasses ::
+  (Var v) =>
+  IsClassRef ->
+  RenderUniqueTypeGuids ->
+  TypeReference ->
+  HQ.HashQualified Name ->
+  DD.DataDeclaration v a ->
+  Pretty SyntaxText
+prettyDataHeaderWithClasses isClassRef guid r name dd =
+  let keyword = if isClassRef r then "class" else "type"
+   in P.sepNonEmpty
+        " "
+        [ prettyModifier guid (DD.modifier dd),
+          fmt S.DataTypeKeyword keyword,
+          styleHashQualified'' (fmt $ S.HashQualifier name) name,
+          P.sep " " (fmt S.DataTypeParams . P.text . Var.name <$> DD.bound dd)
+        ]
 
 prettyEffectHeader ::
   (Var v) =>
@@ -342,6 +501,18 @@ prettyDeclHeader guid name = \case
   Left e -> prettyEffectHeader guid name e
   Right d -> prettyDataHeader guid name d
 
+prettyDeclHeaderWithClasses ::
+  (Var v) =>
+  IsClassRef ->
+  RenderUniqueTypeGuids ->
+  TypeReference ->
+  HQ.HashQualified Name ->
+  Either (DD.EffectDeclaration v a) (DD.DataDeclaration v a) ->
+  Pretty SyntaxText
+prettyDeclHeaderWithClasses isClassRef guid r name = \case
+  Left e -> prettyEffectHeader guid name e
+  Right d -> prettyDataHeaderWithClasses isClassRef guid r name d
+
 prettyDeclOrBuiltinHeader ::
   (Var v) =>
   RenderUniqueTypeGuids ->
@@ -352,6 +523,19 @@ prettyDeclOrBuiltinHeader guid name = \case
   Builtin CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
   Builtin CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
   NotBuiltin e -> prettyDeclHeader guid name e
+
+prettyDeclOrBuiltinHeaderWithClasses ::
+  (Var v) =>
+  IsClassRef ->
+  RenderUniqueTypeGuids ->
+  TypeReference ->
+  HQ.HashQualified Name ->
+  DD.DeclOrBuiltin v a ->
+  Pretty SyntaxText
+prettyDeclOrBuiltinHeaderWithClasses isClassRef guid r name = \case
+  Builtin CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
+  Builtin CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
+  NotBuiltin e -> prettyDeclHeaderWithClasses isClassRef guid r name e
 
 fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = P.withSyntax

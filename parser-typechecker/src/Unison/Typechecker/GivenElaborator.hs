@@ -101,6 +101,7 @@ module Unison.Typechecker.GivenElaborator
   ( -- * Top-level givens
     AmbientGiven (..),
     ambientPool,
+    mergePool,
     decomposeGivenType,
 
     -- * Goal-driven elaboration
@@ -181,8 +182,16 @@ decomposeGivenType ::
   ([v], [Type v loc], Type v loc)
 decomposeGivenType ty =
   let (vs, body) = Type.unforall' ty
-      (prems, concl) = peelImplicits body
-   in (vs, prems, concl)
+      (prems, concl0) = peelImplicits body
+      -- After 'addAbilities' / 'existentializeArrows' the generalized
+      -- signature wraps its conclusion in an 'Effect [] _'. The
+      -- resolver unifies head-only against a 'ConstraintGoal' whose
+      -- type was lowered without that wrapper, so we strip the
+      -- (always empty for a constraint) effect row here. Without
+      -- this, @forall a. Show a => Show [a]@ stored from
+      -- 'topLevelComponents' fails to unify with the goal @Show [Nat]@.
+      concl = snd (Type.unEffect0 concl0)
+   in (vs, map (snd . Type.unEffect0) prems, concl)
   where
     peelImplicits t = case t of
       Type.ImplicitArrow' i o ->

@@ -59,7 +59,8 @@ editDefinitionByFQN fileURI fqn = do
         void $ sendRequest Msg.SMethod_WorkspaceApplyEdit params $ \case
           Left err -> Debug.debugM Debug.LSP "Error applying workspace edit" err
           Right _ -> pure ()
-  -- The LSP edit-on-FQN path doesn't surface the `given` marker; it's
-  -- a write-back path, not a user-facing view. Pass @const False@.
-  numRendered <- renderToFile codebase (const True) (const False) appendText mayUnisonFile fp WithinFold pped termResults typeResults
+  -- The LSP edit-on-FQN path doesn't surface the `given` marker or
+  -- the @class@ keyword; it's a write-back path, not a user-facing
+  -- view. Pass @const False@ for both predicates.
+  numRendered <- renderToFile codebase (const True) (const False) (const False) appendText mayUnisonFile fp WithinFold pped termResults typeResults
   pure (numRendered > 0)

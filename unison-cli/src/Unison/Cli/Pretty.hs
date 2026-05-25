@@ -39,6 +39,7 @@ module Unison.Cli.Pretty
     prettyTerm,
     prettyTermName,
     prettyType,
+    prettyTypeWithClasses,
     prettyTypeName,
     prettyTypeResultHeader',
     prettyTypeResultHeaderFull',
@@ -392,13 +393,29 @@ prettyLibdepName =
   P.blue . P.text . NameSegment.toEscapedText
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> P.Pretty P.ColorText
-prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches _gbs) =
+prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches _gbs cbs) =
   P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
   where
     prettyEffects = map prettyEffectDecl (Map.toList effects)
     (prettyDatas, accessorNames) = runWriter $ traverse prettyDataDecl (Map.toList datas)
     prettyTerms = Map.foldrWithKey (\k v -> (prettyTerm accessorNames k v :)) [] terms
     prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
+
+    -- ADR-007: rendering the file from the typechecked form should
+    -- preserve the @class@ keyword for any data declaration whose
+    -- parser-side var name was recorded in 'classBindings'. Without
+    -- this, the dependents-update path re-renders @class@es as plain
+    -- @type@s and loses both the field syntax and (eventually) the
+    -- ability to round-trip.
+    classRefSet :: Set TypeReference
+    classRefSet =
+      Set.fromList
+        [ Reference.DerivedId r
+        | (n, (r, _)) <- Map.toList datas,
+          Set.member n cbs
+        ]
+    isClassRef :: DeclPrinter.IsClassRef
+    isClassRef r = Set.member r classRefSet
 
     prettyEffectDecl :: (v, (TypeReferenceId, DD.EffectDeclaration v a)) -> (a, P.Pretty P.ColorText)
     prettyEffectDecl (n, (r, et)) =
@@ -414,7 +431,8 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches _gbs) =
     prettyDataDecl :: (v, (TypeReferenceId, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, P.Pretty P.ColorText)
     prettyDataDecl (n, (r, dt)) =
       (DD.annotation dt,) . st
-        <$> DeclPrinter.prettyDeclW
+        <$> DeclPrinter.prettyDeclWWithClasses
+          isClassRef
           ppe'
           DeclPrinter.RenderUniqueTypeGuids'No
           (rd r)
@@ -479,12 +497,20 @@ prettyTerm pped isSourceFile isTest (n, r, dt) =
     ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE pped r
 
 prettyType :: PPED.PrettyPrintEnvDecl -> (HQ.HashQualified Name, TypeReference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText
-prettyType pped (n, r, dt) =
+prettyType = prettyTypeWithClasses DeclPrinter.noClasses
+
+prettyTypeWithClasses ::
+  DeclPrinter.IsClassRef ->
+  PPED.PrettyPrintEnvDecl ->
+  (HQ.HashQualified Name, TypeReference, DisplayObject () (DD.Decl Symbol Ann)) ->
+  P.Pretty SyntaxText
+prettyTypeWithClasses isClassRef pped (n, r, dt) =
   case dt of
     MissingObject r -> missingDefinitionMsg n r
     BuiltinObject _ -> builtin n
     UserObject decl ->
-      DeclPrinter.prettyDecl
+      DeclPrinter.prettyDeclWithClasses
+        isClassRef
         (PPED.biasTo (maybeToList $ HQ.toName n) $ pped)
         DeclPrinter.RenderUniqueTypeGuids'No
         r

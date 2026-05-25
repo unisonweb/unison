@@ -667,7 +667,6 @@ termLeaf :: forall m v. (Monad m, Var v) => TermP v m
 termLeaf =
   asum
     [ force,
-      summonExpr,
       hashQualifiedPrefixTerm,
       text,
       char,
@@ -683,35 +682,6 @@ termLeaf =
       bang,
       doc2Block <&> \(spanAnn, trm) -> trm {ABT.annotation = ABT.annotation trm <> spanAnn}
     ]
-
--- | Parse a `summon T` expression (chunk A2; ADR-006).
---
--- `summon` is followed by a type. It desugars (for now) to a typed
--- hole `_ : T` so that downstream phases can ignore the new node:
--- the elaborator (chunk D) will recognise the source range and
--- replace it with the resolved dictionary; until then the typechecker
--- will report an unfilled blank, which is the correct behaviour for
--- a parser-only landing.
---
--- The argument is a full 'TypeParser.valueType', which greedily
--- consumes everything that 'valueType' accepts: type atoms, prefix
--- applications (`summon Show Nat`), parenthesized forms
--- (`summon (Show Nat)`), arrows, foralls, and the new constraint
--- arrow `=>` from chunk A1. Both unparenthesized and parenthesized
--- forms appear in @docs/implicits-plan.md@ §1.2; the greedy parse
--- accepts both without disambiguation.
-summonExpr :: forall m v. (Monad m, Var v) => TermP v m
-summonExpr = do
-  kw <- reserved "summon"
-  -- A type signature parser consumes everything up to the next
-  -- expression-context terminator. We call into 'TypeParser.valueType'
-  -- which already handles parens, applications, forall, and the
-  -- new constraint-arrow form (chunk A1). The blank's annotation
-  -- spans the whole `summon T`, so the source range is recoverable
-  -- by downstream passes.
-  ty <- TypeParser.valueType
-  let spanAnn = ann kw <> ann ty
-  pure $ Term.ann spanAnn (Term.blank spanAnn) ty
 
 -- | Gives a parser an explicit stream to parse, so that it consumes nothing from the original stream when it runs.
 --
@@ -939,37 +909,25 @@ force = P.label "force" $ P.try do
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = do
-  func <- termLeaf
-  args <- many appArg
+  func <- giveExpr <|> termLeaf
+  args <- many termLeaf
   pure case args of
     [] -> func
     _ -> Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
   where
-    -- An argument in an application chain. May be either an ordinary
-    -- term-leaf, or an explicit @-positional override of the form
-    -- @ d (chunk A3; ADR-007).
-    --
-    -- Disambiguation:
-    --   - In *expression* context (here): a `Reserved "@"` token in
-    --     argument position introduces an override.
-    --   - In *pattern* context (`pHqNamey` ~line 410): the same token
-    --     produces an as-pattern. Patterns are parsed by a different
-    --     entry point so the two grammars do not interfere.
-    --   - In *doc* context (`Syntax/Parser/Doc.hs:keyedInline`): the
-    --     `@` is matched at the raw-string level, before tokens reach
-    --     this parser.
-    --
-    -- For chunk A3 the override desugars to ordinary positional
-    -- application: `f @ d` parses as `Term.app f d`. The argument's
-    -- annotation is widened to include the leading `@` token so that
-    -- downstream chunks (D2/D3) can recognise overrides by source
-    -- range and skip implicit-resolution at that slot.
-    appArg = overrideArg <|> termLeaf
-    overrideArg = do
-      atTok <- reserved "@"
-      d <- termLeaf
-      let widened = ann atTok <> ann d
-      pure (ABT.annotate widened d)
+    -- ADR-007: @give f@ is a prefix syntactic transformation that
+    -- demotes f's leading `=>` arrows to `->`. The result is f with
+    -- its outer annotation wrapped in 'Ann.Lowered'; the typechecker
+    -- ('synthesizeWanted', Var/Ref clauses) checks this flag and
+    -- skips 'peelLeadingImplicits', then converts each leading
+    -- 'ImplicitArrow' to a regular 'Arrow'. Subsequent application
+    -- supplies the dictionary positionally as an ordinary explicit
+    -- argument.
+    giveExpr = do
+      kw <- reserved "give"
+      f <- termLeaf
+      let widened = Ann.Lowered (ann kw <> ann f)
+      pure (ABT.annotate widened f)
 
 data InfixParse v
   = InfixOp (L.Token (HQ.HashQualified Name)) (Term v Ann) (InfixParse v) (InfixParse v)

@@ -1088,7 +1088,7 @@ notifyUser dir issueFn = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  Typechecked oldPpe newPpe slurpEntries aliases isMergeBranch -> do
+  Typechecked oldPpe newPpe slurpEntries aliases classRefs isMergeBranch -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -1143,10 +1143,20 @@ notifyUser dir issueFn = \case
         existDeletes = not (List.null deletedTypes && List.null deletedTerms)
         existChanges = existAdds || existUpdates || existDeletes
 
-    let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
+    -- ADR-007: when the parser tagged the type as a @class@,
+    -- render its slurp entry with the @class@ keyword in place of
+    -- @type@.
+    let isClassName n = Set.member n classRefs
+        renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
         renderType name decl =
           P.syntaxToColor
-            (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
+            ( DeclPrinter.prettyDeclOrBuiltinHeaderWithClasses
+                (const (isClassName name))
+                DeclPrinter.RenderUniqueTypeGuids'No
+                (Reference.Builtin "")
+                (HQ.fromName name)
+                decl
+            )
 
     let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
         renderTerm ppe colored name ty =

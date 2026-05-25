@@ -1565,6 +1565,7 @@ annotatedToEnglish a = case ann a of
   External -> "<external>"
   GeneratedFrom a -> "generated from: " <> annotatedToEnglish a
   Synthetic a -> "synthesized at: " <> annotatedToEnglish a
+  Lowered a -> annotatedToEnglish a
   Ann start end -> rangeToEnglish $ Range start end
 
 rangeForAnnotated :: (Annotated a) => a -> Maybe Range
@@ -1573,6 +1574,7 @@ rangeForAnnotated a = case ann a of
   External -> Nothing
   GeneratedFrom a -> rangeForAnnotated a
   Synthetic a -> rangeForAnnotated a
+  Lowered a -> rangeForAnnotated a
   Ann start end -> Just $ Range start end
 
 showLexerOutput :: Bool

@@ -118,7 +118,6 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
-import Unison.Lexer.Pos qualified as L
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Reference (Reference)
@@ -391,7 +390,30 @@ rewriteApply env outer f args = case ABT.out f of
         -- No type info; leave the apply chain alone (no implicits to insert).
         pure (rebuildApps (ABT.annotation outer) f' args')
       Just ft ->
-        interleave (ABT.annotation outer) f' ft args'
+        -- ADR-007: if f was wrapped with @give@, demote /every/
+        -- leading @=>@ in its type to @->@ so 'interleave' consumes
+        -- the next args as regular positional arguments instead of
+        -- popping decisions from the queue. The typechecker has
+        -- already suppressed the matching 'ConstraintGoal' emissions
+        -- for those slots, so popping here would mis-align the queue.
+        -- 'lowerAll' must descend through any leading 'Forall'
+        -- quantifiers before reaching the @=>@ chain, otherwise a
+        -- type like @forall a. C a => a -> a@ falls into the
+        -- catch-all branch unchanged and 'interleave' below sees
+        -- the un-lowered 'ImplicitArrow' and pops a sibling
+        -- binding's resolved dictionary off the queue — leaking
+        -- that dictionary's locally-bound variables into this
+        -- scope (the @_implicit_<name>_<i>@ free-var hashing
+        -- crash).
+        let lowerAll ty = case ty of
+              Type.ForallNamed' v body -> Type.forAll (ABT.annotation ty) v (lowerAll body)
+              Type.ImplicitArrow' i o -> Type.arrow (ABT.annotation ty) i (lowerAll o)
+              _ -> ty
+            ft' =
+              if Ann.isLowered (ABT.annotation f')
+                then lowerAll ft
+                else ft
+         in interleave (ABT.annotation outer) f' ft' args'
 
 -- | Try to infer the type of the apply-chain's head from syntactic
 -- information alone.
@@ -418,29 +440,25 @@ interleave outerAnn f0 ty0 args0 =
   where
     headLoc = ABT.annotation f0
     go f ty args = case ty of
-      -- Implicit: try to fill it.
+      -- Implicit: pop a resolved-dictionary decision from the queue
+      -- and apply it. (ADR-007: when @give f@ is in effect at this
+      -- call site, the caller of 'interleave' has already demoted
+      -- the leading @=>@ to @->@ in @ty@, so we never enter this
+      -- branch for that slot — the explicit dictionary the user
+      -- supplied falls through to the 'Arrow'' case below.)
       Type.ImplicitArrow' _ conc -> do
-        case args of
-          [] -> pure (rebuildApps outerAnn f args)
-          (a : rest) ->
-            if isOverrideArg a
-              then -- User supplied this implicit explicitly; consume the arg
-              -- and keep going.
-                go (Term.app (ABT.annotation f <> ABT.annotation a) f a) conc rest
-              else do
-                mDec <- popDecision
-                case mDec of
-                  Nothing ->
-                    -- Queue empty: leave the rest alone.
-                    pure (rebuildApps outerAnn f args)
-                  Just tree -> do
-                    -- Chunk F1: record the synthesized insertion so
-                    -- the LSP can detect implicit args at the head's
-                    -- source position.
-                    recordImplicit headLoc tree
-                    let dictTm = buildDictionary outerAnn tree
-                        f' = Term.app (ABT.annotation f <> ABT.annotation dictTm) f dictTm
-                    go f' conc args
+        mDec <- popDecision
+        case mDec of
+          Nothing ->
+            -- Queue empty: leave the rest alone.
+            pure (rebuildApps outerAnn f args)
+          Just tree -> do
+            -- Chunk F1: record the synthesized insertion so the LSP
+            -- can detect implicit args at the head's source position.
+            recordImplicit headLoc tree
+            let dictTm = buildDictionary outerAnn tree
+                f' = Term.app (ABT.annotation f <> ABT.annotation dictTm) f dictTm
+            go f' conc args
       -- Explicit: consume one arg.
       Type.Arrow' _ conc ->
         case args of
@@ -583,10 +601,18 @@ stripLeadingImplicitLambdas ty0 tm0 =
 stripImplicitArgsByType ::
   forall v.
   (Var v) =>
+  -- | Predicate: is this term reference tagged as a @given@ in the
+  -- current namespace? Used to decide whether a positional argument
+  -- filling a leading @=>@ slot is the resolver's default pick (a
+  -- given-tagged reference, safe to elide) or a user-supplied
+  -- dictionary that the user wrote via the @give@ keyword (must be
+  -- preserved, and the head is re-annotated with 'Ann.Lowered' so the
+  -- printer renders the @give @ prefix).
+  (Reference -> Bool) ->
   (Term v Ann -> Maybe (Type v Ann)) ->
   Term v Ann ->
   Term v Ann
-stripImplicitArgsByType lookupTermType = go
+stripImplicitArgsByType isGivenRef lookupTermType = go
   where
     go :: Term v Ann -> Term v Ann
     go t = case ABT.out t of
@@ -597,18 +623,61 @@ stripImplicitArgsByType lookupTermType = go
       ABT.Tm other -> ABT.tm' (ABT.annotation t) (fmap go other)
 
     -- \| Collect the apps spine, find the head, look up its declared
-    -- type, and skip args for each leading @=>@ in that type.
+    -- type, and decide what to do with the leading @=>@-filling args.
+    -- If every such arg looks like an auto-resolved dictionary
+    -- (namespace-tagged @given@ reference), strip them — this is the
+    -- ADR-015 elide-mode default. Otherwise the user wrote @give@ at
+    -- this call site; keep the args and tag the head with
+    -- 'Ann.Lowered' so the printer emits the @give @ prefix.
+    --
+    -- The head's own annotation can itself carry 'Ann.Lowered'
+    -- (the parser puts it there when it sees the @give@ keyword,
+    -- and 'applyGivenDecisionsAll' preserves it). When it does,
+    -- the user explicitly asked for explicit dictionary passing,
+    -- so we must not elide the implicit args even if they happen
+    -- to look like auto-resolutions.
     stripApps :: Term v Ann -> Term v Ann
     stripApps tm =
       let (head_, args) = collect tm []
           recurseArgs xs = map (\(a, x) -> (a, go x)) xs
+          headIsLowered = Ann.isLowered (ABT.annotation head_)
        in case lookupTermType head_ of
             Just ty ->
               let nImplicits = countLeadingImplicits ty
-                  args' = drop nImplicits args
-               in rebuild (ABT.annotation tm) (go head_) (recurseArgs args')
+                  (implicitArgs, rest) = splitAt nImplicits args
+               in if not headIsLowered
+                    && length implicitArgs == nImplicits
+                    && all (argLooksAutoResolved . snd) implicitArgs
+                    then rebuild (ABT.annotation tm) (go head_) (recurseArgs rest)
+                    else
+                      let head' = markLowered (go head_)
+                       in rebuild (ABT.annotation tm) head' (recurseArgs args)
             Nothing ->
               rebuild (ABT.annotation tm) (go head_) (recurseArgs args)
+
+    -- | An arg "looks auto-resolved" iff it could plausibly be what
+    -- the resolver picked: either a namespace-given top-level
+    -- reference (ambient pool), or a local 'Var' (lexical given
+    -- bound by @=>I@ or a @let given@). Anything else (a non-given
+    -- top-level reference, a literal, a complex expression) is
+    -- treated as a user-supplied dictionary that @give@ should
+    -- preserve.
+    argLooksAutoResolved :: Term v Ann -> Bool
+    argLooksAutoResolved a = case ABT.out a of
+      ABT.Tm (Term.Ref r) -> isGivenRef r
+      ABT.Var _ -> True
+      _ -> False
+
+    -- | Wrap the apply-chain head with a sentinel 'Term.Ann' whose
+    -- type is 'Type.giveMarkerRef'. The surface 'TermPrinter'
+    -- recognises this sentinel on an @Apps'@ head and renders the
+    -- chain with a leading @give @ keyword. The sentinel is a
+    -- print-time-only construct — it never reaches hashing because
+    -- 'stripImplicitArgsByType' runs as a view-side post-pass.
+    markLowered :: Term v Ann -> Term v Ann
+    markLowered h =
+      let a = ABT.annotation h
+       in Term.ann a h (Type.ref a Type.giveMarkerRef)
 
     collect :: Term v Ann -> [(Ann, Term v Ann)] -> (Term v Ann, [(Ann, Term v Ann)])
     collect t acc = case ABT.out t of
@@ -681,60 +750,11 @@ localGivenPrefix = "Local.given."
 -- @overrideArg@: only single-leaf terms (Var, Ref, Builtin, literal,
 -- TermLink, TypeLink, Blank) can be @\@@-widened. Composite terms
 -- with sub-children are never overrides.
+-- | ADR-007: was a heuristic for detecting @\@@-override args via
+-- annotation widening. Now that the override path goes through the
+-- @give@-prefix syntax (which tags the /function/ with
+-- 'Ann.Lowered' so 'rewriteApply' demotes the type before
+-- 'interleave' sees it), there's no need to inspect the arg. Kept
+-- as a stub so external callers compile; always returns 'False'.
 isOverrideArg :: Term v Ann -> Bool
-isOverrideArg t
-  | isLeafForOverride t,
-    Ann outerStart _ <- ABT.annotation t,
-    Just innerStart <- innerLeftmostStart t,
-    outerStart < innerStart =
-      True
-  | otherwise = False
-
--- | Restricted predicate matching the same surface forms 'termLeaf'
--- accepts for an @\@@-override (see
--- @parser-typechecker/src/Unison/Syntax/TermParser.hs:overrideArg@).
--- Returns 'True' only for atomic surface terms whose AST has no
--- structural children; this is what lets us trust an outer-vs-inner
--- annotation gap as a real override marker.
---
--- NOTE: As of this writing, single-leaf overrides (e.g. @f @ d@ where
--- @d@ is a bare identifier) cannot be detected via annotation
--- widening — the inner annotation is unavailable, so
--- 'innerLeftmostStart' returns 'Nothing' for these and
--- 'isOverrideArg' falls back to 'False'. Composite-leaf overrides
--- like @f @ (g x)@ also do not match this predicate because the
--- inner term has structural children, which would falsely conflict
--- with structural composites like list literals @[1,2,3]@. Until the
--- override path is rewired with an explicit AST marker, override
--- detection is effectively disabled: every implicit slot is filled
--- by the resolver. Users who want to override resolution must use
--- the @let given@ shadowing form (ADR-010).
-isLeafForOverride :: Term v Ann -> Bool
-isLeafForOverride t = case ABT.out t of
-  ABT.Var _ -> True
-  ABT.Tm body -> case body of
-    Term.Ref _ -> True
-    Term.Constructor _ -> True
-    Term.Request _ -> True
-    _ -> False
-  _ -> False
-
--- | Find the leftmost source-position start among the term's direct
--- structural children, if any. Returns 'Nothing' for a leaf.
-innerLeftmostStart :: Term v Ann -> Maybe L.Pos
-innerLeftmostStart t = case ABT.out t of
-  ABT.Var _ -> Nothing
-  ABT.Cycle body -> annStart (ABT.annotation body)
-  ABT.Abs _ body -> annStart (ABT.annotation body)
-  ABT.Tm body ->
-    let kids = foldMap (\c -> [ABT.annotation c]) body
-        starts = [s | a <- kids, Just s <- [annStart a]]
-     in case starts of
-          [] -> Nothing
-          xs -> Just (minimum xs)
-
-annStart :: Ann -> Maybe L.Pos
-annStart = \case
-  Ann s _ -> Just s
-  GeneratedFrom a -> annStart a
-  _ -> Nothing
+isOverrideArg _ = False

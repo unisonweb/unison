@@ -120,6 +120,13 @@ synDataDeclP modifier0 = do
       classKw = (True,) <$> (fmap void (reserved "class") <|> openBlockWith "class")
   (classFlag, typeToken) <- typeKw <|> classKw
   (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
+  -- ADR-007: when the user used the @class@ keyword, record the type
+  -- name in the parser's side-channel so the @add@ / @update@ command
+  -- can mark the namespace metadata with 'classSentinel'. This makes
+  -- the @class@ keyword recoverable on the @view@ round-trip even
+  -- though the underlying data declaration is the same as if it were
+  -- written with @type@.
+  when classFlag $ recordClassDeclVar (L.payload name)
   let tyvars = L.payload <$> typeArgs
   eq <- reserved "="
   let -- go gives the type of the constructor, given the types of

@@ -99,6 +99,7 @@ import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
 import Unison.PatternMatchCoverage.Class (EnumeratedConstructors (..), Pmc, traverseConstructorTypes)
 import Unison.PatternMatchCoverage.Class qualified as Pmc
+import Unison.Parser.Ann qualified as Ann
 import Unison.PatternMatchCoverage.ListPat qualified as ListPat
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -841,6 +842,19 @@ peelLeadingImplicits goalLoc_ = go
         go conc
       _ -> pure ty
 
+-- | ADR-007: demote /every/ leading 'ImplicitArrow' to a regular
+-- 'Arrow'. Used to elaborate the @give@ keyword: writing @give f@
+-- converts all leading @=>@ slots in f's type into plain explicit
+-- parameters, so the user can supply each dictionary positionally
+-- at the call site instead of leaving them to the resolver. Stops
+-- at the first non-@=>@ constructor. For finer-grained overrides,
+-- the user uses @let given@ shadowing instead.
+lowerLeadingImplicit :: (Ord v) => Type v loc -> Type v loc
+lowerLeadingImplicit ty = case ty of
+  Type.ImplicitArrow' i o ->
+    Type.arrow (ABT.annotation ty) i (lowerLeadingImplicit o)
+  _ -> ty
+
 -- | ADR-010 / chunk L2 fixup: ask whether a variable name was bound via
 -- the @given@ keyword. The lookup compares against 'Var.reset' of @v@
 -- because the parser-side set holds the un-freshened names while the
@@ -1217,7 +1231,7 @@ withEffects handled act = do
   pruneWanted [] want handled
 
 synthesizeApps ::
-  (Foldable f, Var v, Ord loc, Semigroup loc) =>
+  (Foldable f, Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   Term v loc ->
   Type v loc ->
   f (Term v loc) ->
@@ -1235,7 +1249,7 @@ synthesizeApps fun ft args =
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   Term v loc ->
   Type v loc ->
   (Term v loc, Int) ->
@@ -1331,14 +1345,19 @@ generalizeExistentials' t =
     isExistential _ = False
 
 noteTopLevelType ::
-  (Ord loc, Var v, Semigroup loc) =>
+  (Ord loc, Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   ABT.Subst f v a ->
   Term v loc ->
   Type v loc ->
   M v loc ()
 noteTopLevelType e binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
-    inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
+    -- Redundancy-detection synthesis: discard info notes so that
+    -- 'ConstraintGoal' notes from this annotation-less pass don't
+    -- reach the resolver. Without the user's annotation '=>I' never
+    -- fires, so any goal raised here carries an incomplete
+    -- lexical-given snapshot and would spuriously fail to resolve.
+    inferred <- (Just <$> discardInfoNotes (synthesizeTop strippedBinding)) `orElse` pure Nothing
     case inferred of
       Nothing -> do
         btw $
@@ -1428,10 +1447,17 @@ noteGivenDeclLet e binding _inferredType = do
 -- discipline matters.
 extendLexicalGivenFromBinding ::
   (Var v, Ord loc) =>
+  -- | Whether this binding is at file top level. Top-level givens are
+  -- already promoted to the resolver's ambient pool by 'FileParsers',
+  -- so registering them here as lexical too would tie with truly-local
+  -- givens (e.g. an inner @=>I@-injected @_implicit_*@) on the
+  -- 'Lexical 0' scope tag and surface a spurious "ambiguous" diagnostic.
+  -- Only register lexically when the binding is genuinely nested.
+  Bool ->
   ABT.Subst f v loc ->
   Term v loc ->
   M v loc Bool
-extendLexicalGivenFromBinding e binding = do
+extendLexicalGivenFromBinding isTop e binding = do
   -- ADR-010 / chunk L2 fixup: register a lexical given iff the parser
   -- tagged this variable as originating from the @given@ keyword. The
   -- previous predicate (begins with @=>@ after stripping foralls)
@@ -1439,7 +1465,7 @@ extendLexicalGivenFromBinding e binding = do
   -- @given local : Ord a = …@, which is the canonical ADR-010 example.
   isGiven <- isGivenBoundVar (ABT.variable e)
   case binding of
-    Term.Ann' _stripped declared | isGiven -> do
+    Term.Ann' _stripped declared | isGiven && not isTop -> do
       let v = Var.reset (ABT.variable e)
           ref = Reference.Builtin ("Local.given." <> Var.name v)
       extendLexicalGiven ref declared
@@ -1457,7 +1483,7 @@ noteVarMention v loc = do
   btw $ VarMention v loc
 
 synthesizeTop ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Term v loc ->
   M v loc (Type v loc)
@@ -1476,7 +1502,7 @@ synthesizeTop tm = do
 -- the process.  Also collect wanted abilities.
 -- | Figure 11 from the paper
 synthesize ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
@@ -1509,8 +1535,9 @@ wantRequest loc ty =
 -- The return value is the synthesized type together with a list of
 -- wanted abilities.
 synthesizeWanted ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
+  (Ann.IsLoweredAnn loc) =>
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
 synthesizeWanted trm@(Term.Var' v) = do
@@ -1547,7 +1574,17 @@ synthesizeWanted trm@(Term.Var' v) = do
         -- the dictionaries applied positionally. When the var IS in
         -- an application context, the implicit-arrows have already
         -- been stripped here, so 'synthesizeApp' doesn't double-emit.
-        t' <- peelLeadingImplicits (ABT.annotation trm) t
+        --
+        -- ADR-007: if the reference is the operand of @give@ (parser
+        -- wraps its annotation with 'Ann.Lowered'), we /skip/
+        -- 'peelLeadingImplicits' and instead demote leading @=>@
+        -- arrows to @->@ in the type. The resulting type behaves
+        -- like a regular function and the dictionary becomes an
+        -- ordinary positional argument supplied at the call site.
+        t' <-
+          if Ann.isLoweredAnn (ABT.annotation trm)
+            then pure (lowerLeadingImplicit t)
+            else peelLeadingImplicits (ABT.annotation trm) t
         pure (discardCovariant vars (Set.fromList vs) t', [])
 synthesizeWanted (Term.Ref' h) =
   compilerCrash $ UnannotatedReference h
@@ -1563,7 +1600,12 @@ synthesizeWanted trm@(Term.Ann' (Term.Ref' _) t)
       -- Mirror the 'Var\'' branch: peel leading @=>@ arrows eagerly
       -- so that a top-level reference used outside an application
       -- gets its implicit dictionaries inserted by 'GivenApply'.
-      t <- peelLeadingImplicits (ABT.annotation trm) t
+      -- ADR-007: if the surface reference was wrapped with @give@,
+      -- demote leading @=>@ to @->@ instead of peeling them.
+      t <-
+        if Ann.isLoweredAnn (ABT.annotation trm)
+          then pure (lowerLeadingImplicit t)
+          else peelLeadingImplicits (ABT.annotation trm) t
       (,[]) <$> discard t
   | otherwise = compilerCrash $ FreeVarsInTypeAnnotation s
   where
@@ -1596,7 +1638,7 @@ synthesizeWanted (Term.Let1Top' top binding boundVarAnn e) = do
   -- guaranteeing lexical-only visibility per ADR-010.
   (t, w) <-
     withLexicalGivens $ do
-      _ <- extendLexicalGivenFromBinding e binding
+      _ <- extendLexicalGivenFromBinding top e binding
       synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
   when top $ noteTopLevelType e binding tbinding
@@ -1820,7 +1862,7 @@ synthesizeWanted _e = compilerCrash PatternMatchFailure
 -- can be refined later. This is a bit unusual for the algorithm we
 -- use, but it seems like it should be safe.
 synthesizeBinding ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Bool ->
   Term v loc ->
@@ -1969,7 +2011,7 @@ ensurePatternCoverage theMatch _theMatchType _scrutinee scrutineeType cases = do
   checkUncovered *> checkRedundant
 
 checkCases ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Type v loc ->
   Type v loc ->
@@ -2033,7 +2075,7 @@ requestType ps =
 
 checkCase ::
   forall v loc.
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   Type v loc ->
   Type v loc ->
   Term.MatchCase loc (Term v loc) ->
@@ -2258,6 +2300,25 @@ resetContextAfter x a = do
   setContext ctx
   pure a
 
+-- | Run an action and discard any info notes it emits. Used to
+-- suppress notes from speculative typechecking passes that aren't
+-- part of the official typecheck (e.g. the annotation-free second
+-- pass in 'annotateLetRecBindings' used purely for redundancy
+-- detection). Without this, that pass's 'ConstraintGoal' notes
+-- carry incomplete lexical-given snapshots — '=>I' never fires when
+-- the user's annotation is ignored, so any constraint goal raised
+-- inside such a body lacks the implicit-dictionary binder that the
+-- annotated pass registered, and the resolver fails on bogus
+-- "missing given" diagnostics that have no surface cause.
+discardInfoNotes :: M v loc a -> M v loc a
+discardInfoNotes (MT m) =
+  MT $ \ppe pmc vars datas effects defs env ->
+    clear (m ppe pmc vars datas effects defs env)
+  where
+    clear (Success _ a) = Success mempty a
+    clear (TypeError e _) = TypeError e mempty
+    clear (CompilerBug c e _) = CompilerBug c e mempty
+
 type LetRecInfo v loc =
   (v -> M v loc v) -> M v loc ([((loc, v), Term v loc)], Term v loc)
 
@@ -2266,7 +2327,7 @@ type LetRecInfo v loc =
 -- their type. Also returns the freshened version of `body`.
 -- See usage in `synthesize` and `check` for `LetRec'` case.
 annotateLetRecBindings ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   Term.IsTop -> LetRecInfo v loc -> M v loc (Term v loc)
 annotateLetRecBindings isTop letrec =
   -- If this is a top-level letrec, then emit a TopLevelComponent note,
@@ -2275,13 +2336,22 @@ annotateLetRecBindings isTop letrec =
     then do
       -- First, typecheck (using annotateLetRecBindings') the bindings with any
       -- user-provided annotations.
-      (body, vts) <- annotateLetRecBindings' letrec True
+      (body, vts) <- annotateLetRecBindings' isTop letrec True
       -- Then, try typechecking again, but ignoring any user-provided annotations.
       -- This will infer whatever type.  If it altogether fails to typecheck here
       -- then, ...(1)
+      --
+      -- 'discardInfoNotes' is required: without the user's annotation
+      -- '=>I' (the introduction rule for ImplicitArrow) never fires on
+      -- a binding like @given f : C => T = body@, so any
+      -- 'ConstraintGoal' raised inside @body@ during this pass would
+      -- be emitted with an incomplete lexical-given snapshot and
+      -- silently poison the resolver. The pass exists solely to
+      -- detect whether the user's annotations were redundant; its
+      -- side-effect notes are not part of the official typecheck.
       withoutAnnotations <-
-        resetContextAfter Nothing $
-          Just <$> annotateLetRecBindings' letrec False
+        resetContextAfter Nothing . discardInfoNotes $
+          Just <$> annotateLetRecBindings' isTop letrec False
       -- convert from typechecker TypeVar back to regular `v` vars
       let unTypeVar (v, t) = (v, generalizeAndUnTypeVar t)
       case withoutAnnotations of
@@ -2295,7 +2365,7 @@ annotateLetRecBindings isTop letrec =
       pure body
     else do
       -- If this isn't a top-level letrec, then we don't have to do anything special
-      (body, _vts) <- annotateLetRecBindings' letrec True
+      (body, _vts) <- annotateLetRecBindings' isTop letrec True
       pure body
 
 -- A wrapper type for demuxed binding information in a let. Only used
@@ -2354,11 +2424,15 @@ namedBindings bs = bndVars bs `zip` bnds bs
 -- can be immediately completed to `a ->{} b ->{} c ->{E} d` instead
 -- of making up variables for the two positions that must be pure.
 annotateLetRecBindings' ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
+  -- | Whether the enclosing letrec is at file top level. See the
+  -- comment on 'extendLexicalGivenFromBinding' for why top-level
+  -- givens must not be added to the lexical pool.
+  Bool ->
   LetRecInfo v loc ->
   Bool ->
   M v loc (Term v loc, [(v, Type v loc)])
-annotateLetRecBindings' letrec useAnn = do
+annotateLetRecBindings' isTop letrec useAnn = do
   (binds, body) <- letrec freshenVar
 
   ((allbnds, abnds, ubnds), ctx) <-
@@ -2449,7 +2523,7 @@ annotateLetRecBindings' letrec useAnn = do
   -- ADR-010 example.
   Foldable.for_ vTypes \(v, t) -> do
     isGiven <- isGivenBoundVar v
-    when isGiven $ do
+    when (isGiven && not isTop) $ do
       let ref = Reference.Builtin ("Local.given." <> Var.name (Var.reset v))
       extendLexicalGiven ref t
 
@@ -2780,7 +2854,7 @@ variableP _ = Nothing
 -- See its usage in `synthesize` and `annotateLetRecBindings`.
 checkScoped ::
   forall v loc.
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   Term v loc ->
   Type v loc ->
   M v loc (Type v loc, Wanted v loc)
@@ -2797,7 +2871,7 @@ checkScoped e t = do
   (t,) <$> check e t
 
 checkScopedWith ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Term v loc ->
   Type v loc ->
@@ -3103,7 +3177,7 @@ relax' vars nonArrow fv = rebuild True
 -- The boolean argument is for exact ability match cases explained in
 -- the documentation for `checkWanted`.
 checkWantedScoped ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Bool ->
   Wanted v loc ->
@@ -3136,7 +3210,7 @@ checkWantedScoped exact want m ty =
 -- If the Maybe is a Just, the suspicious condition emits a warning,
 -- with the given term as the problem location.
 checkWanted ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Maybe (Term v loc) ->
   Wanted v loc ->
@@ -3227,7 +3301,7 @@ checkWanted exact want (Term.Let1Top' top binding boundVarAnn m) t = do
   -- 'extendLexicalGivenFromBinding'), registers it before checking the
   -- body. Mirrors the symmetric synthesis path.
   markThenRetractWanted v . withLexicalGivens $ do
-    _ <- extendLexicalGivenFromBinding m binding
+    _ <- extendLexicalGivenFromBinding top m binding
     when (Var.isAction (ABT.variable m)) . scope InActionRestriction $
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
@@ -3293,7 +3367,7 @@ checkWanted _ want e t = do
 -- The result specifies whether the wanted abilities are a proper
 -- subset of the specified available abilities.
 checkWithAbilities ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Maybe (Term v loc) ->
   [Type v loc] ->
@@ -3326,7 +3400,7 @@ exactAbilitiesWarning _ _ _ _ = pure ()
 --     `m` has type `t`
 -- updating the context in the process.
 check ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Term v loc ->
   Type v loc ->
@@ -4084,7 +4158,7 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 -- binding form ('Lam', 'Let1', 'LetRec', match arm) saves and
 -- restores it via 'withLexicalGivens'.
 synthesizeClosed ::
-  (BuiltinAnnotation loc, Var v, Ord loc, Show loc, Semigroup loc) =>
+  (BuiltinAnnotation loc, Var v, Ord loc, Show loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   PatternMatchCoverageCheckAndKindInferenceSwitch ->
   Map Reference [Variance] ->
@@ -4194,7 +4268,7 @@ run ppe pmcSwitch vars datas effects m =
     $ Env 1 context0 Map.empty Set.empty
 
 synthesizeClosed' ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   [Type v loc] ->
   Term v loc ->
   M v loc (Type v loc)
