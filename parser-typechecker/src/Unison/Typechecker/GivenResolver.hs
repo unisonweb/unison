@@ -490,29 +490,14 @@ matchHead goal g = do
   --     binding stay opaque so the resolver doesn't unify a
   --     polymorphic call with a more-specific namespace given.
   goalExistentials <- gets' (optGoalExistentials . sOpts)
-  -- Also treat the candidate's outer-scope free vars as flex.
-  -- A lexical given like @_implicit_ident_0 : Box a@ — registered at
-  -- the surrounding binding's @=>I@ — has @a@ free in its conclusion
-  -- referring to an outer universal. The goal raised inside the
-  -- binding mentions the same logical @a@ but the typechecker may
-  -- have resolved it to a *different* universal (e.g. via the
-  -- recursive call's existential being pinned through a separate
-  -- Forall freshening). Adding the candidate's outer free vars to
-  -- the flex set lets the unifier bind them to whatever the goal
-  -- exposes. Ambient givens are unaffected: their universally
-  -- quantified tyvars are freshened (and so are in 'fresh'), so this
-  -- adds nothing they didn't already contribute.
-  --
-  -- Goal-side 'Var.Inference' variables are also flex: these are
-  -- metavars surrounding inference hasn't yet pinned, and binding
-  -- them to whatever the candidate exposes is exactly what later
-  -- inference will end up doing.
-  let candidateOuter = ABT.freeVars concl' `Set.difference` Set.fromList fresh
-      goalInference = Set.filter (isInference . Var.typeOf) (ABT.freeVars goal)
+  -- Goal-side 'Var.Inference' variables are flex: these are metavars
+  -- surrounding inference hasn't yet pinned, and binding them to
+  -- whatever the candidate exposes is exactly what later inference
+  -- will end up doing.
+  let goalInference = Set.filter (isInference . Var.typeOf) (ABT.freeVars goal)
       flex =
         Set.fromList fresh
           `Set.union` goalExistentials
-          `Set.union` candidateOuter
           `Set.union` goalInference
   case unify mempty flex concl' goal of
     Nothing -> pure Nothing
