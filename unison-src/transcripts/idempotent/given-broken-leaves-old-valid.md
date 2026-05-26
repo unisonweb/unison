@@ -39,6 +39,9 @@ foo n = match Show.nat with Show.Show f -> f n
 ``` ucm
 > add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 

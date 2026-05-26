@@ -16,6 +16,9 @@ module Unison.Syntax.Name
     nameP,
     relativeNameP,
 
+    -- * Escaping helpers
+    escapeReservedSegments,
+
     -- * Name classifiers
     isSymboly,
   )
@@ -23,6 +26,7 @@ where
 
 import Control.Monad.Combinators.NonEmpty qualified as Monad
 import Data.List.NonEmpty (pattern (:|))
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Builder qualified as Text (Builder)
@@ -45,13 +49,17 @@ import Unison.Syntax.NameSegment qualified as NameSegment
     segmentP,
     toEscapedTextBuilder,
   )
+import Unison.Syntax.ReservedWords qualified as ReservedWords
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
 ------------------------------------------------------------------------------------------------------------------------
 -- String conversions
 
--- | Parse a name from a string literal.
+-- | Parse a name from a string literal. Reserved-word segments
+-- (e.g. @class@, @given@) are accepted unescaped: this entry point
+-- is used to deserialize names from the codebase / namespace, where
+-- the strict source-code keyword reservation does not apply.
 parseText :: Text -> Maybe Name
 parseText =
   eitherToMaybe . parseTextEither
@@ -59,8 +67,31 @@ parseText =
 -- | Parse a name from a string literal.
 parseTextEither :: Text -> Either Text Name
 parseTextEither s =
-  P.runParser (P.withParsecT (fmap NameSegment.renderParseErr) nameP <* P.eof) "" (Text.unpack s)
-    & mapLeft (Text.pack . P.errorBundlePretty)
+  let attempt t =
+        P.runParser (P.withParsecT (fmap NameSegment.renderParseErr) nameP <* P.eof) "" (Text.unpack t)
+          & mapLeft (Text.pack . P.errorBundlePretty)
+   in case attempt s of
+        Right name -> Right name
+        Left err ->
+          -- Retry with reserved-word segments escaped by backticks.
+          -- A name stored in the namespace can have a segment that
+          -- collides with a Unison keyword (e.g. a definition called
+          -- @class@). The source-code parser rejects bare reserved
+          -- words, but a serialized name is not source code.
+          let escaped = escapeReservedSegments s
+           in if escaped == s then Left err else attempt escaped
+
+-- | Wrap every '.'-separated segment that matches a Unison keyword in
+-- backticks, leaving non-keyword segments and segment separators
+-- untouched. Idempotent on already-escaped input (already-backticked
+-- segments contain no bare keyword).
+escapeReservedSegments :: Text -> Text
+escapeReservedSegments t =
+  Text.intercalate "." (map escapeSeg (Text.splitOn "." t))
+  where
+    escapeSeg s
+      | Set.member s ReservedWords.keywords = "`" <> s <> "`"
+      | otherwise = s
 
 -- | Unsafely parse a name from a string literal.
 unsafeParseText :: (HasCallStack) => Text -> Name

@@ -69276,7 +69276,8 @@ Text.patterns.charUntil class stop =
       (cases
         (head, tail), p ->
           Pattern.or
-            (Pattern.join [literal head, char (class - in (Text.take 1 tail))])
+            (Pattern.join
+              [literal head, char (`class` - in (Text.take 1 tail))])
             p)
       (char (Class.not Class.any))
       (dropRight 1 (splits stop)))
@@ -69686,10 +69687,11 @@ Text.snoc a b =
 Text.split : Char -> Text -> [Text]
 Text.split separator text =
   use patterns char
-  class = fromChar separator
+  `class` = fromChar separator
   Each.toList do
     eachCapture
-      (sepMany (char class) (Pattern.capture (many (char (Class.not class)))))
+      (sepMany
+        (char `class`) (Pattern.capture (many (char (Class.not `class`)))))
       text
 
 Text.split.examples.ex1 : [Text]

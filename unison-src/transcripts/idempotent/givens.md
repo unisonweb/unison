@@ -30,6 +30,9 @@ bar = 99
 ``` ucm
 > add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -179,6 +182,9 @@ myNs.alpha = 1
 ``` ucm
 > add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -240,6 +246,9 @@ deep.nested.beta = 7
 
 ``` ucm
 > add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 

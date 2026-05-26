@@ -28,6 +28,9 @@ And then we add it.
 ``` ucm
 > add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 > find.verbose
@@ -69,6 +72,13 @@ and update the codebase to use the new type `Foo`...
 ``` ucm
 > update
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
   Done.
 ```
 
@@ -108,6 +118,9 @@ Add that to the codebase:
 ``` ucm
 > add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -132,6 +145,13 @@ Update...
 
 ``` ucm
 > update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
 
   Done.
 ```

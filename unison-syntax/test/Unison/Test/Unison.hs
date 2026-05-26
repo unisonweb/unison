@@ -76,24 +76,18 @@ test =
       -- layout-opener).
       t "Show a => a" [simpleWordyId "Show", simpleWordyId "a", Reserved "=>", simpleWordyId "a"],
       t "a=>b" [simpleWordyId "a", Reserved "=>", simpleWordyId "b"],
-      -- `given` and `summon` lex as Reserved. They are wordy keywords,
-      -- so they are emitted as `Reserved "given"` / `Reserved "summon"`,
-      -- not as `WordyId "given"` / `WordyId "summon"`. Without this,
-      -- a future identifier-leniency change to the lexer could
-      -- silently downgrade them to identifiers.
+      -- `given` lexes as Reserved (it's a wordy keyword introducing
+      -- a binding form). `summon` is an ordinary builtin term
+      -- reference, so it lexes as a wordy identifier.
       t "given" [Reserved "given"],
-      t "summon" [Reserved "summon"],
-      -- The keywords still lex as keywords when adjacent to other
-      -- content; `given x` is `Reserved "given"` followed by an
-      -- identifier, not `WordyId "givenx"`.
+      t "summon" [simpleWordyId "summon"],
       t "given x" [Reserved "given", simpleWordyId "x"],
-      t "summon Nat" [Reserved "summon", simpleWordyId "Nat"],
-      -- `given` and `summon` only lex as keywords as standalone
-      -- words; suffixed forms (e.g., `givens`, `summons`) remain
-      -- ordinary wordy identifiers. This protects user identifiers
-      -- whose prefix happens to be one of the new keywords.
+      t "summon Nat" [simpleWordyId "summon", simpleWordyId "Nat"],
+      -- `given` only lexes as a keyword as a standalone word;
+      -- suffixed forms (e.g., `givens`) remain ordinary wordy
+      -- identifiers. This protects user identifiers whose prefix
+      -- happens to be the keyword.
       t "givens" [simpleWordyId "givens"],
-      t "summons" [simpleWordyId "summons"],
       -- "@"-positional explicit override. The lexer just emits a
       -- single Reserved "@" token; the parser decides between
       -- as-pattern, doc-prefix, and override based on context.

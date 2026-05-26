@@ -22,6 +22,7 @@ x + x +
   I was expecting one of these instead:
 
   * ability
+  * class
   * namespace
   * newline or semicolon
   * type
@@ -48,6 +49,7 @@ I was surprised to find a x here.
 I was expecting one of these instead:
 
 * ability
+* class
 * namespace
 * newline or semicolon
 * type

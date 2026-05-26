@@ -618,9 +618,6 @@ unit2t = cases
 ``` ucm
 > add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -666,9 +663,6 @@ evil = bug ""
 ``` ucm
 > add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -700,9 +694,6 @@ unique type SomeType = A
 
 ``` ucm
 > add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 ```
