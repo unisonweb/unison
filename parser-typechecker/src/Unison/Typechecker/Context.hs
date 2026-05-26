@@ -3198,6 +3198,18 @@ checkWanted ::
   Term v loc ->
   Type v loc ->
   M v loc (Wanted v loc)
+-- When the parser wraps an implicit-parameter binding's body in a
+-- '\_implicit_*' lambda (see 'wrapImplicitParams') and the user has
+-- written an explicit signature, the term that reaches 'checkWanted'
+-- is @Ann (Lam _ ...) (forall .. => ..)@. After 'checkScoped' strips
+-- the Forall the type is 'ImplicitArrow'', but the term is still an
+-- 'Ann'-wrapped lambda — the downstream 'Lam' + ImplicitArrow''
+-- clause doesn't fire, so '=>I' is skipped and the goal is emitted
+-- by the 'ImplicitArrow'' fallback below with an empty lexical-given
+-- scope. Strip the redundant annotation in this specific shape so
+-- '=>I' can register the binder as a local lexical given.
+checkWanted exact want (Term.Ann' e@(Term.Lam' _ _) _) ty@(Type.ImplicitArrow' _ _) =
+  checkWanted exact want e ty
 -- ForallI
 checkWanted exact want m (Type.Forall' body) = do
   v <- ABT.freshen body freshenTypeVar
@@ -3420,6 +3432,24 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       subtype i2 i1
       ctx' <- getContext
       subtype (apply ctx' o1) (apply ctx' o2)
+    go _ (Type.ImplicitArrow' i1 o1) (Type.ImplicitArrow' i2 o2) = do
+      -- Implicit arrows behave like explicit arrows for subtyping:
+      -- contravariant input, covariant output.
+      subtype i2 i1
+      ctx' <- getContext
+      subtype (apply ctx' o1) (apply ctx' o2)
+    go _ (Type.ImplicitArrow' _ o1) o2 =
+      -- A function with a leading constraint is a subtype of its
+      -- conclusion (the elaborator will fill the constraint by
+      -- resolution at the use site). Without this clause a recursive
+      -- self-call inside a `=>`-typed binding fails because the
+      -- body's inferred type (post-`=>I`) doesn't structurally match
+      -- the declared signature.
+      subtype o1 o2
+    go _ o1 (Type.ImplicitArrow' _ o2) =
+      -- Symmetric: a non-constrained value can satisfy a constrained
+      -- expectation because the constraint is supplied separately.
+      subtype o1 o2
     go _ (Type.App' x1 y1) (Type.App' x2 y2) = do
       -- analogue of `-->`
       subtype x1 x2

@@ -53,6 +53,7 @@ module Unison.Typechecker.GivenResolver
 
     -- * Entry points
     resolve,
+    resolveWithExistentials,
     resolveWith,
     resolveCounted,
 
@@ -183,15 +184,21 @@ data NearMiss v loc = NearMiss
 -- Options
 ------------------------------------------------------------------------------
 
-data ResolveOptions = ResolveOptions
+data ResolveOptions v = ResolveOptions
   { -- | Maximum chain depth before bailing with 'DepthExceeded'.
     -- Default 50.
-    optMaxDepth :: !Int
+    optMaxDepth :: !Int,
+    -- | Vars in the goal type that the typechecker has not yet
+    -- pinned. The resolver treats these as flexible during
+    -- head-unification, so a goal whose constraint type contains an
+    -- unsolved existential can still match a candidate. Empty by
+    -- default.
+    optGoalExistentials :: !(Set v)
   }
   deriving stock (Eq, Show)
 
-defaultOptions :: ResolveOptions
-defaultOptions = ResolveOptions {optMaxDepth = 50}
+defaultOptions :: ResolveOptions v
+defaultOptions = ResolveOptions {optMaxDepth = 50, optGoalExistentials = Set.empty}
 
 ------------------------------------------------------------------------------
 -- Resolution monad
@@ -225,14 +232,14 @@ data RState v loc = RState
     -- bound from §4.2#6 of the plan.
     sWork :: !Int,
     -- | Resolution options.
-    sOpts :: !ResolveOptions,
+    sOpts :: !(ResolveOptions v),
     -- | Pool of available givens.
     sPool :: !(Pool v loc)
   }
 
 type R v loc = State (RState v loc)
 
-initialState :: forall v loc. (Var v) => ResolveOptions -> Pool v loc -> Type v loc -> RState v loc
+initialState :: forall v loc. (Var v) => ResolveOptions v -> Pool v loc -> Type v loc -> RState v loc
 initialState opts pool goal =
   RState
     { sUsed = seedUsed,
@@ -268,10 +275,27 @@ resolve ::
   Either (ResolveError v loc) (ResolutionTree v loc)
 resolve = resolveWith defaultOptions
 
+-- | Resolve a goal carrying an explicit set of goal-side
+-- /existential/ variables (vars the typechecker hasn't pinned yet).
+-- Those are treated as flexible during head-unification, alongside the
+-- candidate's own freshened tyvars. Vars in the goal that are /not/
+-- in this set are rigid (typically a binding's universal type vars).
+resolveWithExistentials ::
+  (Var v, Ord loc) =>
+  Set v ->
+  Pool v loc ->
+  Type v loc ->
+  Either (ResolveError v loc) (ResolutionTree v loc)
+resolveWithExistentials existentials pool goal =
+  fst $
+    runState
+      (resolveImpl goal [] 0)
+      (initialState (defaultOptions {optGoalExistentials = existentials}) pool goal)
+
 -- | Resolve with explicit options.
 resolveWith ::
   (Var v, Ord loc) =>
-  ResolveOptions ->
+  ResolveOptions v ->
   Pool v loc ->
   Type v loc ->
   Either (ResolveError v loc) (ResolutionTree v loc)
@@ -282,7 +306,7 @@ resolveWith opts pool goal = fst (resolveCounted opts pool goal)
 -- tests to verify the memoization bound.
 resolveCounted ::
   (Var v, Ord loc) =>
-  ResolveOptions ->
+  ResolveOptions v ->
   Pool v loc ->
   Type v loc ->
   (Either (ResolveError v loc) (ResolutionTree v loc), Int)
@@ -304,8 +328,8 @@ resolveCounted opts pool goal =
 -- | Whether a 'Var.Type' indicates a variable created by the
 -- typechecker's inference machinery. Used by 'matchHead' to decide
 -- which goal-side variables to treat as flexible.
-isInferenceVar :: Var.Type -> Bool
-isInferenceVar = \case
+isInference :: Var.Type -> Bool
+isInference = \case
   Var.Inference _ -> True
   _ -> False
 
@@ -459,9 +483,37 @@ matchHead goal g = do
   -- existentials as flexible lets the unifier bind them to whatever
   -- the candidate exposes — which is exactly what surrounding
   -- inference will end up doing.
-  let inferenceVarsInGoal =
-        Set.filter (isInferenceVar . Var.typeOf) (ABT.freeVars goal)
-      flex = Set.fromList fresh `Set.union` inferenceVarsInGoal
+  -- Flexible variables for unification:
+  --   * the candidate's freshened tyvars (always);
+  --   * goal-side existentials supplied by the typechecker (vars it
+  --     has not yet pinned). Rigid universals from the surrounding
+  --     binding stay opaque so the resolver doesn't unify a
+  --     polymorphic call with a more-specific namespace given.
+  goalExistentials <- gets' (optGoalExistentials . sOpts)
+  -- Also treat the candidate's outer-scope free vars as flex.
+  -- A lexical given like @_implicit_ident_0 : Box a@ — registered at
+  -- the surrounding binding's @=>I@ — has @a@ free in its conclusion
+  -- referring to an outer universal. The goal raised inside the
+  -- binding mentions the same logical @a@ but the typechecker may
+  -- have resolved it to a *different* universal (e.g. via the
+  -- recursive call's existential being pinned through a separate
+  -- Forall freshening). Adding the candidate's outer free vars to
+  -- the flex set lets the unifier bind them to whatever the goal
+  -- exposes. Ambient givens are unaffected: their universally
+  -- quantified tyvars are freshened (and so are in 'fresh'), so this
+  -- adds nothing they didn't already contribute.
+  --
+  -- Goal-side 'Var.Inference' variables are also flex: these are
+  -- metavars surrounding inference hasn't yet pinned, and binding
+  -- them to whatever the candidate exposes is exactly what later
+  -- inference will end up doing.
+  let candidateOuter = ABT.freeVars concl' `Set.difference` Set.fromList fresh
+      goalInference = Set.filter (isInference . Var.typeOf) (ABT.freeVars goal)
+      flex =
+        Set.fromList fresh
+          `Set.union` goalExistentials
+          `Set.union` candidateOuter
+          `Set.union` goalInference
   case unify mempty flex concl' goal of
     Nothing -> pure Nothing
     Just s ->

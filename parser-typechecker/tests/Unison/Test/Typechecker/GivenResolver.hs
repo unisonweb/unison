@@ -409,7 +409,7 @@ testSanity =
         -- limit, this must fail (either DepthExceeded or NoGiven via
         -- the per-branch cycle path — both are acceptable).
         let pool = poolFromList [mkGiven "selfFromSelf" [] [selfC] selfC Ambient]
-            opts = ResolveOptions {optMaxDepth = 5}
+            opts = defaultOptions {optMaxDepth = 5}
          in case resolveWith opts pool selfC of
               Left _ -> ok
               Right t -> crash ("expected failure, got: " <> show t),

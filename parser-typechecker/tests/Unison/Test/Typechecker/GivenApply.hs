@@ -46,7 +46,6 @@ test =
   scope "GivenApply"
     . tests
     $ [ scope "buildDictionary" testBuildDictionary,
-        scope "isOverrideArg" testIsOverrideArg,
         scope "end-to-end-single-implicit" testEndToEndSingle,
         scope "end-to-end-chained-dictionaries" testEndToEndChained,
         scope "source-level-end-to-end" testSourceLevelEndToEnd,
@@ -93,55 +92,7 @@ testBuildDictionary =
     ]
 
 ------------------------------------------------------------------------------
--- 2. Override detection
-------------------------------------------------------------------------------
-
--- A natural (non-widened) Ann from a fresh single-line range.
-naturalAnn :: Int -> Int -> Ann
-naturalAnn col len = Ann (L.Pos 1 col) (L.Pos 1 (col + len))
-
--- A widened Ann simulating the override syntax's `ann atTok <> ann d`:
--- shift start by 2 (one for `@`, one for the space) but keep the end
--- the same.
-widenedAnn :: Int -> Int -> Ann
-widenedAnn col len = Ann (L.Pos 1 (col - 2)) (L.Pos 1 (col + len))
-
-testIsOverrideArg :: Test ()
-testIsOverrideArg =
-  tests
-    [ scope "regular-leaf-is-not-override" $
-        let -- A bare leaf var. Without internal sub-children, override
-            -- detection is a soft Nothing → returns False (the
-            -- limitation documented in GivenApply.hs).
-            t = Term.var (naturalAnn 5 4) (Var.named "v" :: Symbol) :: Term.Term Symbol Ann
-         in expect (not (GA.isOverrideArg t)),
-      scope "widened-leaf-still-undetectable-by-design" $
-        let -- A widened leaf is also returned as False — this is the
-            -- documented limitation. Users wrap leaf overrides in
-            -- parens to make them detectable.
-            t = Term.var (widenedAnn 5 4) (Var.named "v" :: Symbol) :: Term.Term Symbol Ann
-         in expect (not (GA.isOverrideArg t)),
-      scope "regular-compound-is-not-override" $
-        let -- A non-widened compound expression: `f x` where the
-            -- outer App's annotation matches the children's extents.
-            inner = Term.var (naturalAnn 7 1) (Var.named "x" :: Symbol)
-            outer = Term.app (naturalAnn 5 3) (Term.var (naturalAnn 5 1) (Var.named "f" :: Symbol)) inner
-         in expect (not (GA.isOverrideArg outer)),
-      scope "widened-compound-is-not-override" $
-        let -- A widened compound expression: outer App ann starts
-            -- before the leftmost child's annotation. Treating this
-            -- as an override would conflict with surface forms like
-            -- list literals (where the outer brackets naturally widen
-            -- the annotation past the first child), so
-            -- 'isOverrideArg' is restricted to leaf surface terms.
-            inner = Term.var (naturalAnn 7 1) (Var.named "x" :: Symbol)
-            outerWidened =
-              Term.app (Ann (L.Pos 1 3) (L.Pos 1 8)) (Term.var (naturalAnn 5 1) (Var.named "f" :: Symbol)) inner
-         in expect (not (GA.isOverrideArg outerWidened))
-    ]
-
-------------------------------------------------------------------------------
--- 3. End-to-end single-implicit substitution
+-- 2. End-to-end single-implicit substitution
 ------------------------------------------------------------------------------
 
 -- A constraint-class-like type "TestC".
@@ -351,8 +302,6 @@ testEndToEndChained =
 testOverrideSkipsDecision :: Test ()
 testOverrideSkipsDecision =
   scope "f @userOverride 42 keeps user's override and skips elaborator" $
-    -- The override here is a compound expression so 'isOverrideArg'
-    -- can detect the widening (recall the leaf-limitation).
     let userOverrideRef = Reference.Builtin "UserOverride"
         userOverride =
           -- `(id userOverride)` style: a compound whose outer ann

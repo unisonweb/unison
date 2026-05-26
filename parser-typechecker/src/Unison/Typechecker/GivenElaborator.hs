@@ -100,6 +100,9 @@ where
 
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Set (Set)
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
 import Unison.Reference (Reference)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
@@ -194,7 +197,12 @@ decomposeGivenType ty =
 data PendingGoal v loc = PendingGoal
   { pgLoc :: !loc,
     pgType :: !(Type v loc),
-    pgScope :: !(Map Reference (Type v loc))
+    pgScope :: !(Map Reference (Type v loc)),
+    -- | The set of underlying vars in 'pgType' that were wrapped in
+    -- 'TypeVar.Existential' before the goal type was lowered. The
+    -- resolver treats these as flexible (unifiable); rigid universals
+    -- stay opaque.
+    pgExistentials :: !(Set v)
   }
   deriving stock (Show)
 
@@ -211,10 +219,27 @@ extractConstraintGoals = foldr step []
       PendingGoal
         { pgLoc = loc,
           pgType = TypeVar.lowerType ty,
-          pgScope = TypeVar.lowerType <$> scope
+          pgScope = TypeVar.lowerType <$> scope,
+          pgExistentials = existentialVars ty
         }
         : acc
     step _ acc = acc
+
+-- | Collect underlying vars wrapped in 'TypeVar.Existential' in a
+-- 'Context'-shaped type, before that type is lowered for the resolver.
+existentialVars ::
+  (Var v) =>
+  Type.Type (TypeVar.TypeVar b v) loc ->
+  Set v
+existentialVars t =
+  Set.fromList
+    [ v
+    | tv <- Set.toList (ABT.freeVars t),
+      case tv of
+        TypeVar.Existential _ _ -> True
+        _ -> False,
+      let v = TypeVar.underlying tv
+    ]
 
 -- | Run the resolver on each pending goal, returning one
 -- 'Context.SolvedImplicit' info note per goal.
@@ -267,10 +292,10 @@ resolveOne ::
   GR.Pool v loc ->
   PendingGoal v loc ->
   Context.InfoNote v loc
-resolveOne ambient PendingGoal {pgLoc, pgType, pgScope} =
+resolveOne ambient PendingGoal {pgLoc, pgType, pgScope, pgExistentials} =
   let lexical = lexicalPool pgScope
       pool = mergePool lexical ambient
-      decision = GR.resolve pool pgType
+      decision = GR.resolveWithExistentials pgExistentials pool pgType
    in Context.SolvedImplicit
         { Context.implicitGoalLoc = pgLoc,
           Context.implicitGoalType = pgType,

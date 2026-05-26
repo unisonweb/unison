@@ -100,9 +100,6 @@ module Unison.Typechecker.GivenApply
     -- * Building dictionary terms
     buildDictionary,
 
-    -- * Override detection (exposed for tests)
-    isOverrideArg,
-
     -- * Stripping for surface rendering
     stripSyntheticArgs,
     stripImplicitArgsByType,
@@ -717,11 +714,3 @@ localGivenPrefix = "Local.given."
 ------------------------------------------------------------------------------
 -- Override detection
 ------------------------------------------------------------------------------
-
--- | Override detection stub. The override path goes through the
--- @give@-prefix syntax, which tags the /function/ with 'Ann.Lowered'
--- so 'rewriteApply' demotes the type before 'interleave' sees it, so
--- no per-argument inspection is needed. Always returns 'False'; kept
--- exported so external callers compile.
-isOverrideArg :: Term v Ann -> Bool
-isOverrideArg _ = False
