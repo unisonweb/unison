@@ -36,9 +36,9 @@ xyzzy box decoy =
 
   + Decoy.confuser        : Decoy a -> Tres
   + Decoy.confuser.modify : (Tres ->{g} Tres)
-                            -> Decoy a1
+                            -> Decoy a
                             ->{g} Decoy a
-  + Decoy.confuser.set    : Tres -> Decoy a1 -> Decoy a
+  + Decoy.confuser.set    : Tres -> Decoy a -> Decoy a
   + xyzzy                 : NatBox -> Decoy a -> Nat
 
   Run `update` to apply these changes to your codebase.
