@@ -800,12 +800,29 @@ existentializeArrows newVar t = ABT.visit go t
         a <- existentializeArrows newVar a
         b <- existentializeArrows newVar b
         pure $ implicitArrow (ABT.annotation t) a b
+      -- A rank-N codomain (the right-hand side is itself a
+      -- 'Forall') is a user-written polymorphic type that should be
+      -- kept as-written; wrapping it in a fresh effect row breaks
+      -- unification at use sites (the inner skolems escape).
+      ForallNamed' _ _ -> Just $ do
+        a <- existentializeArrows newVar a
+        pure $ implicitArrow (ABT.annotation t) a b
       _ -> Just $ do
         e <- newVar
         a <- existentializeArrows newVar a
         b <- existentializeArrows newVar b
         let ann = ABT.annotation t
         pure $ implicitArrow ann a (effect ann [var ann e] b)
+    -- Do not descend into a nested 'Forall': its body is a rank-N
+    -- annotation written by the user, and inserting fresh ability
+    -- variables into its arrows would conflict with the inner
+    -- 'forall's at unification time (existentials pinned to the
+    -- inner skolems can't escape their scope). The caller
+    -- ('addAbilities') has already stripped the top-level 'Forall'
+    -- before invoking 'existentializeArrows', so any 'Forall' we
+    -- encounter here is genuinely rank-N and should be left
+    -- as-written.
+    go t@(ForallNamed' _ _) = Just (pure t)
     go _ = Nothing
 
 purifyArrows :: (Ord v) => Type v a -> Type v a
