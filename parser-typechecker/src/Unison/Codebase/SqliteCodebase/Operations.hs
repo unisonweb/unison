@@ -60,6 +60,9 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.TypeAlias (TypeAlias)
+import Unison.TypeEntry (TypeEntry)
+import Unison.TypeEntry qualified as TypeEntry
 import Unison.Util.Cache qualified as Cache
 import Unison.Util.Set qualified as Set
 import Unison.WatchKind qualified as UF
@@ -252,6 +255,32 @@ getDeclComponent h =
   runMaybeT do
     decl2 <- Ops.loadDeclComponent h
     pure (map (Cv.decl2to1 h) decl2)
+
+getTypeAlias :: Reference.Id -> Transaction (Maybe (TypeAlias Symbol Ann))
+getTypeAlias rid =
+  runMaybeT do
+    ta2 <- Ops.loadTypeAliasByReference (Cv.referenceid1to2 rid)
+    pure (Cv.typeAlias2to1 ta2)
+
+getTypeEntry :: Reference.Id -> Transaction (Maybe (TypeEntry Symbol Ann))
+getTypeEntry rid@(Reference.Id h pos) =
+  getTypeAlias rid >>= \case
+    Just ta -> pure (Just (TypeEntry.TypeEntryAlias ta))
+    Nothing ->
+      getDeclComponent h <&> fmap \comp ->
+        TypeEntry.TypeEntryDecl (Reference.getComponentElem comp pos)
+
+isTypeAlias :: Reference -> Transaction Bool
+isTypeAlias r = Ops.isTypeAliasReference (Cv.reference1to2 r)
+
+-- | Save a type alias. Aliases are non-recursive: their dependencies must
+-- already exist in the codebase. Callers that need deferred persistence
+-- (e.g. saving an alias alongside a still-unsaved decl in the same
+-- transaction) should sequence their saves so dependencies land first.
+putTypeAlias :: Reference.Id -> TypeAlias Symbol Ann -> Transaction ()
+putTypeAlias (Reference.Id h _) ta =
+  unlessM (Ops.objectExistsForHash h) do
+    void $ Q.saveTypeAlias v2HashHandle Nothing h (Cv.typeAlias1to2 ta)
 
 putTermComponent ::
   TVar (Map Hash TermBufferEntry) ->

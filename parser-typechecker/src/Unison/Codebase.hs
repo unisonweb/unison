@@ -47,6 +47,12 @@ module Unison.Codebase
     isType,
     expectDeclNumConstructors,
 
+    -- * Type aliases
+    getTypeAlias,
+    getTypeEntry,
+    isTypeAlias,
+    putTypeAlias,
+
     -- * Branches
     SqliteCodebase.Operations.branchExists,
     getBranchForHash,

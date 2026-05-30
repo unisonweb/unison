@@ -11,6 +11,7 @@ data TempEntityType
   | NamespaceType -- 2
   | PatchType -- 3
   | CausalType -- 4
+  | TypeAliasComponentType -- 5
   deriving (Eq, Ord, Show, Enum)
 
 instance ToField TempEntityType where

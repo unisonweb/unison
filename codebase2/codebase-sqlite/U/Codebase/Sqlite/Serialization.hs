@@ -5,8 +5,10 @@ module U.Codebase.Sqlite.Serialization
     decomposeDeclFormat,
     decomposePatchFormat,
     decomposeTermFormat,
+    decomposeTypeAliasFormat,
     decomposeWatchFormat,
     getBranchFormat,
+    getTypeAliasEntry,
     getLocalBranch,
     getDeclElement,
     getDeclElementNumConstructors,
@@ -18,7 +20,9 @@ module U.Codebase.Sqlite.Serialization
     getTempNamespaceFormat,
     getTempPatchFormat,
     getTempTermFormat,
+    getTempTypeAliasFormat,
     getTermAndType,
+    getTypeAliasFormat,
     getTypeFromTermAndType,
     getTermFormat,
     getWatchResultFormat,
@@ -32,11 +36,13 @@ module U.Codebase.Sqlite.Serialization
     putPatchFormat,
     putTempEntity,
     putTermFormat,
+    putTypeAliasFormat,
     putWatchResultFormat,
     recomposeBranchFormat,
     recomposeDeclFormat,
     recomposePatchFormat,
     recomposeTermFormat,
+    recomposeTypeAliasFormat,
     recomposeWatchFormat,
 
     -- * Exported for Share
@@ -85,8 +91,10 @@ import U.Codebase.Sqlite.Symbol (Symbol (..))
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.TempEntity qualified as TempEntity
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Term qualified as Term
 import U.Codebase.Type qualified as Type
+import U.Codebase.TypeAlias qualified as TypeAlias
 import U.Core.ABT qualified as ABT
 import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization hiding (debug)
@@ -543,6 +551,30 @@ lookupDeclElementWith i get =
     0 -> unsafeFramedArrayLookup get $ fromIntegral @Reference.Pos @Int i
     other -> unknownTag "lookupDeclElementWith" other
 
+-- * TypeAlias format
+
+putTypeAliasFormat :: (MonadPut m) => TypeAliasFormat.TypeAliasFormat -> m ()
+putTypeAliasFormat = \case
+  TypeAliasFormat.TypeAlias localIds entry ->
+    putWord8 0 *> putLocalIds localIds *> putTypeAliasEntry entry
+
+putTypeAliasEntry :: (MonadPut m) => TypeAlias.TypeAliasR TypeAliasFormat.TypeRef Symbol -> m ()
+putTypeAliasEntry (TypeAlias.TypeAliasR paramNames body) = do
+  putFoldable putSymbol paramNames
+  putType putReference putSymbol body
+
+getTypeAliasFormat :: (MonadGet m) => m TypeAliasFormat.TypeAliasFormat
+getTypeAliasFormat =
+  getWord8 >>= \case
+    0 -> TypeAliasFormat.TypeAlias <$> getLocalIds <*> getTypeAliasEntry
+    other -> unknownTag "TypeAliasFormat" other
+
+getTypeAliasEntry :: (MonadGet m) => m (TypeAlias.TypeAliasR TypeAliasFormat.TypeRef Symbol)
+getTypeAliasEntry =
+  TypeAlias.TypeAliasR
+    <$> getList getSymbol
+    <*> getType getReference
+
 putBranchFormat :: (MonadPut m) => BranchFormat.BranchFormat -> m ()
 putBranchFormat b | debug && trace ("putBranchFormat " ++ show b) False = undefined
 putBranchFormat b = case b of
@@ -796,6 +828,12 @@ decomposeDeclFormat =
         <$> decomposeComponent
     tag -> error $ "todo: unknown term format tag " ++ show tag
 
+decomposeTypeAliasFormat :: (MonadGet m) => m TypeAliasFormat.SyncTypeAliasFormat
+decomposeTypeAliasFormat =
+  getWord8 >>= \case
+    0 -> TypeAliasFormat.SyncTypeAlias <$> getLocalIds <*> getRemainingByteString
+    tag -> error $ "decomposeTypeAliasFormat: unknown tag " ++ show tag
+
 decomposeComponent :: (MonadGet m) => m (Vector (LocalIds, BS.ByteString))
 decomposeComponent = do
   offsets <- getList (getVarInt @_ @Int)
@@ -815,6 +853,11 @@ recomposeDeclFormat :: (MonadPut m) => DeclFormat.SyncDeclFormat -> m ()
 recomposeDeclFormat = \case
   DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent x) ->
     putWord8 0 >> recomposeComponent x
+
+recomposeTypeAliasFormat :: (MonadPut m) => TypeAliasFormat.SyncTypeAliasFormat -> m ()
+recomposeTypeAliasFormat = \case
+  TypeAliasFormat.SyncTypeAlias localIds bytes ->
+    putWord8 0 *> putLocalIds localIds *> putByteString bytes
 
 recomposeComponent :: (MonadPut m) => Vector (LocalIds, BS.ByteString) -> m ()
 recomposeComponent = putFramedArray \(localIds, bytes) -> do
@@ -879,6 +922,9 @@ putTempEntity = \case
       putWord8 1 *> putSyncDiffNamespace parent lids bytes
   Entity.C gdc ->
     putSyncCausal gdc
+  Entity.TA ta -> case ta of
+    TypeAliasFormat.SyncTypeAlias localIds bytes ->
+      putWord8 0 *> putLocalIdsWith putText putHash32 localIds *> putFramedByteString bytes
   where
     putHash32 = putText . Hash32.toText
     putPatchLocalIds PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup} = do
@@ -945,6 +991,15 @@ getTempDeclFormat =
               getFramedByteString
           )
     tag -> unknownTag "getTempDeclFormat" tag
+
+getTempTypeAliasFormat :: (MonadGet m) => m TempEntity.TempTypeAliasFormat
+getTempTypeAliasFormat =
+  getWord8 >>= \case
+    0 ->
+      TypeAliasFormat.SyncTypeAlias
+        <$> getLocalIdsWith getText getHash32
+        <*> getFramedByteString
+    tag -> unknownTag "getTempTypeAliasFormat" tag
 
 getTempPatchFormat :: (MonadGet m) => m TempEntity.TempPatchFormat
 getTempPatchFormat =

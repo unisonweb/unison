@@ -24,6 +24,7 @@ import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.TempEntity qualified as Sqlite
 import U.Codebase.Sqlite.TempEntity qualified as TempEntity
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
@@ -90,6 +91,8 @@ entityToTempEntity toHash32 = \case
         { valueHash = toHash32 namespaceHash,
           parents = Vector.fromList (map toHash32 (Set.toList parents))
         }
+  Share.TAC (Share.TypeAliasComponent localIds bytes) ->
+    Entity.TA (TypeAliasFormat.SyncTypeAlias (mungeLocalIds localIds) bytes)
   where
     mungeLocalIds :: Share.LocalIds Text hash -> TempEntity.TempLocalIds
     mungeLocalIds Share.LocalIds {texts, hashes} =
@@ -195,6 +198,16 @@ tempEntityToEntity = \case
         { namespaceHash = valueHash,
           parents = Set.fromList (Vector.toList parents)
         }
+  Entity.TA (TypeAliasFormat.SyncTypeAlias LocalIds {textLookup, defnLookup} bytes) ->
+    Share.TAC
+      ( Share.TypeAliasComponent
+          ( Share.LocalIds
+              { texts = Vector.toList textLookup,
+                hashes = Vector.toList defnLookup
+              }
+          )
+          bytes
+      )
   where
     mungeLocalIds :: LocalIds' Text Hash32 -> Share.LocalIds Text Hash32
     mungeLocalIds LocalIds {textLookup, defnLookup} =

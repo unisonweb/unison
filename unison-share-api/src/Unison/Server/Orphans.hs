@@ -30,6 +30,7 @@ import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.TempEntity (TempEntity)
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
 import U.Util.Base32Hex (Base32Hex (..))
 import Unison.Codebase.Editor.DisplayObject
@@ -506,6 +507,7 @@ data SyncTag
   | PatchTag
   | NamespaceTag
   | CausalTag
+  | TypeAliasComponentTag
   deriving (Eq, Show)
 
 instance Serialise SyncTag where
@@ -515,6 +517,7 @@ instance Serialise SyncTag where
     PatchTag -> CBOR.encodeWord 2
     NamespaceTag -> CBOR.encodeWord 3
     CausalTag -> CBOR.encodeWord 4
+    TypeAliasComponentTag -> CBOR.encodeWord 5
 
   decode = do
     tag <- CBOR.decodeWord
@@ -524,6 +527,7 @@ instance Serialise SyncTag where
       2 -> pure PatchTag
       3 -> pure NamespaceTag
       4 -> pure CausalTag
+      5 -> pure TypeAliasComponentTag
       _ -> fail $ "Unknown tag: " <> show tag
 
 newtype ComponentBody t d = ComponentBody {unComponentBody :: (LocalIds.LocalIds' t d, ByteString)}
@@ -567,6 +571,11 @@ instance Serialise TempEntity where
       CBOR.encode CausalTag
         <> CBOR.encode valueHash
         <> CBOR.encodeVector parents
+    Entity.TA (TypeAliasFormat.SyncTypeAlias LocalIds.LocalIds {textLookup, defnLookup} bytes) ->
+      CBOR.encode TypeAliasComponentTag
+        <> CBOR.encodeVector textLookup
+        <> CBOR.encodeVector defnLookup
+        <> CBOR.encodeBytes bytes
 
   decode = do
     CBOR.decode >>= \case
@@ -593,6 +602,11 @@ instance Serialise TempEntity where
         valueHash <- CBOR.decode
         parents <- CBOR.decodeVector
         pure $ Entity.C (SqliteCausal.SyncCausalFormat {valueHash, parents})
+      TypeAliasComponentTag -> do
+        textLookup <- CBOR.decodeVector
+        defnLookup <- CBOR.decodeVector
+        bytes <- CBOR.decodeBytes
+        pure $ Entity.TA (TypeAliasFormat.SyncTypeAlias LocalIds.LocalIds {textLookup, defnLookup} bytes)
 
 encodeVectorWith :: (a -> CBOR.Encoding) -> Vector.Vector a -> CBOR.Encoding
 encodeVectorWith f xs =

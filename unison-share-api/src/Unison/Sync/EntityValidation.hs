@@ -58,6 +58,9 @@ validateTempEntity expectedHash32 tempEntity = do
       Just . Right $ Share.UnsupportedEntityType expectedHash32 Share.PatchDiffType
     Entity.P (PatchFormat.SyncFull localIds bytes) -> do
       Right <$> validatePatchFull expectedHash32 localIds bytes
+    Entity.TA _ ->
+      -- Type aliases are not yet validated through the Share sync protocol.
+      Just . Right $ Share.UnsupportedEntityType expectedHash32 Share.TypeAliasComponentType
   where
     expectedHash :: Hash
     expectedHash = Hash32.toHash expectedHash32

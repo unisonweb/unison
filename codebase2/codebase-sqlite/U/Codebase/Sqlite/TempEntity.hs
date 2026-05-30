@@ -7,6 +7,7 @@ import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds')
 import U.Codebase.Sqlite.Patch.Format qualified as Patch
 import U.Codebase.Sqlite.Term.Format qualified as Term
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAlias
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
 
@@ -17,6 +18,7 @@ import Unison.Prelude
 --   | N TempNamespaceFormat
 --   | P TempPatchFormat
 --   | C TempCausalFormat
+--   | TA TempTypeAliasFormat
 type TempEntity =
   Entity.SyncEntity' Text Hash32 Hash32 Hash32 Hash32 Hash32 Hash32
 
@@ -35,3 +37,5 @@ type TempNamespaceFormat = Namespace.SyncBranchFormat' Hash32 Text Hash32 Hash32
 type TempNamespaceLocalIds = Namespace.BranchLocalIds' Text Hash32 Hash32 (Hash32, Hash32)
 
 type TempCausalFormat = Causal.SyncCausalFormat' Hash32 Hash32
+
+type TempTypeAliasFormat = TypeAlias.SyncTypeAliasFormat' Text Hash32

@@ -10,6 +10,7 @@ data ObjectType
   | DeclComponent -- 1
   | Namespace -- 2
   | Patch -- 3
+  | TypeAliasComponent -- 4
   deriving (Eq, Ord, Show, Enum)
 
 instance ToField ObjectType where
