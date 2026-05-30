@@ -573,6 +573,7 @@ lexemes eof =
             <|> symbolyKw "||"
             <|> symbolyKw "|"
             <|> symbolyKw "&&"
+            <|> wordyKw "alias"
             <|> wordyKw "true"
             <|> wordyKw "false"
             <|> wordyKw "namespace"

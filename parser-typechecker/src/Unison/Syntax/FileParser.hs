@@ -23,7 +23,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.Reference (TypeReferenceId)
-import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), synDeclConstructors, synDeclName, synDeclsP)
+import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.Parser
@@ -225,6 +225,12 @@ applyNamespaceToSynDecls namespace decls =
                 & over (#constructors . mapped) applyToConstructor
                 & over (#name . mapped) (Var.namespaced2 namespace)
             )
+        SynDecl'TypeAlias decl ->
+          SynDecl'TypeAlias
+            ( decl
+                & over #body (ABT.substsInheritAnnotation typeReplacements)
+                & over (#name . mapped) (Var.namespaced2 namespace)
+            )
     )
     decls
   where
@@ -255,6 +261,10 @@ synDeclsToDecls = do
           let decl1 = DataDeclaration.mkEffectDecl' decl.modifier decl.annotation decl.tyvars decl.constructors
           let !effects1 = Map.insert decl.name.payload decl1 effects
           pure (datas, effects1)
+        SynDecl'TypeAlias decl ->
+          -- Parser accepts the syntax; elaboration lands next.
+          -- See docs/type-aliases.markdown for the design.
+          P.customFailure (TypeAliasNotYetImplemented decl.annotation)
     )
     (Map.empty, Map.empty)
 

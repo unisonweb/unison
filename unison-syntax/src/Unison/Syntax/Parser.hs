@@ -230,6 +230,10 @@ data Error v
   | FloatPattern Ann
   | -- Bound the same variable twice
     DuplicateBinders Ann Ann v
+  | -- | A @type alias@ declaration was parsed, but the elaborator that
+    -- expands them at use sites hasn't landed yet. The 'Ann' points at the
+    -- alias declaration's span.
+    TypeAliasNotYetImplemented Ann
   deriving (Show, Eq, Ord)
 
 tokenToPair :: L.Token a -> (Ann, a)

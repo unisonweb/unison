@@ -61,7 +61,8 @@ test =
       emptyWatchTest,
       signatureNeedsAccompanyingBodyTest,
       emptyBlockTest,
-      expectedBlockOpenTest
+      expectedBlockOpenTest,
+      typeAliasParsesButNotImplementedTest
     ]
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -115,6 +116,19 @@ expectedBlockOpenTest =
     expectation e = case e of
       P.ExpectedBlockOpen _ _ -> ok
       _ -> crash "Error wasn't ExpectedBlockOpen"
+
+-- | The parser accepts the @type alias@ surface syntax, but @synDeclsToDecls@
+-- raises 'TypeAliasNotYetImplemented' until the elaborator that expands
+-- aliases at use sites lands. This confirms the syntax path is wired up.
+typeAliasParsesButNotImplementedTest :: Test ()
+typeAliasParsesButNotImplementedTest =
+  scope "typeAliasParsesButNotImplementedTest" $
+    expectFileParseFailure "type alias Endo a = a -> a\n" expectation
+  where
+    expectation :: (Var e) => P.Error e -> Test ()
+    expectation e = case e of
+      P.TypeAliasNotYetImplemented _ -> ok
+      _ -> crash "Error wasn't TypeAliasNotYetImplemented"
 
 parses :: String -> Test ()
 parses s = scope s $ do

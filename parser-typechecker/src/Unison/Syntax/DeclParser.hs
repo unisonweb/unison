@@ -5,12 +5,14 @@ module Unison.Syntax.DeclParser
     synDeclName,
     SynDataDecl (..),
     SynEffectDecl (..),
+    SynTypeAliasDecl (..),
   )
 where
 
 import Control.Lens
 import Data.List.NonEmpty (pattern (:|))
 import Data.List.NonEmpty qualified as NonEmpty
+import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Name qualified as Name
@@ -31,21 +33,25 @@ import Prelude hiding (readFile)
 data SynDecl v
   = SynDecl'Data !(SynDataDecl v)
   | SynDecl'Effect !(SynEffectDecl v)
+  | SynDecl'TypeAlias !(SynTypeAliasDecl v)
 
 instance Annotated (SynDecl v) where
   ann = \case
     SynDecl'Data decl -> decl.annotation
     SynDecl'Effect decl -> decl.annotation
+    SynDecl'TypeAlias decl -> decl.annotation
 
 synDeclConstructors :: SynDecl v -> [(Ann, v, Type v Ann)]
 synDeclConstructors = \case
   SynDecl'Data decl -> decl.constructors
   SynDecl'Effect decl -> decl.constructors
+  SynDecl'TypeAlias _ -> []
 
 synDeclName :: SynDecl v -> L.Token v
 synDeclName = \case
   SynDecl'Data decl -> decl.name
   SynDecl'Effect decl -> decl.name
+  SynDecl'TypeAlias decl -> decl.name
 
 data SynDataDecl v = SynDataDecl
   { annotation :: !Ann,
@@ -61,6 +67,19 @@ data SynEffectDecl v = SynEffectDecl
   { annotation :: !Ann,
     constructors :: ![(Ann, v, Type v Ann)],
     modifier :: !DataDeclaration.Modifier,
+    name :: !(L.Token v),
+    tyvars :: ![v]
+  }
+  deriving stock (Generic)
+
+-- | A parsed @type alias@ declaration.
+--
+-- Aliases are non-recursive: their body is a plain type expression that may
+-- mention the bound 'tyvars' as ordinary type variables. Elaboration expands
+-- them at use sites; the alias itself never appears in any hashed form.
+data SynTypeAliasDecl v = SynTypeAliasDecl
+  { annotation :: !Ann,
+    body :: !(Type v Ann),
     name :: !(L.Token v),
     tyvars :: ![v]
   }
@@ -97,7 +116,12 @@ modifierP = do
 synDeclP :: (Monad m, Var v) => P v m (SynDecl v)
 synDeclP = do
   modifier <- modifierP
-  SynDecl'Effect <$> synEffectDeclP modifier <|> SynDecl'Data <$> synDataDeclP modifier
+  -- Try @type alias@ first — it shares the @type@ keyword with data decls so
+  -- we wrap in 'P.try' to backtrack cleanly when the @alias@ keyword is
+  -- absent. Aliases don't accept @unique@/@structural@ modifiers.
+  P.try (SynDecl'TypeAlias <$> synTypeAliasDeclP modifier)
+    <|> SynDecl'Effect <$> synEffectDeclP modifier
+    <|> SynDecl'Data <$> synDataDeclP modifier
 
 synDataDeclP :: forall m v. (Monad m, Var v) => Maybe (L.Token UnresolvedModifier) -> P v m (SynDataDecl v)
 synDataDeclP modifier0 = do
@@ -168,6 +192,30 @@ synDataDeclP modifier0 = do
     prefixVar :: P v m (L.Token v)
     prefixVar =
       TermParser.verifyRelativeVarName prefixDefinitionName
+
+-- | Parse a @type alias@ declaration.
+--
+-- Layout: @type@ opens a block which @synDataDeclP@'s closer @closeBlock@
+-- balances; this parser does the same.
+synTypeAliasDeclP :: forall m v. (Monad m, Var v) => Maybe (L.Token UnresolvedModifier) -> P v m (SynTypeAliasDecl v)
+synTypeAliasDeclP modifier0 = do
+  -- Aliases don't accept structural/unique modifiers.
+  when (isJust modifier0) (P.failure Nothing mempty)
+  typeToken <- fmap void (reserved "type") <|> openBlockWith "type"
+  _ <- reserved "alias"
+  name <- TermParser.verifyRelativeVarName prefixDefinitionName
+  typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
+  let tyvars = L.payload <$> typeArgs
+  _ <- reserved "="
+  body <- TypeParser.valueType
+  _ <- closeBlock
+  pure
+    SynTypeAliasDecl
+      { annotation = ann typeToken <> ann body,
+        body,
+        name,
+        tyvars
+      }
 
 synEffectDeclP :: forall m v. (Monad m, Var v) => Maybe (L.Token UnresolvedModifier) -> P v m (SynEffectDecl v)
 synEffectDeclP modifier0 = do
