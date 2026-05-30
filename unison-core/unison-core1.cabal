@@ -58,7 +58,9 @@ library
       Unison.Term
       Unison.Type
       Unison.Type.Names
+      Unison.TypeAlias
       Unison.Typed
+      Unison.TypeEntry
       Unison.Util.Components
       Unison.Util.Conflicted
       Unison.Util.Defn

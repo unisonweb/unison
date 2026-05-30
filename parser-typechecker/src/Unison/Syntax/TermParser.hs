@@ -819,6 +819,9 @@ doc2Block = do
       RtType ->
         Term.app (gann d) (f d "EmbedTypeLink") . Term.typeLink (ann d) . L.payload
           <$> findUniqueType (L.Token (HQ'.toHQ ident) start end)
+      RtTypeAlias ->
+        Term.app (gann d) (f d "EmbedTypeLink") . Term.typeLink (ann d) . L.payload
+          <$> findUniqueType (L.Token (HQ'.toHQ ident) start end)
       RtTerm ->
         Term.app (gann d) (f d "EmbedTermLink") . addDelay <$> resolveHashQualified (L.Token (HQ'.toHQ ident) start end)
 
@@ -838,6 +841,7 @@ doc2Block = do
       Ann -> Doc.EmbedSignatureLink (L.Token (ReferenceType, HQ'.HashQualified Name)) -> TermP v m
     docEmbedSignatureLink d (Doc.EmbedSignatureLink (L.Token (level, ident) start end)) = case level of
       RtType -> P.customFailure . TypeNotAllowed $ L.Token (HQ'.toHQ ident) start end
+      RtTypeAlias -> P.customFailure . TypeNotAllowed $ L.Token (HQ'.toHQ ident) start end
       RtTerm ->
         Term.app (gann d) (f d "EmbedSignatureLink") . addDelay
           <$> resolveHashQualified (L.Token (HQ'.toHQ ident) start end)
@@ -855,6 +859,7 @@ doc2Block = do
         <$> either
           ( \(L.Token (level, ident) start end) -> case level of
               RtType -> P.customFailure . TypeNotAllowed $ L.Token (HQ'.toHQ ident) start end
+              RtTypeAlias -> P.customFailure . TypeNotAllowed $ L.Token (HQ'.toHQ ident) start end
               RtTerm -> resolveHashQualified $ L.Token (HQ'.toHQ ident) start end
           )
           (docTransclude d)
