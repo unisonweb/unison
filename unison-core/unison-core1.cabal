@@ -59,6 +59,7 @@ library
       Unison.Type
       Unison.Type.Names
       Unison.TypeAlias
+      Unison.TypeAlias.Expand
       Unison.Typed
       Unison.TypeEntry
       Unison.Util.Components

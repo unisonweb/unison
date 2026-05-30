@@ -14,6 +14,8 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration (..), EffectDeclaration)
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.TypeAlias qualified
+import Unison.TypeAlias.Expand qualified as TypeAlias.Expand
 import Unison.DataDeclaration.Records (generateRecordAccessors)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -250,23 +252,75 @@ applyNamespaceToSynDecls namespace decls =
         & map (\v -> (v, Type.var () (Var.namespaced2 namespace v)))
 
 synDeclsToDecls :: (Monad m, Var v) => [SynDecl v] -> P v m (Map v (DataDeclaration v Ann), Map v (EffectDeclaration v Ann))
-synDeclsToDecls = do
-  foldlM
-    ( \(datas, effects) -> \case
-        SynDecl'Data decl -> do
-          let decl1 = DataDeclaration decl.modifier decl.annotation decl.tyvars decl.constructors
-          let !datas1 = Map.insert decl.name.payload decl1 datas
-          pure (datas1, effects)
-        SynDecl'Effect decl -> do
-          let decl1 = DataDeclaration.mkEffectDecl' decl.modifier decl.annotation decl.tyvars decl.constructors
-          let !effects1 = Map.insert decl.name.payload decl1 effects
-          pure (datas, effects1)
-        SynDecl'TypeAlias decl ->
-          -- Parser accepts the syntax; elaboration lands next.
-          -- See docs/type-aliases.markdown for the design.
-          P.customFailure (TypeAliasNotYetImplemented decl.annotation)
+synDeclsToDecls decls = do
+  -- 1. Collect aliases separately from data/effect decls.
+  let (datasRaw, effectsRaw, aliasesRaw) = partitionDecls decls
+
+  -- 2. Normalize aliases: detect cycles and pre-expand cross-references so
+  --    each body is alias-free.
+  aliases <-
+    case TypeAlias.Expand.normalize aliasesRaw of
+      Right normalized -> pure normalized
+      Left (TypeAlias.Expand.AliasCycle names) ->
+        let anns =
+              names
+                & Set.toList
+                & mapMaybe (\v -> (\a -> (v, a)) . ABT.annotation . Unison.TypeAlias.body <$> Map.lookup v aliasesRaw)
+            firstAnn = case anns of
+              ((_, a) : _) -> a
+              _ -> Ann.External
+         in P.customFailure (TypeAliasCycle firstAnn (map fst anns))
+
+  -- 3. Expand alias applications in data/effect constructor types and
+  --    convert directly to the final DataDeclaration / EffectDeclaration
+  --    record types.
+  let expandCtors = traverse \(a, v, ty) -> (a,v,) <$> TypeAlias.Expand.expand aliases ty
+
+  datas <- foldlM
+    ( \acc decl -> case expandCtors decl.constructors of
+        Right cs ->
+          let dd = DataDeclaration decl.modifier decl.annotation decl.tyvars cs
+           in pure (Map.insert decl.name.payload dd acc)
+        Left (TypeAlias.Expand.UnsaturatedAliasUse name expected actual ann) ->
+          P.customFailure (UnsaturatedTypeAlias ann name expected actual)
     )
-    (Map.empty, Map.empty)
+    Map.empty
+    datasRaw
+
+  effects <- foldlM
+    ( \acc decl -> case expandCtors decl.constructors of
+        Right cs ->
+          let ed = DataDeclaration.mkEffectDecl' decl.modifier decl.annotation decl.tyvars cs
+           in pure (Map.insert decl.name.payload ed acc)
+        Left (TypeAlias.Expand.UnsaturatedAliasUse name expected actual ann) ->
+          P.customFailure (UnsaturatedTypeAlias ann name expected actual)
+    )
+    Map.empty
+    effectsRaw
+
+  pure (datas, effects)
+
+-- | Split a parsed decl list into data, effect, and alias maps.
+partitionDecls ::
+  (Ord v) =>
+  [SynDecl v] ->
+  ([SynDataDecl v], [SynEffectDecl v], Map v (Unison.TypeAlias.TypeAlias v Ann))
+partitionDecls = foldr step ([], [], Map.empty)
+  where
+    step (SynDecl'Data d) (ds, es, as) = (d : ds, es, as)
+    step (SynDecl'Effect d) (ds, es, as) = (ds, d : es, as)
+    step (SynDecl'TypeAlias d) (ds, es, as) =
+      ( ds,
+        es,
+        Map.insert
+          d.name.payload
+          ( Unison.TypeAlias.TypeAlias
+              { Unison.TypeAlias.paramNames = d.tyvars,
+                Unison.TypeAlias.body = d.body
+              }
+          )
+          as
+      )
 
 applyNamespaceToStanza ::
   forall a v.

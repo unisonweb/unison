@@ -2178,6 +2178,35 @@ renderParseErrors s = \case
                 Pr.wrap "See docs/type-aliases.markdown for the design."
               ]
        in (msg, mapMaybe rangeForAnnotated [ann])
+    go (Parser.UnsaturatedTypeAlias ann name expected actual) =
+      let msg =
+            Pr.lines
+              [ Pr.wrap $
+                  "The type alias "
+                    <> style ErrorSite (Var.nameStr name)
+                    <> " takes "
+                    <> Pr.string (show expected)
+                    <> " argument(s) but was given "
+                    <> Pr.string (show actual)
+                    <> ":",
+                "",
+                annotatedAsErrorSite s ann,
+                "",
+                Pr.wrap "Type aliases must be fully applied at every use site."
+              ]
+       in (msg, mapMaybe rangeForAnnotated [ann])
+    go (Parser.TypeAliasCycle ann names) =
+      let msg =
+            Pr.lines
+              [ Pr.wrap $
+                  "I found a cycle among these `type alias` declarations: "
+                    <> Pr.commas (map (style ErrorSite . Var.nameStr) names),
+                "",
+                annotatedAsErrorSite s ann,
+                "",
+                Pr.wrap "Type aliases cannot be recursive — use a `type` declaration instead."
+              ]
+       in (msg, mapMaybe rangeForAnnotated [ann])
 
 annotatedAsErrorSite ::
   (Annotated a) => String -> a -> Pretty ColorText

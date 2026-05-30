@@ -62,7 +62,9 @@ test =
       signatureNeedsAccompanyingBodyTest,
       emptyBlockTest,
       expectedBlockOpenTest,
-      typeAliasParsesButNotImplementedTest
+      typeAliasExpandsInDataDeclTest,
+      typeAliasUnsaturatedTest,
+      typeAliasCycleTest
     ]
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -117,18 +119,41 @@ expectedBlockOpenTest =
       P.ExpectedBlockOpen _ _ -> ok
       _ -> crash "Error wasn't ExpectedBlockOpen"
 
--- | The parser accepts the @type alias@ surface syntax, but @synDeclsToDecls@
--- raises 'TypeAliasNotYetImplemented' until the elaborator that expands
--- aliases at use sites lands. This confirms the syntax path is wired up.
-typeAliasParsesButNotImplementedTest :: Test ()
-typeAliasParsesButNotImplementedTest =
-  scope "typeAliasParsesButNotImplementedTest" $
-    expectFileParseFailure "type alias Endo a = a -> a\n" expectation
+-- | A @type alias@ used inside a data declaration constructor type expands
+-- correctly and the file parses without error.
+typeAliasExpandsInDataDeclTest :: Test ()
+typeAliasExpandsInDataDeclTest =
+  scope "typeAliasExpandsInDataDeclTest" . parses $
+    unlines
+      [ "type alias Endo a = a -> a",
+        "type Box = Box (Endo Nat)"
+      ]
+
+-- | An unsaturated use of a type alias surfaces 'UnsaturatedTypeAlias'.
+typeAliasUnsaturatedTest :: Test ()
+typeAliasUnsaturatedTest =
+  scope "typeAliasUnsaturatedTest" $
+    expectFileParseFailure
+      (unlines ["type alias Endo a = a -> a", "type Box = Box Endo"])
+      expectation
   where
     expectation :: (Var e) => P.Error e -> Test ()
     expectation e = case e of
-      P.TypeAliasNotYetImplemented _ -> ok
-      _ -> crash "Error wasn't TypeAliasNotYetImplemented"
+      P.UnsaturatedTypeAlias {} -> ok
+      _ -> crash "Error wasn't UnsaturatedTypeAlias"
+
+-- | Mutually-recursive aliases are rejected with 'TypeAliasCycle'.
+typeAliasCycleTest :: Test ()
+typeAliasCycleTest =
+  scope "typeAliasCycleTest" $
+    expectFileParseFailure
+      (unlines ["type alias A = B", "type alias B = A"])
+      expectation
+  where
+    expectation :: (Var e) => P.Error e -> Test ()
+    expectation e = case e of
+      P.TypeAliasCycle {} -> ok
+      _ -> crash "Error wasn't TypeAliasCycle"
 
 parses :: String -> Test ()
 parses s = scope s $ do
