@@ -8,6 +8,7 @@ module Unison.Hashing.V2.Convert2
     v2ToH2Branch,
     v2ToH2Term,
     v2ToH2Decl,
+    v2ToH2TypeAlias,
     hashBranchFormatToH2Branch,
     hashPatchFormatToH2Patch,
   )
@@ -21,6 +22,7 @@ import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.BranchV3 (BranchV3 (..))
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.Decl qualified as V2.Decl
+import U.Codebase.TypeAlias qualified as V2.TypeAlias
 import U.Codebase.HashTags
 import U.Codebase.Kind qualified as V2
 import U.Codebase.Reference qualified as V2
@@ -245,3 +247,11 @@ v2ToH2Decl (V2.Decl.DataDeclaration {declType, modifier, bound, constructorTypes
     v2ToH2Modifier = \case
       V2.Decl.Structural -> H2.Structural
       V2.Decl.Unique t -> H2.Unique t
+
+v2ToH2TypeAlias :: V2.TypeAlias.TypeAlias Unison.Symbol -> H2.TypeAlias Unison.Symbol ()
+v2ToH2TypeAlias (V2.TypeAlias.TypeAliasR params body) =
+  H2.TypeAlias
+    { H2.aliasAnnotation = (),
+      H2.paramNames = params,
+      H2.body = v2ToH2Type body
+    }

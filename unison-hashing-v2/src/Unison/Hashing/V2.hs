@@ -25,6 +25,7 @@ module Unison.Hashing.V2
     TermEdit (..),
     TermF (..),
     Type,
+    TypeAlias (..),
     TypeEdit (..),
     TypeF (..),
     HashingWarning (..),
@@ -33,6 +34,7 @@ module Unison.Hashing.V2
     hashDecls,
     hashTermComponents,
     hashTermComponentsWithoutTypes,
+    hashTypeAlias,
     typeToReference,
     typeToReferenceMentions,
     hashHistoryComment,
@@ -58,4 +60,5 @@ import Unison.Hashing.V2.Referent (Referent (..))
 import Unison.Hashing.V2.Term (MatchCase (..), Term, TermF (..), hashClosedTerm, hashTermComponents, hashTermComponentsWithoutTypes)
 import Unison.Hashing.V2.TermEdit (TermEdit (..))
 import Unison.Hashing.V2.Type (Type, TypeF (..), typeToReference, typeToReferenceMentions)
+import Unison.Hashing.V2.TypeAlias (TypeAlias (..), hashTypeAlias)
 import Unison.Hashing.V2.TypeEdit (TypeEdit (..))

@@ -24,6 +24,8 @@ import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Serialization qualified as Serialization
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.LocalIds qualified
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Hash (Hash)
 import Unison.Hash32 (Hash32)
@@ -58,9 +60,8 @@ validateTempEntity expectedHash32 tempEntity = do
       Just . Right $ Share.UnsupportedEntityType expectedHash32 Share.PatchDiffType
     Entity.P (PatchFormat.SyncFull localIds bytes) -> do
       Right <$> validatePatchFull expectedHash32 localIds bytes
-    Entity.TA _ ->
-      -- Type aliases are not yet validated through the Share sync protocol.
-      Just . Right $ Share.UnsupportedEntityType expectedHash32 Share.TypeAliasComponentType
+    Entity.TA (TypeAliasFormat.SyncTypeAlias localIds bytes) ->
+      Right <$> validateTypeAlias expectedHash localIds bytes
   where
     expectedHash :: Hash
     expectedHash = Hash32.toHash expectedHash32
@@ -125,6 +126,28 @@ validateDecl expectedHash syncLocalComp = do
         Nothing -> Nothing
         Just (HH.DeclHashMismatch (HH.HashMismatch {expectedHash, actualHash})) -> Just . Share.EntityHashMismatch Share.DeclComponentType $ mismatch expectedHash actualHash
         Just HH.DeclHashResolutionFailure -> Just $ Share.HashResolutionFailure (Hash32.fromHash expectedHash)
+
+validateTypeAlias ::
+  Hash ->
+  U.Codebase.Sqlite.LocalIds.LocalIds' Text Hash32 ->
+  BS.ByteString ->
+  Maybe Share.EntityValidationError
+validateTypeAlias expectedHash localIds bytes =
+  case Decode.unsyncTypeAliasFormat (TypeAliasFormat.SyncTypeAlias localIds bytes) of
+    Left decodeErr ->
+      Just
+        ( Share.InvalidByteEncoding
+            (Hash32.fromHash expectedHash)
+            Share.TypeAliasComponentType
+            (tShow decodeErr)
+        )
+    Right hashFmt ->
+      case HH.verifyTypeAliasFormatHash v2HashHandle (ComponentHash expectedHash) hashFmt of
+        Nothing -> Nothing
+        Just (HH.TypeAliasHashMismatch (HH.HashMismatch {expectedHash, actualHash})) ->
+          Just . Share.EntityHashMismatch Share.TypeAliasComponentType $ mismatch expectedHash actualHash
+        Just HH.TypeAliasHashResolutionFailure ->
+          Just $ Share.HashResolutionFailure (Hash32.fromHash expectedHash)
 
 validateCausal :: Hash32 -> Hash32 -> [Hash32] -> Maybe Share.EntityValidationError
 validateCausal expectedHash32 valueHash32 parentHashes32 = do
