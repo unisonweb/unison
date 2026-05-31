@@ -26,7 +26,6 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Reference (TypeReferenceId)
-import Unison.Reference qualified as Reference
 import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
@@ -37,6 +36,7 @@ import Unison.Term (Term, Term2)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Type.Names qualified as Type.Names
 import Unison.UnisonFile (UnisonFile (..))
 import Unison.UnisonFile.Env qualified as UF
 import Unison.UnisonFile.Names qualified as UFN
@@ -88,17 +88,37 @@ file = do
   let synDecls = maybe id applyNamespaceToSynDecls maybeNamespaceVar unNamespacedSynDecls
 
   -- Make real data/effect decls from the "syntactic" ones, and capture the
-  -- file's type aliases (already normalized + cycle-checked + hashed).
-  -- Aliases are retained in the UnisonFile so they can be persisted; their
-  -- bodies are also used inline to expand alias applications in
-  -- data/effect/term types.
-  (dataDecls, effectDecls, fileAliasesWithHashes) <- synDeclsToDecls synDecls
-  let fileAliases = fmap snd fileAliasesWithHashes
+  -- file's type aliases (already normalized + cycle-checked). Aliases are
+  -- retained in the UnisonFile so they can be persisted; their bodies are
+  -- also used inline to expand alias applications in data/effect/term types.
+  (dataDecls, effectDecls, fileAliases) <- synDeclsToDecls synDecls
 
   -- Compute an environment from the decls that we use to parse terms
   env <- do
     result <- UFN.environmentFor namesStart dataDecls effectDecls & onLeft \errs -> resolutionFailures (toList errs)
     result & onLeft \errs -> P.customFailure (TypeDeclarationErrors errs)
+
+  -- Resolve external type references in alias bodies, then compute the
+  -- alias's canonical hash. The bodies coming out of synDeclsToDecls still
+  -- contain free type Vars (e.g. `Var "Nat"`); without this step the
+  -- alias's persisted form would carry those Vars and its hash would be
+  -- sensitive to source spelling, not to the actual refs it points at.
+  -- The alias's bound params are kept free (they're param positions, not
+  -- external refs).
+  fileAliasesWithHashes :: Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) <-
+    let envNames = UF.names env
+        resolveAlias alias = do
+          resolvedBody <-
+            Type.Names.bindNames
+              Name.unsafeParseVar
+              Name.toVar
+              (Set.fromList alias.paramNames)
+              envNames
+              alias.body
+              & onLeft \errs -> resolutionFailures (toList errs)
+          let resolvedAlias = alias {Unison.TypeAlias.body = resolvedBody}
+          pure (Hashing.hashTypeAlias resolvedAlias, resolvedAlias)
+     in traverse resolveAlias fileAliases
 
   -- Generate the record accessors with *un-namespaced* names below, because we need to know these names in order to
   -- perform rewriting. As an example,
@@ -283,7 +303,7 @@ synDeclsToDecls ::
   P v m
     ( Map v (DataDeclaration v Ann),
       Map v (EffectDeclaration v Ann),
-      Map v (Reference.Id, Unison.TypeAlias.TypeAlias v Ann)
+      Map v (Unison.TypeAlias.TypeAlias v Ann)
     )
 synDeclsToDecls decls = do
   -- 1. Collect aliases separately from data/effect decls.
@@ -331,14 +351,7 @@ synDeclsToDecls decls = do
     Map.empty
     effectsRaw
 
-  -- Compute a hash for each alias. NOTE: at this point alias bodies still
-  -- contain free type Vars (name resolution hasn't run on alias bodies).
-  -- These hashes are therefore deterministic within the file but not yet
-  -- cross-codebase canonical. Resolving alias bodies and rehashing is a
-  -- follow-up.
-  let aliasesWithHashes :: Map v (Reference.Id, Unison.TypeAlias.TypeAlias v Ann)
-      aliasesWithHashes = aliases <&> \alias -> (Hashing.hashTypeAlias alias, alias)
-  pure (datas, effects, aliasesWithHashes)
+  pure (datas, effects, aliases)
 
 -- | Split a parsed decl list into data, effect, and alias maps.
 partitionDecls ::
