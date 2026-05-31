@@ -15,11 +15,7 @@ f : Endo Nat
 f x = x + 1
 ```
 
-The expected output: a line like `+ type alias Endo a = a -> a` appears in
-the slurp output above (or near) the `+ f : Nat -> Nat` line.
-
-Currently the slurp pipeline only enumerates data and effect decls, so the
-alias is silently consumed and the output only mentions `f`.
+The alias appears as `+ type alias Endo a = a -> a` alongside the term.
 
 ```ucm
 > add

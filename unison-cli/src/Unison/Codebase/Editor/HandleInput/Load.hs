@@ -181,7 +181,8 @@ loadUnisonFile sourceName text = do
       aliases =
         getTermAliases existingTerms slurpEntries.terms
 
-  Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases pp.branch.isMerge)
+  let fileAliases = snd <$> UF.typeAliasesId' unisonFile
+  Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries fileAliases aliases pp.branch.isMerge)
 
   when (not . null $ UF.watchComponents unisonFile) do
     Timing.time "evaluating watches" do

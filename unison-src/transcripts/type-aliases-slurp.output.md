@@ -18,6 +18,8 @@ f x = x + 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
+  + type alias Endo a = a -> a
+
   + f : Nat -> Nat
 
   Run `update` to apply these changes to your codebase.
