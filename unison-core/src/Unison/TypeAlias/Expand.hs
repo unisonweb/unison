@@ -11,6 +11,7 @@ module Unison.TypeAlias.Expand
   )
 where
 
+import Data.List (nubBy)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
@@ -92,12 +93,36 @@ expand aliases = go
           pure (Type.apps' body' extra')
 
     -- Recurse into the structure when the head isn't an alias application.
+    -- 'Type.Effects' is handled specially: an ability-row alias used as an
+    -- element of an Effects list splices its body's elements into the
+    -- surrounding row, with set semantics applied afterwards (flatten +
+    -- dedupe).
     goABT :: Type v a -> Either (ExpansionError v a) (Type v a)
     goABT t = case ABT.out t of
       ABT.Var v -> Right (ABT.annotatedVar (ABT.annotation t) v)
       ABT.Cycle body -> ABT.cycle' (ABT.annotation t) <$> goABT body
       ABT.Abs v body -> ABT.abs' (ABT.annotation t) v <$> goABT body
+      ABT.Tm (Type.Effects es) -> do
+        expandedElems <- traverse go es
+        let flattened = concatMap spliceRowElement expandedElems
+            canonical = dedupRow flattened
+        Right (ABT.tm' (ABT.annotation t) (Type.Effects canonical))
       ABT.Tm f -> ABT.tm' (ABT.annotation t) <$> traverse go f
+
+-- | If a type is itself an Effects list, extract its elements; otherwise
+-- wrap the type as a singleton. Used to splice ability-row aliases into
+-- their surrounding row after expansion.
+spliceRowElement :: Type v a -> [Type v a]
+spliceRowElement t = case ABT.out t of
+  ABT.Tm (Type.Effects es) -> es
+  _ -> [t]
+
+-- | Stable dedupe of ability-row elements by structural equality (ignoring
+-- annotations). Order is determined by first appearance.
+dedupRow :: (Var v) => [Type v a] -> [Type v a]
+dedupRow = nubBy (\x y -> stripAnns x == stripAnns y)
+  where
+    stripAnns = ABT.amap (const ())
 
 -- | Apply 'expand' to a foldable of types, accumulating errors.
 expandAll ::

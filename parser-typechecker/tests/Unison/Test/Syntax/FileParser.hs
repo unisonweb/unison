@@ -64,6 +64,7 @@ test =
       expectedBlockOpenTest,
       typeAliasExpandsInDataDeclTest,
       typeAliasExpandsInTermSignatureTest,
+      abilityRowAliasTest,
       typeAliasUnsaturatedTest,
       typeAliasCycleTest
     ]
@@ -137,6 +138,18 @@ typeAliasExpandsInTermSignatureTest =
     unlines
       [ "type alias Endo a = a -> a",
         "f : Endo Nat",
+        "f x = x"
+      ]
+
+-- | An ability-row alias splices its body into surrounding @Effects@ lists.
+abilityRowAliasTest :: Test ()
+abilityRowAliasTest =
+  scope "abilityRowAliasTest" . parses $
+    unlines
+      [ "structural ability Foo where foo : ()",
+        "structural ability Bar where bar : ()",
+        "type alias Web = {Foo, Bar}",
+        "f : Nat ->{Web} Nat",
         "f x = x"
       ]
 

@@ -207,7 +207,10 @@ synTypeAliasDeclP modifier0 = do
   typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let tyvars = L.payload <$> typeArgs
   _ <- reserved "="
-  body <- TypeParser.valueType
+  -- Try ability-row body (e.g. `{IO, Exception}`) first; fall back to a
+  -- regular type expression. Whether the alias is a type alias or an
+  -- ability-row alias is determined by the body's shape.
+  body <- TypeParser.effectList <|> TypeParser.valueType
   _ <- closeBlock
   pure
     SynTypeAliasDecl
