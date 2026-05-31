@@ -63,13 +63,8 @@ typecheckedToNames uf = Names (terms <> ctors) types
             Map.toList $
               fmap fst (UF.dataDeclarations' uf)
                 <> fmap fst (UF.effectDeclarations' uf)
+                <> fmap (Reference.DerivedId . fst) (UF.typeAliasesId' uf)
         ]
-    -- Note: type aliases are NOT added to the Names yet. They get persisted
-    -- to the codebase by addDefsToCodebase, but `view`/`find`/slurp paths
-    -- still need to learn how to look up an alias by reference. Until that
-    -- lands, surfacing aliases as type-position refs would cause downstream
-    -- code (e.g. HandleInput.Load.getNewDecl) to call unsafeGetTypeDeclaration
-    -- on a ref that doesn't point to a decl, which throws.
     ctors =
       Relation.fromMap
         . Map.mapKeys Name.unsafeParseVar

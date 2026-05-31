@@ -375,7 +375,19 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
     makeDeclUpdates abort = do
       dataDeclUpdates <- Monoid.foldMapM makeDataDeclUpdates (Map.toList $ UF.dataDeclarationsId' tuf)
       effectDeclUpdates <- Monoid.foldMapM makeEffectDeclUpdates (Map.toList $ UF.effectDeclarationsId' tuf)
-      pure $ dataDeclUpdates <> effectDeclUpdates
+      -- Type aliases occupy the same namespace slot as data\/effect decls
+      -- (they're both type-position refs). They have no constructors, so the
+      -- delete\/add pattern is simpler.
+      let aliasUpdates =
+            foldMap
+              ( \(symbol, (typeRefId, _alias)) ->
+                  let split = splitVar symbol
+                   in [ BranchUtil.makeAnnihilateTypeName split,
+                        BranchUtil.makeAddTypeName split (Reference.fromId typeRefId)
+                      ]
+              )
+              (Map.toList (UF.typeAliasesId' tuf))
+      pure $ dataDeclUpdates <> effectDeclUpdates <> aliasUpdates
       where
         makeDataDeclUpdates (symbol, (typeRefId, dataDecl)) = makeDeclUpdates (symbol, (typeRefId, Right dataDecl))
         makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclUpdates (symbol, (typeRefId, Left effectDecl))

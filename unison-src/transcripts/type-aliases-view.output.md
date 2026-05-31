@@ -14,21 +14,22 @@ type alias Endo a = a -> a
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  No changes found.
+  + type alias Endo a = a -> a
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
 > add
+
+  Done.
+
 > view Endo
+
+  type alias Endo a = a -> a
 ```
 
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-``` 
-⚠️
-
-The following names were not found in the codebase. Check your spelling.
-  Endo
-```
+The expected output: `view Endo` renders the alias as
+`type alias Endo a = a -> a`. Until the alias-aware show/load path lands,
+this stanza errors out because the lookup treats every type-position ref as
+a decl.

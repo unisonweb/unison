@@ -69,7 +69,7 @@ handleEditNamespace outputLoc paths0 = do
 
   (types, terms) <- Cli.runTransaction (getNamesForEdit codebase ppe allNamesToEdit)
   let misses = []
-  showDefinitions outputLoc (const True) ppe terms types misses
+  showDefinitions outputLoc (const True) ppe terms types mempty misses
 
 -- | Get names "for edit": gets types and terms out the codebase as display objects, but is careful not to get an
 -- auto-generated record accessor term like `Foo.bar.set` if it's also getting the corresponding type `Foo`. This is
@@ -94,24 +94,30 @@ getNamesForEdit codebase ppe allNamesToEdit = do
             ReferenceBuiltin _ -> do
               let !types1 = Map.insert ref (DisplayObject.BuiltinObject ()) types
               pure (types1, accessorNames)
-            ReferenceDerived refId -> do
-              decl <- Codebase.unsafeGetTypeDeclaration codebase refId
-              let !types1 = Map.insert ref (DisplayObject.UserObject decl) types
-              let !accessorNames1 =
-                    accessorNames <> case decl of
-                      Left _effectDecl -> Set.empty
-                      Right dataDecl ->
-                        let declAccessorNames :: Name -> Set Name
-                            declAccessorNames declName =
-                              case DeclPrinter.getFieldAndAccessorNames
-                                ppe.unsuffixifiedPPE
-                                ref
-                                (HQ.fromName declName)
-                                dataDecl of
-                                Nothing -> Set.empty
-                                Just (_fieldNames, theAccessorNames) -> Set.fromList theAccessorNames
-                         in foldMap declAccessorNames (Names.namesForReference allNamesToEdit ref)
-              pure (types1, accessorNames1)
+            ReferenceDerived refId ->
+              -- Skip alias refs — `edit` is decl-oriented; aliases land in
+              -- the scratch file via a separate path (or not at all for
+              -- now). Without this guard, unsafeGetTypeDeclaration crashes
+              -- on an alias ref.
+              Codebase.getTypeDeclaration codebase refId >>= \case
+                Nothing -> pure (types, accessorNames)
+                Just decl -> do
+                  let !types1 = Map.insert ref (DisplayObject.UserObject decl) types
+                  let !accessorNames1 =
+                        accessorNames <> case decl of
+                          Left _effectDecl -> Set.empty
+                          Right dataDecl ->
+                            let declAccessorNames :: Name -> Set Name
+                                declAccessorNames declName =
+                                  case DeclPrinter.getFieldAndAccessorNames
+                                    ppe.unsuffixifiedPPE
+                                    ref
+                                    (HQ.fromName declName)
+                                    dataDecl of
+                                    Nothing -> Set.empty
+                                    Just (_fieldNames, theAccessorNames) -> Set.fromList theAccessorNames
+                             in foldMap declAccessorNames (Names.namesForReference allNamesToEdit ref)
+                  pure (types1, accessorNames1)
       )
       (Map.empty, Set.empty)
       typeRefs
