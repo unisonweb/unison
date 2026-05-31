@@ -158,13 +158,14 @@ getTerm mainName =
 createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli (TypecheckedUnisonFile Symbol Ann)
 createWatcherFile v tm typ =
   Cli.getLatestTypecheckedFile >>= \case
-    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, External, tm, typ)])])
+    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty mempty [(magicMainWatcherString, [(v, External, tm, typ)])])
     Just uf ->
       let v2 = Var.freshIn (Set.fromList [v]) v
        in pure $
             UF.typecheckedUnisonFile
               (UF.dataDeclarationsId' uf)
               (UF.effectDeclarationsId' uf)
+              (UF.typeAliasesId' uf)
               (UF.topLevelComponents' uf)
               -- what about main's component? we have dropped them if they existed.
               [(magicMainWatcherString, [(v2, External, tm, typ)])]

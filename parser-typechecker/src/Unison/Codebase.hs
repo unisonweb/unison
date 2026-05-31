@@ -349,6 +349,7 @@ installUcmDependencies c = do
         ( UF.typecheckedUnisonFile
             (Map.fromList Builtin.builtinDataDecls)
             (Map.fromList Builtin.builtinEffectDecls)
+            mempty
             [Builtin.builtinTermsSrc Parser.Intrinsic]
             mempty
         )

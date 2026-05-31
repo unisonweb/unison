@@ -51,6 +51,7 @@ handleAddRun input resultName = do
         UF.typecheckedUnisonFile
           (UF.dataDeclarationsId' uf0)
           (UF.effectDeclarationsId' uf0)
+          (UF.typeAliasesId' uf0)
           ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf0)
           (UF.watchComponents uf0)
   Cli.Env {codebase} <- ask

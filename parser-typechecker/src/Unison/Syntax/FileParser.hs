@@ -24,7 +24,9 @@ import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Reference (TypeReferenceId)
+import Unison.Reference qualified as Reference
 import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
@@ -86,10 +88,12 @@ file = do
   let synDecls = maybe id applyNamespaceToSynDecls maybeNamespaceVar unNamespacedSynDecls
 
   -- Make real data/effect decls from the "syntactic" ones, and capture the
-  -- file's type aliases (already normalized + cycle-checked). Aliases are
-  -- consumed: they don't appear in the resulting decls, but we keep them
-  -- around to expand aliases in term type signatures below.
-  (dataDecls, effectDecls, fileAliases) <- synDeclsToDecls synDecls
+  -- file's type aliases (already normalized + cycle-checked + hashed).
+  -- Aliases are retained in the UnisonFile so they can be persisted; their
+  -- bodies are also used inline to expand alias applications in
+  -- data/effect/term types.
+  (dataDecls, effectDecls, fileAliasesWithHashes) <- synDeclsToDecls synDecls
+  let fileAliases = fmap snd fileAliasesWithHashes
 
   -- Compute an environment from the decls that we use to parse terms
   env <- do
@@ -207,6 +211,7 @@ file = do
       maybeAnnotatedNamespace
       (UF.datasId env)
       (UF.effectsId env)
+      fileAliasesWithHashes
       (terms <> accessors)
       (List.multimap watches)
 
@@ -272,12 +277,13 @@ applyNamespaceToSynDecls namespace decls =
         & map (\v -> (v, Type.var () (Var.namespaced2 namespace v)))
 
 synDeclsToDecls ::
+  forall m v.
   (Monad m, Var v) =>
   [SynDecl v] ->
   P v m
     ( Map v (DataDeclaration v Ann),
       Map v (EffectDeclaration v Ann),
-      Map v (Unison.TypeAlias.TypeAlias v Ann)
+      Map v (Reference.Id, Unison.TypeAlias.TypeAlias v Ann)
     )
 synDeclsToDecls decls = do
   -- 1. Collect aliases separately from data/effect decls.
@@ -325,7 +331,14 @@ synDeclsToDecls decls = do
     Map.empty
     effectsRaw
 
-  pure (datas, effects, aliases)
+  -- Compute a hash for each alias. NOTE: at this point alias bodies still
+  -- contain free type Vars (name resolution hasn't run on alias bodies).
+  -- These hashes are therefore deterministic within the file but not yet
+  -- cross-codebase canonical. Resolving alias bodies and rehashing is a
+  -- follow-up.
+  let aliasesWithHashes :: Map v (Reference.Id, Unison.TypeAlias.TypeAlias v Ann)
+      aliasesWithHashes = aliases <&> \alias -> (Hashing.hashTypeAlias alias, alias)
+  pure (datas, effects, aliasesWithHashes)
 
 -- | Split a parsed decl list into data, effect, and alias maps.
 partitionDecls ::
@@ -382,11 +395,12 @@ validateUnisonFile ::
   Maybe (Ann, Name.Name) ->
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
+  Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) ->
   [(v, Ann, Term v Ann)] ->
   Map WatchKind [(v, Ann, Term v Ann)] ->
   P v m (UnisonFile v Ann)
-validateUnisonFile fn datas effects terms watches =
-  checkForDuplicateTermsAndConstructors fn datas effects terms watches
+validateUnisonFile fn datas effects aliases terms watches =
+  checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches
 
 -- | Because types and abilities can introduce their own constructors and fields it's difficult
 -- to detect all duplicate terms during parsing itself. Here we collect all terms and
@@ -397,10 +411,11 @@ checkForDuplicateTermsAndConstructors ::
   Maybe (Ann, Name.Name) ->
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
+  Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) ->
   [(v, Ann, Term v Ann)] ->
   Map WatchKind [(v, Ann, Term v Ann)] ->
   P v m (UnisonFile v Ann)
-checkForDuplicateTermsAndConstructors fn datas effects terms watches = do
+checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches = do
   when (not . null $ duplicates) $ do
     let dupeList :: [(v, [Ann])]
         dupeList =
@@ -413,6 +428,7 @@ checkForDuplicateTermsAndConstructors fn datas effects terms watches = do
       { fileNamespace = fn,
         dataDeclarationsId = datas,
         effectDeclarationsId = effects,
+        typeAliasesId = aliases,
         terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
         watches
       }
