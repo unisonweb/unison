@@ -1,9 +1,8 @@
--- Bump schema version to signal that this codebase has been touched by a
--- UCM that knows about type aliases (ObjectType.TypeAliasComponent = 4,
--- TempEntityType.TypeAliasComponentType = 5).
---
--- These new enum values reuse the existing `object` and `temp_entity`
--- tables, so no schema change is required. This migration exists to mark
--- the version boundary; an older UCM that does not know how to handle the
--- new ObjectType values will refuse to open this codebase.
-SELECT 1;
+-- Add type alias support. Introduces a new ObjectType variant
+-- (TypeAliasComponent = 4) alongside the existing TermComponent (0),
+-- DeclComponent (1), Namespace (2), and Patch (3). The schema is
+-- otherwise unchanged — aliases reuse the `object` and `temp_entity`
+-- tables — but the new `type_id` value needs a corresponding row in
+-- `object_type_description` to satisfy the foreign key.
+INSERT INTO object_type_description (id, description) VALUES
+    (4, "Type Alias");

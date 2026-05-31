@@ -3,6 +3,8 @@ module Unison.Syntax.DeclPrinter
     prettyDeclW,
     prettyDeclHeader,
     prettyDeclOrBuiltinHeader,
+    prettyTypeAlias,
+    prettyTypeAliasHeader,
     getFieldAndAccessorNames,
     AccessorName,
     RenderUniqueTypeGuids (..),
@@ -40,6 +42,8 @@ import Unison.Syntax.TypePrinter (runPretty)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Type qualified as Type
+import Unison.TypeAlias (TypeAlias)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Util.List qualified as List
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as P
@@ -352,6 +356,33 @@ prettyDeclOrBuiltinHeader guid name = \case
   Builtin CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
   Builtin CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
   NotBuiltin e -> prettyDeclHeader guid name e
+
+-- | Render the header @type alias \<Name\> \<params\>@.
+prettyTypeAliasHeader ::
+  (Var v) =>
+  HQ.HashQualified Name ->
+  TypeAlias v a ->
+  Pretty SyntaxText
+prettyTypeAliasHeader name ta =
+  P.sepNonEmpty
+    " "
+    [ fmt S.DataTypeKeyword "type alias",
+      styleHashQualified'' (fmt $ S.HashQualifier name) name,
+      P.sep " " (fmt S.DataTypeParams . P.text . Var.name <$> TypeAlias.paramNames ta)
+    ]
+
+-- | Render a complete @type alias \<Name\> \<params\> = \<body\>@ declaration.
+prettyTypeAlias ::
+  (Var v) =>
+  PrettyPrintEnvDecl ->
+  HQ.HashQualified Name ->
+  TypeAlias v a ->
+  Pretty SyntaxText
+prettyTypeAlias (PrettyPrintEnvDecl _unsuffixifiedPPE suffixifiedPPE) name ta =
+  P.group $
+    prettyTypeAliasHeader name ta
+      <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
+      <> runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) (TypeAlias.body ta))
 
 fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = P.withSyntax

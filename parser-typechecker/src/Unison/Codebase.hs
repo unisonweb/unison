@@ -180,6 +180,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.TypeAlias (TypeAlias)
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile qualified as UF
@@ -366,6 +367,7 @@ addDefsToCodebase ::
 addDefsToCodebase c uf = do
   traverse_ (goType Right) (UF.dataDeclarationsId' uf)
   traverse_ (goType Left) (UF.effectDeclarationsId' uf)
+  traverse_ goAlias (UF.typeAliasesId' uf)
   -- put terms
   traverse_ goTerm (UF.hashTermsId uf)
   where
@@ -374,6 +376,8 @@ addDefsToCodebase c uf = do
     goType :: (Show t) => (t -> Decl v a) -> (Reference.Id, t) -> Sqlite.Transaction ()
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
+    goAlias :: (Reference.Id, TypeAlias v a) -> Sqlite.Transaction ()
+    goAlias (ref, ta) = putTypeAlias c ref ta
 
 getTypeOfConstructor :: (Ord v) => Codebase m v a -> ConstructorReference -> Sqlite.Transaction (Maybe (Type v a))
 getTypeOfConstructor codebase (ConstructorReference r0 cid) =
