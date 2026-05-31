@@ -42,6 +42,10 @@ data NormalizationError v
 -- will then be handled by name resolution or implicit forall generalization
 -- downstream).
 --
+-- Aliases must be fully saturated at every use site; partial application is
+-- rejected because Unison's 'Type.F' has no lambda constructor to represent
+-- the result. See @docs/type-aliases.markdown@.
+--
 -- The map is expected to contain aliases whose bodies do not themselves
 -- reference other aliases (i.e. produced by 'normalize'). Passing
 -- un-normalized aliases is safe but produces under-expanded types.

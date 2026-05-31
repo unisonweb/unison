@@ -23,9 +23,11 @@ Parameters follow the alias name, mirroring `type` declarations. There is no
 separate `ability alias` keyword: kind inference determines from the RHS whether
 the alias is a type alias (kind `* -> ... -> *`) or an ability-row alias.
 
-Aliases must be **fully saturated** at every use site. Partial application of an
-alias is rejected by the elaborator (Unison has no type-level lambdas to represent
-the partial result).
+Aliases must be **fully saturated** at every use site. Partial application of
+an alias is rejected by the elaborator. Type-level lambdas — a representation
+that could carry an under-applied alias as a first-class kind-`* -> *` type —
+are out of scope for this design; if added later as a separate language feature,
+this restriction could be revisited.
 
 Recursive aliases are forbidden — `type alias A = B` paired with `type alias B = A`
 is rejected by the kind checker. Recursion stays in `type` declarations.
@@ -333,4 +335,8 @@ Consequences:
   wanting refactoring leverage should use `update` on the underlying type.
 - Opaque aliases (Scala-3-style). Reserved for a future `opaque type` feature,
   separate from this design.
-- First-class type-level lambdas. Partial application of an alias is rejected.
+- Type-level lambdas (`Lam` as a node in `Type.F`). Partial application of an
+  alias is rejected; aliases are saturated substitution macros. If type-level
+  lambdas land later as a real language feature, the rejection could be
+  relaxed and the PPE could fold partial applications back to alias use
+  sites via per-arity rewrite rules — but that's a separate design.
