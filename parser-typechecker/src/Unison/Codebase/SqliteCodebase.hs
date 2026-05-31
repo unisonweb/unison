@@ -210,8 +210,16 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                     ( \acc -> \case
                         ReferenceBuiltin _ -> pure acc
                         ReferenceDerived ref -> do
-                          num <- expectDeclNumConstructors ref
-                          pure $! Map.insert ref num acc
+                          -- Type alias refs live in the same namespace slot
+                          -- as decls but have no constructors; record 0 so
+                          -- the coherency check sees them but finds no
+                          -- expected constructor names.
+                          isAlias <- CodebaseOps.isTypeAlias (ReferenceDerived ref)
+                          if isAlias
+                            then pure $! Map.insert ref 0 acc
+                            else do
+                              num <- expectDeclNumConstructors ref
+                              pure $! Map.insert ref num acc
                     )
                     Map.empty
 

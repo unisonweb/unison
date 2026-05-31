@@ -20,7 +20,7 @@ f x = x + 1
 
   + type alias Endo a = a -> a
 
-  + f : Nat -> Nat
+  + f : Endo Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -29,6 +29,9 @@ The alias appears as `+ type alias Endo a = a -> a` alongside the term.
 
 ``` ucm
 > add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```

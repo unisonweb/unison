@@ -17,9 +17,10 @@ type alias Endo a = a -> a
 > add
 ```
 
-Second file: reference the alias from a fresh scratch file. The parser
-should look up `Endo` in the namespace, fetch its body from the codebase,
-and expand inline before hashing.
+Second file: reference the alias from a fresh scratch file. Name
+resolution turns `Endo` into the codebase alias's ref, and the typechecker
+expands the body lazily during checking. The stored type signature for `g`
+keeps `Endo Nat` intact.
 
 ```unison
 g : Endo Nat
@@ -31,6 +32,5 @@ g x = x + 2
 > view g
 ```
 
-Currently this fails: the alias is persisted but the parser's name
-resolution doesn't yet look up alias refs from the codebase, so `Endo` in
-the second file's signature reports as an unknown type.
+`g`'s stored type is `Endo Nat`, and `view g` renders it back with the
+alias intact.

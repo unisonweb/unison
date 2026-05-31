@@ -396,8 +396,11 @@ declsToTypeLookup uf =
     mempty
     (wrangle (dataDeclarations uf))
     (wrangle (effectDeclarations uf))
+    (wrangleAliases (typeAliasesId uf))
   where
     wrangle = Map.fromList . Map.elems
+    wrangleAliases m =
+      Map.fromList [(Reference.DerivedId r, ta) | (r, ta) <- Map.elems m]
 
 typecheckedToTypeLookup :: TypecheckedUnisonFile v a -> TL.TypeLookup v a
 typecheckedToTypeLookup tuf =
@@ -405,8 +408,11 @@ typecheckedToTypeLookup tuf =
     mempty
     (wrangle (dataDeclarations' tuf))
     (wrangle (effectDeclarations' tuf))
+    (wrangleAliases (typeAliasesId' tuf))
   where
     wrangle = Map.fromList . Map.elems
+    wrangleAliases m =
+      Map.fromList [(Reference.DerivedId r, ta) | (r, ta) <- Map.elems m]
 
 -- Returns true if the file has any definitions or watches
 nonEmpty :: TypecheckedUnisonFile v a -> Bool

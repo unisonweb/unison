@@ -5,7 +5,6 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (asks, local)
-import Data.Foldable (foldlM)
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -19,6 +18,7 @@ import Unison.TypeAlias.Expand qualified as TypeAlias.Expand
 import Unison.DataDeclaration.Records (generateRecordAccessors)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -26,6 +26,7 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Reference (TypeReferenceId)
+import Unison.Reference qualified as Reference
 import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
@@ -106,7 +107,11 @@ file = do
   -- The alias's bound params are kept free (they're param positions, not
   -- external refs).
   fileAliasesWithHashes :: Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) <-
-    let envNames = UF.names env
+    -- Alias bodies need to resolve names from the surrounding scope (e.g.
+    -- @Nat@ in @type alias NatFun a = Nat -> a@), so the env we bind against
+    -- is the codebase 'namesStart' shadowed by the file's own decl names.
+    -- @UF.names env@ alone is just file-local ctor/decl names.
+    let envNames = Names.shadowing (UF.names env) namesStart
         resolveAlias alias = do
           resolvedBody <-
             Type.Names.bindNames
@@ -156,13 +161,24 @@ file = do
             Nothing -> id
             Just namespace -> over (mapped . _1) (Var.namespaced2 namespace)
 
+  -- File-local aliases as a 'Names' so type-position references to alias
+  -- names resolve to alias refs during term parsing.
+  let aliasNames :: Names
+      aliasNames =
+        Names.fromTermsAndTypes
+          []
+          [ (Name.unsafeParseVar v, Reference.DerivedId rid)
+          | (v, (rid, _)) <- Map.toList fileAliasesWithHashes
+          ]
+
   -- At this stage of the file parser, we've parsed all the type and ability
   -- declarations.
+  let envNamesWithAliases = aliasNames <> UF.names env
   let updateEnvForTermParsing e =
         e
-          { names = Names.shadowing (UF.names env) namesStart,
+          { names = Names.shadowing envNamesWithAliases namesStart,
             maybeNamespace,
-            localNamespacePrefixedTypesAndConstructors = UF.names env
+            localNamespacePrefixedTypesAndConstructors = envNamesWithAliases
           }
   local updateEnvForTermParsing do
     names <- asks names
@@ -205,21 +221,9 @@ file = do
             Name.toVar
             (Set.fromList fqLocalTerms)
             (Names.shadowTerms (map Name.unsafeParseVar fqLocalTerms) names)
-    -- Expand any type aliases used in term type signatures BEFORE name
-    -- resolution. The alias names would otherwise fail to resolve as type
-    -- refs (aliases aren't in the names env for now); expanding first
-    -- substitutes the alias bodies in place, leaving only references to
-    -- real types that bindNames can resolve.
-    let expandTermAliases = TypeAlias.Expand.expandInTerm fileAliases
-    terms <- forM terms \(v, a, tm) -> case expandTermAliases tm of
-      Right tm' -> pure (v, a, tm')
-      Left (TypeAlias.Expand.UnsaturatedAliasUse name expected actual ann) ->
-        P.customFailure (UnsaturatedTypeAlias ann name expected actual)
-    watches <- forM watches \(wk, (v, a, tm)) -> case expandTermAliases tm of
-      Right tm' -> pure (wk, (v, a, tm'))
-      Left (TypeAlias.Expand.UnsaturatedAliasUse name expected actual ann) ->
-        P.customFailure (UnsaturatedTypeAlias ann name expected actual)
-
+    -- Aliases stay as refs in the parsed AST; bindNames resolves alias
+    -- names to alias refs via @aliasNames@, and the typechecker expands
+    -- them on demand at subtype/check sites.
     terms <- case List.validate (traverseOf _3 bindNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
@@ -327,29 +331,19 @@ synDeclsToDecls decls = do
   -- 3. Expand alias applications in data/effect constructor types and
   --    convert directly to the final DataDeclaration / EffectDeclaration
   --    record types.
-  let expandCtors = traverse \(a, v, ty) -> (a,v,) <$> TypeAlias.Expand.expand aliases ty
+  -- Constructor types keep their alias refs; the kindchecker and
+  -- typechecker expand them lazily.
+  let datas =
+        Map.fromList
+          [ (decl.name.payload, DataDeclaration decl.modifier decl.annotation decl.tyvars decl.constructors)
+          | decl <- datasRaw
+          ]
 
-  datas <- foldlM
-    ( \acc decl -> case expandCtors decl.constructors of
-        Right cs ->
-          let dd = DataDeclaration decl.modifier decl.annotation decl.tyvars cs
-           in pure (Map.insert decl.name.payload dd acc)
-        Left (TypeAlias.Expand.UnsaturatedAliasUse name expected actual ann) ->
-          P.customFailure (UnsaturatedTypeAlias ann name expected actual)
-    )
-    Map.empty
-    datasRaw
-
-  effects <- foldlM
-    ( \acc decl -> case expandCtors decl.constructors of
-        Right cs ->
-          let ed = DataDeclaration.mkEffectDecl' decl.modifier decl.annotation decl.tyvars cs
-           in pure (Map.insert decl.name.payload ed acc)
-        Left (TypeAlias.Expand.UnsaturatedAliasUse name expected actual ann) ->
-          P.customFailure (UnsaturatedTypeAlias ann name expected actual)
-    )
-    Map.empty
-    effectsRaw
+  let effects =
+        Map.fromList
+          [ (decl.name.payload, DataDeclaration.mkEffectDecl' decl.modifier decl.annotation decl.tyvars decl.constructors)
+          | decl <- effectsRaw
+          ]
 
   pure (datas, effects, aliases)
 

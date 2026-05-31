@@ -1,9 +1,14 @@
 module Unison.TypeAlias.Expand
-  ( -- * Expansion
+  ( -- * Expansion (Var-based, used during in-file parsing)
     expand,
     expandAll,
     expandInTerm,
     ExpansionError (..),
+
+    -- * Expansion (Reference-based, used after name resolution)
+    expandRefs,
+    expandRefsInTerm,
+    RefExpansionError (..),
 
     -- * Normalization
     normalize,
@@ -16,6 +21,8 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.Prelude
+import Unison.Reference (Reference)
+import Unison.Reference qualified as Reference
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -131,6 +138,80 @@ expandAll ::
   t (Type v a) ->
   Either (ExpansionError v a) (t (Type v a))
 expandAll aliases = traverse (expand aliases)
+
+-- * Reference-based expansion (used after name resolution)
+
+-- | Errors produced during ref-based expansion. Same shape as
+-- 'ExpansionError' but keyed by 'Reference' rather than 'Var'.
+data RefExpansionError a
+  = UnsaturatedAliasRefUse Reference Int Int a
+  deriving stock (Show, Eq)
+
+-- | Walk a type and expand alias 'Reference's against their bodies. Used
+-- after name resolution, when alias names have been bound to refs but the
+-- in-file expansion (which is keyed by 'Var') no longer matches.
+--
+-- The map keys are 'Reference.Id' values for derived alias refs (builtin
+-- type refs are never aliases). Saturation rules are the same as 'expand':
+-- under-application is an error.
+expandRefs ::
+  forall v a.
+  (Var v, Semigroup a) =>
+  Map Reference.Id (TypeAlias v a) ->
+  Type v a ->
+  Either (RefExpansionError a) (Type v a)
+expandRefs aliases = go
+  where
+    go :: Type v a -> Either (RefExpansionError a) (Type v a)
+    go t = case Type.unApps t of
+      Just (Type.Ref' r, args)
+        | Reference.DerivedId rid <- r,
+          Just alias <- Map.lookup rid aliases ->
+            applyAlias r alias args (ABT.annotation t)
+      _ -> case ABT.out t of
+        ABT.Tm (Type.Ref r)
+          | Reference.DerivedId rid <- r,
+            Just alias <- Map.lookup rid aliases ->
+              applyAlias r alias [] (ABT.annotation t)
+        _ -> goABT t
+
+    applyAlias :: Reference -> TypeAlias v a -> [Type v a] -> a -> Either (RefExpansionError a) (Type v a)
+    applyAlias r alias args useSite = do
+      let arity = TypeAlias.arity alias
+          nArgs = length args
+      if nArgs < arity
+        then Left (UnsaturatedAliasRefUse r arity nArgs useSite)
+        else do
+          let (sat, extra) = splitAt arity args
+          sat' <- traverse go sat
+          extra' <- traverse go extra
+          let body' =
+                ABT.substsInheritAnnotation (zip alias.paramNames sat') alias.body
+          pure (Type.apps' body' extra')
+
+    goABT :: Type v a -> Either (RefExpansionError a) (Type v a)
+    goABT t = case ABT.out t of
+      ABT.Var v -> Right (ABT.annotatedVar (ABT.annotation t) v)
+      ABT.Cycle body -> ABT.cycle' (ABT.annotation t) <$> goABT body
+      ABT.Abs v body -> ABT.abs' (ABT.annotation t) v <$> goABT body
+      ABT.Tm f -> ABT.tm' (ABT.annotation t) <$> traverse go f
+
+-- | Walk a term and apply 'expandRefs' to every type carried by a
+-- 'Term.Ann' node.
+expandRefsInTerm ::
+  forall v a.
+  (Var v, Semigroup a) =>
+  Map Reference.Id (TypeAlias v a) ->
+  Term v a ->
+  Either (RefExpansionError a) (Term v a)
+expandRefsInTerm aliases = ABT.transformM go
+  where
+    go :: forall x. Term.F v a a x -> Either (RefExpansionError a) (Term.F v a a x)
+    go = \case
+      Term.Ann body typ -> Term.Ann body <$> expandRefs aliases typ
+      other -> Right other
+
+-- * In-file expansion (Var-based)
 
 -- | Walk a term and apply 'expand' to every type appearing in a type
 -- annotation (the 'Term.Ann' node).

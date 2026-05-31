@@ -181,6 +181,7 @@ import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.TypeAlias (TypeAlias)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile qualified as UF
@@ -446,20 +447,25 @@ typeLookupForDependencies codebase s = do
     goTerm tl ref =
       getTypeOfTerm codebase ref >>= \case
         Just typ ->
-          let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty
+          let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty mempty
            in depthFirstAccumTypes z (Type.dependencies typ)
         Nothing -> pure tl
 
     goType :: TypeLookup Symbol Ann -> TypeReference -> Sqlite.Transaction (TypeLookup Symbol Ann)
     goType tl ref@(Reference.DerivedId id) =
-      getTypeDeclaration codebase id >>= \case
-        Just (Left ed) ->
-          let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed)
-           in depthFirstAccumTypes z (DD.typeDependencies $ DD.toDataDecl ed)
-        Just (Right dd) ->
-          let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
-           in depthFirstAccumTypes z (DD.typeDependencies dd)
-        Nothing -> pure tl
+      getTypeAlias codebase id >>= \case
+        Just ta ->
+          let z = tl <> TypeLookup mempty mempty mempty (Map.singleton ref ta)
+           in depthFirstAccumTypes z (Type.dependencies (TypeAlias.body ta))
+        Nothing ->
+          getTypeDeclaration codebase id >>= \case
+            Just (Left ed) ->
+              let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed) mempty
+               in depthFirstAccumTypes z (DD.typeDependencies $ DD.toDataDecl ed)
+            Just (Right dd) ->
+              let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty mempty
+               in depthFirstAccumTypes z (DD.typeDependencies dd)
+            Nothing -> pure tl
     goType tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
     unseen tl r =
@@ -467,6 +473,7 @@ typeLookupForDependencies codebase s = do
         ( Map.lookup r (TL.dataDecls tl) $> ()
             <|> Map.lookup r (TL.typeOfTerms tl) $> ()
             <|> Map.lookup r (TL.effectDecls tl) $> ()
+            <|> Map.lookup r (TL.typeAliases tl) $> ()
         )
 
 -- | Get the type of a term.

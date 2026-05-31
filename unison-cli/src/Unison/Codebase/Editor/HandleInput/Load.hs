@@ -526,3 +526,4 @@ evalUnisonFile mode ppe unisonFile args = do
             Cli.runTransaction (Codebase.putWatch kind hash value')
         pure (Right (nts, map))
       Left err -> pure (Left err)
+

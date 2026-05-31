@@ -10,12 +10,19 @@ import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Type (Type)
+import Unison.TypeAlias (TypeAlias)
+import Unison.TypeAlias qualified as TypeAlias
+import Unison.Var (Var)
 
 -- Used for typechecking.
 data TypeLookup v a = TypeLookup
   { typeOfTerms :: Map TermReference (Type v a),
     dataDecls :: Map TypeReference (DataDeclaration v a),
-    effectDecls :: Map TypeReference (EffectDeclaration v a)
+    effectDecls :: Map TypeReference (EffectDeclaration v a),
+    -- Type alias bodies, indexed by alias ref. Looked up on demand by
+    -- the kindchecker and typechecker (whnf expansion). Storage and
+    -- hashing keep alias refs intact; only verification expands them.
+    typeAliases :: Map TypeReference (TypeAlias v a)
   }
   deriving (Show)
 
@@ -56,15 +63,19 @@ typeOfTerm' tl r = case Map.lookup r (typeOfTerms tl) of
   Just a -> Right a
 
 instance Semigroup (TypeLookup v a) where
-  TypeLookup a b c <> TypeLookup a2 b2 c2 =
-    TypeLookup (a <> a2) (b <> b2) (c <> c2)
+  TypeLookup a b c d <> TypeLookup a2 b2 c2 d2 =
+    TypeLookup (a <> a2) (b <> b2) (c <> c2) (d <> d2)
 
 instance Monoid (TypeLookup v a) where
-  mempty = TypeLookup mempty mempty mempty
+  mempty = TypeLookup mempty mempty mempty mempty
 
-instance Functor (TypeLookup v) where
-  fmap f tl =
-    TypeLookup
-      (fmap f <$> typeOfTerms tl)
-      (fmap f <$> dataDecls tl)
-      (fmap f <$> effectDecls tl)
+-- Not a Functor on @a@ because alias maps require @Ord v@ via
+-- 'TypeAlias.amap'; the alias variable is contravariant in the kind of
+-- the functor anyway.
+amap :: (Var v) => (a -> a') -> TypeLookup v a -> TypeLookup v a'
+amap f tl =
+  TypeLookup
+    (fmap f <$> typeOfTerms tl)
+    (fmap f <$> dataDecls tl)
+    (fmap f <$> effectDecls tl)
+    (TypeAlias.amap f <$> typeAliases tl)

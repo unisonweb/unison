@@ -22,6 +22,9 @@ type alias Endo a = a -> a
 ``` ucm
 > add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 > view Endo

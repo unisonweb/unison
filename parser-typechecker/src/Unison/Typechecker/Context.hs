@@ -103,6 +103,7 @@ import Unison.Referent (Referent)
 import Unison.Syntax.TypePrinter qualified as TP
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker.Components (minimize')
 import Unison.Typechecker.Context.Structure hiding
   ( filter,
@@ -150,6 +151,8 @@ universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 data Env v loc = Env {freshId :: Word64, ctx :: Context v loc}
 
 type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
+
+type TypeAliasMap v loc = Map Reference (TypeAlias.TypeAlias v loc)
 
 type EffectDeclarations v loc = Map Reference (EffectDeclaration v loc)
 
@@ -239,6 +242,8 @@ newtype MT v loc f a = MT
       DataDeclarations v loc ->
       -- Effect declarations in scope
       EffectDeclarations v loc ->
+      -- Type aliases in scope (expanded lazily by whnfAlias)
+      TypeAliasMap v loc ->
       -- Stack of definitions being checked
       [v] ->
       Env v loc ->
@@ -254,11 +259,11 @@ type M v loc = MT v loc (Result v loc)
 type TotalM v loc = MT v loc (Either (CompilerBug v loc))
 
 liftResult :: Result v loc a -> M v loc a
-liftResult r = MT (\_ _ _ _ _ _ env -> (,env) <$> r)
+liftResult r = MT (\_ _ _ _ _ _ _ env -> (,env) <$> r)
 
 liftTotalM :: TotalM v loc a -> M v loc a
-liftTotalM (MT m) = MT $ \ppe pmcSwitch vars datas effects defs env ->
-  case m ppe pmcSwitch vars datas effects defs env of
+liftTotalM (MT m) = MT $ \ppe pmcSwitch vars datas effects aliases defs env ->
+  case m ppe pmcSwitch vars datas effects aliases defs env of
     Left bug -> CompilerBug bug mempty mempty
     Right a -> Success mempty a
 
@@ -275,20 +280,20 @@ checkVarianceWith vars = \case
   _ -> Nothing
 
 checkVariance :: Type v loc -> M v loc (Maybe [Variance])
-checkVariance ty = MT \_ _ vars _ _ _ env ->
+checkVariance ty = MT \_ _ vars _ _ _ _ env ->
   Success mempty (checkVarianceWith vars ty, env)
 
 getVariances :: M v loc (Map Reference [Variance])
-getVariances = MT \_ _ vars _ _ _ env -> Success mempty (vars, env)
+getVariances = MT \_ _ vars _ _ _ _ env -> Success mempty (vars, env)
 
 -- Allows modifying the stored notes in a scoped way.
 -- This is based on the `pass` function in e.g. Control.Monad.Writer
 adjustNotes ::
   M v loc (a, InfoNote v loc -> InfoNote v loc) -> M v loc a
 adjustNotes (MT m) =
-  MT $ \ppe pmcSwitch vars datas effects defs env ->
+  MT $ \ppe pmcSwitch vars datas effects aliases defs env ->
     adjustResultNotes
-      (twiddle <$> m ppe pmcSwitch vars datas effects defs env)
+      (twiddle <$> m ppe pmcSwitch vars datas effects aliases defs env)
   where
     twiddle ((a, c), b) = ((a, b), c)
 
@@ -305,7 +310,7 @@ modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((),) . f
 
 modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
-modEnv' f = MT (\_ _ _ _ _ _ env -> pure . f $ env)
+modEnv' f = MT (\_ _ _ _ _ _ _ env -> pure . f $ env)
 
 data Unknown = Data | Effect deriving (Show)
 
@@ -516,8 +521,8 @@ scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
 -- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (MT m) = MT \ppe pmcSwitch vars datas effects defs env ->
-  mapErrors (scope' p) (m ppe pmcSwitch vars datas effects defs env)
+scope p (MT m) = MT \ppe pmcSwitch vars datas effects aliases defs env ->
+  mapErrors (scope' p) (m ppe pmcSwitch vars datas effects aliases defs env)
 
 occursAnn :: (Var v) => (Ord loc) => TypeVar v loc -> Context v loc -> Bool
 occursAnn v ctx = any (p . snd) . termVarAnnotations $ info ctx
@@ -839,9 +844,9 @@ extendsAround ctx@(Context l) e r = do
 orElse :: M v loc a -> M v loc a -> M v loc a
 orElse m1 m2 = MT go
   where
-    go ppe pmcSwitch vars datas effects defs env =
-      runM m1 ppe pmcSwitch vars datas effects defs env
-        <|> runM m2 ppe pmcSwitch vars datas effects defs env
+    go ppe pmcSwitch vars datas effects aliases defs env =
+      runM m1 ppe pmcSwitch vars datas effects aliases defs env
+        <|> runM m2 ppe pmcSwitch vars datas effects aliases defs env
     s@(Success _ _) <|> _ = s
     TypeError _ _ <|> r = r
     CompilerBug _ _ _ <|> r = r -- swallowing bugs for now: when checking whether a type annotation
@@ -855,25 +860,73 @@ orElse m1 m2 = MT go
 -- hoistMaybe f (Result es is a) = Result es is (f a)
 
 getPrettyPrintEnv :: M v loc PrettyPrintEnv
-getPrettyPrintEnv = MT \ppe _ _ _ _ _ env -> pure (ppe, env)
+getPrettyPrintEnv = MT \ppe _ _ _ _ _ _ env -> pure (ppe, env)
 
 getDataDeclarations :: M v loc (DataDeclarations v loc)
-getDataDeclarations = MT \_ _ _ datas _ _ env -> pure (datas, env)
+getDataDeclarations = MT \_ _ _ datas _ _ _ env -> pure (datas, env)
 
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
-getEffectDeclarations = MT \_ _ _ _ effects _ env -> pure (effects, env)
+getEffectDeclarations = MT \_ _ _ _ effects _ _ env -> pure (effects, env)
+
+getTypeAliases :: M v loc (TypeAliasMap v loc)
+getTypeAliases = MT \_ _ _ _ _ aliases _ env -> pure (aliases, env)
+
+-- | Weak-head-normal-form expansion of a type's outer constructor when
+-- it is an alias reference applied to @>=arity@ arguments. Returns the
+-- input unchanged if no expansion is possible.
+--
+-- This is the lazy-expansion hook for type aliases: stored types keep
+-- alias refs intact, but the typechecker dereferences them on demand at
+-- subtype/check/synth points before pattern-matching on the head.
+whnfAlias ::
+  forall v loc.
+  (Var v) =>
+  Type.Type (TypeVar v loc) loc ->
+  M v loc (Type.Type (TypeVar v loc) loc)
+whnfAlias ty = do
+  aliases <- getTypeAliases
+  pure (go aliases ty)
+  where
+    liftBody :: TypeAlias.TypeAlias v loc -> Type.Type (TypeVar v loc) loc
+    liftBody alias = TypeVar.liftType alias.body
+
+    -- Apply args to a function type, taking the annotation from the
+    -- function for every node. Avoids needing 'Semigroup loc'.
+    appsInherit :: Type.Type (TypeVar v loc) loc -> [Type.Type (TypeVar v loc) loc] -> Type.Type (TypeVar v loc) loc
+    appsInherit = foldl' \f arg -> Type.app (ABT.annotation f) f arg
+
+    go :: TypeAliasMap v loc -> Type.Type (TypeVar v loc) loc -> Type.Type (TypeVar v loc) loc
+    go aliases t = case Type.unApps t of
+      Just (Type.Ref' r, args)
+        | Just alias <- Map.lookup r aliases ->
+            let arity = TypeAlias.arity alias
+                nArgs = length args
+             in if nArgs < arity
+                  then t -- under-applied; structural pass-through
+                  else
+                    let (sat, extra) = splitAt arity args
+                        paramKeys = TypeVar.Universal <$> alias.paramNames
+                        body' = ABT.substsInheritAnnotation (zip paramKeys sat) (liftBody alias)
+                        expanded = appsInherit body' extra
+                     in go aliases expanded
+      _ -> case ABT.out t of
+        ABT.Tm (Type.Ref r) | Just alias <- Map.lookup r aliases ->
+          if TypeAlias.arity alias == 0
+            then go aliases (liftBody alias)
+            else t
+        _ -> t
 
 getCurrentDefs :: M v loc [v]
-getCurrentDefs = MT \_ _ _ _ _ defs env -> pure (defs, env)
+getCurrentDefs = MT \_ _ _ _ _ _ defs env -> pure (defs, env)
 
 insideDef :: v -> M v loc r -> M v loc r
 insideDef v (MT m) =
-  MT $ \ppe pmc vars datas effs defs env ->
-    m ppe pmc vars datas effs (v : defs) env
+  MT $ \ppe pmc vars datas effs aliases defs env ->
+    m ppe pmc vars datas effs aliases (v : defs) env
 
 getPatternMatchCoverageCheckAndKindInferenceSwitch :: M v loc PatternMatchCoverageCheckAndKindInferenceSwitch
 getPatternMatchCoverageCheckAndKindInferenceSwitch =
-  MT \_ pmcSwitch _ _ _ _ env -> pure (pmcSwitch, env)
+  MT \_ pmcSwitch _ _ _ _ _ env -> pure (pmcSwitch, env)
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -1161,7 +1214,7 @@ synthesize ::
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
 synthesize e | debugShow ("synthesize" :: String, e) = undefined
-synthesize e = scope (InSynthesize e) $
+synthesize e = scope (InSynthesize e) $ do
   case minimize' e of
     Left es -> failWith (DuplicateDefinitions es)
     Right e -> do
@@ -2840,15 +2893,19 @@ check ::
 check m t | debugShow ("check" :: String, m, t) = undefined
 check m0 t0 = scope (InCheck m0 t0) $ do
   ctx <- getContext
+  -- Expand any alias ref at the head before dispatching: the structural
+  -- cases of 'checkWanted' need to see an arrow / forall / ... not an
+  -- opaque ref.
+  t0Expanded <- whnfAlias t0
   case minimize' m0 of
     Left m -> failWith $ DuplicateDefinitions m
     Right m
-      | not (wellformedType ctx t0) ->
+      | not (wellformedType ctx t0Expanded) ->
           failWith $ IllFormedType ctx
-      | Type.Var' TypeVar.Existential {} <- t0 ->
-          applyM t0 >>= checkWanted Nothing [] m
+      | Type.Var' TypeVar.Existential {} <- t0Expanded ->
+          applyM t0Expanded >>= checkWanted Nothing [] m
       | otherwise ->
-          checkWanted Nothing [] m (Type.stripIntroOuters t0)
+          checkWanted Nothing [] m (Type.stripIntroOuters t0Expanded)
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
@@ -2856,7 +2913,11 @@ subtype :: forall v loc. (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc
 subtype tx ty | debugTypes "subtype" tx ty = undefined
 subtype tx ty = scope (InSubtype tx ty) $ do
   ctx <- getContext
-  go (ctx :: Context v loc) (Type.stripIntroOuters tx) (Type.stripIntroOuters ty)
+  -- Expand alias refs at the head before structural comparison so that
+  -- @Endo Nat <: Nat -> Nat@ succeeds. Stored forms keep alias refs.
+  tx' <- whnfAlias (Type.stripIntroOuters tx)
+  ty' <- whnfAlias (Type.stripIntroOuters ty)
+  go (ctx :: Context v loc) tx' ty'
   where
     -- Rules from figure 9
     go :: Context v loc -> Type v loc -> Type v loc -> M v loc ()
@@ -3595,16 +3656,17 @@ synthesizeClosed ::
 synthesizeClosed ppe pmcSwitch vars abilities lookupType term0 =
   let datas = TL.dataDecls lookupType
       effects = TL.effectDecls lookupType
+      aliases = TL.typeAliases lookupType
       term = annotateRefs (TL.typeOfTerm' lookupType) term0
    in case term of
         Left missingRef ->
           compilerCrashResult (UnknownTermReference missingRef)
-        Right term -> run ppe pmcSwitch vars datas effects $ do
+        Right term -> run ppe pmcSwitch vars datas effects aliases $ do
           liftResult $
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
               *> verifyClosedTerm term
-          doKindInference ppe datas effects term
+          doKindInference ppe datas effects aliases term
           synthesizeClosed' abilities term
 
 doKindInference ::
@@ -3616,16 +3678,18 @@ doKindInference ::
   PrettyPrintEnv ->
   DataDeclarations v loc ->
   Map Reference (EffectDeclaration v loc) ->
+  Map Reference (TypeAlias.TypeAlias v loc) ->
   Term v loc ->
   MT v loc (Result v loc) ()
-doKindInference ppe datas effects term = do
+doKindInference ppe datas effects aliases term = do
   getPatternMatchCoverageCheckAndKindInferenceSwitch >>= \case
     PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled -> pure ()
     PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled -> do
       let kindInferRes = do
             let decls = (Left <$> effects) <> (Right <$> datas)
             st <- KindInference.inferDecls ppe decls
-            KindInference.kindCheckAnnotations ppe st (TypeVar.lowerTerm term)
+            st' <- KindInference.inferAliases ppe st aliases
+            KindInference.kindCheckAnnotations ppe st' (TypeVar.lowerTerm term)
       case kindInferRes of
         Left (ke Nel.:| _kes) -> failWith (KindInferenceFailure ke)
         Right () -> pure ()
@@ -3667,11 +3731,12 @@ run ::
   Map Reference [Variance] ->
   DataDeclarations v loc ->
   EffectDeclarations v loc ->
+  TypeAliasMap v loc ->
   MT v loc f a ->
   f a
-run ppe pmcSwitch vars datas effects m =
+run ppe pmcSwitch vars datas effects aliases m =
   fmap fst
-    . runM m ppe pmcSwitch vars datas effects []
+    . runM m ppe pmcSwitch vars datas effects aliases []
     $ Env 1 context0
 
 synthesizeClosed' ::
@@ -3696,8 +3761,8 @@ synthesizeClosed' abilities term = do
 -- Check if the given typechecking action succeeds.
 succeeds :: M v loc a -> TotalM v loc Bool
 succeeds m =
-  MT \ppe pmccSwitch vars datas effects defs env ->
-    case runM m ppe pmccSwitch vars datas effects defs env of
+  MT \ppe pmccSwitch vars datas effects aliases defs env ->
+    case runM m ppe pmccSwitch vars datas effects aliases defs env of
       Success _ _ -> Right (True, env)
       TypeError _ _ -> Right (False, env)
       CompilerBug bug _ _ -> Left bug
@@ -3712,7 +3777,7 @@ isSubtype' type1 type2 = succeeds $ do
 
 -- See documentation at 'Unison.Typechecker.fitsScheme'
 fitsScheme :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
-fitsScheme type1 type2 = run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled defaultVariances Map.empty Map.empty $
+fitsScheme type1 type2 = run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled defaultVariances Map.empty Map.empty Map.empty $
   succeeds $ do
     let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
     reserveAll (TypeVar.underlying <$> vars)
@@ -3753,7 +3818,7 @@ isRedundant userType0 inferredType0 = do
 isSubtype ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
-  run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled defaultVariances Map.empty Map.empty (isSubtype' t1 t2)
+  run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled defaultVariances Map.empty Map.empty Map.empty (isSubtype' t1 t2)
 
 isEqual ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
@@ -3762,22 +3827,22 @@ isEqual t1 t2 =
 
 instance (Monad f) => Monad (MT v loc f) where
   return = pure
-  m >>= f = MT \ppe pmccSwitch vars datas effects defs env0 -> do
-    (a, env1) <- runM m ppe pmccSwitch vars datas effects defs env0
-    runM (f a) ppe pmccSwitch vars datas effects defs $! env1
+  m >>= f = MT \ppe pmccSwitch vars datas effects aliases defs env0 -> do
+    (a, env1) <- runM m ppe pmccSwitch vars datas effects aliases defs env0
+    runM (f a) ppe pmccSwitch vars datas effects aliases defs $! env1
 
 instance (Monad f) => MonadFail.MonadFail (MT v loc f) where
   fail = error
 
 instance (Monad f) => Applicative (MT v loc f) where
-  pure a = MT (\_ _ _ _ _ _ env -> pure (a, env))
+  pure a = MT (\_ _ _ _ _ _ _ env -> pure (a, env))
   (<*>) = ap
 
 instance (Monad f) => MonadState (Env v loc) (MT v loc f) where
-  get = MT \_ _ _ _ _ _ env -> pure (env, env)
-  put env = MT \_ _ _ _ _ _ _ -> pure ((), env)
+  get = MT \_ _ _ _ _ _ _ env -> pure (env, env)
+  put env = MT \_ _ _ _ _ _ _ _ -> pure ((), env)
 
 instance (MonadFix f) => MonadFix (MT v loc f) where
-  mfix f = MT \ppe pmccSwitch v a b c d ->
-    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) ppe pmccSwitch v a b c d)
+  mfix f = MT \ppe pmccSwitch v a b c als d ->
+    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) ppe pmccSwitch v a b c als d)
      in res
