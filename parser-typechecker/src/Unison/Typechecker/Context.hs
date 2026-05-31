@@ -910,10 +910,11 @@ whnfAlias ty = do
                         expanded = appsInherit body' extra
                      in go aliases expanded
       _ -> case ABT.out t of
-        ABT.Tm (Type.Ref r) | Just alias <- Map.lookup r aliases ->
-          if TypeAlias.arity alias == 0
-            then go aliases (liftBody alias)
-            else t
+        ABT.Tm (Type.Ref r)
+          | Just alias <- Map.lookup r aliases ->
+              if TypeAlias.arity alias == 0
+                then go aliases (liftBody alias)
+                else t
         _ -> t
 
 getCurrentDefs :: M v loc [v]

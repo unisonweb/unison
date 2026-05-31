@@ -55,4 +55,3 @@ instance Hashable1 F where
           tag 3 : case e of
             Type t -> [tag 0, hashed (Hashable.hash1 hashCycle hash t)]
             Alias a -> [tag 1, hashed (hash a)]
-

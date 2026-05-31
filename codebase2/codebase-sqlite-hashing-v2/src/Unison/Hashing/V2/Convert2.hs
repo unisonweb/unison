@@ -22,7 +22,6 @@ import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.BranchV3 (BranchV3 (..))
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.Decl qualified as V2.Decl
-import U.Codebase.TypeAlias qualified as V2.TypeAlias
 import U.Codebase.HashTags
 import U.Codebase.Kind qualified as V2
 import U.Codebase.Reference qualified as V2
@@ -35,6 +34,7 @@ import U.Codebase.Sqlite.Patch.TypeEdit qualified as Memory.TypeEdit
 import U.Codebase.Term qualified as V2 (TypeRef)
 import U.Codebase.Term qualified as V2.Term
 import U.Codebase.Type qualified as V2.Type
+import U.Codebase.TypeAlias qualified as V2.TypeAlias
 import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Hashing.V2 qualified as H2

@@ -64,6 +64,7 @@ import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Util.Base32Hex (Base32Hex)
 import U.Util.Base32Hex qualified as Base32Hex
+import Unison.ABT qualified as ABT
 import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceOrTarget (..))
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
@@ -80,10 +81,7 @@ import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath)
 import Unison.Core.Project (ProjectBranchName)
-import Unison.ABT qualified as ABT
 import Unison.DataDeclaration qualified as DD
-import Unison.TypeAlias (TypeAlias)
-import Unison.TypeAlias qualified as TypeAlias
 import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
@@ -118,6 +116,8 @@ import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.TypeAlias (TypeAlias)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid qualified as Monoid

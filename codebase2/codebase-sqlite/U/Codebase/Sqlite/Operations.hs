@@ -165,8 +165,6 @@ import U.Codebase.Sqlite.HashHandle (HashHandle (..))
 import U.Codebase.Sqlite.LocalIds (LocalIds, WatchLocalIds)
 import U.Codebase.Sqlite.LocalizeObject qualified as LocalizeObject
 import U.Codebase.Sqlite.ObjectType qualified as ObjectType
-import U.Codebase.Sqlite.TypeAlias.Format qualified as S.TypeAlias
-import U.Codebase.TypeAlias qualified as C.TypeAlias
 import U.Codebase.Sqlite.Patch.Diff qualified as S
 import U.Codebase.Sqlite.Patch.Format qualified as S
 import U.Codebase.Sqlite.Patch.Format qualified as S.Patch.Format
@@ -186,10 +184,12 @@ import U.Codebase.Sqlite.Referent qualified as S.Referent
 import U.Codebase.Sqlite.Serialization qualified as S
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.Term.Format qualified as S.Term
+import U.Codebase.Sqlite.TypeAlias.Format qualified as S.TypeAlias
 import U.Codebase.Term qualified as C
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.TermEdit qualified as C
 import U.Codebase.TermEdit qualified as C.TermEdit
+import U.Codebase.TypeAlias qualified as C.TypeAlias
 import U.Codebase.TypeEdit qualified as C
 import U.Codebase.TypeEdit qualified as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)

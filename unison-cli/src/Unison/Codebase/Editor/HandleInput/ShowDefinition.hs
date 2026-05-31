@@ -48,11 +48,11 @@ import Unison.Referent qualified as Referent
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Symbol (Symbol)
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.NamePrinter (SyntaxText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
-import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Type (Type)
 import Unison.TypeAlias (TypeAlias)
 import Unison.UnisonFile qualified as UnisonFile

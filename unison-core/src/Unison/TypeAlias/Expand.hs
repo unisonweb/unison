@@ -76,8 +76,9 @@ expand aliases = go
       _ -> case ABT.out t of
         -- A bare reference to an alias (no application) is an unsaturated
         -- use unless the alias is nullary.
-        ABT.Var v | Just alias <- Map.lookup v aliases ->
-          applyAlias v alias [] (ABT.annotation t)
+        ABT.Var v
+          | Just alias <- Map.lookup v aliases ->
+              applyAlias v alias [] (ABT.annotation t)
         _ -> goABT t
 
     applyAlias ::
@@ -271,10 +272,11 @@ topoSort aliases = reverse <$> dfsAll Set.empty Set.empty (Map.keys aliases) []
     -- Build alias -> set of alias names mentioned in its body, excluding the
     -- alias's own params (which are bound inside the body).
     edges :: Map v (Set v)
-    edges = aliases & Map.map \alias ->
-      ABT.freeVars alias.body
-        & Set.intersection (Map.keysSet aliases)
-        & flip Set.difference (Set.fromList alias.paramNames)
+    edges =
+      aliases & Map.map \alias ->
+        ABT.freeVars alias.body
+          & Set.intersection (Map.keysSet aliases)
+          & flip Set.difference (Set.fromList alias.paramNames)
 
     -- DFS with two-color marking: 'inProgress' detects back-edges (cycles);
     -- 'done' suppresses revisits.

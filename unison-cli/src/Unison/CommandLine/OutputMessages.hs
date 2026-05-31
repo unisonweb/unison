@@ -139,7 +139,6 @@ import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
-import Unison.TypeAlias qualified as TypeAlias
 import Unison.Syntax.HashQualified qualified as HQ (toText, unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Syntax.NamePrinter
@@ -159,6 +158,7 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))

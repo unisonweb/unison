@@ -111,7 +111,6 @@ import Unison.Builtin qualified as B
 import Unison.Builtin.Decls qualified as Decls
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.TypeAlias (TypeAlias)
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
@@ -182,6 +181,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.TypeAlias (TypeAlias)
 import Unison.Typechecker qualified as Typechecker
 import Unison.Util.AnnotatedText (AnnotatedText)
 import Unison.Util.List (uniqueBy)

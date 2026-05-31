@@ -9,11 +9,11 @@ import U.Codebase.Branch.Hashing qualified as H2
 import U.Codebase.Causal.Hashing qualified as H2
 import U.Codebase.Decl.Hashing qualified as H2
 import U.Codebase.HashTags (BranchHash (..), PatchHash (..))
-import U.Codebase.TypeAlias.Hashing qualified as H2
 import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
 import U.Codebase.Sqlite.HashHandle
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Term.Hashing as H2
+import U.Codebase.TypeAlias.Hashing qualified as H2
 import U.Util.Type (removeAllEffectVars)
 import Unison.Hashing.V2 qualified as H2
 import Unison.Hashing.V2.Convert2 (h2ToV2Reference, hashBranchFormatToH2Branch, hashPatchFormatToH2Patch, v2ToH2Type, v2ToH2TypeD)

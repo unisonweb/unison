@@ -13,9 +13,8 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration (..), EffectDeclaration)
 import Unison.DataDeclaration qualified as DataDeclaration
-import Unison.TypeAlias qualified
-import Unison.TypeAlias.Expand qualified as TypeAlias.Expand
 import Unison.DataDeclaration.Records (generateRecordAccessors)
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
@@ -24,7 +23,6 @@ import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
-import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
@@ -38,6 +36,8 @@ import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Type.Names qualified as Type.Names
+import Unison.TypeAlias qualified
+import Unison.TypeAlias.Expand qualified as TypeAlias.Expand
 import Unison.UnisonFile (UnisonFile (..))
 import Unison.UnisonFile.Env qualified as UF
 import Unison.UnisonFile.Names qualified as UFN
@@ -304,7 +304,9 @@ synDeclsToDecls ::
   forall m v.
   (Monad m, Var v) =>
   [SynDecl v] ->
-  P v m
+  P
+    v
+    m
     ( Map v (DataDeclaration v Ann),
       Map v (EffectDeclaration v Ann),
       Map v (Unison.TypeAlias.TypeAlias v Ann)

@@ -30,8 +30,8 @@ import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.TempEntity (TempEntity)
-import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Util.Base32Hex (Base32Hex (..))
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Path qualified as Path

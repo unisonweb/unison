@@ -400,9 +400,6 @@ import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.Decl.Format qualified as S.Decl
 import U.Codebase.Sqlite.Decode
-import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
-import U.Codebase.Sqlite.TypeAlias.Format qualified as S.TypeAlias
-import U.Codebase.TypeAlias qualified as C.TypeAlias
 import U.Codebase.Sqlite.Entity (SyncEntity)
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
@@ -433,9 +430,12 @@ import U.Codebase.Sqlite.TempEntityType (TempEntityType)
 import U.Codebase.Sqlite.TempEntityType qualified as TempEntityType
 import U.Codebase.Sqlite.Term.Format qualified as S.Term
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.TypeAlias.Format qualified as S.TypeAlias
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Term qualified as C
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type
+import U.Codebase.TypeAlias qualified as C.TypeAlias
 import U.Codebase.WatchKind (WatchKind)
 import U.Core.ABT qualified as ABT
 import U.Util.Serialization qualified as S
