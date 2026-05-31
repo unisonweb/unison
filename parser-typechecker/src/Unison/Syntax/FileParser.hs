@@ -85,10 +85,14 @@ file = do
   -- Apply the namespace directive (if there is one) to the decls
   let synDecls = maybe id applyNamespaceToSynDecls maybeNamespaceVar unNamespacedSynDecls
 
+  -- Make real data/effect decls from the "syntactic" ones, and capture the
+  -- file's type aliases (already normalized + cycle-checked). Aliases are
+  -- consumed: they don't appear in the resulting decls, but we keep them
+  -- around to expand aliases in term type signatures below.
+  (dataDecls, effectDecls, fileAliases) <- synDeclsToDecls synDecls
+
   -- Compute an environment from the decls that we use to parse terms
   env <- do
-    -- Make real data/effect decls from the "syntactic" ones
-    (dataDecls, effectDecls) <- synDeclsToDecls synDecls
     result <- UFN.environmentFor namesStart dataDecls effectDecls & onLeft \errs -> resolutionFailures (toList errs)
     result & onLeft \errs -> P.customFailure (TypeDeclarationErrors errs)
 
@@ -177,12 +181,28 @@ file = do
             Name.toVar
             (Set.fromList fqLocalTerms)
             (Names.shadowTerms (map Name.unsafeParseVar fqLocalTerms) names)
+    -- Expand any type aliases used in term type signatures BEFORE name
+    -- resolution. The alias names would otherwise fail to resolve as type
+    -- refs (aliases aren't in the names env for now); expanding first
+    -- substitutes the alias bodies in place, leaving only references to
+    -- real types that bindNames can resolve.
+    let expandTermAliases = TypeAlias.Expand.expandInTerm fileAliases
+    terms <- forM terms \(v, a, tm) -> case expandTermAliases tm of
+      Right tm' -> pure (v, a, tm')
+      Left (TypeAlias.Expand.UnsaturatedAliasUse name expected actual ann) ->
+        P.customFailure (UnsaturatedTypeAlias ann name expected actual)
+    watches <- forM watches \(wk, (v, a, tm)) -> case expandTermAliases tm of
+      Right tm' -> pure (wk, (v, a, tm'))
+      Left (TypeAlias.Expand.UnsaturatedAliasUse name expected actual ann) ->
+        P.customFailure (UnsaturatedTypeAlias ann name expected actual)
+
     terms <- case List.validate (traverseOf _3 bindNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
     watches <- case List.validate (traverseOf (traversed . _3) bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
+
     validateUnisonFile
       maybeAnnotatedNamespace
       (UF.datasId env)
@@ -251,7 +271,14 @@ applyNamespaceToSynDecls namespace decls =
         & Set.toList
         & map (\v -> (v, Type.var () (Var.namespaced2 namespace v)))
 
-synDeclsToDecls :: (Monad m, Var v) => [SynDecl v] -> P v m (Map v (DataDeclaration v Ann), Map v (EffectDeclaration v Ann))
+synDeclsToDecls ::
+  (Monad m, Var v) =>
+  [SynDecl v] ->
+  P v m
+    ( Map v (DataDeclaration v Ann),
+      Map v (EffectDeclaration v Ann),
+      Map v (Unison.TypeAlias.TypeAlias v Ann)
+    )
 synDeclsToDecls decls = do
   -- 1. Collect aliases separately from data/effect decls.
   let (datasRaw, effectsRaw, aliasesRaw) = partitionDecls decls
@@ -298,7 +325,7 @@ synDeclsToDecls decls = do
     Map.empty
     effectsRaw
 
-  pure (datas, effects)
+  pure (datas, effects, aliases)
 
 -- | Split a parsed decl list into data, effect, and alias maps.
 partitionDecls ::

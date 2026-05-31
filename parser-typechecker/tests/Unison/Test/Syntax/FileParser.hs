@@ -63,6 +63,7 @@ test =
       emptyBlockTest,
       expectedBlockOpenTest,
       typeAliasExpandsInDataDeclTest,
+      typeAliasExpandsInTermSignatureTest,
       typeAliasUnsaturatedTest,
       typeAliasCycleTest
     ]
@@ -127,6 +128,16 @@ typeAliasExpandsInDataDeclTest =
     unlines
       [ "type alias Endo a = a -> a",
         "type Box = Box (Endo Nat)"
+      ]
+
+-- | A @type alias@ used inside a term type signature expands correctly.
+typeAliasExpandsInTermSignatureTest :: Test ()
+typeAliasExpandsInTermSignatureTest =
+  scope "typeAliasExpandsInTermSignatureTest" . parses $
+    unlines
+      [ "type alias Endo a = a -> a",
+        "f : Endo Nat",
+        "f x = x"
       ]
 
 -- | An unsaturated use of a type alias surfaces 'UnsaturatedTypeAlias'.

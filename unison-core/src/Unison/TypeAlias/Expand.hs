@@ -2,6 +2,7 @@ module Unison.TypeAlias.Expand
   ( -- * Expansion
     expand,
     expandAll,
+    expandInTerm,
     ExpansionError (..),
 
     -- * Normalization
@@ -14,6 +15,8 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.Prelude
+import Unison.Term (Term)
+import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.TypeAlias (TypeAlias (..))
@@ -103,6 +106,25 @@ expandAll ::
   t (Type v a) ->
   Either (ExpansionError v a) (t (Type v a))
 expandAll aliases = traverse (expand aliases)
+
+-- | Walk a term and apply 'expand' to every type appearing in a type
+-- annotation (the 'Term.Ann' node).
+--
+-- 'Term.F' carries inline 'Type' expressions only in @Ann a Type@ nodes;
+-- @Constructor@, @Request@, and @TypeLink@ use 'Reference's and don't carry
+-- inline types. So this walk is exhaustive for in-line type usage.
+expandInTerm ::
+  forall v a.
+  (Var v, Semigroup a) =>
+  Map v (TypeAlias v a) ->
+  Term v a ->
+  Either (ExpansionError v a) (Term v a)
+expandInTerm aliases = ABT.transformM go
+  where
+    go :: forall x. Term.F v a a x -> Either (ExpansionError v a) (Term.F v a a x)
+    go = \case
+      Term.Ann body typ -> Term.Ann body <$> expand aliases typ
+      other -> Right other
 
 -- | Normalize a set of aliases so each body no longer mentions any other
 -- alias from the input map. Detects dependency cycles.
