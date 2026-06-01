@@ -2147,13 +2147,15 @@ getTransitiveDependentsWithinScope scope query = do
   execute [sql| DROP TABLE $scopeTableName |]
   execute [sql| DROP TABLE $queryTableName |]
 
-  -- Post-process the query result
+  -- Post-process the query result. Aliases share the types slot with
+  -- decls — both produce type-position dependents.
   let result1 =
         List.foldl'
           ( \deps -> \case
               dep :. Only TermComponent -> let !terms = Set.insert dep deps.terms in Defns terms deps.types
               dep :. Only DeclComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
-              _ -> deps -- impossible; could error here
+              dep :. Only TypeAliasComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
+              _ -> deps -- namespaces and patches have no dependents we'd track here
           )
           (Defns Set.empty Set.empty)
           result0

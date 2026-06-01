@@ -97,24 +97,35 @@ file = do
     result <- UFN.environmentFor namesStart dataDecls effectDecls & onLeft \errs -> resolutionFailures (toList errs)
     result & onLeft \errs -> P.customFailure (TypeDeclarationErrors errs)
 
-  -- Resolve external refs in alias bodies before hashing. The alias's
-  -- bound params are kept free; everything else is bound against
-  -- 'namesStart' shadowed by the file's local decls, so that names like
-  -- @Nat@ in @type alias NatFun a = Nat -> a@ resolve.
+  -- Resolve external refs in each alias body, then hash. We process in
+  -- dependency order so that an alias whose body mentions another
+  -- already-hashed alias resolves that mention to a ref.
+  --
+  -- Bound params are kept free; everything else is bound against
+  -- 'namesStart' shadowed by the file's local decls plus the aliases
+  -- we've already processed.
+  let baseEnvNames = Names.shadowing (UF.names env) namesStart
+  let resolveAlias accNames alias = do
+        resolvedBody <-
+          Type.Names.bindNames
+            Name.unsafeParseVar
+            Name.toVar
+            (Set.fromList alias.paramNames)
+            accNames
+            alias.body
+            & onLeft \errs -> resolutionFailures (toList errs)
+        let resolvedAlias = alias {Unison.TypeAlias.body = resolvedBody}
+        pure (Hashing.hashTypeAlias resolvedAlias, resolvedAlias)
+  let step (accNames, acc) (v, alias) = do
+        (refId, resolved) <- resolveAlias accNames alias
+        let accNames' =
+              Names.fromTermsAndTypes
+                []
+                [(Name.unsafeParseVar v, Reference.DerivedId refId)]
+                <> accNames
+        pure (accNames', Map.insert v (refId, resolved) acc)
   fileAliasesWithHashes :: Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) <-
-    let envNames = Names.shadowing (UF.names env) namesStart
-        resolveAlias alias = do
-          resolvedBody <-
-            Type.Names.bindNames
-              Name.unsafeParseVar
-              Name.toVar
-              (Set.fromList alias.paramNames)
-              envNames
-              alias.body
-              & onLeft \errs -> resolutionFailures (toList errs)
-          let resolvedAlias = alias {Unison.TypeAlias.body = resolvedBody}
-          pure (Hashing.hashTypeAlias resolvedAlias, resolvedAlias)
-     in traverse resolveAlias fileAliases
+    snd <$> foldM step (baseEnvNames, Map.empty) fileAliases
 
   -- Generate the record accessors with *un-namespaced* names below, because we need to know these names in order to
   -- perform rewriting. As an example,
@@ -297,15 +308,16 @@ synDeclsToDecls ::
     m
     ( Map v (DataDeclaration v Ann),
       Map v (EffectDeclaration v Ann),
-      Map v (Unison.TypeAlias.TypeAlias v Ann)
+      [(v, Unison.TypeAlias.TypeAlias v Ann)]
     )
 synDeclsToDecls decls = do
   let (datasRaw, effectsRaw, aliasesRaw) = partitionDecls decls
 
-  -- Normalize aliases (cycle-check and flatten alias-of-alias references).
+  -- Cycle-check aliases and order them so each appears after the aliases
+  -- it references — callers downstream resolve and hash in this order.
   aliases <-
-    case TypeAlias.Expand.normalize aliasesRaw of
-      Right normalized -> pure normalized
+    case TypeAlias.Expand.inDependencyOrder aliasesRaw of
+      Right ordered -> pure ordered
       Left (TypeAlias.Expand.AliasCycle names) ->
         let anns =
               names
