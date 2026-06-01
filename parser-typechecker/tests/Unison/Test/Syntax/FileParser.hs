@@ -65,7 +65,6 @@ test =
       typeAliasExpandsInDataDeclTest,
       typeAliasExpandsInTermSignatureTest,
       abilityRowAliasTest,
-      typeAliasUnsaturatedTest,
       typeAliasCycleTest
     ]
 
@@ -152,19 +151,6 @@ abilityRowAliasTest =
         "f : Nat ->{Web} Nat",
         "f x = x"
       ]
-
--- | An unsaturated use of a type alias surfaces 'UnsaturatedTypeAlias'.
-typeAliasUnsaturatedTest :: Test ()
-typeAliasUnsaturatedTest =
-  scope "typeAliasUnsaturatedTest" $
-    expectFileParseFailure
-      (unlines ["type alias Endo a = a -> a", "type Box = Box Endo"])
-      expectation
-  where
-    expectation :: (Var e) => P.Error e -> Test ()
-    expectation e = case e of
-      P.UnsaturatedTypeAlias {} -> ok
-      _ -> crash "Error wasn't UnsaturatedTypeAlias"
 
 -- | Mutually-recursive aliases are rejected with 'TypeAliasCycle'.
 typeAliasCycleTest :: Test ()

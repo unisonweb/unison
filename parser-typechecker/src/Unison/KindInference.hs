@@ -15,8 +15,11 @@
 -- decls are well-kinded with 'kindCheckAnnotations'.
 module Unison.KindInference
   ( inferDecls,
+    inferDeclsFromState,
     inferAliases,
     kindCheckAnnotations,
+    initialState,
+    kindEnv,
     KindError,
   )
 where
@@ -38,6 +41,10 @@ import Unison.Term qualified as Term
 import Unison.TypeAlias (TypeAlias)
 import Unison.Var qualified as Var
 
+-- | Build a 'Env' used by the solver from a 'PrettyPrintEnv'.
+kindEnv :: PrettyPrintEnv.PrettyPrintEnv -> Env
+kindEnv = Env
+
 -- | Check that all annotations in a term are well-kinded
 kindCheckAnnotations ::
   forall v loc.
@@ -58,7 +65,18 @@ inferDecls ::
   PrettyPrintEnv.PrettyPrintEnv ->
   Map Reference (Decl v loc) ->
   Either (NonEmpty (KindError v loc)) (SolveState v loc)
-inferDecls ppe declMap =
+inferDecls ppe = inferDeclsFromState ppe (initialState (Env ppe))
+
+-- | Like 'inferDecls', but threads an existing 'SolveState' (lets
+-- callers pre-populate it, e.g. with alias refs before decls run).
+inferDeclsFromState ::
+  forall v loc.
+  (Var.Var v, BuiltinAnnotation loc, Ord loc, Show loc) =>
+  PrettyPrintEnv.PrettyPrintEnv ->
+  SolveState v loc ->
+  Map Reference (Decl v loc) ->
+  Either (NonEmpty (KindError v loc)) (SolveState v loc)
+inferDeclsFromState ppe initState declMap =
   let components :: [[(Reference, Decl v loc)]]
       components = intoComponents declMap
 
@@ -75,7 +93,7 @@ inferDecls ppe declMap =
       handleComponents ::
         [[(Reference, Decl v loc)]] ->
         Either (NonEmpty (KindError v loc)) (SolveState v loc)
-      handleComponents = verify <=< foldlM phi (initialState env)
+      handleComponents = verify <=< foldlM phi initState
         where
           phi b a = handleComponent b a
    in defaultUnconstrainedVars <$> handleComponents components

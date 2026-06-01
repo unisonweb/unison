@@ -89,22 +89,35 @@ file = do
   let synDecls = maybe id applyNamespaceToSynDecls maybeNamespaceVar unNamespacedSynDecls
 
   -- Make real data/effect decls from the "syntactic" ones, and capture the
-  -- file's type aliases (already normalized + cycle-checked).
+  -- file's type aliases (already cycle-checked, in dependency order).
   (dataDecls, effectDecls, fileAliases) <- synDeclsToDecls synDecls
 
-  -- Compute an environment from the decls that we use to parse terms
-  env <- do
-    result <- UFN.environmentFor namesStart dataDecls effectDecls & onLeft \errs -> resolutionFailures (toList errs)
-    result & onLeft \errs -> P.customFailure (TypeDeclarationErrors errs)
-
-  -- Resolve external refs in each alias body, then hash. We process in
-  -- dependency order so that an alias whose body mentions another
-  -- already-hashed alias resolves that mention to a ref.
+  -- Decls and aliases can reference each other but not cyclically. We
+  -- hash in two passes around 'environmentFor':
   --
-  -- Bound params are kept free; everything else is bound against
-  -- 'namesStart' shadowed by the file's local decls plus the aliases
-  -- we've already processed.
-  let baseEnvNames = Names.shadowing (UF.names env) namesStart
+  -- 1. Aliases whose bodies only reference codebase types or other
+  --    aliases earlier in the list. Their refs feed into the decl env.
+  -- 2. 'environmentFor' produces decl refs.
+  -- 3. Remaining aliases — those whose bodies reference file decls —
+  --    are hashed against the now-populated decl env.
+  --
+  -- A body that references something not yet available falls into phase
+  -- 3 automatically; if phase 3 still can't resolve it, that surfaces
+  -- the real error.
+  let fileDeclNames :: Set Name.Name
+      fileDeclNames =
+        Set.fromList
+          [ Name.unsafeParseVar v
+          | v <- Map.keys dataDecls ++ Map.keys effectDecls
+          ]
+  let mentionsFileDecl :: Unison.TypeAlias.TypeAlias v Ann -> Bool
+      mentionsFileDecl alias =
+        any
+          (\fv -> Set.member (Name.unsafeParseVar fv) fileDeclNames)
+          (ABT.freeVars alias.body)
+  let (aliasesBeforeDecls, aliasesAfterDecls) =
+        List.partition (\(_v, ta) -> not (mentionsFileDecl ta)) fileAliases
+
   let resolveAlias accNames alias = do
         resolvedBody <-
           Type.Names.bindNames
@@ -116,7 +129,7 @@ file = do
             & onLeft \errs -> resolutionFailures (toList errs)
         let resolvedAlias = alias {Unison.TypeAlias.body = resolvedBody}
         pure (Hashing.hashTypeAlias resolvedAlias, resolvedAlias)
-  let step (accNames, acc) (v, alias) = do
+  let aliasStep (accNames, acc) (v, alias) = do
         (refId, resolved) <- resolveAlias accNames alias
         let accNames' =
               Names.fromTermsAndTypes
@@ -124,8 +137,32 @@ file = do
                 [(Name.unsafeParseVar v, Reference.DerivedId refId)]
                 <> accNames
         pure (accNames', Map.insert v (refId, resolved) acc)
-  fileAliasesWithHashes :: Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) <-
-    snd <$> foldM step (baseEnvNames, Map.empty) fileAliases
+
+  -- Phase 1: aliases that don't reference file decls.
+  (envNamesAfterPhase1, aliasesPhase1) <-
+    foldM aliasStep (namesStart, Map.empty) aliasesBeforeDecls
+
+  -- Phase 2: hash decls. Their constructor types can resolve any
+  -- phase-1 alias name to its ref.
+  env <- do
+    result <- UFN.environmentFor envNamesAfterPhase1 dataDecls effectDecls & onLeft \errs -> resolutionFailures (toList errs)
+    result & onLeft \errs -> P.customFailure (TypeDeclarationErrors errs)
+
+  -- Phase 3: aliases that reference file decls.
+  let envNamesAfterPhase2 = Names.shadowing (UF.names env) envNamesAfterPhase1
+  (_, aliasesPhase3) <-
+    foldM aliasStep (envNamesAfterPhase2, Map.empty) aliasesAfterDecls
+
+  let fileAliasesWithHashes :: Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann)
+      fileAliasesWithHashes = aliasesPhase1 <> aliasesPhase3
+
+  let aliasNamesForDecls :: Names
+      aliasNamesForDecls =
+        Names.fromTermsAndTypes
+          []
+          [ (Name.unsafeParseVar v, Reference.DerivedId rid)
+          | (v, (rid, _)) <- Map.toList fileAliasesWithHashes
+          ]
 
   -- Generate the record accessors with *un-namespaced* names below, because we need to know these names in order to
   -- perform rewriting. As an example,
@@ -163,19 +200,10 @@ file = do
             Nothing -> id
             Just namespace -> over (mapped . _1) (Var.namespaced2 namespace)
 
-  -- File-local aliases as a 'Names' so type-position references to alias
-  -- names resolve to alias refs during term parsing.
-  let aliasNames :: Names
-      aliasNames =
-        Names.fromTermsAndTypes
-          []
-          [ (Name.unsafeParseVar v, Reference.DerivedId rid)
-          | (v, (rid, _)) <- Map.toList fileAliasesWithHashes
-          ]
-
   -- At this stage of the file parser, we've parsed all the type and ability
-  -- declarations.
-  let envNamesWithAliases = aliasNames <> UF.names env
+  -- declarations. File-local alias names are visible during term parsing
+  -- so type-position references to them resolve to alias refs.
+  let envNamesWithAliases = aliasNamesForDecls <> UF.names env
   let updateEnvForTermParsing e =
         e
           { names = Names.shadowing envNamesWithAliases namesStart,

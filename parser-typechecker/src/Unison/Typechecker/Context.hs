@@ -3684,9 +3684,18 @@ doKindInference ppe datas effects aliases term = do
     PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled -> do
       let kindInferRes = do
             let decls = (Left <$> effects) <> (Right <$> datas)
-            st <- KindInference.inferDecls ppe decls
-            st' <- KindInference.inferAliases ppe st aliases
-            KindInference.kindCheckAnnotations ppe st' (TypeVar.lowerTerm term)
+            -- Aliases get split: bodies that don't reference any of the
+            -- file's decls go BEFORE inferDecls (so decl ctors can find
+            -- them); the rest go AFTER (so they can find decl refs).
+            let declRefs = Map.keysSet datas <> Map.keysSet effects
+            let (aliasesBefore, aliasesAfter) =
+                  Map.partition
+                    (\ta -> Set.null (Set.intersection declRefs (TypeAlias.dependencies ta)))
+                    aliases
+            st0 <- KindInference.inferAliases ppe (KindInference.initialState (KindInference.kindEnv ppe)) aliasesBefore
+            st1 <- KindInference.inferDeclsFromState ppe st0 decls
+            st2 <- KindInference.inferAliases ppe st1 aliasesAfter
+            KindInference.kindCheckAnnotations ppe st2 (TypeVar.lowerTerm term)
       case kindInferRes of
         Left (ke Nel.:| _kes) -> failWith (KindInferenceFailure ke)
         Right () -> pure ()
