@@ -40,11 +40,16 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch (Branch0)
+import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Path (Path)
+import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -59,11 +64,6 @@ import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
-import Unison.Codebase.Branch (Branch0)
-import Unison.Codebase.BranchUtil qualified as BranchUtil
-import Unison.Codebase.Path (Path)
-import Unison.Codebase.Path qualified as Path
-import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.TypeAlias (TypeAlias)

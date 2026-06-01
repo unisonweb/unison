@@ -28,7 +28,6 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.UpdateUtils (aliasDependentsInOrder, getNamespaceDependentsOf, hydrateAliases, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, propagateAliasUpdates, subtractDependents)
-import Unison.TypeAlias (TypeAlias)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -65,6 +64,7 @@ import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
+import Unison.TypeAlias (TypeAlias)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -195,9 +195,10 @@ handleUpdate2 = do
             let aliasDependentsByName :: Map TypeReferenceId (Name, TypeAlias Symbol Ann)
                 aliasDependentsByName =
                   Map.foldlWithKey'
-                    (\acc name refId -> case Map.lookup refId aliasBodies of
-                       Just ta -> Map.insert refId (name, ta) acc
-                       Nothing -> acc)
+                    ( \acc name refId -> case Map.lookup refId aliasBodies of
+                        Just ta -> Map.insert refId (name, ta) acc
+                        Nothing -> acc
+                    )
                     Map.empty
                     dependents1.types
 
@@ -323,10 +324,10 @@ handleUpdate2 = do
             let initialSubsts =
                   Map.fromList
                     [ (oldRef, Reference.fromId newRefId)
-                      | name <- Set.toList addedOrUpdatedNamespaceBindings.types,
-                        oldRef <- toList (Relation.lookupDom name unconflictedView.names.types),
-                        Just newRefId <- [Map.lookup (Name.toVar name) (UF.namespaceBindingsMap secondTuf).types],
-                        oldRef /= Reference.fromId newRefId
+                    | name <- Set.toList addedOrUpdatedNamespaceBindings.types,
+                      oldRef <- toList (Relation.lookupDom name unconflictedView.names.types),
+                      Just newRefId <- [Map.lookup (Name.toVar name) (UF.namespaceBindingsMap secondTuf).types],
+                      oldRef /= Reference.fromId newRefId
                     ]
             (_, aliasUpdates) <-
               propagateAliasUpdates
