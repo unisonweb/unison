@@ -55,7 +55,6 @@ import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration, Decl, EffectDeclaration (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration qualified as DataDeclaration
-import Unison.TypeAlias qualified as TypeAlias
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.Convert qualified as Hashing
@@ -72,6 +71,7 @@ import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.TypeAlias (TypeAlias)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), pattern TypecheckedUnisonFile, pattern UnisonFile)
 import Unison.Util.Defns (Defns (..), DefnsF)
@@ -561,7 +561,6 @@ typeNamespaceBindingsMap uf =
       Map.map fst uf.effectDeclarationsId',
       Map.map fst uf.typeAliasesId'
     ]
-
 
 -- | View the top-level definitions of a typechecked unison file as a map from name to ref id (throwing away
 -- constructors, as well as term and type bodies).

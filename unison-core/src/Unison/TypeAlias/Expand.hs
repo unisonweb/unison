@@ -113,10 +113,11 @@ topoSort ::
 topoSort aliases = reverse <$> dfsAll Set.empty Set.empty (Map.keys aliases) []
   where
     edges :: Map v (Set v)
-    edges = aliases & Map.map \alias ->
-      ABT.freeVars alias.body
-        & Set.intersection (Map.keysSet aliases)
-        & flip Set.difference (Set.fromList alias.paramNames)
+    edges =
+      aliases & Map.map \alias ->
+        ABT.freeVars alias.body
+          & Set.intersection (Map.keysSet aliases)
+          & flip Set.difference (Set.fromList alias.paramNames)
 
     dfsAll ::
       Set v -> -- done
