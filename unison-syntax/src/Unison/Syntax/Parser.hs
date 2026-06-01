@@ -230,10 +230,6 @@ data Error v
   | FloatPattern Ann
   | -- Bound the same variable twice
     DuplicateBinders Ann Ann v
-  | -- | A @type alias@ declaration was parsed, but the elaborator that
-    -- expands them at use sites hasn't landed yet. The 'Ann' points at the
-    -- alias declaration's span.
-    TypeAliasNotYetImplemented Ann
   | -- | A @type alias@ was used without enough arguments. Carries the use
     -- site annotation, the alias name, the expected arity, and the actual
     -- number of arguments provided.

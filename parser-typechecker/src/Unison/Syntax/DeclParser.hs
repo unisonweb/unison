@@ -15,10 +15,12 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name qualified as Name
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Lexer.Unison qualified as LU
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TermParser
@@ -202,7 +204,9 @@ synTypeAliasDeclP modifier0 = do
   -- Aliases don't accept structural/unique modifiers.
   when (isJust modifier0) (P.failure Nothing mempty)
   typeToken <- fmap void (reserved "type") <|> openBlockWith "type"
-  _ <- reserved "alias"
+  -- `alias` is contextual: not a reserved keyword, just an ordinary
+  -- identifier that the parser recognizes specifically here.
+  _ <- aliasContextualKw
   name <- TermParser.verifyRelativeVarName prefixDefinitionName
   typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let tyvars = L.payload <$> typeArgs
@@ -219,6 +223,15 @@ synTypeAliasDeclP modifier0 = do
         name,
         tyvars
       }
+
+-- | Match the bare identifier "alias" — used contextually after @type@
+-- to recognize a type-alias declaration without making @alias@ a reserved
+-- keyword.
+aliasContextualKw :: (Ord v) => P v m (L.Token ())
+aliasContextualKw = queryToken \case
+  LU.WordyId (HQ'.NameOnly n)
+    | Name.toText n == "alias" -> Just ()
+  _ -> Nothing
 
 synEffectDeclP :: forall m v. (Monad m, Var v) => Maybe (L.Token UnresolvedModifier) -> P v m (SynEffectDecl v)
 synEffectDeclP modifier0 = do

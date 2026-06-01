@@ -36,11 +36,17 @@ loadUniqueTypeGuid loadNamespaceAtPath path name =
           guids <-
             Map.keys refs0 & witherM \case
               Codebase.Reference.ReferenceBuiltin _ -> pure Nothing
-              Codebase.Reference.ReferenceDerived id -> do
-                decl <- Operations.expectDeclByReference id
-                pure case Codebase.Decl.modifier decl of
-                  Codebase.Decl.Structural -> Nothing
-                  Codebase.Decl.Unique guid -> Just guid
+              ref@(Codebase.Reference.ReferenceDerived id) -> do
+                -- Type aliases share the type namespace slot with decls
+                -- but have no unique-type guid. Skip them.
+                isAlias <- Operations.isTypeAliasReference ref
+                if isAlias
+                  then pure Nothing
+                  else do
+                    decl <- Operations.expectDeclByReference id
+                    pure case Codebase.Decl.modifier decl of
+                      Codebase.Decl.Structural -> Nothing
+                      Codebase.Decl.Unique guid -> Just guid
           pure case guids of
             [] -> Nothing
             guid : _ -> Just guid

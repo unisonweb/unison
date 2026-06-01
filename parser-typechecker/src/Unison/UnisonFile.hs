@@ -55,6 +55,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration, Decl, EffectDeclaration (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.Convert qualified as Hashing
@@ -377,7 +378,8 @@ dependencies file =
           types =
             Set.unions
               [ foldMap (DD.typeDependencies . snd) file.dataDeclarationsId,
-                foldMap (DD.typeDependencies . DD.toDataDecl . snd) file.effectDeclarationsId
+                foldMap (DD.typeDependencies . DD.toDataDecl . snd) file.effectDeclarationsId,
+                foldMap (TypeAlias.dependencies . snd) file.typeAliasesId
               ]
         },
       foldMap (Term.dependencies . snd) file.terms,
@@ -544,15 +546,22 @@ termNamespaceBindingsMap uf =
 -- | All bindings in the term namespace: data declarations and effect declarations.
 typeNamespaceBindings :: (Ord v) => TypecheckedUnisonFile v a -> Set v
 typeNamespaceBindings uf =
-  datas <> effs
+  datas <> effs <> aliases
   where
     datas = Map.keysSet uf.dataDeclarationsId'
     effs = Map.keysSet uf.effectDeclarationsId'
+    aliases = Map.keysSet uf.typeAliasesId'
 
 -- | Like 'typeNamespaceBindings', but returns a map from variable name to reference.
+-- Includes alias entries — they're type-position bindings just like decls.
 typeNamespaceBindingsMap :: (Ord v) => TypecheckedUnisonFile v a -> Map v TypeReferenceId
 typeNamespaceBindingsMap uf =
-  Map.union (Map.map fst uf.dataDeclarationsId') (Map.map fst uf.effectDeclarationsId')
+  Map.unions
+    [ Map.map fst uf.dataDeclarationsId',
+      Map.map fst uf.effectDeclarationsId',
+      Map.map fst uf.typeAliasesId'
+    ]
+
 
 -- | View the top-level definitions of a typechecked unison file as a map from name to ref id (throwing away
 -- constructors, as well as term and type bodies).
@@ -560,7 +569,12 @@ toDefnsIdsByName :: forall a v. (Var v) => TypecheckedUnisonFile v a -> DefnsF (
 toDefnsIdsByName file =
   Defns
     { terms = Map.foldlWithKey' f Map.empty file.hashTermsId,
-      types = Map.union (g file.dataDeclarationsId') (g file.effectDeclarationsId')
+      types =
+        Map.unions
+          [ g file.dataDeclarationsId',
+            g file.effectDeclarationsId',
+            g file.typeAliasesId'
+          ]
     }
   where
     f ::

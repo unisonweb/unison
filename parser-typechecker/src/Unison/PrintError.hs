@@ -2168,16 +2168,6 @@ renderParseErrors s = \case
                 Pr.wrap "A variable can only be bound once in a pattern."
               ]
        in (msg, mapMaybe rangeForAnnotated [ann1, ann2])
-    go (Parser.TypeAliasNotYetImplemented ann) =
-      let msg =
-            Pr.lines
-              [ Pr.wrap "I parsed a `type alias` declaration, but the elaborator that expands aliases at use sites hasn't landed yet.",
-                "",
-                annotatedAsErrorSite s ann,
-                "",
-                Pr.wrap "See docs/type-aliases.markdown for the design."
-              ]
-       in (msg, mapMaybe rangeForAnnotated [ann])
     go (Parser.UnsaturatedTypeAlias ann name expected actual) =
       let msg =
             Pr.lines

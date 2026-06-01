@@ -969,29 +969,34 @@ getDataConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (T
 getDataConstructorType = getConstructorType' Data getDataDeclaration
 
 getDataConstructors :: forall v loc. (Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
-getDataConstructors typ
-  | Type.Forall' body <- typ = do
-      v <- ABT.freshen body freshenTypeVar
-      appendContext [existential v]
-      let ev = existential' () B.Blank v
-      getDataConstructors $ ABT.bindInheritAnnotation body ev
-  | Type.Ref' r <- typ, r == Type.booleanRef = pure BooleanType
-  | Type.Request' effects resultType <- typ =
-      let phi effect =
-            case theRef effect of
-              Just r -> Map.fromList . map (\(v, cr, t) -> (cr, (v, t))) . crFromDecl r . DD.toDataDecl <$> getEffectDeclaration r
-              Nothing -> pure Map.empty
-          crefs = getAp (foldMap (Ap . phi) effects)
-       in AbilityType resultType <$> crefs
-  | Type.App' (Type.Ref' r) arg <- typ,
-    r == Type.listRef =
-      let xs =
-            [ (ListPat.Cons, [arg]),
-              (ListPat.Nil, [])
-            ]
-       in pure (SequenceType xs)
-  | Just r <- theRef typ = ConstructorType . crFromDecl r <$> getDataDeclaration r
-  | otherwise = pure OtherType
+getDataConstructors typ0 = do
+  -- Expand alias refs at the head so pattern-match coverage sees the
+  -- underlying decl ref, not an opaque alias ref.
+  typ <- whnfAlias typ0
+  case () of
+    _
+      | Type.Forall' body <- typ -> do
+          v <- ABT.freshen body freshenTypeVar
+          appendContext [existential v]
+          let ev = existential' () B.Blank v
+          getDataConstructors $ ABT.bindInheritAnnotation body ev
+      | Type.Ref' r <- typ, r == Type.booleanRef -> pure BooleanType
+      | Type.Request' effects resultType <- typ ->
+          let phi effect =
+                case theRef effect of
+                  Just r -> Map.fromList . map (\(v, cr, t) -> (cr, (v, t))) . crFromDecl r . DD.toDataDecl <$> getEffectDeclaration r
+                  Nothing -> pure Map.empty
+              crefs = getAp (foldMap (Ap . phi) effects)
+           in AbilityType resultType <$> crefs
+      | Type.App' (Type.Ref' r) arg <- typ,
+        r == Type.listRef ->
+          let xs =
+                [ (ListPat.Cons, [arg]),
+                  (ListPat.Nil, [])
+                ]
+           in pure (SequenceType xs)
+      | Just r <- theRef typ -> ConstructorType . crFromDecl r <$> getDataDeclaration r
+      | otherwise -> pure OtherType
   where
     crFromDecl :: Reference -> DataDeclaration v loc -> [(v, ConstructorReference, Type v loc)]
     crFromDecl r decl =

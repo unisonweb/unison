@@ -190,10 +190,16 @@ makeUniqueTypeGuids :: Map Name TypeReference -> Transaction (Map Name Text)
 makeUniqueTypeGuids types = do
   let step :: Map TypeReferenceId Text -> TypeReferenceId -> Transaction (Map TypeReferenceId Text)
       step acc refId = do
-        decl <- Operations.expectDeclByReference refId
-        pure case decl.modifier of
-          V2.Decl.Unique guid -> Map.insert refId guid acc
-          V2.Decl.Structural -> acc
+        -- Type aliases share the type namespace slot with decls but have
+        -- no unique-type guid. Skip them.
+        isAlias <- Operations.isTypeAliasReference (Reference.fromId refId)
+        if isAlias
+          then pure acc
+          else do
+            decl <- Operations.expectDeclByReference refId
+            pure case decl.modifier of
+              V2.Decl.Unique guid -> Map.insert refId guid acc
+              V2.Decl.Structural -> acc
 
   uniqueTypeGuidsByRef <-
     Foldable.foldlM step Map.empty (foldMap toRefIds types)
