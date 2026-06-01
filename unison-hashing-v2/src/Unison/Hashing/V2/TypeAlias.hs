@@ -16,10 +16,9 @@ import Prelude hiding (cycle)
 -- | The hashable shape of a type alias.
 --
 -- Aliases bind a list of parameters and a body. The body is a 'Type' that may
--- reference the bound parameters as ordinary type variables. Hashing handles
--- alpha-equivalence through ABT and ability-row canonicalization through the
--- existing 'TypeF' 'Hashable1' instance — see
--- 'Unison.Hashing.V2.Type'. No special preprocessing is needed at this layer.
+-- reference the bound parameters as ordinary type variables. Alpha-equivalence
+-- and ability-row canonicalization are handled by the existing 'TypeF'
+-- 'Hashable1' instance in 'Unison.Hashing.V2.Type'.
 data TypeAlias v a = TypeAlias
   { aliasAnnotation :: a,
     paramNames :: [v],

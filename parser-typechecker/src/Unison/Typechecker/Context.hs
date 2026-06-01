@@ -242,7 +242,7 @@ newtype MT v loc f a = MT
       DataDeclarations v loc ->
       -- Effect declarations in scope
       EffectDeclarations v loc ->
-      -- Type aliases in scope (expanded lazily by whnfAlias)
+      -- Type aliases in scope
       TypeAliasMap v loc ->
       -- Stack of definitions being checked
       [v] ->
@@ -871,13 +871,9 @@ getEffectDeclarations = MT \_ _ _ _ effects _ _ env -> pure (effects, env)
 getTypeAliases :: M v loc (TypeAliasMap v loc)
 getTypeAliases = MT \_ _ _ _ _ aliases _ env -> pure (aliases, env)
 
--- | Weak-head-normal-form expansion of a type's outer constructor when
--- it is an alias reference applied to @>=arity@ arguments. Returns the
--- input unchanged if no expansion is possible.
---
--- This is the lazy-expansion hook for type aliases: stored types keep
--- alias refs intact, but the typechecker dereferences them on demand at
--- subtype/check/synth points before pattern-matching on the head.
+-- | Expand the type's head when it's a saturated alias reference,
+-- repeatedly until the head is no longer an alias. Returns the input
+-- unchanged when the head isn't an alias or the alias is under-applied.
 whnfAlias ::
   forall v loc.
   (Var v) =>
@@ -890,8 +886,6 @@ whnfAlias ty = do
     liftBody :: TypeAlias.TypeAlias v loc -> Type.Type (TypeVar v loc) loc
     liftBody alias = TypeVar.liftType alias.body
 
-    -- Apply args to a function type, taking the annotation from the
-    -- function for every node. Avoids needing 'Semigroup loc'.
     appsInherit :: Type.Type (TypeVar v loc) loc -> [Type.Type (TypeVar v loc) loc] -> Type.Type (TypeVar v loc) loc
     appsInherit = foldl' \f arg -> Type.app (ABT.annotation f) f arg
 
@@ -902,7 +896,7 @@ whnfAlias ty = do
             let arity = TypeAlias.arity alias
                 nArgs = length args
              in if nArgs < arity
-                  then t -- under-applied; structural pass-through
+                  then t
                   else
                     let (sat, extra) = splitAt arity args
                         paramKeys = TypeVar.Universal <$> alias.paramNames
@@ -970,8 +964,8 @@ getDataConstructorType = getConstructorType' Data getDataDeclaration
 
 getDataConstructors :: forall v loc. (Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
 getDataConstructors typ0 = do
-  -- Expand alias refs at the head so pattern-match coverage sees the
-  -- underlying decl ref, not an opaque alias ref.
+  -- Pattern-match coverage looks up the decl by head ref; expand
+  -- alias-headed types so the lookup sees the underlying decl.
   typ <- whnfAlias typ0
   case () of
     _
@@ -2899,9 +2893,8 @@ check ::
 check m t | debugShow ("check" :: String, m, t) = undefined
 check m0 t0 = scope (InCheck m0 t0) $ do
   ctx <- getContext
-  -- Expand any alias ref at the head before dispatching: the structural
-  -- cases of 'checkWanted' need to see an arrow / forall / ... not an
-  -- opaque ref.
+  -- 'checkWanted' dispatches on the head, so expand alias-headed types
+  -- here rather than threading the lookup through every case.
   t0Expanded <- whnfAlias t0
   case minimize' m0 of
     Left m -> failWith $ DuplicateDefinitions m
@@ -2919,8 +2912,6 @@ subtype :: forall v loc. (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc
 subtype tx ty | debugTypes "subtype" tx ty = undefined
 subtype tx ty = scope (InSubtype tx ty) $ do
   ctx <- getContext
-  -- Expand alias refs at the head before structural comparison so that
-  -- @Endo Nat <: Nat -> Nat@ succeeds. Stored forms keep alias refs.
   tx' <- whnfAlias (Type.stripIntroOuters tx)
   ty' <- whnfAlias (Type.stripIntroOuters ty)
   go (ctx :: Context v loc) tx' ty'

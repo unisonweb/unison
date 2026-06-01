@@ -375,9 +375,7 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
     makeDeclUpdates abort = do
       dataDeclUpdates <- Monoid.foldMapM makeDataDeclUpdates (Map.toList $ UF.dataDeclarationsId' tuf)
       effectDeclUpdates <- Monoid.foldMapM makeEffectDeclUpdates (Map.toList $ UF.effectDeclarationsId' tuf)
-      -- Type aliases occupy the same namespace slot as data\/effect decls
-      -- (they're both type-position refs). They have no constructors, so the
-      -- delete\/add pattern is simpler.
+      -- Aliases have no constructors, so just rebind the name.
       let aliasUpdates =
             foldMap
               ( \(symbol, (typeRefId, _alias)) ->

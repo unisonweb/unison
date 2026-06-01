@@ -74,11 +74,8 @@ data SynEffectDecl v = SynEffectDecl
   }
   deriving stock (Generic)
 
--- | A parsed @type alias@ declaration.
---
--- Aliases are non-recursive: their body is a plain type expression that may
--- mention the bound 'tyvars' as ordinary type variables. Elaboration expands
--- them at use sites; the alias itself never appears in any hashed form.
+-- | A parsed @type alias@ declaration. The body is a plain type expression
+-- that may mention the bound 'tyvars' as ordinary type variables.
 data SynTypeAliasDecl v = SynTypeAliasDecl
   { annotation :: !Ann,
     body :: !(Type v Ann),
@@ -204,8 +201,6 @@ synTypeAliasDeclP modifier0 = do
   -- Aliases don't accept structural/unique modifiers.
   when (isJust modifier0) (P.failure Nothing mempty)
   typeToken <- fmap void (reserved "type") <|> openBlockWith "type"
-  -- `alias` is contextual: not a reserved keyword, just an ordinary
-  -- identifier that the parser recognizes specifically here.
   _ <- aliasContextualKw
   name <- TermParser.verifyRelativeVarName prefixDefinitionName
   typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)

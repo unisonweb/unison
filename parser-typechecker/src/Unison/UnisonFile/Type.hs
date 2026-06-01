@@ -22,10 +22,7 @@ data UnisonFile v a = UnisonFileId
     fileNamespace :: Maybe (a, Name),
     dataDeclarationsId :: Map v (TypeReferenceId, DataDeclaration v a),
     effectDeclarationsId :: Map v (TypeReferenceId, EffectDeclaration v a),
-    -- | Type aliases declared in the file, after normalisation. Aliases are
-    -- not used for hashing terms\/decls (those are expanded against the
-    -- alias bodies) — they're retained here only for persistence and
-    -- display. See @docs/type-aliases.markdown@.
+    -- | Type aliases declared in the file, after normalisation.
     typeAliasesId :: Map v (TypeReferenceId, TypeAlias v a),
     terms :: Map v (a {- ann for name of the binding -}, Term v a),
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]

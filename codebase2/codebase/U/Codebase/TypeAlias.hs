@@ -9,12 +9,10 @@ import Unison.Prelude
 -- | The v2 representation of a type alias: parameter names plus a body whose
 -- references are of type @r@.
 --
--- Aliases cannot be recursive (the kind checker rejects cycles), so unlike
--- 'U.Codebase.Decl.DeclR' there is no notion of a self-reference. The
--- reference type is always a fully-qualified 'Reference', not the
--- @Reference' Text (Maybe Hash)@ used for potentially-recursive decls.
---
--- See @docs/type-aliases.markdown@ for the full design.
+-- Aliases cannot be recursive, so unlike 'U.Codebase.Decl.DeclR' there is no
+-- notion of a self-reference. The reference type is always a fully-qualified
+-- 'Reference', not the @Reference' Text (Maybe Hash)@ used for
+-- potentially-recursive decls.
 data TypeAliasR r v = TypeAliasR
   { paramNames :: [v],
     body :: TypeR r v

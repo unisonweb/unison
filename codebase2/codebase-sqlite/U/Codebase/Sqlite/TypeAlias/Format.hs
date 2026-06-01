@@ -10,9 +10,9 @@ import U.Codebase.TypeAlias qualified as TypeAlias
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
 
--- | References inside an alias body. Aliases cannot be recursive — the kind
--- checker rejects cycles — so unlike 'U.Codebase.Sqlite.Decl.Format.TypeRef'
--- there is no @Maybe@ self-reference variant.
+-- | References inside an alias body. Aliases cannot be recursive, so unlike
+-- 'U.Codebase.Sqlite.Decl.Format.TypeRef' there is no @Maybe@ self-reference
+-- variant.
 type TypeRef = Reference' LocalTextId LocalDefnId
 
 -- | A single type alias entry, with its references localized to the lookup
@@ -21,12 +21,9 @@ type TypeRef = Reference' LocalTextId LocalDefnId
 -- (matching how decls are stored).
 type TypeAlias = TypeAlias.TypeAliasR TypeRef Symbol
 
--- | The on-disk format for a single type alias.
---
--- Unlike decls, aliases are not stored as components — they cannot be
--- recursive, so they are always single-entry. The format still carries a
--- version tag (written by 'Serialization.putTypeAliasFormat') so future
--- format variants can be added without a migration.
+-- | The on-disk format for a single type alias. Unlike decls, aliases are
+-- always single-entry rather than components, since they can't be
+-- recursive.
 --
 -- The @text@ and @defn@ parameters describe the lookup vectors in
 -- 'LocalIds'', not the body's reference types (which are always local).

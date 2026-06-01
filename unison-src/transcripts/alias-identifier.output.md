@@ -16,19 +16,12 @@ alias n = n + 1
   Loading changes detected in scratch.u.
 
   + alias : Nat -> Nat
-  - g : Endo Nat
-
-  (and 137 unchanged types and 709 unchanged terms)
-
-  + (added), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
 > add
-
-  I fast-forward merged scratch/update-main into scratch/main.
 
   Done.
 

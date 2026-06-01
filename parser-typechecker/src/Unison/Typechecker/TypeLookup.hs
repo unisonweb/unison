@@ -19,9 +19,6 @@ data TypeLookup v a = TypeLookup
   { typeOfTerms :: Map TermReference (Type v a),
     dataDecls :: Map TypeReference (DataDeclaration v a),
     effectDecls :: Map TypeReference (EffectDeclaration v a),
-    -- Type alias bodies, indexed by alias ref. Looked up on demand by
-    -- the kindchecker and typechecker (whnf expansion). Storage and
-    -- hashing keep alias refs intact; only verification expands them.
     typeAliases :: Map TypeReference (TypeAlias v a)
   }
   deriving (Show)
@@ -69,9 +66,8 @@ instance Semigroup (TypeLookup v a) where
 instance Monoid (TypeLookup v a) where
   mempty = TypeLookup mempty mempty mempty mempty
 
--- Not a Functor on @a@ because alias maps require @Ord v@ via
--- 'TypeAlias.amap'; the alias variable is contravariant in the kind of
--- the functor anyway.
+-- TypeAlias.amap requires @Ord v@, so this is a named function rather
+-- than a Functor instance.
 amap :: (Var v) => (a -> a') -> TypeLookup v a -> TypeLookup v a'
 amap f tl =
   TypeLookup

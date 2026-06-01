@@ -553,7 +553,6 @@ typeNamespaceBindings uf =
     aliases = Map.keysSet uf.typeAliasesId'
 
 -- | Like 'typeNamespaceBindings', but returns a map from variable name to reference.
--- Includes alias entries — they're type-position bindings just like decls.
 typeNamespaceBindingsMap :: (Ord v) => TypecheckedUnisonFile v a -> Map v TypeReferenceId
 typeNamespaceBindingsMap uf =
   Map.unions

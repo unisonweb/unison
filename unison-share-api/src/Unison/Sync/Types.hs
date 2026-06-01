@@ -259,10 +259,10 @@ instance (FromJSON text, FromJSON hash) => FromJSON (DeclComponent text hash) wh
     terms <- traverse decodeComponentPiece pieces
     pure (DeclComponent terms)
 
--- | A type alias on the wire. Aliases are non-recursive, so this is a
--- single (LocalIds, body bytes) pair — not a component. The JSON shape
--- mirrors 'DeclComponent' for consistency (a single-element list under
--- @"type_aliases"@), at the cost of a tiny bit of wasted envelope.
+-- | A type alias on the wire — a single (LocalIds, body bytes) pair, not
+-- a component, since aliases are non-recursive. The JSON shape mirrors
+-- 'DeclComponent' (a single-element list under @"type_aliases"@) for
+-- consistency.
 data TypeAliasComponent text hash = TypeAliasComponent (LocalIds text hash) ByteString
   deriving stock (Show, Eq, Functor, Ord)
 

@@ -30,10 +30,9 @@ type alias Endo a = a -> a
   Done.
 ```
 
-Second file: reference the alias from a fresh scratch file. Name
-resolution turns `Endo` into the codebase alias's ref, and the typechecker
-expands the body lazily during checking. The stored type signature for `g`
-keeps `Endo Nat` intact.
+Second file: reference the alias from a fresh scratch file. `g`'s stored
+type signature keeps `Endo Nat` intact, and `view g` renders it back the
+same way.
 
 ``` unison
 g : Endo Nat
@@ -63,6 +62,3 @@ g x = x + 2
     use Nat +
     x + 2
 ```
-
-`g`'s stored type is `Endo Nat`, and `view g` renders it back with the
-alias intact.

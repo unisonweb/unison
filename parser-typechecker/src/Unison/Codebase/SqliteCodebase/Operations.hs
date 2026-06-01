@@ -274,10 +274,8 @@ getTypeEntry rid@(Reference.Id h pos) =
 isTypeAlias :: Reference -> Transaction Bool
 isTypeAlias r = Ops.isTypeAliasReference (Cv.reference1to2 r)
 
--- | Save a type alias. Aliases are non-recursive: their dependencies must
--- already exist in the codebase. Callers that need deferred persistence
--- (e.g. saving an alias alongside a still-unsaved decl in the same
--- transaction) should sequence their saves so dependencies land first.
+-- | Save a type alias. Aliases are non-recursive: their dependencies
+-- must already exist in the codebase.
 putTypeAlias :: Reference.Id -> TypeAlias Symbol Ann -> Transaction ()
 putTypeAlias (Reference.Id h _) ta =
   unlessM (Ops.objectExistsForHash h) do

@@ -89,9 +89,7 @@ file = do
   let synDecls = maybe id applyNamespaceToSynDecls maybeNamespaceVar unNamespacedSynDecls
 
   -- Make real data/effect decls from the "syntactic" ones, and capture the
-  -- file's type aliases (already normalized + cycle-checked). Aliases are
-  -- retained in the UnisonFile so they can be persisted; their bodies are
-  -- also used inline to expand alias applications in data/effect/term types.
+  -- file's type aliases (already normalized + cycle-checked).
   (dataDecls, effectDecls, fileAliases) <- synDeclsToDecls synDecls
 
   -- Compute an environment from the decls that we use to parse terms
@@ -99,18 +97,11 @@ file = do
     result <- UFN.environmentFor namesStart dataDecls effectDecls & onLeft \errs -> resolutionFailures (toList errs)
     result & onLeft \errs -> P.customFailure (TypeDeclarationErrors errs)
 
-  -- Resolve external type references in alias bodies, then compute the
-  -- alias's canonical hash. The bodies coming out of synDeclsToDecls still
-  -- contain free type Vars (e.g. `Var "Nat"`); without this step the
-  -- alias's persisted form would carry those Vars and its hash would be
-  -- sensitive to source spelling, not to the actual refs it points at.
-  -- The alias's bound params are kept free (they're param positions, not
-  -- external refs).
+  -- Resolve external refs in alias bodies before hashing. The alias's
+  -- bound params are kept free; everything else is bound against
+  -- 'namesStart' shadowed by the file's local decls, so that names like
+  -- @Nat@ in @type alias NatFun a = Nat -> a@ resolve.
   fileAliasesWithHashes :: Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) <-
-    -- Alias bodies need to resolve names from the surrounding scope (e.g.
-    -- @Nat@ in @type alias NatFun a = Nat -> a@), so the env we bind against
-    -- is the codebase 'namesStart' shadowed by the file's own decl names.
-    -- @UF.names env@ alone is just file-local ctor/decl names.
     let envNames = Names.shadowing (UF.names env) namesStart
         resolveAlias alias = do
           resolvedBody <-
@@ -221,9 +212,6 @@ file = do
             Name.toVar
             (Set.fromList fqLocalTerms)
             (Names.shadowTerms (map Name.unsafeParseVar fqLocalTerms) names)
-    -- Aliases stay as refs in the parsed AST; bindNames resolves alias
-    -- names to alias refs via @aliasNames@, and the typechecker expands
-    -- them on demand at subtype/check sites.
     terms <- case List.validate (traverseOf _3 bindNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
@@ -312,11 +300,9 @@ synDeclsToDecls ::
       Map v (Unison.TypeAlias.TypeAlias v Ann)
     )
 synDeclsToDecls decls = do
-  -- 1. Collect aliases separately from data/effect decls.
   let (datasRaw, effectsRaw, aliasesRaw) = partitionDecls decls
 
-  -- 2. Normalize aliases: detect cycles and pre-expand cross-references so
-  --    each body is alias-free.
+  -- Normalize aliases (cycle-check and flatten alias-of-alias references).
   aliases <-
     case TypeAlias.Expand.normalize aliasesRaw of
       Right normalized -> pure normalized
@@ -330,11 +316,6 @@ synDeclsToDecls decls = do
               _ -> Ann.External
          in P.customFailure (TypeAliasCycle firstAnn (map fst anns))
 
-  -- 3. Expand alias applications in data/effect constructor types and
-  --    convert directly to the final DataDeclaration / EffectDeclaration
-  --    record types.
-  -- Constructor types keep their alias refs; the kindchecker and
-  -- typechecker expand them lazily.
   let datas =
         Map.fromList
           [ (decl.name.payload, DataDeclaration decl.modifier decl.annotation decl.tyvars decl.constructors)
