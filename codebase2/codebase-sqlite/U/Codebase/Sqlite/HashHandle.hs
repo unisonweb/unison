@@ -3,6 +3,7 @@ module U.Codebase.Sqlite.HashHandle
     HashMismatch (..),
     HashValidationError (..),
     DeclHashingError (..),
+    TypeAliasHashingError (..),
     HashingFailure (..),
     crashOnHashingFailure,
   )
@@ -20,6 +21,7 @@ import U.Codebase.Sqlite.Patch.Format (HashPatchLocalIds)
 import U.Codebase.Sqlite.Patch.Full (LocalPatch)
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type
 import Unison.Hash (Hash)
@@ -70,6 +72,10 @@ data DeclHashingError
   = DeclHashMismatch HashMismatch
   | DeclHashResolutionFailure
 
+data TypeAliasHashingError
+  = TypeAliasHashMismatch HashMismatch
+  | TypeAliasHashResolutionFailure
+
 data HashHandle = HashHandle
   { -- | Hash type
     toReference :: C.Term.Type Symbol -> C.Reference,
@@ -102,5 +108,9 @@ data HashHandle = HashHandle
     verifyDeclFormatHash ::
       ComponentHash ->
       DeclFormat.HashDeclFormat ->
-      Maybe DeclHashingError
+      Maybe DeclHashingError,
+    verifyTypeAliasFormatHash ::
+      ComponentHash ->
+      TypeAliasFormat.HashTypeAliasFormat ->
+      Maybe TypeAliasHashingError
   }

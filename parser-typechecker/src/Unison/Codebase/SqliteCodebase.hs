@@ -210,8 +210,16 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                     ( \acc -> \case
                         ReferenceBuiltin _ -> pure acc
                         ReferenceDerived ref -> do
-                          num <- expectDeclNumConstructors ref
-                          pure $! Map.insert ref num acc
+                          -- Type alias refs live in the same namespace slot
+                          -- as decls but have no constructors; record 0 so
+                          -- the coherency check sees them but finds no
+                          -- expected constructor names.
+                          isAlias <- CodebaseOps.isTypeAlias (ReferenceDerived ref)
+                          if isAlias
+                            then pure $! Map.insert ref 0 acc
+                            else do
+                              num <- expectDeclNumConstructors ref
+                              pure $! Map.insert ref num acc
                     )
                     Map.empty
 
@@ -265,12 +273,16 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                         Just component -> Just (Reference.getComponentElem component pos)
                         Nothing -> Nothing,
                   getTypeDeclarationComponent,
+                  getTypeAlias = CodebaseOps.getTypeAlias,
+                  getTypeEntry = CodebaseOps.getTypeEntry,
+                  isTypeAlias = CodebaseOps.isTypeAlias,
                   getDeclType,
                   expectDeclNumConstructors,
                   putTerm = CodebaseOps.putTerm termBuffer declBuffer,
                   putTermComponent = CodebaseOps.putTermComponent termBuffer declBuffer,
                   putTypeDeclaration = CodebaseOps.putTypeDeclaration termBuffer declBuffer,
                   putTypeDeclarationComponent = CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer,
+                  putTypeAlias = CodebaseOps.putTypeAlias,
                   getTermComponentWithTypes,
                   getBranchForHash,
                   getBranchForHashTx,

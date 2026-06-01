@@ -17,6 +17,7 @@ import U.Codebase.Sqlite.Symbol qualified as V2
 import U.Codebase.Term qualified as V2.Term
 import U.Codebase.TermEdit qualified as V2.TermEdit
 import U.Codebase.Type qualified as V2.Type
+import U.Codebase.TypeAlias qualified as V2.TypeAlias
 import U.Codebase.TypeEdit qualified as V2.TypeEdit
 import U.Codebase.WatchKind qualified as V2
 import U.Codebase.WatchKind qualified as V2.WatchKind
@@ -53,6 +54,7 @@ import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol qualified as V1
 import Unison.Term qualified as V1.Term
 import Unison.Type qualified as V1.Type
+import Unison.TypeAlias qualified as V1.TypeAlias
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Star2 qualified as V1.Star2
@@ -339,6 +341,18 @@ constructorType2to1 = \case
 
 ttype2to1 :: V2.Term.Type V2.Symbol -> V1.Type.Type V1.Symbol Ann
 ttype2to1 = type2to1' reference2to1
+
+typeAlias2to1 :: V2.TypeAlias.TypeAlias V2.Symbol -> V1.TypeAlias.TypeAlias V1.Symbol Ann
+typeAlias2to1 (V2.TypeAlias.TypeAliasR params body) =
+  V1.TypeAlias.TypeAlias
+    (symbol2to1 <$> params)
+    (ttype2to1 body)
+
+typeAlias1to2 :: V1.TypeAlias.TypeAlias V1.Symbol a -> V2.TypeAlias.TypeAlias V2.Symbol
+typeAlias1to2 (V1.TypeAlias.TypeAlias params body) =
+  V2.TypeAlias.TypeAliasR
+    (symbol1to2 <$> params)
+    (ttype1to2 body)
 
 dtype2to1 :: Hash -> V2.Decl.Type V2.Symbol -> V1.Type.Type V1.Symbol Ann
 dtype2to1 h = type2to1' (rreference2to1 h)

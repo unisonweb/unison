@@ -15,7 +15,11 @@
 -- decls are well-kinded with 'kindCheckAnnotations'.
 module Unison.KindInference
   ( inferDecls,
+    inferDeclsFromState,
+    inferAliases,
     kindCheckAnnotations,
+    initialState,
+    kindEnv,
     KindError,
   )
 where
@@ -27,14 +31,19 @@ import Data.List.NonEmpty qualified as Nel
 import Data.Map.Strict qualified as Map
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.DataDeclaration
-import Unison.KindInference.Generate (declComponentConstraints, termConstraints)
+import Unison.KindInference.Generate (aliasComponentConstraints, declComponentConstraints, termConstraints)
 import Unison.KindInference.Solve (KindError (..), defaultUnconstrainedVars, initialState, step, verify)
 import Unison.KindInference.Solve.Monad (Env (..), SolveState, runGen, runSolve)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
 import Unison.Reference
 import Unison.Term qualified as Term
+import Unison.TypeAlias (TypeAlias)
 import Unison.Var qualified as Var
+
+-- | Build a 'Env' used by the solver from a 'PrettyPrintEnv'.
+kindEnv :: PrettyPrintEnv.PrettyPrintEnv -> Env
+kindEnv = Env
 
 -- | Check that all annotations in a term are well-kinded
 kindCheckAnnotations ::
@@ -56,7 +65,18 @@ inferDecls ::
   PrettyPrintEnv.PrettyPrintEnv ->
   Map Reference (Decl v loc) ->
   Either (NonEmpty (KindError v loc)) (SolveState v loc)
-inferDecls ppe declMap =
+inferDecls ppe = inferDeclsFromState ppe (initialState (Env ppe))
+
+-- | Like 'inferDecls', but threads an existing 'SolveState' (lets
+-- callers pre-populate it, e.g. with alias refs before decls run).
+inferDeclsFromState ::
+  forall v loc.
+  (Var.Var v, BuiltinAnnotation loc, Ord loc, Show loc) =>
+  PrettyPrintEnv.PrettyPrintEnv ->
+  SolveState v loc ->
+  Map Reference (Decl v loc) ->
+  Either (NonEmpty (KindError v loc)) (SolveState v loc)
+inferDeclsFromState ppe initState declMap =
   let components :: [[(Reference, Decl v loc)]]
       components = intoComponents declMap
 
@@ -73,7 +93,7 @@ inferDecls ppe declMap =
       handleComponents ::
         [[(Reference, Decl v loc)]] ->
         Either (NonEmpty (KindError v loc)) (SolveState v loc)
-      handleComponents = verify <=< foldlM phi (initialState env)
+      handleComponents = verify <=< foldlM phi initState
         where
           phi b a = handleComponent b a
    in defaultUnconstrainedVars <$> handleComponents components
@@ -88,3 +108,22 @@ intoComponents declMap =
   where
     declReferences :: Decl v a -> [Reference]
     declReferences = toList . typeDependencies . asDataDecl
+
+-- | Extend an existing 'SolveState' with kind info for the given type
+-- aliases. Aliases are processed all at once; their bodies must reference
+-- only decls (already in the SolveState) or other aliases in this batch.
+inferAliases ::
+  forall v loc.
+  (Var.Var v, BuiltinAnnotation loc, Ord loc, Show loc) =>
+  PrettyPrintEnv.PrettyPrintEnv ->
+  SolveState v loc ->
+  Map Reference (TypeAlias v loc) ->
+  Either (NonEmpty (KindError v loc)) (SolveState v loc)
+inferAliases ppe st0 aliasMap
+  | Map.null aliasMap = Right st0
+  | otherwise =
+      let env = Env ppe
+          aliases = Map.toList aliasMap
+       in do
+            (cs, st) <- mapLeft (Nel.singleton . SolveError) $ runSolve env st0 (runGen $ aliasComponentConstraints aliases)
+            step env st cs

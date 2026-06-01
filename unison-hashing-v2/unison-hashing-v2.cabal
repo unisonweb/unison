@@ -36,6 +36,7 @@ library
       Unison.Hashing.V2.TermEdit
       Unison.Hashing.V2.Tokenizable
       Unison.Hashing.V2.Type
+      Unison.Hashing.V2.TypeAlias
       Unison.Hashing.V2.TypeEdit
   hs-source-dirs:
       src

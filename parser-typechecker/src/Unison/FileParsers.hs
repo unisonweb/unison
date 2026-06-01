@@ -323,6 +323,7 @@ synthesizeFile env0 uf = do
       UF.typecheckedUnisonFile
         (UF.dataDeclarationsId uf)
         (UF.effectDeclarationsId uf)
+        (UF.typeAliasesId uf)
         terms'
         (map tlcKind watches')
   where

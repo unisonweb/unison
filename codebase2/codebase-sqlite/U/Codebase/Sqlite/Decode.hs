@@ -14,10 +14,12 @@ module U.Codebase.Sqlite.Decode
     decodeSyncPatchFormat,
     decodeSyncTermFormat,
     decodeSyncTermAndType,
+    decodeSyncTypeAliasFormat,
     decodeTermElementDiscardingTerm,
     decodeTermElementDiscardingType,
     decodeTermElementWithType,
     decodeTermFormat,
+    decodeTypeAliasFormat,
 
     -- * @temp_entity.blob@
     decodeTempCausalFormat,
@@ -25,6 +27,7 @@ module U.Codebase.Sqlite.Decode
     decodeTempNamespaceFormat,
     decodeTempPatchFormat,
     decodeTempTermFormat,
+    decodeTempTypeAliasFormat,
 
     -- * @watch_result.result@
     decodeWatchResultFormat,
@@ -32,6 +35,10 @@ module U.Codebase.Sqlite.Decode
     -- * unsyncs
     unsyncTermComponent,
     unsyncDeclComponent,
+    unsyncTypeAliasFormat,
+
+    -- * helpers
+    decodeTypeAliasEntry,
   )
 where
 
@@ -46,6 +53,7 @@ import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.TempEntity qualified as TempEntity
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Util.Serialization (Get)
 import U.Util.Serialization qualified as Serialization (lengthFramedArray)
 import Unison.Prelude
@@ -125,6 +133,14 @@ decodeTermFormat :: ByteString -> Either DecodeError TermFormat.TermFormat
 decodeTermFormat =
   getFromBytesOr "getTermFormat" Serialization.getTermFormat
 
+decodeTypeAliasFormat :: ByteString -> Either DecodeError TypeAliasFormat.TypeAliasFormat
+decodeTypeAliasFormat =
+  getFromBytesOr "getTypeAliasFormat" Serialization.getTypeAliasFormat
+
+decodeSyncTypeAliasFormat :: ByteString -> Either DecodeError TypeAliasFormat.SyncTypeAliasFormat
+decodeSyncTypeAliasFormat =
+  getFromBytesOr "decomposeTypeAliasFormat" Serialization.decomposeTypeAliasFormat
+
 decodeTermElementDiscardingTerm :: C.Reference.Pos -> ByteString -> Either DecodeError (LocalIds, TermFormat.Type)
 decodeTermElementDiscardingTerm i =
   getFromBytesOr ("lookupTermElementDiscardingTerm " <> tShow i) (Serialization.lookupTermElementDiscardingTerm i)
@@ -163,6 +179,10 @@ decodeTempTermFormat :: ByteString -> Either DecodeError TempEntity.TempTermForm
 decodeTempTermFormat =
   getFromBytesOr "getTempTermFormat" Serialization.getTempTermFormat
 
+decodeTempTypeAliasFormat :: ByteString -> Either DecodeError TempEntity.TempTypeAliasFormat
+decodeTempTypeAliasFormat =
+  getFromBytesOr "getTempTypeAliasFormat" Serialization.getTempTypeAliasFormat
+
 ------------------------------------------------------------------------------------------------------------------------
 -- watch_result.result
 
@@ -186,3 +206,14 @@ unsyncDeclComponent (DeclFormat.SyncLocallyIndexedComponent decls) = do
         decl <- decodeDecl bs
         pure (localIds, decl)
   DeclFormat.LocallyIndexedComponent <$> traverse phi decls
+
+unsyncTypeAliasFormat ::
+  TypeAliasFormat.SyncTypeAliasFormat' t d ->
+  Either DecodeError (TypeAliasFormat.TypeAliasFormat' t d)
+unsyncTypeAliasFormat (TypeAliasFormat.SyncTypeAlias localIds bs) = do
+  entry <- decodeTypeAliasEntry bs
+  pure (TypeAliasFormat.TypeAlias localIds entry)
+
+decodeTypeAliasEntry :: ByteString -> Either DecodeError TypeAliasFormat.TypeAlias
+decodeTypeAliasEntry =
+  getFromBytesOr "getTypeAliasEntry" Serialization.getTypeAliasEntry

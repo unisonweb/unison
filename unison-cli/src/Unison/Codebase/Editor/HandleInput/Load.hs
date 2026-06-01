@@ -181,7 +181,8 @@ loadUnisonFile sourceName text = do
       aliases =
         getTermAliases existingTerms slurpEntries.terms
 
-  Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases pp.branch.isMerge)
+  let fileAliases = snd <$> UF.typeAliasesId' unisonFile
+  Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries fileAliases aliases pp.branch.isMerge)
 
   when (not . null $ UF.watchComponents unisonFile) do
     Timing.time "evaluating watches" do
@@ -285,6 +286,28 @@ slurpTerms codebase unisonFile isUpdate =
             Var.UnnamedWatch _ _ -> Map.insert (Name.unsafeParseVar var) ty acc
             _ -> acc
 
+-- | Type aliases live in the same namespace slot as data\/effect decls but
+-- their bodies are 'TypeAlias' values, not 'Decl' values. The existing
+-- type-slurp diff loads each ref as a decl, so we strip alias refs from the
+-- file's types map before diffing — aliases are surfaced via a parallel
+-- path in 'OutputMessages' that uses the file's @typeAliasesId'@.
+aliasRefs :: TypecheckedUnisonFile Symbol Ann -> Set TypeReference
+aliasRefs unisonFile =
+  UF.typeAliasesId' unisonFile
+    & Map.elems
+    & map (Reference.DerivedId . fst)
+    & Set.fromList
+
+withoutAliases ::
+  TypecheckedUnisonFile Symbol Ann ->
+  Map Name (Set TypeReference) ->
+  Map Name (Set TypeReference)
+withoutAliases uf =
+  let as = aliasRefs uf
+   in Map.mapMaybe \refs ->
+        let filtered = Set.difference refs as
+         in if Set.null filtered then Nothing else Just filtered
+
 slurpTypes ::
   Codebase m Symbol Ann ->
   TypecheckedUnisonFile Symbol Ann ->
@@ -292,7 +315,17 @@ slurpTypes ::
   Map Name (Set TypeReference) ->
   Map Name (Set TypeReference) ->
   Sqlite.Transaction (Map Name TypeSlurp)
-slurpTypes codebase unisonFile isUpdate =
+slurpTypes codebase unisonFile isUpdate oldTypes newTypes =
+  slurpTypesImpl codebase unisonFile isUpdate oldTypes (withoutAliases unisonFile newTypes)
+
+slurpTypesImpl ::
+  Codebase m Symbol Ann ->
+  TypecheckedUnisonFile Symbol Ann ->
+  Bool ->
+  Map Name (Set TypeReference) ->
+  Map Name (Set TypeReference) ->
+  Sqlite.Transaction (Map Name TypeSlurp)
+slurpTypesImpl codebase unisonFile isUpdate =
   Map.mergeA
     ( if isUpdate
         then Map.traverseMissing \_ -> fmap TypeSlurp'Delete . getOldDecl . Set.findMin

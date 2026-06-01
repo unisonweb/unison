@@ -26,6 +26,7 @@ library
       U.Codebase.Term
       U.Codebase.TermEdit
       U.Codebase.Type
+      U.Codebase.TypeAlias
       U.Codebase.TypeEdit
       U.Codebase.WatchKind
   hs-source-dirs:

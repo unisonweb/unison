@@ -140,7 +140,7 @@ import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (toText, unsafeFromVar)
-import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Syntax.NamePrinter
   ( prettyHashQualified,
     prettyHashQualified',
@@ -158,6 +158,7 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
@@ -1083,7 +1084,7 @@ notifyUser dir issueFn = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  Typechecked oldPpe newPpe slurpEntries aliases isMergeBranch -> do
+  Typechecked oldPpe newPpe slurpEntries fileAliases aliases isMergeBranch -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -1133,7 +1134,14 @@ notifyUser dir issueFn = \case
         deletedTerms :: [(Name, Type Symbol Ann, [Name])]
         deletedTerms = sortAlphabeticallyOn (view _1) deletedTerms0
 
-    let existAdds = not (List.null newTypes && List.null newTerms)
+    let newAliases :: [(Name, TypeAlias.TypeAlias Symbol Ann)]
+        newAliases =
+          fileAliases
+            & Map.toList
+            & map (\(v, ta) -> (Name.unsafeParseVar v, ta))
+            & sortAlphabeticallyOn (view _1)
+
+    let existAdds = not (List.null newTypes && List.null newTerms && List.null newAliases)
         existUpdates = not (List.null updatedTypes && List.null updatedTerms)
         existDeletes = not (List.null deletedTypes && List.null deletedTerms)
         existChanges = existAdds || existUpdates || existDeletes
@@ -1146,6 +1154,17 @@ notifyUser dir issueFn = \case
     let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
         renderTerm ppe colored name ty =
           (colored (prettyNameParens name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+
+    let pped :: PPED.PrettyPrintEnvDecl
+        pped = PPED.PrettyPrintEnvDecl newPpe newPpe
+    let renderAlias :: Name -> TypeAlias.TypeAlias Symbol Ann -> Pretty
+        renderAlias name ta =
+          P.syntaxToColor
+            (DeclPrinter.prettyTypeAlias pped (HQ.fromName name) ta)
+
+    let renderedNewAliases :: Pretty
+        renderedNewAliases =
+          P.lines (map (\(name, ta) -> P.green ("+ " <> renderAlias name ta)) newAliases)
 
     let renderedNewTypes :: Pretty
         renderedNewTypes =
@@ -1222,7 +1241,8 @@ notifyUser dir issueFn = \case
           P.sepNonEmpty
             "\n\n"
             [ P.linesNonEmpty
-                [ renderedNewTypes,
+                [ renderedNewAliases,
+                  renderedNewTypes,
                   renderedUpdatedTypes,
                   renderedDeletedTypes
                 ],
@@ -3143,6 +3163,7 @@ prettyEntityValidationFailure = \case
       Share.NamespaceType -> "namespace"
       Share.NamespaceDiffType -> "namespace diff"
       Share.CausalType -> "causal"
+      Share.TypeAliasComponentType -> "type alias component"
 
 prettyTransportError :: Share.CodeserverTransportError -> Pretty
 prettyTransportError = \case
@@ -3199,6 +3220,7 @@ prettyEntityType = \case
   Share.NamespaceType -> "namespace"
   Share.NamespaceDiffType -> "namespace diff"
   Share.CausalType -> "causal"
+  Share.TypeAliasComponentType -> "type alias component"
 
 invalidRepoInfo :: Text -> Share.RepoInfo -> Pretty
 invalidRepoInfo err repoInfo =

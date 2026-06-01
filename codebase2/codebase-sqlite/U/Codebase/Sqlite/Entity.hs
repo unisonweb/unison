@@ -7,6 +7,7 @@ import U.Codebase.Sqlite.Decl.Format qualified as Decl
 import U.Codebase.Sqlite.Patch.Format qualified as Patch
 import U.Codebase.Sqlite.TempEntityType (TempEntityType (..))
 import U.Codebase.Sqlite.Term.Format qualified as Term
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAlias
 
 -- |
 -- data SyncEntity
@@ -15,6 +16,7 @@ import U.Codebase.Sqlite.Term.Format qualified as Term
 --   | N SyncBranchFormat
 --   | P SyncPatchFormat
 --   | C SyncCausalFormat
+--   | TA SyncTypeAliasFormat
 type SyncEntity =
   SyncEntity' TextId HashId ObjectId PatchObjectId BranchHashId BranchObjectId CausalHashId
 
@@ -24,6 +26,7 @@ data SyncEntity' text hash defn patch branchh branch causal
   | N (Namespace.SyncBranchFormat' branch text defn patch (branch, causal))
   | P (Patch.SyncPatchFormat' patch text hash defn)
   | C (Causal.SyncCausalFormat' causal branchh)
+  | TA (TypeAlias.SyncTypeAliasFormat' text defn)
   deriving stock (Eq, Show)
 
 entityType :: SyncEntity' text hash defn patch branchh branch causal -> TempEntityType
@@ -33,3 +36,4 @@ entityType = \case
   N _ -> NamespaceType
   P _ -> PatchType
   C _ -> CausalType
+  TA _ -> TypeAliasComponentType

@@ -64,6 +64,7 @@ import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Util.Base32Hex (Base32Hex)
 import U.Util.Base32Hex qualified as Base32Hex
+import Unison.ABT qualified as ABT
 import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceOrTarget (..))
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
@@ -115,6 +116,8 @@ import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.TypeAlias (TypeAlias)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid qualified as Monoid
@@ -391,11 +394,12 @@ prettyLibdepName =
   P.blue . P.text . NameSegment.toEscapedText
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> P.Pretty P.ColorText
-prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
-  P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
+prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects aliases terms watches) =
+  P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> prettyAliases <> catMaybes prettyTerms <> prettyWatches)
   where
     prettyEffects = map prettyEffectDecl (Map.toList effects)
     (prettyDatas, accessorNames) = runWriter $ traverse prettyDataDecl (Map.toList datas)
+    prettyAliases = map prettyTypeAliasDecl (Map.toList aliases)
     prettyTerms = Map.foldrWithKey (\k v -> (prettyTerm accessorNames k v :)) [] terms
     prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
 
@@ -419,6 +423,11 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
           (rd r)
           (hqv n)
           (Right dt)
+    prettyTypeAliasDecl :: (v, (TypeReferenceId, TypeAlias v a)) -> (a, P.Pretty P.ColorText)
+    prettyTypeAliasDecl (n, (_r, ta)) =
+      ( ABT.annotation (TypeAlias.body ta),
+        st (DeclPrinter.prettyTypeAlias ppe' (hqv n) ta)
+      )
     prettyTerm :: Set AccessorName -> v -> (a, Term v a) -> Maybe (a, P.Pretty P.ColorText)
     prettyTerm skip n (a, tm) =
       if traceMember isMember then Nothing else Just (a, pb hq tm)

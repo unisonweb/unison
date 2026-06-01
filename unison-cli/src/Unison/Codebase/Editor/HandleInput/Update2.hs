@@ -27,7 +27,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
+import Unison.Cli.UpdateUtils (aliasDependentsInOrder, getNamespaceDependentsOf, hydrateAliases, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, propagateAliasUpdates, subtractDependents)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -64,6 +64,7 @@ import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
+import Unison.TypeAlias (TypeAlias)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -157,7 +158,7 @@ handleUpdate2 = do
         respondRegion $
           Output.Literal (Pretty.wrap "Okay, I'm searching the branch for code that needs to be updated...")
 
-        (dependents, dependentsRefs, hydratedDependents) <-
+        (dependents, dependentsRefs, hydratedDependents, aliasDependents) <-
           Cli.runTransaction do
             -- Get all dependents of things being updated
             dependents0 <-
@@ -182,14 +183,33 @@ handleUpdate2 = do
                 dependentsRefs =
                   bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents1
 
-            -- Hydrate the dependents for rendering
-            hydratedDependents0 <-
-              hydrateRefs env.codebase dependentsRefs
+            -- Split off alias dependents — they go through their own
+            -- ref-substitution path rather than the render/re-typecheck flow.
+            let collectAlias r acc =
+                  Codebase.isTypeAlias env.codebase (Reference.fromId r) <&> \case
+                    True -> Set.insert r acc
+                    False -> acc
+            aliasDependentRefs <- Set.foldCommutativeM collectAlias Set.empty dependentsRefs.types
+            aliasBodies <- hydrateAliases env.codebase aliasDependentRefs
 
-            let hydratedDependents1 =
-                  nameHydratedRefIds dependents1 hydratedDependents0
+            let aliasDependentsByName :: Map TypeReferenceId (Name, TypeAlias Symbol Ann)
+                aliasDependentsByName =
+                  Map.foldlWithKey'
+                    ( \acc name refId -> case Map.lookup refId aliasBodies of
+                        Just ta -> Map.insert refId (name, ta) acc
+                        Nothing -> acc
+                    )
+                    Map.empty
+                    dependents1.types
 
-            pure (dependents1, dependentsRefs, hydratedDependents1)
+            -- Drop alias dependents from the term/decl render path.
+            let dependents2 = dependents1 {types = Map.filter (`Set.notMember` aliasDependentRefs) dependents1.types}
+            let dependentsRefs2 = dependentsRefs {types = dependentsRefs.types `Set.difference` aliasDependentRefs}
+
+            hydratedDependents0 <- hydrateRefs env.codebase dependentsRefs2
+            let hydratedDependents1 = nameHydratedRefIds dependents2 hydratedDependents0
+
+            pure (dependents2, dependentsRefs2, hydratedDependents1, aliasDependentsByName)
 
         secondTuf <- do
           case defnsAreEmpty dependents of
@@ -293,10 +313,28 @@ handleUpdate2 = do
         branchUpdates <-
           Cli.runTransactionWithRollback \abort -> do
             Codebase.addDefsToCodebase env.codebase secondTuf
-            typecheckedUnisonFileToBranchUpdates
-              abort
-              (\typeName -> Right (Map.lookup typeName declNameLookup.declToConstructors))
-              secondTuf
+            primaryUpdates <-
+              typecheckedUnisonFileToBranchUpdates
+                abort
+                (\typeName -> Right (Map.lookup typeName declNameLookup.declToConstructors))
+                secondTuf
+            -- Re-emit alias dependents whose bodies point at refs that
+            -- moved during this update. New alias hashes cascade into
+            -- the substitution map so downstream aliases pick them up.
+            let initialSubsts =
+                  Map.fromList
+                    [ (oldRef, Reference.fromId newRefId)
+                    | name <- Set.toList addedOrUpdatedNamespaceBindings.types,
+                      oldRef <- toList (Relation.lookupDom name unconflictedView.names.types),
+                      Just newRefId <- [Map.lookup (Name.toVar name) (UF.namespaceBindingsMap secondTuf).types],
+                      oldRef /= Reference.fromId newRefId
+                    ]
+            (_, aliasUpdates) <-
+              propagateAliasUpdates
+                env.codebase
+                (aliasDependentsInOrder aliasDependents)
+                initialSubsts
+            pure (primaryUpdates ++ aliasUpdates)
         Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
         #latestTypecheckedFile .= Nothing
 
@@ -375,7 +413,17 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
     makeDeclUpdates abort = do
       dataDeclUpdates <- Monoid.foldMapM makeDataDeclUpdates (Map.toList $ UF.dataDeclarationsId' tuf)
       effectDeclUpdates <- Monoid.foldMapM makeEffectDeclUpdates (Map.toList $ UF.effectDeclarationsId' tuf)
-      pure $ dataDeclUpdates <> effectDeclUpdates
+      -- Aliases have no constructors, so just rebind the name.
+      let aliasUpdates =
+            foldMap
+              ( \(symbol, (typeRefId, _alias)) ->
+                  let split = splitVar symbol
+                   in [ BranchUtil.makeAnnihilateTypeName split,
+                        BranchUtil.makeAddTypeName split (Reference.fromId typeRefId)
+                      ]
+              )
+              (Map.toList (UF.typeAliasesId' tuf))
+      pure $ dataDeclUpdates <> effectDeclUpdates <> aliasUpdates
       where
         makeDataDeclUpdates (symbol, (typeRefId, dataDecl)) = makeDeclUpdates (symbol, (typeRefId, Right dataDecl))
         makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclUpdates (symbol, (typeRefId, Left effectDecl))

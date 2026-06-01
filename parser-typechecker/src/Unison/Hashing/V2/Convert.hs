@@ -7,6 +7,7 @@ module Unison.Hashing.V2.Convert
     hashCausal,
     hashDataDecls,
     hashDecls,
+    hashTypeAlias,
     hashPatch,
     hashClosedTerm,
     hashTermComponents,
@@ -46,6 +47,7 @@ import Unison.Referent qualified as Memory.Referent
 import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Term qualified as Memory.Term
 import Unison.Type qualified as Memory.Type
+import Unison.TypeAlias qualified as Memory.TypeAlias
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Star2 qualified as Memory.Star2
@@ -243,6 +245,21 @@ hashDataDecls memDecls = do
   where
     h2mDeclResult :: (Ord v) => (v, Hashing.ReferenceId, Hashing.DataDeclaration v a) -> (v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)
     h2mDeclResult (v, id, dd) = (v, h2mReferenceId id, h2mDecl dd)
+
+-- | Compute the 'Reference.Id' for a type alias.
+hashTypeAlias ::
+  (Var v, Show v) =>
+  Memory.TypeAlias.TypeAlias v a ->
+  Memory.Reference.Id
+hashTypeAlias = h2mReferenceId . Hashing.hashTypeAlias . m2hTypeAlias
+
+m2hTypeAlias :: (Ord v) => Memory.TypeAlias.TypeAlias v a -> Hashing.TypeAlias v a
+m2hTypeAlias ta =
+  Hashing.TypeAlias
+    { Hashing.aliasAnnotation = ABT.annotation (Memory.TypeAlias.body ta),
+      Hashing.paramNames = Memory.TypeAlias.paramNames ta,
+      Hashing.body = m2hType (Memory.TypeAlias.body ta)
+    }
 
 hashDecls ::
   (Var v) =>

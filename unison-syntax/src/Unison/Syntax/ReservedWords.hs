@@ -14,7 +14,6 @@ keywords :: Set Text
 keywords =
   Set.fromList
     [ "@rewrite",
-      "alias",
       "cases",
       "do",
       "else",

@@ -93,6 +93,7 @@ typeLookup =
     (fmap (const Intrinsic) <$> termRefTypes)
     (Map.fromList $ map (first R.DerivedId . snd) builtinDataDecls)
     (Map.fromList $ map (first R.DerivedId . snd) builtinEffectDecls)
+    mempty
 
 constructorType :: R.Reference -> Maybe CT.ConstructorType
 constructorType r =

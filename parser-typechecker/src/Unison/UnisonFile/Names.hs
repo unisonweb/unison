@@ -63,6 +63,7 @@ typecheckedToNames uf = Names (terms <> ctors) types
             Map.toList $
               fmap fst (UF.dataDeclarations' uf)
                 <> fmap fst (UF.effectDeclarations' uf)
+                <> fmap (Reference.DerivedId . fst) (UF.typeAliasesId' uf)
         ]
     ctors =
       Relation.fromMap

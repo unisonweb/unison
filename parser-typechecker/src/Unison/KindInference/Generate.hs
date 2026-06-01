@@ -4,6 +4,7 @@ module Unison.KindInference.Generate
   ( typeConstraints,
     termConstraints,
     declComponentConstraints,
+    aliasComponentConstraints,
     builtinConstraints,
   )
 where
@@ -22,13 +23,15 @@ import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
 import Unison.KindInference.Constraint.Provenance qualified as Provenance
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
-import Unison.KindInference.Generate.Monad (Gen, GenError (..), GeneratedConstraint, freshVar, lookupType, pushType, scopedType)
+import Unison.KindInference.Generate.Monad (Gen, GenError (..), GeneratedConstraint, freshVar, lookupType, popType, pushType, scopedType)
 import Unison.KindInference.UVar (UVar)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
+import Unison.TypeAlias (TypeAlias)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Util.Recursion
 import Unison.Var (Type (User), Var (typed), freshIn)
 import Prelude hiding (unzip)
@@ -215,6 +218,57 @@ declComponentConstraints ::
   [(Reference, Decl v loc)] ->
   Gen v loc [GeneratedConstraint v loc]
 declComponentConstraints decls = flatten bottomUp <$> declComponentConstraintTree decls
+
+-- | Generate kind constraints for a batch of type aliases. Each alias's
+-- body is treated as having kind @*@ with the alias parameters as the
+-- only free type variables. The alias's ref is registered with kind
+-- @k_p1 -> ... -> k_pN -> *@ where N is the arity and each @k_pi@ is the
+-- inferred kind of the corresponding parameter.
+--
+-- Aliases must already be normalized (no aliases of aliases) and depend
+-- only on decls or other already-inferred aliases, otherwise lookups in
+-- the body will fail with a ref-lookup error.
+aliasComponentConstraints ::
+  forall v loc.
+  (Var v, Ord loc) =>
+  [(Reference, TypeAlias v loc)] ->
+  Gen v loc [GeneratedConstraint v loc]
+aliasComponentConstraints aliases = flatten bottomUp <$> aliasComponentConstraintTree aliases
+
+aliasComponentConstraintTree ::
+  forall v loc.
+  (Var v, Ord loc) =>
+  [(Reference, TypeAlias v loc)] ->
+  Gen v loc (ConstraintTree v loc)
+aliasComponentConstraintTree aliases = do
+  -- Register each alias ref with a fresh kind variable.
+  prepared <- for aliases \(ref, ta) -> do
+    let bodyAnn = ABT.annotation ta.body
+    aliasKind <- pushType (Type.ref bodyAnn ref)
+    pure (ref, ta, aliasKind, bodyAnn)
+  Node <$> for prepared \(_ref, ta, aliasKind, bodyAnn) -> do
+    -- Register each alias parameter with a fresh kind variable.
+    paramKinds <- for ta.paramNames \v -> do
+      let varTyp = Type.var bodyAnn v
+      k <- pushType varTyp
+      pure (k, varTyp)
+    -- Generate body constraints with the body required to have kind *.
+    bodyKind <- freshVar ta.body
+    bodyConstraints <- typeConstraintTree bodyKind ta.body
+    let bodyAtStar = ParentConstraint (IsType bodyKind (Provenance DeclDefinition bodyAnn)) bodyConstraints
+    -- Chain the alias kind: aliasKind = paramKind1 -> ... -> paramKindN -> bodyKind.
+    aliasChainConstraints <-
+      let phi (currentKind, cts) (paramKind, _) = do
+            v <- freshVar ta.body
+            let cts' = Constraint (IsArr currentKind (Provenance DeclDefinition bodyAnn) paramKind v) cts
+            pure (v, cts')
+       in foldlM phi (aliasKind, Node []) paramKinds
+    let (fullyAppliedKind, declConstraints) = aliasChainConstraints
+    -- Unify the fully applied alias kind with the body's kind (both *).
+    let unify = Constraint (Unify (Provenance DeclDefinition bodyAnn) fullyAppliedKind bodyKind) declConstraints
+    -- Drop the parameter var registrations now that we're done with the body.
+    for_ paramKinds \(_, varTyp) -> popType varTyp
+    pure $ StrictOrder bodyAtStar unify
 
 declComponentConstraintTree ::
   forall v loc.

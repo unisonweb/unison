@@ -230,6 +230,14 @@ data Error v
   | FloatPattern Ann
   | -- Bound the same variable twice
     DuplicateBinders Ann Ann v
+  | -- | A @type alias@ was used without enough arguments. Carries the use
+    -- site annotation, the alias name, the expected arity, and the actual
+    -- number of arguments provided.
+    UnsaturatedTypeAlias Ann v Int Int
+  | -- | A set of @type alias@ declarations form a dependency cycle. Carries
+    -- the annotation of one alias in the cycle and the list of alias names
+    -- involved.
+    TypeAliasCycle Ann [v]
   deriving (Show, Eq, Ord)
 
 tokenToPair :: L.Token a -> (Ann, a)

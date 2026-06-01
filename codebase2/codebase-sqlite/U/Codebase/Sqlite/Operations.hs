@@ -30,6 +30,12 @@ module U.Codebase.Sqlite.Operations
     expectDeclNumConstructors,
     expectDeclTypeById,
 
+    -- * type aliases
+    Q.saveTypeAlias,
+    loadTypeAliasByReference,
+    expectTypeAliasByReference,
+    isTypeAliasReference,
+
     -- * terms/decls
     getCycleLen,
 
@@ -178,10 +184,12 @@ import U.Codebase.Sqlite.Referent qualified as S.Referent
 import U.Codebase.Sqlite.Serialization qualified as S
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.Term.Format qualified as S.Term
+import U.Codebase.Sqlite.TypeAlias.Format qualified as S.TypeAlias
 import U.Codebase.Term qualified as C
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.TermEdit qualified as C
 import U.Codebase.TermEdit qualified as C.TermEdit
+import U.Codebase.TypeAlias qualified as C.TypeAlias
 import U.Codebase.TypeEdit qualified as C
 import U.Codebase.TypeEdit qualified as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
@@ -505,6 +513,39 @@ expectDeclNumConstructors :: C.Reference.Id -> Transaction Int
 expectDeclNumConstructors (C.Reference.Id h i) = do
   oid <- Q.expectObjectIdForPrimaryHash h
   Q.expectDeclObject oid (decodeDeclElementNumConstructors i)
+
+-- * Type aliases
+
+loadTypeAliasByReference :: C.Reference.Id -> MaybeT Transaction (C.TypeAlias.TypeAlias Symbol)
+loadTypeAliasByReference (C.Reference.Id h _i) = do
+  oid <- MaybeT (Q.loadObjectIdForPrimaryHash h)
+  S.TypeAlias.TypeAlias localIds entry <- MaybeT (Q.loadTypeAliasObject oid decodeTypeAliasFormat)
+  lift (Q.s2cTypeAlias localIds entry)
+
+expectTypeAliasByReference :: C.Reference.Id -> Transaction (C.TypeAlias.TypeAlias Symbol)
+expectTypeAliasByReference (C.Reference.Id h _i) = do
+  oid <- Q.expectObjectIdForPrimaryHash h
+  S.TypeAlias.TypeAlias localIds entry <- Q.expectTypeAliasObject oid decodeTypeAliasFormat
+  Q.s2cTypeAlias localIds entry
+
+-- | Determine whether a reference points to a type alias entry in the
+-- codebase (as opposed to a regular data\/effect decl).
+isTypeAliasReference :: C.Reference -> Transaction Bool
+isTypeAliasReference = \case
+  C.Reference.ReferenceBuiltin _ -> pure False
+  C.Reference.ReferenceDerived (C.Reference.Id h _) -> do
+    Q.loadObjectIdForPrimaryHash h >>= \case
+      Nothing -> pure False
+      Just oid ->
+        Q.expectObjectWithType
+          oid
+          (\typ _bytes -> Right @CheckFailure (typ == ObjectType.TypeAliasComponent))
+
+-- | A trivial 'SqliteExceptionReason' used only as the @Left@ slot of
+-- 'expectObjectWithType' callbacks that cannot actually fail.
+data CheckFailure = CheckFailure
+  deriving stock (Show)
+  deriving anyclass (SqliteExceptionReason, Exception)
 
 -- * Branch transformation
 

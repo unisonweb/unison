@@ -181,6 +181,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.TypeAlias (TypeAlias)
 import Unison.Typechecker qualified as Typechecker
 import Unison.Util.AnnotatedText (AnnotatedText)
 import Unison.Util.List (uniqueBy)
@@ -667,6 +668,7 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqsSet = do
 data DefinitionResults = DefinitionResults
   { termResults :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
     typeResults :: Map Reference (DisplayObject () (DD.Decl Symbol Ann)),
+    typeAliasResults :: Map Reference (DisplayObject () (TypeAlias Symbol Ann)),
     noResults :: [HQ.HashQualified Name]
   }
   deriving stock (Show)
@@ -1042,16 +1044,20 @@ definitionsByName codebase nameSearch includeCycles searchType query = do
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) (searchResultsToTermRefs results)
-  types <- do
-    let typeRefsWithoutCycles = searchResultsToTypeRefs results
-    typeRefs <- case includeCycles of
-      IncludeCycles ->
-        Monoid.foldMapM
-          Codebase.componentReferencesForReference
-          typeRefsWithoutCycles
-      DontIncludeCycles -> pure typeRefsWithoutCycles
-    Map.foldMapM (\ref -> (ref,) <$> displayType codebase ref) typeRefs
-  pure (DefinitionResults terms types misses)
+  let typeRefsWithoutCycles = searchResultsToTypeRefs results
+  typeRefs <- case includeCycles of
+    IncludeCycles ->
+      Monoid.foldMapM
+        Codebase.componentReferencesForReference
+        typeRefsWithoutCycles
+    DontIncludeCycles -> pure typeRefsWithoutCycles
+  types <-
+    Map.fromList . catMaybes
+      <$> traverse (\ref -> fmap (ref,) <$> displayType codebase ref) (Set.toList typeRefs)
+  typeAliases <-
+    Map.fromList . catMaybes
+      <$> traverse (\ref -> fmap (ref,) <$> displayTypeAlias codebase ref) (Set.toList typeRefs)
+  pure (DefinitionResults terms types typeAliases misses)
   where
     searchResultsToTermRefs :: [SR.SearchResult] -> Set Reference
     searchResultsToTermRefs results =
@@ -1081,12 +1087,26 @@ displayTerm codebase = \case
       -- manually annotate if necessary
       _ -> UserObject (Term.ann (ABT.annotation term) term ty)
 
-displayType :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (DisplayObject () (DD.Decl Symbol Ann))
+-- | Load a type-position reference as a decl. Returns 'Nothing' for refs
+-- that point at type aliases (which have no 'Decl' body); aliases get loaded
+-- in parallel via 'displayTypeAlias'.
+displayType :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (Maybe (DisplayObject () (DD.Decl Symbol Ann)))
 displayType codebase = \case
-  Reference.Builtin _ -> pure (BuiltinObject ())
-  Reference.DerivedId rid -> do
-    decl <- Codebase.unsafeGetTypeDeclaration codebase rid
-    pure (UserObject decl)
+  Reference.Builtin _ -> pure (Just (BuiltinObject ()))
+  Reference.DerivedId rid ->
+    Codebase.getTypeDeclaration codebase rid <&> \case
+      Just decl -> Just (UserObject decl)
+      Nothing -> Nothing
+
+-- | Load a type-position reference as a type alias. Returns 'Nothing' for
+-- refs that point at decls (handled by 'displayType').
+displayTypeAlias :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (Maybe (DisplayObject () (TypeAlias Symbol Ann)))
+displayTypeAlias codebase = \case
+  Reference.Builtin _ -> pure Nothing
+  Reference.DerivedId rid ->
+    Codebase.getTypeAlias codebase rid <&> \case
+      Just alias -> Just (UserObject alias)
+      Nothing -> Nothing
 
 -- | Version of 'termsToSyntax' which works over arbitrary traversals.
 --
@@ -1300,7 +1320,7 @@ typeSummaryForReference codebase reference mayName mkPPED mayWidth = do
       pped <- mkPPED $ Set.singleton (LD.TypeReference reference)
       let displayName = PPE.typeName (PPED.unsuffixifiedPPE pped) reference
       tag <- getTypeTag codebase reference
-      displayDecl <- displayType codebase reference
+      displayDecl <- fromMaybe (MissingObject shortHash) <$> displayType codebase reference
       let syntaxHeader = typeToSyntaxHeader width displayName displayDecl
       pure $
         TypeSummary

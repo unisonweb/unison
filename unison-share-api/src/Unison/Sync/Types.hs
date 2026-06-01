@@ -15,6 +15,7 @@ module Unison.Sync.Types
     Entity (..),
     TermComponent (..),
     DeclComponent (..),
+    TypeAliasComponent (..),
     Patch (..),
     PatchDiff (..),
     Namespace (..),
@@ -140,6 +141,7 @@ data Entity text noSyncHash hash
   | N (Namespace text hash)
   | ND (NamespaceDiff text hash)
   | C (Causal hash)
+  | TAC (TypeAliasComponent text hash)
   deriving stock (Show, Eq, Ord)
 
 instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text noSyncHash hash) where
@@ -151,6 +153,7 @@ instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text no
     N ns -> go NamespaceType ns
     ND ns -> go NamespaceDiffType ns
     C causal -> go CausalType causal
+    TAC tac -> go TypeAliasComponentType tac
     where
       go :: (ToJSON a) => EntityType -> a -> Aeson.Value
       go typ obj = object ["type" .= typ, "object" .= obj]
@@ -165,6 +168,7 @@ instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJS
       NamespaceType -> N <$> obj .: "object"
       NamespaceDiffType -> ND <$> obj .: "object"
       CausalType -> C <$> obj .: "object"
+      TypeAliasComponentType -> TAC <$> obj .: "object"
 
 entityHashes_ :: (Applicative m, Ord hash') => (hash -> m hash') -> Entity text noSyncHash hash -> m (Entity text noSyncHash hash')
 entityHashes_ f = \case
@@ -175,6 +179,7 @@ entityHashes_ f = \case
   N ns -> N <$> bitraverse pure f ns
   ND ns -> ND <$> namespaceDiffHashes_ f ns
   C causal -> C <$> causalHashes_ f causal
+  TAC tac -> TAC <$> bitraverse pure f tac
 
 -- | Get the direct dependencies of an entity (which are actually sync'd).
 entityDependencies :: (Ord hash) => Entity text noSyncHash hash -> Set hash
@@ -253,6 +258,38 @@ instance (FromJSON text, FromJSON hash) => FromJSON (DeclComponent text hash) wh
     pieces <- obj .: "decls"
     terms <- traverse decodeComponentPiece pieces
     pure (DeclComponent terms)
+
+-- | A type alias on the wire — a single (LocalIds, body bytes) pair, not
+-- a component, since aliases are non-recursive. The JSON shape mirrors
+-- 'DeclComponent' (a single-element list under @"type_aliases"@) for
+-- consistency.
+data TypeAliasComponent text hash = TypeAliasComponent (LocalIds text hash) ByteString
+  deriving stock (Show, Eq, Functor, Ord)
+
+instance Bifoldable TypeAliasComponent where
+  bifoldMap = bifoldMapDefault
+
+instance Bifunctor TypeAliasComponent where
+  bimap = bimapDefault
+
+instance Bitraversable TypeAliasComponent where
+  bitraverse f g (TypeAliasComponent localIds bytes) =
+    (\lids -> TypeAliasComponent lids bytes) <$> bitraverse f g localIds
+
+instance (ToJSON text, ToJSON hash) => ToJSON (TypeAliasComponent text hash) where
+  toJSON (TypeAliasComponent localIds bytes) =
+    object
+      [ "type_aliases" .= [encodeComponentPiece (localIds, bytes)]
+      ]
+
+instance (FromJSON text, FromJSON hash) => FromJSON (TypeAliasComponent text hash) where
+  parseJSON = Aeson.withObject "TypeAliasComponent" \obj -> do
+    pieces <- obj .: "type_aliases"
+    case pieces of
+      [piece] -> do
+        (localIds, bytes) <- decodeComponentPiece piece
+        pure (TypeAliasComponent localIds bytes)
+      _ -> fail "TypeAliasComponent: expected exactly one entry"
 
 data LocalIds text hash = LocalIds
   { texts :: [text],
@@ -469,6 +506,7 @@ data EntityType
   | NamespaceType
   | NamespaceDiffType
   | CausalType
+  | TypeAliasComponentType
   deriving stock (Eq, Ord, Show)
 
 instance Serialise EntityType where
@@ -480,6 +518,7 @@ instance Serialise EntityType where
     NamespaceType -> CBOR.encodeWord8 4
     NamespaceDiffType -> CBOR.encodeWord8 5
     CausalType -> CBOR.encodeWord8 6
+    TypeAliasComponentType -> CBOR.encodeWord8 7
   decode = do
     tag <- CBOR.decodeWord8
     case tag of
@@ -490,6 +529,7 @@ instance Serialise EntityType where
       4 -> pure NamespaceType
       5 -> pure NamespaceDiffType
       6 -> pure CausalType
+      7 -> pure TypeAliasComponentType
       _ -> fail "invalid tag"
 
 instance ToJSON EntityType where
@@ -502,6 +542,7 @@ instance ToJSON EntityType where
       NamespaceType -> "namespace"
       NamespaceDiffType -> "namespace_diff"
       CausalType -> "causal"
+      TypeAliasComponentType -> "type_alias_component"
 
 instance FromJSON EntityType where
   parseJSON = Aeson.withText "EntityType" \case
@@ -512,6 +553,7 @@ instance FromJSON EntityType where
     "namespace" -> pure NamespaceType
     "namespace_diff" -> pure NamespaceDiffType
     "causal" -> pure CausalType
+    "type_alias_component" -> pure TypeAliasComponentType
     t -> failText $ "Unexpected entity type: " <> t
 
 ------------------------------------------------------------------------------------------------------------------------
