@@ -59,6 +59,7 @@ library
       Unison.Type
       Unison.Type.Names
       Unison.Typed
+      Unison.TypeTagRepr
       Unison.Util.Components
       Unison.Util.Conflicted
       Unison.Util.Defn

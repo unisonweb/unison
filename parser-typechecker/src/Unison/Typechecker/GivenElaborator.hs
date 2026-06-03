@@ -92,6 +92,9 @@ module Unison.Typechecker.GivenElaborator
     elaborateGoals,
     elaborateInfoNotes,
 
+    -- * TypeTag synthesis
+    typeTagSynthRef,
+
     -- * Diagnostics
     extractConstraintGoals,
     implicitDecisions,
@@ -104,6 +107,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.Reference (Reference)
+import Unison.Reference qualified as Reference
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker.Context qualified as Context
@@ -293,14 +297,57 @@ resolveOne ::
   PendingGoal v loc ->
   Context.InfoNote v loc
 resolveOne ambient PendingGoal {pgLoc, pgType, pgScope, pgExistentials} =
-  let lexical = lexicalPool pgScope
-      pool = mergePool lexical ambient
-      decision = GR.resolveWithExistentials pgExistentials pool pgType
-   in Context.SolvedImplicit
-        { Context.implicitGoalLoc = pgLoc,
-          Context.implicitGoalType = pgType,
-          Context.implicitDecision = decision
-        }
+  case matchTypeTagGoal pgType of
+    Just innerType
+      | Set.null (ABT.freeVars innerType) ->
+          Context.SolvedImplicit
+            { Context.implicitGoalLoc = pgLoc,
+              Context.implicitGoalType = pgType,
+              Context.implicitDecision = Right (syntheticTypeTagTree innerType)
+            }
+      | otherwise ->
+          Context.SolvedImplicit
+            { Context.implicitGoalLoc = pgLoc,
+              Context.implicitGoalType = pgType,
+              Context.implicitDecision = Left (GR.NoGiven pgType [])
+            }
+    Nothing ->
+      let lexical = lexicalPool pgScope
+          pool = mergePool lexical ambient
+          decision = GR.resolveWithExistentials pgExistentials pool pgType
+       in Context.SolvedImplicit
+            { Context.implicitGoalLoc = pgLoc,
+              Context.implicitGoalType = pgType,
+              Context.implicitDecision = decision
+            }
+
+-- | Detect a goal of the form @TypeTag T@.
+matchTypeTagGoal :: Type v loc -> Maybe (Type v loc)
+matchTypeTagGoal ty = case ty of
+  Type.App' (Type.Ref' r) inner
+    | r == Type.typeTagRef -> Just inner
+  _ -> Nothing
+
+-- | Build a synthetic 'ResolutionTree' for a TypeTag goal. The
+-- sentinel reference @TypeTag.synth@ is detected by 'GivenApply' to
+-- produce a 'TypeTagLit' term instead of the normal @Term.ref@.
+syntheticTypeTagTree :: (Var v, Ord loc) => Type v loc -> GR.ResolutionTree v loc
+syntheticTypeTagTree innerType =
+  GR.ResolutionTree
+    { GR.rtGiven =
+        GR.Given
+          { GR.givenName = typeTagSynthRef,
+            GR.givenTyVars = [],
+            GR.givenPremises = [],
+            GR.givenConclusion = innerType,
+            GR.givenScope = GR.Ambient
+          },
+      GR.rtSubst = Map.empty,
+      GR.rtChildren = []
+    }
+
+typeTagSynthRef :: Reference
+typeTagSynthRef = Reference.Builtin "TypeTag.synth"
 
 -- | Build a 'GR.Pool' of @Lexical 0@-scoped givens from a per-goal
 -- 'goalScope' snapshot.

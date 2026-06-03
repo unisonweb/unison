@@ -73,6 +73,7 @@ data TermF typeVar typeAnn patternAnn a
     TermMatch a [MatchCase patternAnn a]
   | TermTermLink Referent
   | TermTypeLink Reference
+  | TermTypeTagLit [Reference]
   deriving (Foldable, Functor, Generic, Generic1, Traversable)
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
@@ -209,3 +210,4 @@ instance (Var v) => Hashable1 (TermF v a p) where
                   TermOr x y -> [tag 17, hashed $ hash x, hashed $ hash y]
                   TermTermLink r -> [tag 18, accumulateToken r]
                   TermTypeLink r -> [tag 19, accumulateToken r]
+                  TermTypeTagLit rs -> tag 20 : map accumulateToken rs

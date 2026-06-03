@@ -121,7 +121,9 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.TypeTagRepr qualified as TypeTagRepr
 import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.GivenElaborator qualified as GivenElaborator
 import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.Typechecker.TypeLookup (TypeLookup)
 import Unison.Typechecker.TypeLookup qualified as TL
@@ -501,13 +503,17 @@ rebuildApps a f args = case args of
 -- non-synthetic annotations because they may already correspond to
 -- user-named givens.
 buildDictionary :: (Var v) => Ann -> GR.ResolutionTree v Ann -> Term v Ann
-buildDictionary a tree =
-  let head_ = headTermFor a (GR.givenName (GR.rtGiven tree))
-      premises = map (buildDictionary a) (GR.rtChildren tree)
-      raw = case premises of
-        [] -> head_
-        _ -> Term.apps head_ (map (\p -> (a, p)) premises)
-   in markSyntheticTop raw
+buildDictionary a tree
+  | GR.givenName (GR.rtGiven tree) == GivenElaborator.typeTagSynthRef =
+      let repr = TypeTagRepr.typeToRepr (GR.givenConclusion (GR.rtGiven tree))
+       in markSyntheticTop (Term.typeTagLit a repr)
+  | otherwise =
+      let head_ = headTermFor a (GR.givenName (GR.rtGiven tree))
+          premises = map (buildDictionary a) (GR.rtChildren tree)
+          raw = case premises of
+            [] -> head_
+            _ -> Term.apps head_ (map (\p -> (a, p)) premises)
+       in markSyntheticTop raw
 
 -- | Replace the outermost annotation of a term with 'Ann.Synthetic'
 -- wrapping the original. Used to flag elaborator-inserted terms so

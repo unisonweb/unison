@@ -36,12 +36,12 @@ library
       Unison.Codebase.BuiltinAnnotation
       Unison.Codebase.Causal
       Unison.Codebase.Causal.Type
+      Unison.Codebase.Classes
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
       Unison.Codebase.Editor.DisplayObject
       Unison.Codebase.Editor.RemoteRepo
       Unison.Codebase.FileCodebase
-      Unison.Codebase.Classes
       Unison.Codebase.Givens
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError

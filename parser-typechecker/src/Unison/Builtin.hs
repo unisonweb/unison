@@ -208,6 +208,7 @@ builtinTypesSrc =
     B' "Bytes" CT.Data,
     B' "Link.Term" CT.Data,
     B' "Link.Type" CT.Data,
+    B' "TypeTag" CT.Data,
     B' "IO" CT.Effect,
     Rename' "IO" "io2.IO",
     B' "Handle" CT.Data,

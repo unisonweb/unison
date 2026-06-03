@@ -340,6 +340,9 @@ termLink a = ABT.tm' a . Ref $ termLinkRef
 typeLink :: (Ord v) => a -> Type v a
 typeLink a = ABT.tm' a . Ref $ typeLinkRef
 
+typeTag :: (Ord v) => a -> Type v a
+typeTag a = ABT.tm' a . Ref $ typeTagRef
+
 derivedBase32Hex :: (Ord v) => TypeReference -> a -> Type v a
 derivedBase32Hex r a = ref a r
 
@@ -369,6 +372,9 @@ effectRef = Reference.Builtin "Effect"
 termLinkRef = Reference.Builtin "Link.Term"
 
 typeLinkRef = Reference.Builtin "Link.Type"
+
+typeTagRef :: TypeReference
+typeTagRef = Reference.Builtin "TypeTag"
 
 integerRef = Reference.Builtin "Integer"
 

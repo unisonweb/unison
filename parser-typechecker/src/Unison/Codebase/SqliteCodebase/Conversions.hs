@@ -116,6 +116,7 @@ term1to2 h =
       V1.Term.Match e cases -> V2.Term.Match e (goCase <$> cases)
       V1.Term.TermLink r -> V2.Term.TermLink (rreferent1to2 h r)
       V1.Term.TypeLink r -> V2.Term.TypeLink (reference1to2 r)
+      V1.Term.TypeTagLit _ -> error ("can't serialize TypeTagLit to V2 format yet (" ++ show h ++ ")")
       V1.Term.Blank _ -> error ("can't serialize term with blanks (" ++ show h ++ ")")
 
     goCase (V1.Term.MatchCase p g b) =

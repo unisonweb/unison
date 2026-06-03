@@ -1730,6 +1730,7 @@ synthesizeWanted e
   | Term.Char' _ <- e = pure (Type.char l, [])
   | Term.TermLink' _ <- e = pure (Type.termLink l, [])
   | Term.TypeLink' _ <- e = pure (Type.typeLink l, [])
+  | Term.TypeTagLit' _ <- e = pure (Type.app l (Type.typeTag l) (Type.any l), [])
   | Term.Blank' blank <- e = do
       let freshType = case blank of
             B.Recorded (B.MissingResultPlaceholder _) -> Var.missingResult
