@@ -11,8 +11,10 @@ import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Word
 import Unison.Builtin.Decls qualified as Ty
+import Data.Text qualified as Text
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
+import Unison.TypeTagRepr (TypeTagRepr, typeTagRefs)
 import Unison.Referent (Referent, toShortHash, pattern Ref)
 import Unison.Runtime.ANF (Code, Value, codeGroup)
 import Unison.Runtime.Exception (die)
@@ -102,6 +104,8 @@ prim1 env !stk SDBL i = prim1wrap (sdbl env) stk i
 prim1 env !stk LKUP i = prim1wrap (lkup env) stk i
 prim1 env !stk CVLD i = prim1wrap (cvld env) stk i
 prim1 _env !stk TLTT i = prim1wrap tltt stk i
+prim1 _env !stk TAGT i = prim1wrap tagt stk i
+prim1 _env !stk TAGR i = prim1wrap tagr stk i
 prim1 env !stk DBTX i = prim1wrap (dbtx env) stk i
 -- handled elsewhere
 prim1 _env !stk CACH _ = pure stk
@@ -498,6 +502,16 @@ tltt :: Stack -> Referent -> IO ()
 tltt stk r =
   pokeBi stk . UText.fromText . SH.toText $ toShortHash r
 {-# INLINE tltt #-}
+
+tagt :: Stack -> TypeTagRepr -> IO ()
+tagt stk repr =
+  pokeBi stk . UText.fromText . Text.pack $ show repr
+{-# INLINE tagt #-}
+
+tagr :: Stack -> TypeTagRepr -> IO ()
+tagr stk repr =
+  pokeS stk . Sq.fromList $ map typeLinkVal (typeTagRefs repr)
+{-# INLINE tagr #-}
 
 dbtx :: CCache p -> Stack -> Val -> IO ()
 dbtx env stk val = writeBack stk traced

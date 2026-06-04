@@ -366,6 +366,8 @@ data Prim1
   | CVLD -- validate
   | VALU -- value
   | TLTT --  Term.Link.toText
+  | TAGT -- TypeTag.toText
+  | TAGR -- TypeTag.references
   -- debug
   | DBTX -- debug text
   | SDBL -- sandbox link list
@@ -1442,6 +1444,8 @@ emitPOp ANF.MISS = emitP1 MISS
 emitPOp ANF.CACH = emitP1 CACH
 emitPOp ANF.LKUP = emitP1 LKUP
 emitPOp ANF.TLTT = emitP1 TLTT
+emitPOp ANF.TAGT = emitP1 TAGT
+emitPOp ANF.TAGR = emitP1 TAGR
 emitPOp ANF.CVLD = emitP1 CVLD
 emitPOp ANF.LOAD = emitP1 LOAD
 emitPOp ANF.VALU = emitP1 VALU

@@ -553,6 +553,8 @@ builtinsSrc =
     B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "Any.Any" $ forall1 "a" (\a -> a --> anyt),
+    B "TypeTag.toText" $ forall1 "a" (\a -> typeTag a --> text),
+    B "TypeTag.references" $ forall1 "a" (\a -> typeTag a --> list typelink),
     B "Boolean.not" $ boolean --> boolean,
     B "Text.empty" text,
     B "Text.++" $ text --> text --> text,
@@ -1496,6 +1498,12 @@ code = Type.code ()
 value = Type.value ()
 
 termLink = Type.termLink ()
+
+typelink :: Type
+typelink = Type.typeLink ()
+
+typeTag :: Type -> Type
+typeTag a = Type.typeTag () `app` a
 
 stm = Type.effect1 () (Type.ref () Type.stmRef)
 
