@@ -318,6 +318,7 @@ hash64AddLit rs = \case
   C c -> hash64AddInt 5 `combine` hash64Add c
   LM rn -> hash64AddInt 6 `combine` hash64AddReferent rs rn
   LY i -> hash64AddInt 7 `combine` hash64AddTypeRef rs i
+  LTT _repr -> hash64AddInt 8
 
 hash64AddBranches ::
   (Show r) =>

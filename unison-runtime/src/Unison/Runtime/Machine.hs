@@ -258,6 +258,7 @@ litToVal = \case
   MT t -> BoxedVal $ Foreign (WrapText t)
   MM r -> BoxedVal $ Foreign (WrapReferent r)
   MY r -> BoxedVal $ Foreign (WrapReference r)
+  MTT repr -> BoxedVal $ Foreign (WrapTypeTag repr)
   MI i -> IntVal i
   MN n -> NatVal n
   MC c -> CharVal c

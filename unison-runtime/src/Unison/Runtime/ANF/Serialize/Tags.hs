@@ -43,6 +43,7 @@ data LtTag
   | CT
   | LMT
   | LYT
+  | LTTT
 
 data BLTag
   = TextT
@@ -147,6 +148,7 @@ instance Tag LtTag where
     CT -> 4
     LMT -> 5
     LYT -> 6
+    LTTT -> 7
 
   word2tag = \case
     0 -> pure IT
@@ -156,6 +158,7 @@ instance Tag LtTag where
     4 -> pure CT
     5 -> pure LMT
     6 -> pure LYT
+    7 -> pure LTTT
     n -> unknownTag "LtTag" n
 
 instance Tag BLTag where

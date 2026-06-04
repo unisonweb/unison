@@ -133,6 +133,7 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyShortHash)
 import Unison.Term hiding (Char, Float, List, Ref, Text, arity, float, fresh, resolve)
 import Unison.Type qualified as Ty
+import Unison.TypeTagRepr (TypeTagRepr)
 import Unison.Typechecker.Components (minimize')
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.EnumContainers as EC
@@ -1486,6 +1487,7 @@ data Lit ref
   | C Char
   | LM (Rfn.Referent' ref) -- Term Link
   | LY ref -- Type Link
+  | LTT TypeTagRepr -- TypeTag literal
   deriving (Show, Eq)
 
 litRef :: Lit ref -> Reference
@@ -1496,6 +1498,7 @@ litRef (T _) = Ty.textRef
 litRef (C _) = Ty.charRef
 litRef (LM _) = Ty.termLinkRef
 litRef (LY _) = Ty.typeLinkRef
+litRef (LTT _) = Ty.typeTagRef
 
 type ANormal ref = ABTN.Term (ANormalF ref)
 
@@ -1767,7 +1770,7 @@ anfHandled body =
       fresh <&> \v ->
         (ctx <> pure [ST1 Direct v cc t], pure $ TVar v)
       where
-        cc = case l of T {} -> BX; LM {} -> BX; LY {} -> BX; _ -> UN
+        cc = case l of T {} -> BX; LM {} -> BX; LY {} -> BX; LTT {} -> BX; _ -> UN
     p -> pure p
 
 pattern UFalse <- TCon ((== Ty.booleanRef) -> True) 0 []
@@ -2102,6 +2105,7 @@ anfBlock (Blank' b) = do
     msg = fromMaybe "blank expression" $ nameb b
 anfBlock (TermLink' r) = pure (mempty, pure . TLit $ LM r)
 anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
+anfBlock (TypeTagLit' repr) = pure (mempty, pure . TLit $ LTT repr)
 anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
     tms = toList as
@@ -2455,6 +2459,7 @@ litLinks _ (N n) = pure $ N n
 litLinks _ (F d) = pure $ F d
 litLinks _ (T t) = pure $ T t
 litLinks _ (C c) = pure $ C c
+litLinks _ (LTT repr) = pure $ LTT repr
 
 branchLinks ::
   (Applicative f) =>
