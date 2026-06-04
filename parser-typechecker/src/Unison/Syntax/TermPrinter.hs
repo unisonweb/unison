@@ -8,6 +8,7 @@ module Unison.Syntax.TermPrinter
     prettyBinding',
     prettyBindingForDiff,
     prettyBindingWithoutTypeSignature,
+    prettyGivenBinding,
     prettyDoc2,
     pretty0,
     runPretty,
@@ -1005,6 +1006,53 @@ prettyBinding_ ::
   Pretty SyntaxText
 prettyBinding_ go ppe n tm =
   runPretty (avoidShadowing tm ppe) . fmap go $ prettyBinding0 (ac Basement Block Map.empty MaybeDoc) n tm
+
+-- | Render a top-level @given@ binding as a single declaration of
+-- the form
+--
+-- > given name : T
+-- >  = body
+--
+-- with the body soft-hung after the @=@. Mirrors how the parser
+-- accepts it: 'givenBindingBody' parses @given name : T = body@ as
+-- one stanza, so 'view' must round-trip it as one stanza too.
+--
+-- Synthetic @\\_implicit_*@ lambdas inserted by 'wrapImplicitParams'
+-- are stripped before printing the body, so the visible form
+-- matches what the user originally typed.
+prettyGivenBinding ::
+  (Var v) =>
+  PrettyPrintEnv ->
+  HQ.HashQualified Name ->
+  Term2 v at ap v a ->
+  Pretty SyntaxText
+prettyGivenBinding ppe v tm =
+  runPretty (avoidShadowing tm ppe) $ do
+    let annotated = printAnnotate ppe tm
+        (tp, body) = splitGivenAnn annotated
+        im = Map.empty
+        v' = elideFQN im v
+        renderedName =
+          parenIfInfix v' NonInfix $ styleHashQualified'' (fmt $ S.HashQualifier v') v'
+    tp' <- TypePrinter.pretty0 im (-1) tp
+    body' <- pretty0 (ac Basement Block im MaybeDoc) body
+    let header =
+          fmt S.DataTypeKeyword "given "
+            <> renderedName
+            <> PP.hang (fmt S.TypeAscriptionColon " :") tp'
+    pure $
+      PP.group $
+        PP.group (header <> fmt S.BindingEquals " =")
+          `PP.hang` body'
+  where
+    splitGivenAnn t = case t of
+      Ann' inner ty -> (ty, stripSyntheticImplicitLambdas inner)
+      _ -> error "prettyGivenBinding: term has no top-level annotation"
+    stripSyntheticImplicitLambdas t = case t of
+      LamNamed' bv body
+        | "_implicit_" `Text.isPrefixOf` Var.name (Var.reset bv) ->
+            stripSyntheticImplicitLambdas body
+      _ -> t
 
 -- | Like 'prettyBinding', but uses raw strings for multiline text literals.
 -- This is useful for diff output where we want actual newlines for better diffing.

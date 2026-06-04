@@ -151,20 +151,32 @@ checkFileContents fileUri sourceName fileVersion contents = do
                   _ -> mempty
                 & pure
 
+            let -- The parser-injected @\_implicit_*@ lambdas wrap the
+                -- entire body of a binding whose declared type
+                -- contains one or more @=>@ arrows (see
+                -- 'wrapImplicitParams' in
+                -- @Unison.Syntax.TermParser@). Their 'VarBinding'
+                -- notes therefore intersect every cursor position
+                -- inside the body and would shadow the real
+                -- in-scope variable on hover. Skip them.
+                isSyntheticImplicit v =
+                  "_implicit_" `Text.isPrefixOf` Var.name (Var.reset v)
             let localBindingInfo :: (IntervalMap Position (Context.Type Symbol Ann, Range)) =
                   typecheckingNotes
                     & Foldable.toList
                     & reverse -- Type notes that come later in typechecking have more information filled in.
                     & foldMap \case
-                      Result.TypeInfo (Context.VarBinding _v loc typ) -> do
-                        ( (liftA2 (,) (annToInterval loc) (annToRange loc))
-                            & foldMap \(interval, definitionSite) -> (IM.singleton interval (typ, definitionSite))
-                          )
-                      Result.TypeInfo (Context.VarMention v loc) -> do
-                        case Map.lookup v symbolInfo of
-                          Just (typ, definitionSite) ->
-                            ((annToInterval loc) & foldMap \interval -> (IM.singleton interval (typ, definitionSite)))
-                          _ -> mempty
+                      Result.TypeInfo (Context.VarBinding v loc typ)
+                        | not (isSyntheticImplicit v) -> do
+                            ( (liftA2 (,) (annToInterval loc) (annToRange loc))
+                                & foldMap \(interval, definitionSite) -> (IM.singleton interval (typ, definitionSite))
+                              )
+                      Result.TypeInfo (Context.VarMention v loc)
+                        | not (isSyntheticImplicit v) -> do
+                            case Map.lookup v symbolInfo of
+                              Just (typ, definitionSite) ->
+                                ((annToInterval loc) & foldMap \interval -> (IM.singleton interval (typ, definitionSite)))
+                              _ -> mempty
                       _ -> mempty
             -- Chunk F1: collect 'ImplicitArgRef' notes emitted by D3's
             -- 'applyGivenDecisions'. We index by the call-site interval

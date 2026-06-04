@@ -469,9 +469,10 @@ prettyTerm ::
   PPED.PrettyPrintEnvDecl ->
   Bool {- whether we're printing to a source-file or not. -} ->
   Bool {- Whether the term is a test -} ->
+  Bool {- Whether the term is a @given@ (renders as a single @given name : T = body@ stanza). -} ->
   (HQ.HashQualified Name, TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   P.Pretty SyntaxText
-prettyTerm pped isSourceFile isTest (n, r, dt) =
+prettyTerm pped isSourceFile isTest isGiven (n, r, dt) =
   case dt of
     MissingObject r -> missingDefinitionMsg n r
     BuiltinObject typ ->
@@ -487,7 +488,9 @@ prettyTerm pped isSourceFile isTest (n, r, dt) =
       let tm' = GivenApply.stripSyntheticArgs tm
        in if isTest
             then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm'
-            else TermPrinter.prettyBinding (ppeBody n r) n tm'
+            else if isGiven
+              then TermPrinter.prettyGivenBinding (ppeBody n r) n tm'
+              else TermPrinter.prettyBinding (ppeBody n r) n tm'
   where
     commentBuiltin txt =
       if isSourceFile
