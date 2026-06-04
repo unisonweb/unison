@@ -568,6 +568,14 @@ typetag'references :: SuperNormal ref Symbol
 typetag'references =
   unop0 0 $ \[tag] -> TPrm TAGR [tag]
 
+typetag'serialize :: SuperNormal ref Symbol
+typetag'serialize =
+  unop0 0 $ \[tag] -> TPrm TAGS [tag]
+
+typetag'deserialize :: SuperNormal ref Symbol
+typetag'deserialize =
+  unop0 0 $ \[bs] -> TPrm TAGD [bs]
+
 value'load :: SuperNormal Reference Symbol
 value'load =
   unop0 2 $ \[vlu, t, r] ->
@@ -919,6 +927,8 @@ builtinLookup =
         ("Link.Term.toText", (Untracked, term'link'to'text)),
         ("TypeTag.toText", (Untracked, typetag'to'text)),
         ("TypeTag.references", (Untracked, typetag'references)),
+        ("TypeTag.serialize", (Untracked, typetag'serialize)),
+        ("TypeTag.deserialize", (Untracked, typetag'deserialize)),
         ("STM.atomically", (Tracked, stm'atomic)),
         ("validateSandboxed", (Untracked, check'sandbox)),
         ("Value.validateSandboxed", (Tracked, value'sandbox)),

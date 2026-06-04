@@ -7,14 +7,19 @@ import Data.Bits
 import Data.IORef (IORef)
 import Data.IORef qualified as IORef
 import Data.Map.Strict qualified as M
+import Data.ByteString qualified as BS
 import Data.Sequence qualified as Sq
 import Data.Set qualified as S
+import Data.Text.Encoding qualified as TextEnc
 import Data.Word
 import Unison.Builtin.Decls qualified as Ty
 import Data.Text qualified as Text
+import Unison.Hash (Hash)
+import Unison.Hash qualified as Hash
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
-import Unison.TypeTagRepr (TypeTagRepr, typeTagRefs)
+import Unison.Reference qualified as Reference
+import Unison.TypeTagRepr (TypeTagRepr (..), typeTagRefs)
 import Unison.Referent (Referent, toShortHash, pattern Ref)
 import Unison.Runtime.ANF (Code, Value, codeGroup)
 import Unison.Runtime.Exception (die)
@@ -106,6 +111,8 @@ prim1 env !stk CVLD i = prim1wrap (cvld env) stk i
 prim1 _env !stk TLTT i = prim1wrap tltt stk i
 prim1 _env !stk TAGT i = prim1wrap tagt stk i
 prim1 _env !stk TAGR i = prim1wrap tagr stk i
+prim1 _env !stk TAGS i = prim1wrap tags stk i
+prim1 _env !stk TAGD i = prim1wrap tagd stk i
 prim1 env !stk DBTX i = prim1wrap (dbtx env) stk i
 -- handled elsewhere
 prim1 _env !stk CACH _ = pure stk
@@ -512,6 +519,104 @@ tagr :: Stack -> TypeTagRepr -> IO ()
 tagr stk repr =
   pokeS stk . Sq.fromList $ map typeLinkVal (typeTagRefs repr)
 {-# INLINE tagr #-}
+
+tags :: Stack -> TypeTagRepr -> IO ()
+tags stk repr =
+  pokeBi stk . By.fromWord8s $ encodeTypeTagRepr repr
+{-# INLINE tags #-}
+
+tagd :: Stack -> By.Bytes -> IO ()
+tagd stk bs =
+  case decodeTypeTagRepr (By.toWord8s bs) of
+    Just (repr, _) -> poke stk (BoxedVal $ Data1 Ty.optionalRef (Ty.PackedTag 1) (BoxedVal (Foreign (WrapTypeTag repr))))
+    Nothing -> poke stk (BoxedVal $ Enum Ty.optionalRef (Ty.PackedTag 0))
+{-# INLINE tagd #-}
+
+encodeTypeTagRepr :: TypeTagRepr -> [Word8]
+encodeTypeTagRepr (TTRef r) = 0 : encodeReference r
+encodeTypeTagRepr (TTApp f x) = 1 : encodeTypeTagRepr f ++ encodeTypeTagRepr x
+encodeTypeTagRepr (TTArrow i o) = 2 : encodeTypeTagRepr i ++ encodeTypeTagRepr o
+encodeTypeTagRepr (TTEffect es t) =
+  3 : encodeVarNat (length es) ++ concatMap encodeTypeTagRepr es ++ encodeTypeTagRepr t
+
+decodeTypeTagRepr :: [Word8] -> Maybe (TypeTagRepr, [Word8])
+decodeTypeTagRepr [] = Nothing
+decodeTypeTagRepr (0 : rest) = do
+  (r, rest') <- decodeReference rest
+  Just (TTRef r, rest')
+decodeTypeTagRepr (1 : rest) = do
+  (f, rest') <- decodeTypeTagRepr rest
+  (x, rest'') <- decodeTypeTagRepr rest'
+  Just (TTApp f x, rest'')
+decodeTypeTagRepr (2 : rest) = do
+  (i, rest') <- decodeTypeTagRepr rest
+  (o, rest'') <- decodeTypeTagRepr rest'
+  Just (TTArrow i o, rest'')
+decodeTypeTagRepr (3 : rest) = do
+  (n, rest') <- decodeVarNat rest
+  let go 0 acc rs = Just (Prelude.reverse acc, rs)
+      go k acc rs = do
+        (e, rs') <- decodeTypeTagRepr rs
+        go (k - 1) (e : acc) rs'
+  (es, rest'') <- go n [] rest'
+  (t, rest''') <- decodeTypeTagRepr rest''
+  Just (TTEffect es t, rest''')
+decodeTypeTagRepr _ = Nothing
+
+encodeReference :: Reference -> [Word8]
+encodeReference (Reference.Builtin t) =
+  0 : encodeText t
+encodeReference (Reference.DerivedId (Reference.Id h i)) =
+  1 : encodeHash h ++ encodeVarNat (fromIntegral i)
+
+decodeReference :: [Word8] -> Maybe (Reference, [Word8])
+decodeReference (0 : rest) = do
+  (t, rest') <- decodeText rest
+  Just (Reference.Builtin t, rest')
+decodeReference (1 : rest) = do
+  (h, rest') <- decodeHash rest
+  (i, rest'') <- decodeVarNat rest'
+  Just (Reference.DerivedId (Reference.Id h (fromIntegral i)), rest'')
+decodeReference _ = Nothing
+
+encodeHash :: Hash -> [Word8]
+encodeHash h =
+  let bs = Hash.toByteString h
+      len = BS.length bs
+   in encodeVarNat len ++ BS.unpack bs
+
+decodeHash :: [Word8] -> Maybe (Hash, [Word8])
+decodeHash ws = do
+  (len, rest) <- decodeVarNat ws
+  let (bs, rest') = splitAt len rest
+  guard (length bs == len)
+  Just (Hash.fromByteString (BS.pack bs), rest')
+
+encodeText :: Text.Text -> [Word8]
+encodeText t =
+  let bs = TextEnc.encodeUtf8 t
+      len = BS.length bs
+   in encodeVarNat len ++ BS.unpack bs
+
+decodeText :: [Word8] -> Maybe (Text.Text, [Word8])
+decodeText ws = do
+  (len, rest) <- decodeVarNat ws
+  let (bs, rest') = splitAt len rest
+  guard (length bs == len)
+  Just (TextEnc.decodeUtf8 (BS.pack bs), rest')
+
+encodeVarNat :: Int -> [Word8]
+encodeVarNat n
+  | n < 128 = [fromIntegral n]
+  | otherwise = fromIntegral (n .&. 0x7f .|. 0x80) : encodeVarNat (n `shiftR` 7)
+
+decodeVarNat :: [Word8] -> Maybe (Int, [Word8])
+decodeVarNat = go 0 0
+  where
+    go acc _ [] = Just (acc, [])
+    go acc shift (w : rest)
+      | w < 128 = Just (acc .|. (fromIntegral w `shiftL` shift), rest)
+      | otherwise = go (acc .|. (fromIntegral (w .&. 0x7f) `shiftL` shift)) (shift + 7) rest
 
 dbtx :: CCache p -> Stack -> Val -> IO ()
 dbtx env stk val = writeBack stk traced
