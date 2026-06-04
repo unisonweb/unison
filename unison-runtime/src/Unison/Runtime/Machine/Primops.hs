@@ -19,7 +19,7 @@ import Unison.Hash qualified as Hash
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
-import Unison.TypeTagRepr (TypeTagRepr (..), typeTagRefs)
+import Unison.TypeTagRepr (TypeTagRepr (..))
 import Unison.Referent (Referent, toShortHash, pattern Ref)
 import Unison.Runtime.ANF (Code, Value, codeGroup)
 import Unison.Runtime.Exception (die)
@@ -110,7 +110,6 @@ prim1 env !stk LKUP i = prim1wrap (lkup env) stk i
 prim1 env !stk CVLD i = prim1wrap (cvld env) stk i
 prim1 _env !stk TLTT i = prim1wrap tltt stk i
 prim1 _env !stk TAGT i = prim1wrap tagt stk i
-prim1 _env !stk TAGR i = prim1wrap tagr stk i
 prim1 _env !stk TAGS i = prim1wrap tags stk i
 prim1 _env !stk TAGD i = prim1wrap tagd stk i
 prim1 env !stk DBTX i = prim1wrap (dbtx env) stk i
@@ -514,11 +513,6 @@ tagt :: Stack -> TypeTagRepr -> IO ()
 tagt stk repr =
   pokeBi stk . UText.fromText . Text.pack $ show repr
 {-# INLINE tagt #-}
-
-tagr :: Stack -> TypeTagRepr -> IO ()
-tagr stk repr =
-  pokeS stk . Sq.fromList $ map typeLinkVal (typeTagRefs repr)
-{-# INLINE tagr #-}
 
 tags :: Stack -> TypeTagRepr -> IO ()
 tags stk repr =

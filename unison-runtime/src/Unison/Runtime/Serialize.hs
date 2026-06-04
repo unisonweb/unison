@@ -534,7 +534,6 @@ instance Tag Prim1 where
   tag2word RRFC = 64
   tag2word TIKR = 65
   tag2word TAGT = 66
-  tag2word TAGR = 67
   tag2word TAGS = 68
   tag2word TAGD = 69
 
@@ -606,7 +605,6 @@ instance Tag Prim1 where
   word2tag 64 = pure RRFC
   word2tag 65 = pure TIKR
   word2tag 66 = pure TAGT
-  word2tag 67 = pure TAGR
   word2tag 68 = pure TAGS
   word2tag 69 = pure TAGD
   word2tag n = unknownTag "Prim1" n

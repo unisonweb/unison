@@ -554,7 +554,6 @@ builtinsSrc =
     B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "Any.Any" $ forall1 "a" (\a -> a --> anyt),
     B "TypeTag.toText" $ forall1 "a" (\a -> typeTag a --> text),
-    B "TypeTag.references" $ forall1 "a" (\a -> typeTag a --> list typelink),
     B "TypeTag.serialize" $ forall1 "a" (\a -> typeTag a --> bytes),
     B "TypeTag.deserialize" $ forall1 "a" (\a -> bytes --> optionalt (typeTag a)),
     B "Boolean.not" $ boolean --> boolean,
@@ -1500,9 +1499,6 @@ code = Type.code ()
 value = Type.value ()
 
 termLink = Type.termLink ()
-
-typelink :: Type
-typelink = Type.typeLink ()
 
 typeTag :: Type -> Type
 typeTag a = Type.typeTag () `app` a
