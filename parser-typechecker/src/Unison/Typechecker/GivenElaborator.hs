@@ -305,13 +305,7 @@ resolveOne ambient PendingGoal {pgLoc, pgType, pgScope, pgExistentials} =
               Context.implicitGoalType = pgType,
               Context.implicitDecision = Right (syntheticTypeTagTree innerType)
             }
-      | otherwise ->
-          Context.SolvedImplicit
-            { Context.implicitGoalLoc = pgLoc,
-              Context.implicitGoalType = pgType,
-              Context.implicitDecision = Left (GR.NoGiven pgType [])
-            }
-    Nothing ->
+    _ ->
       let lexical = lexicalPool pgScope
           pool = mergePool lexical ambient
           decision = GR.resolveWithExistentials pgExistentials pool pgType
