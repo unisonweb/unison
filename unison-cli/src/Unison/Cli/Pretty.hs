@@ -488,9 +488,10 @@ prettyTerm pped isSourceFile isTest isGiven (n, r, dt) =
       let tm' = GivenApply.stripSyntheticArgs tm
        in if isTest
             then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm'
-            else if isGiven
-              then TermPrinter.prettyGivenBinding (ppeBody n r) n tm'
-              else TermPrinter.prettyBinding (ppeBody n r) n tm'
+            else
+              if isGiven
+                then TermPrinter.prettyGivenBinding (ppeBody n r) n tm'
+                else TermPrinter.prettyBinding (ppeBody n r) n tm'
   where
     commentBuiltin txt =
       if isSourceFile
