@@ -32,6 +32,9 @@ Adding a built-in `TypeTag` type of kind `* -> *` that carries a structured, ser
 | `fbfcc74` | `TypeTag.toText` and `TypeTag.references` builtins |
 | `d795abd` | Transcript test |
 | `1fbe5b0` | V2 codebase format for SQLite persistence |
+| `6d70b1c` | Fix TypeTagLit hashing round-trip (HashTypeTagRepr) |
+| `56c22e9` | `TypeTag.serialize` and `TypeTag.deserialize` builtins |
+| `d932832` | Fix deserialize Optional tag construction |
 
 ---
 
@@ -96,7 +99,7 @@ Exports: `typeToRepr`, `typeTagRefs`, `updateTypeTagRepr`
 
 - **ANF format:** `unison-runtime/src/Unison/Runtime/ANF/Serialize.hs` and `CodeV4.hs` — tag `LTTT` (7 in `LtTag`)
 - **MCode format:** `unison-runtime/src/Unison/Runtime/MCode/Serialize.hs` — tag `MTTT` (7 in `MLitT`)
-- **Prim1 tag:** `unison-runtime/src/Unison/Runtime/Serialize.hs` — `TAGT` = 66, `TAGR` = 67
+- **Prim1 tags:** `unison-runtime/src/Unison/Runtime/Serialize.hs` — `TAGT` = 66, `TAGR` = 67, `TAGS` = 68, `TAGD` = 69
 - **SQLite/V2:** `codebase2/codebase-sqlite/.../Serialization.hs` — tag 22, recursive `putTypeTagReprV2`/`getTypeTagReprV2`
 
 ### Builtin Operations
@@ -105,8 +108,14 @@ Exports: `typeToRepr`, `typeTagRefs`, `updateTypeTagRepr`
 |---------|------|-----------|
 | `TypeTag.toText` | `forall a. TypeTag a -> Text` | `TAGT` |
 | `TypeTag.references` | `forall a. TypeTag a -> List Link.Type` | `TAGR` |
+| `TypeTag.serialize` | `forall a. TypeTag a -> Bytes` | `TAGS` |
+| `TypeTag.deserialize` | `forall a. Bytes -> Optional (TypeTag a)` | `TAGD` |
 
 Equality is handled by `Universal.==` (structural `Eq` on the `Foreign` value).
+
+**Serialization format** (implemented in `Machine/Primops.hs`): recursive varint-encoded binary. Tag bytes: 0=Ref, 1=App, 2=Arrow, 3=Effect. References encoded as 0+text (builtin) or 1+hash+pos (derived). Text/hash lengths use varint encoding.
+
+**Note on Optional construction**: runtime Optional values must use `Ty.noneTag`/`Ty.someTag` (from `Runtime.TypeTags`), NOT raw `PackedTag 0`/`PackedTag 1`. The packed tags incorporate reference-level information the pattern matcher requires.
 
 ### V2 Codebase Format
 
@@ -142,7 +151,8 @@ For polymorphic threading (`TypeTag a => ...` calling another `TypeTag a => ...`
 
 ## Possible Future Extensions
 
-- **Level 2 composition**: building `TypeTag (List a)` from `TypeTag a` at runtime (requires runtime constructor builtins)
-- **`TypeTag.serialize` / `TypeTag.deserialize`**: already structurally supported by the repr, just needs builtin wiring
-- **Pattern matching on structure**: a `TypeTag.match` builtin or conversion to a Unison-visible ADT
-- **Better `toText`**: currently uses Haskell `show` on the repr; could pretty-print with resolved names
+- **Level 2 composition**: building `TypeTag (List a)` from `TypeTag a` at runtime. Requires runtime constructor builtins (`TypeTag.ref : Link.Type -> TypeTag Any`, `TypeTag.app : TypeTag f -> TypeTag a -> TypeTag (f a)`, etc.) so the elaborator can synthesize code that combines static structure with a dynamic `TypeTag a` value at runtime.
+- **Pattern matching on structure**: expose a `TypeTag.match` builtin or a conversion to a Unison-visible ADT (e.g. `TypeTag.toStructure : TypeTag a -> TypeRepr` where `TypeRepr` is a Unison data type with `Ref`, `App`, `Arrow`, `Effect` constructors). This would let user code dispatch on the shape of a type at runtime.
+- **Better `toText`**: currently uses Haskell's `show` on the repr (outputs `TTRef (ReferenceBuiltin "Nat")`). Could pretty-print with resolved names (e.g. `"Nat"`, `"List Nat"`) by consulting the codebase's name lookup.
+- **Equality with type-level guarantee**: currently `TypeTag.==` uses `Universal.==` which has type `a -> a -> Boolean` — it works but returns `Boolean`, not a type-level proof. A future `TypeTag.sameType : TypeTag a -> TypeTag b -> Optional (Proof (a == b))` could provide type-safe casting.
+- **Hashing**: `TypeTag.hash : TypeTag a -> Hash` — compute the content hash of the type structure directly, for use as map keys or deduplication without serializing to Bytes first.
