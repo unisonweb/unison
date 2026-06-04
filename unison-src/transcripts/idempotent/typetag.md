@@ -69,27 +69,27 @@ outer = inner
             error: TypeTagLit(TTApp (TTRef (ReferenceBuiltin "Sequence")) (TTRef (ReferenceBuiltin "Nat")))
 ```
 
-## Value.value round-trip
+## Value round-trip
 
 ``` unison
-> Value.value (summon : TypeTag Nat)
+loadTag : TypeTag Nat
+loadTag =
+  v = Value.value (summon : TypeTag Nat)
+  match unsafe.coerceAbilities Value.load v with
+    Right t -> t
+    Left _ -> bug "Value.load failed"
+
+> TypeTag.toText loadTag
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  No changes found.
+  + loadTag : TypeTag Nat
 
-  ⚠️
+  Run `update` to apply these changes to your codebase.
 
-  I had trouble decompiling some results.
-
-  The following errors were encountered:
-      A foreign value with no decompiled representation was
-      encountered:
-        ##Value
-
-    1 | > Value.value (summon : TypeTag Nat)
+    8 | > TypeTag.toText loadTag
           ⧩
-          bug "<Value>"
+          "TTRef (ReferenceBuiltin \"Nat\")"
 ```

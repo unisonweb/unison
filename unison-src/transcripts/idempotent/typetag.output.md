@@ -50,10 +50,34 @@ outer = inner
 ## Serialization round-trip
 
 ``` unison
-roundTrip : TypeTag a => Optional (TypeTag a)
-roundTrip = TypeTag.deserialize (TypeTag.serialize summon)
+> TypeTag.deserialize (TypeTag.serialize (summon : TypeTag Nat))
+> TypeTag.deserialize (TypeTag.serialize (summon : TypeTag [Nat]))
+```
 
-> roundTrip : Optional (TypeTag (List Nat))
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > TypeTag.deserialize (TypeTag.serialize (summon : TypeTag Nat))
+          ⧩
+          Some error: TypeTagLit(TTRef (ReferenceBuiltin "Nat"))
+
+    2 | > TypeTag.deserialize (TypeTag.serialize (summon : TypeTag [Nat]))
+          ⧩
+          Some
+            error: TypeTagLit(TTApp (TTRef (ReferenceBuiltin "Sequence")) (TTRef (ReferenceBuiltin "Nat")))
+```
+
+## Value round-trip
+
+``` unison
+valueRoundTrip : '{IO} (Either [Link.Term] (TypeTag Nat))
+valueRoundTrip _ =
+  v = Value.value (summon : TypeTag Nat)
+  Value.load v
+
+> !valueRoundTrip
 ```
 
 🛑
@@ -61,13 +85,7 @@ roundTrip = TypeTag.deserialize (TypeTag.serialize summon)
 The transcript failed due to an error in the stanza above. The error is:
 
 ``` 
-I got confused here:
+The expression in red needs the {IO} ability, but this location does not have access to any abilities.
 
-    5 | 
-
-I was surprised to find an end of section here.
-I was expecting one of these instead:
-
-* ->
-* newline or semicolon
+    6 | > !valueRoundTrip
 ```
