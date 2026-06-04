@@ -1736,8 +1736,14 @@ renderImplicitResolutionError env src loc _goal err =
     renderCandidate :: GR.Given v a -> Pretty ColorText
     renderCandidate g = "- " <> style Identifier (givenLabelString g)
 
+    -- Render the candidate using its surface name from the PPE
+    -- rather than the raw reference text. @PPE.termName@ falls back
+    -- to a hash-prefixed identifier when there's no name in scope,
+    -- which is still preferable to the bare hash since it carries
+    -- the kind of reference.
     givenLabelString :: GR.Given v a -> String
-    givenLabelString g = Text.unpack (R.toText (GR.givenName g))
+    givenLabelString g =
+      Text.unpack . HQ.toText $ PPE.termName env (Referent.Ref (GR.givenName g))
 
     renderChainStep :: Type v a -> Pretty ColorText
     renderChainStep t = "- " <> style Type1 (renderType' env t)

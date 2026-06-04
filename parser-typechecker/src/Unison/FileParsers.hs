@@ -36,7 +36,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
-import Unison.Syntax.Name qualified as Name (toText, unsafeParseText, unsafeParseVar)
+import Unison.Syntax.Name qualified as Name (parseText, toText, unsafeParseText, unsafeParseVar)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
@@ -103,8 +103,22 @@ computeTypecheckingEnvironment ::
   [GivenElaborator.AmbientGiven v Ann] ->
   UnisonFile v ->
   m (Typechecker.Env v Ann)
-computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf ambientGivens uf =
-  case shouldUseTndr of
+computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf ambientGivens0 uf =
+  -- Names of @given@ bindings declared in this scratch file. Used to
+  -- drop codebase ambient givens of the same name so the file's
+  -- version shadows the codebase's during this typecheck, avoiding a
+  -- spurious "ambiguous" diagnostic when the user is effectively
+  -- updating an existing given in place.
+  let ambientGivens =
+        let fileGivenNames :: Set Name
+            fileGivenNames =
+              Set.fromList
+                [ name
+                | v <- Set.toList (UF.givenBindings uf),
+                  Just name <- [Name.parseText (Var.name (Var.reset v))]
+                ]
+         in GivenElaborator.filterAmbientByName fileGivenNames ambientGivens0
+   in case shouldUseTndr of
     ShouldUseTndr'No -> do
       tl <- typeLookupf (UF.dependencies uf)
       pure
@@ -341,7 +355,11 @@ synthesizeFile env0 uf = do
           [ GivenElaborator.AmbientGiven
               { GivenElaborator.ambientName =
                   Reference.Builtin ("Local.given." <> Var.name (Var.reset v)),
-                GivenElaborator.ambientType = t
+                GivenElaborator.ambientType = t,
+                -- File-local givens carry their own name; we don't
+                -- need it for shadowing (file givens shadow codebase
+                -- givens, not the other way around).
+                GivenElaborator.ambientUserName = Nothing
               }
           | tlc <- topLevelComponents,
             (v, _, t) <- tlc,

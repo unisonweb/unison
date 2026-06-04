@@ -86,6 +86,7 @@ module Unison.Typechecker.GivenElaborator
     AmbientGiven (..),
     ambientPool,
     mergePool,
+    filterAmbientByName,
     decomposeGivenType,
 
     -- * Goal-driven elaboration
@@ -103,6 +104,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
+import Unison.Name (Name)
 import Unison.Reference (Reference)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
@@ -124,16 +126,38 @@ import Unison.Var (Var)
 -- conclusion is performed by 'decomposeGivenType'.
 data AmbientGiven v loc = AmbientGiven
   { ambientName :: !Reference,
-    ambientType :: !(Type v loc)
+    ambientType :: !(Type v loc),
+    -- | Surface name of this given in the namespace, used by
+    -- callers (e.g. 'Unison.FileParsers.synthesizeFile') to detect
+    -- when a scratch-file 'given' shadows the same name in the
+    -- codebase. 'Nothing' when the caller doesn't have a name
+    -- available (test environments, etc.).
+    ambientUserName :: !(Maybe Name)
   }
   deriving stock (Show)
+
+-- | Drop ambient givens whose namespace name is in @shadowed@. The
+-- typical caller is a per-file typechecker that has just discovered
+-- one or more top-level @given@ declarations in the source file
+-- whose names also exist (with a 'given' marker) in the codebase —
+-- those file-local givens should take precedence over the codebase
+-- versions for the duration of the typecheck, matching the user's
+-- intuition that a scratch-file definition replaces the codebase
+-- definition. Ambients with no recorded user name pass through
+-- unchanged.
+filterAmbientByName ::
+  Set Name -> [AmbientGiven v loc] -> [AmbientGiven v loc]
+filterAmbientByName shadowed =
+  filter \g -> case ambientUserName g of
+    Just n -> not (n `Set.member` shadowed)
+    Nothing -> True
 
 -- | Build a 'GR.Pool' of @Ambient@-scoped givens from a list of
 -- top-level givens.
 ambientPool :: (Var v) => [AmbientGiven v loc] -> GR.Pool v loc
 ambientPool xs = GR.poolFromList (map toGiven xs)
   where
-    toGiven (AmbientGiven r ty) =
+    toGiven (AmbientGiven r ty _name) =
       let (vs, prems, concl) = decomposeGivenType ty
        in GR.Given
             { GR.givenName = r,
