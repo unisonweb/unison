@@ -195,6 +195,7 @@ v2ToH2Term = ABT.transform convertF
       V2.Term.Match a b -> H2.TermMatch a (fmap convertMatchCase b)
       V2.Term.TermLink a -> H2.TermTermLink (v2ToH2Referent a)
       V2.Term.TypeLink a -> H2.TermTypeLink (v2ToH2Reference a)
+      V2.Term.TypeTagLit repr -> H2.TermTypeTagLit (map v2ToH2Reference (toList repr))
 
     convertMatchCase :: forall x. V2.Term.MatchCase Text V2.Term.TypeRef x -> H2.MatchCase () x
     convertMatchCase (V2.Term.MatchCase pat guard body) =
