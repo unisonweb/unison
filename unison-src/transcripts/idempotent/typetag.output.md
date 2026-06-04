@@ -10,49 +10,29 @@ automatically via the implicit (`=>`) system.
 
 ## Basic synthesis for ground types
 
-``` unison
-useTag : TypeTag Nat -> Text
-useTag tag = TypeTag.toText tag
+A function that demands a `TypeTag Nat` implicit can be called
+at a site where the type is known.
 
-getNatTag : Text
-getNatTag = useTag (summon : TypeTag Nat)
+``` unison
+useTag : TypeTag Nat => Text
+useTag = TypeTag.toText summon
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + getNatTag : Text
-  + useTag    : TypeTag Nat -> Text
-
-  Run `update` to apply these changes to your codebase.
-```
-
-## Applied types
-
-``` unison
-listTag : TypeTag (List Nat) -> Text
-listTag tag = TypeTag.toText tag
-
-getListNatTag : Text
-getListNatTag = listTag (summon : TypeTag (List Nat))
-```
-
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + getListNatTag : Text
-  + listTag       : TypeTag [Nat] -> Text
+  + useTag : TypeTag Nat => Text
 
   Run `update` to apply these changes to your codebase.
 ```
 
 ## Polymorphic threading
 
-A function with `TypeTag a =>` can pass its tag through to callees.
+A function with `TypeTag a =>` can pass its tag to callees.
 
 ``` unison
 inner : TypeTag a => Text
-inner = TypeTag.toText (summon : TypeTag a)
+inner = TypeTag.toText summon
 
 outer : TypeTag a => Text
 outer = inner
@@ -67,35 +47,13 @@ outer = inner
   Run `update` to apply these changes to your codebase.
 ```
 
-## Extracting references
+## Serialization round-trip
 
 ``` unison
-getRefs : List Link.Type
-getRefs = TypeTag.references (summon : TypeTag (List Nat))
-```
+roundTrip : TypeTag a => Optional (TypeTag a)
+roundTrip = TypeTag.deserialize (TypeTag.serialize summon)
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + getRefs : [Link.Type]
-
-  Run `update` to apply these changes to your codebase.
-```
-
-## Equality via Universal.==
-
-``` unison
-tagsEqual : Boolean
-tagsEqual =
-  t1 = summon : TypeTag Nat
-  t2 = summon : TypeTag Nat
-  t1 == t2
-
-tagsDifferent : Boolean
-tagsDifferent =
-  t1 = summon : TypeTag Nat
-  t2 = summon : TypeTag Int
-  t1 == t2
+> roundTrip : Optional (TypeTag (List Nat))
 ```
 
 🛑
@@ -105,8 +63,7 @@ The transcript failed due to an error in the stanza above. The error is:
 ``` 
 I got confused here:
 
-    4 |   t2 = summon : TypeTag Nat
-
+    5 | 
 
 I was surprised to find an end of section here.
 I was expecting one of these instead:

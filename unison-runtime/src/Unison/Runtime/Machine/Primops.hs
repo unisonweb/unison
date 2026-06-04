@@ -528,8 +528,8 @@ tags stk repr =
 tagd :: Stack -> By.Bytes -> IO ()
 tagd stk bs =
   case decodeTypeTagRepr (By.toWord8s bs) of
-    Just (repr, _) -> poke stk (BoxedVal $ Data1 Ty.optionalRef (Ty.PackedTag 1) (BoxedVal (Foreign (WrapTypeTag repr))))
-    Nothing -> poke stk (BoxedVal $ Enum Ty.optionalRef (Ty.PackedTag 0))
+    Just (repr, _) -> poke stk (BoxedVal $ Data1 Ty.optionalRef Ty.someTag (BoxedVal (Foreign (WrapTypeTag repr))))
+    Nothing -> poke stk (BoxedVal $ Enum Ty.optionalRef Ty.noneTag)
 {-# INLINE tagd #-}
 
 encodeTypeTagRepr :: TypeTagRepr -> [Word8]

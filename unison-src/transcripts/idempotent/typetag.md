@@ -46,3 +46,25 @@ outer = inner
 
   Run `update` to apply these changes to your codebase.
 ```
+
+## Serialization round-trip
+
+``` unison
+> TypeTag.deserialize (TypeTag.serialize (summon : TypeTag Nat))
+> TypeTag.deserialize (TypeTag.serialize (summon : TypeTag [Nat]))
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > TypeTag.deserialize (TypeTag.serialize (summon : TypeTag Nat))
+          ⧩
+          Some error: TypeTagLit(TTRef (ReferenceBuiltin "Nat"))
+
+    2 | > TypeTag.deserialize (TypeTag.serialize (summon : TypeTag [Nat]))
+          ⧩
+          Some
+            error: TypeTagLit(TTApp (TTRef (ReferenceBuiltin "Sequence")) (TTRef (ReferenceBuiltin "Nat")))
+```
