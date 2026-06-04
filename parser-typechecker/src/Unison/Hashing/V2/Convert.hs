@@ -46,7 +46,7 @@ import Unison.Referent qualified as Memory.Referent
 import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Term qualified as Memory.Term
 import Unison.Type qualified as Memory.Type
-import Unison.TypeTagRepr (typeTagRefs)
+import Unison.TypeTagRepr (TypeTagRepr (..))
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Star2 qualified as Memory.Star2
@@ -134,7 +134,7 @@ m2hTerm = ABT.transformM \case
   Memory.Term.Match scr cases -> pure (Hashing.TermMatch scr (fmap m2hMatchCase cases))
   Memory.Term.TermLink r -> Hashing.TermTermLink <$> m2hReferent r
   Memory.Term.TypeLink r -> pure (Hashing.TermTypeLink (m2hReference r))
-  Memory.Term.TypeTagLit repr -> pure (Hashing.TermTypeTagLit (map m2hReference (typeTagRefs repr)))
+  Memory.Term.TypeTagLit repr -> pure (Hashing.TermTypeTagLit (m2hTypeTagRepr repr))
 
 m2hMatchCase :: Memory.Term.MatchCase a a1 -> Hashing.MatchCase a a1
 m2hMatchCase (Memory.Term.MatchCase pat m_a1 a1) = Hashing.MatchCase (m2hPattern pat) m_a1 a1
@@ -197,7 +197,7 @@ h2mTerm getCT = ABT.transform \case
   Hashing.TermMatch scr cases -> Memory.Term.Match scr (h2mMatchCase <$> cases)
   Hashing.TermTermLink r -> Memory.Term.TermLink (h2mReferent getCT r)
   Hashing.TermTypeLink r -> Memory.Term.TypeLink (h2mReference r)
-  Hashing.TermTypeTagLit _rs -> error "TypeTagLit: round-trip from hashing not supported"
+  Hashing.TermTypeTagLit repr -> Memory.Term.TypeTagLit (h2mTypeTagRepr repr)
 
 h2mMatchCase :: Hashing.MatchCase a b -> Memory.Term.MatchCase a b
 h2mMatchCase (Hashing.MatchCase pat m_b b) = Memory.Term.MatchCase (h2mPattern pat) m_b b
@@ -298,6 +298,20 @@ m2hReference = \case
 
 m2hReferenceId :: Memory.Reference.Id -> Hashing.ReferenceId
 m2hReferenceId (Memory.Reference.Id h i) = Hashing.ReferenceId h i
+
+m2hTypeTagRepr :: TypeTagRepr -> Hashing.HashTypeTagRepr
+m2hTypeTagRepr = \case
+  TTRef r -> Hashing.HTTRef (m2hReference r)
+  TTApp f x -> Hashing.HTTApp (m2hTypeTagRepr f) (m2hTypeTagRepr x)
+  TTArrow i o -> Hashing.HTTArrow (m2hTypeTagRepr i) (m2hTypeTagRepr o)
+  TTEffect es t -> Hashing.HTTEffect (map m2hTypeTagRepr es) (m2hTypeTagRepr t)
+
+h2mTypeTagRepr :: Hashing.HashTypeTagRepr -> TypeTagRepr
+h2mTypeTagRepr = \case
+  Hashing.HTTRef r -> TTRef (h2mReference r)
+  Hashing.HTTApp f x -> TTApp (h2mTypeTagRepr f) (h2mTypeTagRepr x)
+  Hashing.HTTArrow i o -> TTArrow (h2mTypeTagRepr i) (h2mTypeTagRepr o)
+  Hashing.HTTEffect es t -> TTEffect (map h2mTypeTagRepr es) (h2mTypeTagRepr t)
 
 h2mModifier :: Hashing.Modifier -> Memory.DD.Modifier
 h2mModifier = \case

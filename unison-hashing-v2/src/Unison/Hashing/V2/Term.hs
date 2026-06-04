@@ -1,6 +1,7 @@
 module Unison.Hashing.V2.Term
   ( Term,
     TermF (..),
+    HashTypeTagRepr (..),
     MatchCase (..),
     hashClosedTerm,
     hashTermComponents,
@@ -73,8 +74,21 @@ data TermF typeVar typeAnn patternAnn a
     TermMatch a [MatchCase patternAnn a]
   | TermTermLink Referent
   | TermTypeLink Reference
-  | TermTypeTagLit [Reference]
+  | TermTypeTagLit HashTypeTagRepr
   deriving (Foldable, Functor, Generic, Generic1, Traversable)
+
+data HashTypeTagRepr
+  = HTTRef !Reference
+  | HTTApp !HashTypeTagRepr !HashTypeTagRepr
+  | HTTArrow !HashTypeTagRepr !HashTypeTagRepr
+  | HTTEffect ![HashTypeTagRepr] !HashTypeTagRepr
+  deriving (Eq, Ord, Show, Generic)
+
+instance Hashable.Tokenizable HashTypeTagRepr where
+  tokens (HTTRef r) = [Hashable.Tag 0, accumulateToken r]
+  tokens (HTTApp f x) = [Hashable.Tag 1, accumulateToken f, accumulateToken x]
+  tokens (HTTArrow i o) = [Hashable.Tag 2, accumulateToken i, accumulateToken o]
+  tokens (HTTEffect es t) = Hashable.Tag 3 : accumulateToken t : map accumulateToken es
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type Term v a = Term2 v a a v a
@@ -210,4 +224,4 @@ instance (Var v) => Hashable1 (TermF v a p) where
                   TermOr x y -> [tag 17, hashed $ hash x, hashed $ hash y]
                   TermTermLink r -> [tag 18, accumulateToken r]
                   TermTypeLink r -> [tag 19, accumulateToken r]
-                  TermTypeTagLit rs -> tag 20 : map accumulateToken rs
+                  TermTypeTagLit repr -> [tag 20, accumulateToken repr]

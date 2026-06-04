@@ -60,6 +60,13 @@ convertId defaultHash = \case
 v2ToH2Reference :: V2.Reference -> H2.Reference
 v2ToH2Reference = convertReference' (\(V2.Id a b) -> H2.ReferenceId a b)
 
+v2ToH2TypeTagRepr :: V2.Term.TypeTagReprV2 V2.Reference -> H2.HashTypeTagRepr
+v2ToH2TypeTagRepr = \case
+  V2.Term.TTRef r -> H2.HTTRef (v2ToH2Reference r)
+  V2.Term.TTApp f x -> H2.HTTApp (v2ToH2TypeTagRepr f) (v2ToH2TypeTagRepr x)
+  V2.Term.TTArrow i o -> H2.HTTArrow (v2ToH2TypeTagRepr i) (v2ToH2TypeTagRepr o)
+  V2.Term.TTEffect es t -> H2.HTTEffect (map v2ToH2TypeTagRepr es) (v2ToH2TypeTagRepr t)
+
 convertReference' :: (V2Reference.Id' hash -> H2.ReferenceId) -> V2.Reference' Text hash -> H2.Reference
 convertReference' idConv = \case
   V2.ReferenceBuiltin x -> H2.ReferenceBuiltin x
@@ -195,7 +202,7 @@ v2ToH2Term = ABT.transform convertF
       V2.Term.Match a b -> H2.TermMatch a (fmap convertMatchCase b)
       V2.Term.TermLink a -> H2.TermTermLink (v2ToH2Referent a)
       V2.Term.TypeLink a -> H2.TermTypeLink (v2ToH2Reference a)
-      V2.Term.TypeTagLit repr -> H2.TermTypeTagLit (map v2ToH2Reference (toList repr))
+      V2.Term.TypeTagLit repr -> H2.TermTypeTagLit (v2ToH2TypeTagRepr repr)
 
     convertMatchCase :: forall x. V2.Term.MatchCase Text V2.Term.TypeRef x -> H2.MatchCase () x
     convertMatchCase (V2.Term.MatchCase pat guard body) =
