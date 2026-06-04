@@ -482,6 +482,7 @@ putBLit v (Arr a) = putTag ArrT <> putFoldable (putValue v) a
 putBLit _ (Map _) = exn [] "putBLit: impossible Map"
 putBLit _ (BigInt i) = putTag BigIntT <> putInteger i
 putBLit _ (BigNat n) = putTag BigNatT <> putNatural n
+putBLit _ (TypeTagVal repr) = putTag TypeTagValT <> putTypeTagRepr repr
 
 -- special function for serializing a list of pairs as a Unison map.
 -- This allows us to avoid inflating the map to a unison value during
@@ -534,6 +535,7 @@ getBLit s@(v, fo) =
     MapT -> exn [] "getBLit: unsupported literal map"
     BigIntT -> BigInt <$> getInteger
     BigNatT -> BigNat <$> getNatural
+    TypeTagValT -> TypeTagVal <$> getTypeTagRepr
 {-# SPECIALIZE getBLit :: DeserialIO (BLit Reference) #-}
 {-# SPECIALIZE getBLit :: DeserialST s (BLit Reference) #-}
 

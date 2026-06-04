@@ -63,6 +63,7 @@ data BLTag
   | MapT
   | BigIntT
   | BigNatT
+  | TypeTagValT
 
 data VaTag = PartialT | DataT | ContT | BLitT
 
@@ -180,6 +181,7 @@ instance Tag BLTag where
     MapT -> 14
     BigIntT -> 15
     BigNatT -> 16
+    TypeTagValT -> 17
   {-# INLINE tag2word #-}
 
   word2tag = \case
@@ -200,6 +202,7 @@ instance Tag BLTag where
     14 -> pure MapT
     15 -> pure BigIntT
     16 -> pure BigNatT
+    17 -> pure TypeTagValT
     t -> unknownTag "BLTag" t
   {-# INLINE word2tag #-}
 

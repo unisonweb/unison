@@ -170,6 +170,7 @@ putBLit = \case
   Map m -> putTag MapT <> putMapping putValue putValue m
   BigInt i -> putTag BigIntT <> putInteger i
   BigNat n -> putTag BigNatT <> putNatural n
+  TypeTagVal repr -> putTag TypeTagValT <> putTypeTagRepr repr
 
 getBLit :: (PrimBase m) => Get m (BLit RefNum)
 getBLit =
@@ -192,6 +193,7 @@ getBLit =
     MapT -> Map <$> getMapping getValue getValue
     BigIntT -> BigInt <$> getInteger
     BigNatT -> BigNat <$> getNatural
+    TypeTagValT -> TypeTagVal <$> getTypeTagRepr
 {-# INLINEABLE getBLit #-}
 
 putValueWithHeader ::

@@ -68,3 +68,28 @@ outer = inner
           Some
             error: TypeTagLit(TTApp (TTRef (ReferenceBuiltin "Sequence")) (TTRef (ReferenceBuiltin "Nat")))
 ```
+
+## Value.value round-trip
+
+``` unison
+> Value.value (summon : TypeTag Nat)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+  ⚠️
+
+  I had trouble decompiling some results.
+
+  The following errors were encountered:
+      A foreign value with no decompiled representation was
+      encountered:
+        ##Value
+
+    1 | > Value.value (summon : TypeTag Nat)
+          ⧩
+          bug "<Value>"
+```

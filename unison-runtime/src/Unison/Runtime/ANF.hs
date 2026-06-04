@@ -1679,6 +1679,7 @@ data BLit ref
   | -- arbitrary precision numbers
     BigInt Integer
   | BigNat Natural
+  | TypeTagVal TypeTagRepr
   deriving (Show, Eq)
 
 groupVars :: ANFM v (Set v)
@@ -2344,6 +2345,7 @@ instance Referential BLit where
     Float f -> Float f
     BigInt i -> BigInt i
     BigNat n -> BigNat n
+    TypeTagVal repr -> TypeTagVal repr
 
   foldMapRefs h = \case
     List vs -> foldMap (foldMapRefs h) vs
@@ -2374,6 +2376,7 @@ instance Referential BLit where
     Float f -> pure $ Float f
     BigInt i -> pure $ BigInt i
     BigNat n -> pure $ BigNat n
+    TypeTagVal repr -> pure $ TypeTagVal repr
 
 groupTermLinks :: (Ord ref, Var v) => SuperGroup ref v -> [ref]
 groupTermLinks = Set.toList . foldGroupLinks f
