@@ -65,9 +65,7 @@ import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
-import Unison.Util.Pretty qualified as Pretty.Util
 import Unison.Util.Set qualified as Set
-import Unison.Util.SyntaxText qualified as S
 import Unison.WatchKind qualified as WatchKind
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
@@ -423,22 +421,16 @@ renderCodePretty nameInOriginalQuery isGivenRef isClassRef pped isSourceFile isT
             maybe mempty (<> Pretty.newline) maybeDoc
               <> Pretty.prettyTypeWithClasses isClassRef pped (name, ref, typ)
 
-      -- Emit the `given` keyword as the actual surface syntax. The
-      -- leading `given ` reads as a prefix to the binding's signature
-      -- line, matching how the user originally wrote @given Show.nat
-      -- : T = …@.
-      givenMarker :: Pretty SyntaxText
-      givenMarker = Pretty.Util.withSyntax S.DataTypeKeyword "given "
-
       prettyTerms :: [Pretty SyntaxText]
       prettyTerms =
         termsWithMaybeDocs1
           & Map.toList
           & List.sortBy (\(n0, _) (n1, _) -> Name.compareAlphabetical n0 n1)
           & map \(name, ((ref, term), maybeDoc)) ->
-            (if isGivenRef ref then givenMarker else mempty)
-              <> maybe mempty (<> Pretty.newline) maybeDoc
-              <> Pretty.prettyTerm pped isSourceFile (maybe False isTest (Reference.toId ref)) (name, ref, term)
+            -- 'prettyTerm' itself emits the leading @given@ keyword
+            -- when the binding is a given; we just pass the flag.
+            maybe mempty (<> Pretty.newline) maybeDoc
+              <> Pretty.prettyTerm pped isSourceFile (maybe False isTest (Reference.toId ref)) (isGivenRef ref) (name, ref, term)
    in NEL.nonEmpty (prettyTypes ++ prettyTerms)
         $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)), length prettyTerms + length prettyTypes)
 

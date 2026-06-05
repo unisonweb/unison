@@ -5,14 +5,17 @@ module Unison.Cli.TypeCheck
   )
 where
 
+import Data.List.NonEmpty qualified as NEL
 import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Givens qualified as Givens
 import Unison.FileParsers qualified as FileParsers
+import Unison.Name (Name)
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference qualified as Reference
@@ -72,9 +75,14 @@ ambientGivensFromBranch codebase b0 = do
   -- 'Unison.Codebase.Editor.HandleInput.Givens.handleGivens' uses the
   -- same recursive pattern. Ambient resolution includes the @lib@
   -- subtree, so we do *not* prune libraries here.
-  let givenRefs :: [Reference.TermReference]
-      givenRefs = Set.toList (collectGivenRefs b0)
-  fmap catMaybes . for givenRefs $ \r ->
+  --
+  -- Each ambient given is paired with its surface name so a
+  -- scratch-file @given@ of the same name can shadow it during
+  -- typechecking (see
+  -- 'Unison.FileParsers.computeTypecheckingEnvironment').
+  let givenRefs :: Map Reference.TermReference Name
+      givenRefs = collectGivenRefs [] b0
+  fmap catMaybes . for (Map.toList givenRefs) $ \(r, name) ->
     Codebase.getTypeOfTerm codebase r >>= \case
       Nothing -> pure Nothing
       Just ty ->
@@ -82,28 +90,36 @@ ambientGivensFromBranch codebase b0 = do
           Just
             GivenElaborator.AmbientGiven
               { GivenElaborator.ambientName = r,
-                GivenElaborator.ambientType = ty
+                GivenElaborator.ambientType = ty,
+                GivenElaborator.ambientUserName = Just name
               }
   where
     -- Mirror 'handleGivens': at each level, check the *direct* term
     -- referents (via 'Star2.d1' of 'terms_') against this level's
-    -- metadata, then recurse into each child.
-    collectGivenRefs :: Branch0 m -> Set.Set Reference.TermReference
-    collectGivenRefs b =
-      let here :: Set.Set Reference.TermReference
+    -- metadata, then recurse into each child. Tracks the
+    -- enclosing-name-segment path so we can recover the full
+    -- namespace name for each given. If a reference is reachable
+    -- under more than one name we keep an arbitrary one — name
+    -- equality with a file-local given is all we need downstream.
+    collectGivenRefs ::
+      [NameSegment] -> Branch0 m -> Map Reference.TermReference Name
+    collectGivenRefs prefix b =
+      let here :: Map Reference.TermReference Name
           here =
-            Set.fromList
-              [ ref
-              | (r, _seg) <- Relation.toList (Star2.d1 (view Branch.terms_ b)),
+            Map.fromList
+              [ (ref, name)
+              | (r, seg) <- Relation.toList (Star2.d1 (view Branch.terms_ b)),
                 Givens.isGiven r b,
-                Just ref <- [Referent.toTermReference r]
+                Just ref <- [Referent.toTermReference r],
+                let name = Name.fromReverseSegments (seg NEL.:| prefix)
               ]
-          there :: Set.Set Reference.TermReference
+          there :: Map Reference.TermReference Name
           there =
-            foldMap
-              (collectGivenRefs . Branch.head . snd)
-              (Map.toList (view Branch.children_ b))
-       in Set.union here there
+            Map.unions
+              [ collectGivenRefs (childSeg : prefix) (Branch.head child)
+              | (childSeg, child) <- Map.toList (view Branch.children_ b)
+              ]
+       in Map.union here there
 
 typecheckTerm ::
   Codebase IO Symbol Ann ->

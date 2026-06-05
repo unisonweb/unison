@@ -36,7 +36,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
-import Unison.Syntax.Name qualified as Name (toText, unsafeParseText, unsafeParseVar)
+import Unison.Syntax.Name qualified as Name (parseText, toText, unsafeParseText, unsafeParseVar)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
@@ -103,120 +103,134 @@ computeTypecheckingEnvironment ::
   [GivenElaborator.AmbientGiven v Ann] ->
   UnisonFile v ->
   m (Typechecker.Env v Ann)
-computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf ambientGivens uf =
-  case shouldUseTndr of
-    ShouldUseTndr'No -> do
-      tl <- typeLookupf (UF.dependencies uf)
-      pure
-        Typechecker.Env
-          { ambientAbilities = ambientAbilities,
-            typeLookup = tl,
-            termsByShortname = Map.empty,
-            freeNameToFuzzyTermsByShortName = Map.empty,
-            topLevelComponents = Map.empty,
-            variances = Variance.fromTypeLookup tl,
-            ambientGivens = GivenElaborator.ambientPool ambientGivens,
-            -- Thread the parser-collected @given@-bound variable
-            -- names through to the typechecker.
-            givenBindings = uf.givenBindings
-          }
-    ShouldUseTndr'Yes parsingEnv -> do
-      let resolveName :: Name -> Relation Name (ResolvesTo Referent)
-          resolveName =
-            Names.resolveNameIncludingNames
-              (Names.shadowing1 (Names.terms (UF.toNames uf)) (Names.terms (Parser.names parsingEnv)))
-              localNames
+computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf ambientGivens0 uf =
+  -- Names of @given@ bindings declared in this scratch file. Used to
+  -- drop codebase ambient givens of the same name so the file's
+  -- version shadows the codebase's during this typecheck, avoiding a
+  -- spurious "ambiguous" diagnostic when the user is effectively
+  -- updating an existing given in place.
+  let ambientGivens =
+        let fileGivenNames :: Set Name
+            fileGivenNames =
+              Set.fromList
+                [ name
+                | v <- Set.toList (UF.givenBindings uf),
+                  Just name <- [Name.parseText (Var.name (Var.reset v))]
+                ]
+         in GivenElaborator.filterAmbientByName fileGivenNames ambientGivens0
+   in case shouldUseTndr of
+        ShouldUseTndr'No -> do
+          tl <- typeLookupf (UF.dependencies uf)
+          pure
+            Typechecker.Env
+              { ambientAbilities = ambientAbilities,
+                typeLookup = tl,
+                termsByShortname = Map.empty,
+                freeNameToFuzzyTermsByShortName = Map.empty,
+                topLevelComponents = Map.empty,
+                variances = Variance.fromTypeLookup tl,
+                ambientGivens = GivenElaborator.ambientPool ambientGivens,
+                -- Thread the parser-collected @given@-bound variable
+                -- names through to the typechecker.
+                givenBindings = uf.givenBindings
+              }
+        ShouldUseTndr'Yes parsingEnv -> do
+          let resolveName :: Name -> Relation Name (ResolvesTo Referent)
+              resolveName =
+                Names.resolveNameIncludingNames
+                  (Names.shadowing1 (Names.terms (UF.toNames uf)) (Names.terms (Parser.names parsingEnv)))
+                  localNames
 
-          localNames = Set.map Name.unsafeParseVar (UF.toTermAndWatchNames uf)
-          -- We exclude names from indirect dependencies for fuzzy searching during name resolution,
-          -- that is dependencies under lib.*.lib for performance
-          -- TODO: We may consider exposing user configuration to enable searching through indirect dependencies
-          globalNamesShadowed = excludeNamesFromIndirectDeps $ Names.shadowing (UF.toNames uf) (Parser.names parsingEnv)
-            where
-              excludeNamesFromIndirectDeps = Names.filter (Name.classifyNameLocation >>> excludeIndirectDeps)
-              excludeIndirectDeps = (\case Name.NameLocation'IndirectDep -> False; _otherwise -> True)
+              localNames = Set.map Name.unsafeParseVar (UF.toTermAndWatchNames uf)
+              -- We exclude names from indirect dependencies for fuzzy searching during name resolution,
+              -- that is dependencies under lib.*.lib for performance
+              -- TODO: We may consider exposing user configuration to enable searching through indirect dependencies
+              globalNamesShadowed = excludeNamesFromIndirectDeps $ Names.shadowing (UF.toNames uf) (Parser.names parsingEnv)
+                where
+                  excludeNamesFromIndirectDeps = Names.filter (Name.classifyNameLocation >>> excludeIndirectDeps)
+                  excludeIndirectDeps = (\case Name.NameLocation'IndirectDep -> False; _otherwise -> True)
 
-          freeNames :: [Name]
-          freeNames =
-            Name.unsafeParseVar <$> Set.toList (Term.freeVars $ UF.typecheckingTerm uf)
+              freeNames :: [Name]
+              freeNames =
+                Name.unsafeParseVar <$> Set.toList (Term.freeVars $ UF.typecheckingTerm uf)
 
-          possibleDepsExact :: [(Name, Name, ResolvesTo Referent)]
-          possibleDepsExact = do
-            freeName <- freeNames
-            (name, ref) <- Rel.toList (resolveName freeName)
-            [(name, freeName, ref)]
+              possibleDepsExact :: [(Name, Name, ResolvesTo Referent)]
+              possibleDepsExact = do
+                freeName <- freeNames
+                (name, ref) <- Rel.toList (resolveName freeName)
+                [(name, freeName, ref)]
 
-          getFreeNameDepsFuzzy :: Name -> [(Name, Name, ResolvesTo Referent)]
-          getFreeNameDepsFuzzy freeName = do
-            let wantedTopNFuzzyMatches = 3
-            -- We use fuzzy matching by edit distance here because it is usually more appropriate
-            -- than FZF-style fuzzy finding for offering suggestions for typos or other user errors.
-            let fuzzyMatches =
-                  take wantedTopNFuzzyMatches $
-                    fuzzyFindByEditDistanceRanked globalNamesShadowed localNames freeName
+              getFreeNameDepsFuzzy :: Name -> [(Name, Name, ResolvesTo Referent)]
+              getFreeNameDepsFuzzy freeName = do
+                let wantedTopNFuzzyMatches = 3
+                -- We use fuzzy matching by edit distance here because it is usually more appropriate
+                -- than FZF-style fuzzy finding for offering suggestions for typos or other user errors.
+                let fuzzyMatches =
+                      take wantedTopNFuzzyMatches $
+                        fuzzyFindByEditDistanceRanked globalNamesShadowed localNames freeName
 
-            let names = fuzzyMatches ^.. each . _2
-            let resolvedNames = Rel.toList . resolveName =<< names
-            let getShortName longname = Name.unsafeParseText (NameSegment.toUnescapedText $ Name.lastSegment longname)
+                let names = fuzzyMatches ^.. each . _2
+                let resolvedNames = Rel.toList . resolveName =<< names
+                let getShortName longname = Name.unsafeParseText (NameSegment.toUnescapedText $ Name.lastSegment longname)
 
-            map (\(longname, ref) -> (longname, getShortName longname, ref)) resolvedNames
+                map (\(longname, ref) -> (longname, getShortName longname, ref)) resolvedNames
 
-          freeNameDepsFuzzy :: Map Name [(Name, Name, ResolvesTo Referent)]
-          freeNameDepsFuzzy =
-            Map.fromList [(freeName, getFreeNameDepsFuzzy freeName) | freeName <- freeNames]
+              freeNameDepsFuzzy :: Map Name [(Name, Name, ResolvesTo Referent)]
+              freeNameDepsFuzzy =
+                Map.fromList [(freeName, getFreeNameDepsFuzzy freeName) | freeName <- freeNames]
 
-          getPossibleRefs :: [(Name, Name, ResolvesTo Referent)] -> Defns (Set TermReference) (Set TypeReference)
-          getPossibleRefs =
-            List.foldl'
-              ( \acc -> \case
-                  (_, _, ResolvesToNamespace ref0) ->
-                    case ref0 of
-                      Referent.Con ref _ -> acc & over #types (Set.insert (ref ^. ConstructorReference.reference_))
-                      Referent.Ref ref -> acc & over #terms (Set.insert ref)
-                  (_, _, ResolvesToLocal _) -> acc
+              getPossibleRefs :: [(Name, Name, ResolvesTo Referent)] -> Defns (Set TermReference) (Set TypeReference)
+              getPossibleRefs =
+                List.foldl'
+                  ( \acc -> \case
+                      (_, _, ResolvesToNamespace ref0) ->
+                        case ref0 of
+                          Referent.Con ref _ -> acc & over #types (Set.insert (ref ^. ConstructorReference.reference_))
+                          Referent.Ref ref -> acc & over #terms (Set.insert ref)
+                      (_, _, ResolvesToLocal _) -> acc
+                  )
+                  (Defns Set.empty Set.empty)
+
+          typeLookup <-
+            fmap
+              (UF.declsToTypeLookup uf <>)
+              ( typeLookupf
+                  ( UF.dependencies uf
+                      <> getPossibleRefs possibleDepsExact
+                      <> getPossibleRefs (join $ Map.elems freeNameDepsFuzzy)
+                  )
               )
-              (Defns Set.empty Set.empty)
 
-      typeLookup <-
-        fmap
-          (UF.declsToTypeLookup uf <>)
-          ( typeLookupf
-              ( UF.dependencies uf
-                  <> getPossibleRefs possibleDepsExact
-                  <> getPossibleRefs (join $ Map.elems freeNameDepsFuzzy)
-              )
-          )
+          let getTermsByShortname :: [(Name, Name, ResolvesTo Referent)] -> Map Name [Either Name (Typechecker.NamedReference v Ann)]
+              getTermsByShortname =
+                List.foldl'
+                  ( \acc -> \case
+                      (name, shortname, ResolvesToLocal _) -> let v = Left name in Map.upsert (maybe [v] (v :)) shortname acc
+                      (name, shortname, ResolvesToNamespace ref) ->
+                        case TL.typeOfReferent typeLookup ref of
+                          Just ty ->
+                            let v = Right (Typechecker.NamedReference name ty (Context.ReplacementRef ref))
+                             in Map.upsert (maybe [v] (v :)) shortname acc
+                          Nothing -> acc
+                  )
+                  Map.empty
 
-      let getTermsByShortname :: [(Name, Name, ResolvesTo Referent)] -> Map Name [Either Name (Typechecker.NamedReference v Ann)]
-          getTermsByShortname =
-            List.foldl'
-              ( \acc -> \case
-                  (name, shortname, ResolvesToLocal _) -> let v = Left name in Map.upsert (maybe [v] (v :)) shortname acc
-                  (name, shortname, ResolvesToNamespace ref) ->
-                    case TL.typeOfReferent typeLookup ref of
-                      Just ty ->
-                        let v = Right (Typechecker.NamedReference name ty (Context.ReplacementRef ref))
-                         in Map.upsert (maybe [v] (v :)) shortname acc
-                      Nothing -> acc
-              )
-              Map.empty
+          let termsByShortname = getTermsByShortname possibleDepsExact
+          let freeNameToFuzzyTermsByShortName = Map.mapWithKey (\_ v -> getTermsByShortname v) freeNameDepsFuzzy
 
-      let termsByShortname = getTermsByShortname possibleDepsExact
-      let freeNameToFuzzyTermsByShortName = Map.mapWithKey (\_ v -> getTermsByShortname v) freeNameDepsFuzzy
-
-      pure
-        Typechecker.Env
-          { ambientAbilities,
-            typeLookup,
-            termsByShortname,
-            freeNameToFuzzyTermsByShortName,
-            topLevelComponents = Map.empty,
-            variances = Variance.fromTypeLookup typeLookup,
-            ambientGivens = GivenElaborator.ambientPool ambientGivens,
-            -- Thread the parser-collected @given@-bound variable
-            -- names through to the typechecker.
-            givenBindings = uf.givenBindings
-          }
+          pure
+            Typechecker.Env
+              { ambientAbilities,
+                typeLookup,
+                termsByShortname,
+                freeNameToFuzzyTermsByShortName,
+                topLevelComponents = Map.empty,
+                variances = Variance.fromTypeLookup typeLookup,
+                ambientGivens = GivenElaborator.ambientPool ambientGivens,
+                -- Thread the parser-collected @given@-bound variable
+                -- names through to the typechecker.
+                givenBindings = uf.givenBindings
+              }
 
 -- | 'fuzzyFindByEditDistanceRanked' finds matches for the given 'name' within 'names' by edit distance.
 --
@@ -341,7 +355,11 @@ synthesizeFile env0 uf = do
           [ GivenElaborator.AmbientGiven
               { GivenElaborator.ambientName =
                   Reference.Builtin ("Local.given." <> Var.name (Var.reset v)),
-                GivenElaborator.ambientType = t
+                GivenElaborator.ambientType = t,
+                -- File-local givens carry their own name; we don't
+                -- need it for shadowing (file givens shadow codebase
+                -- givens, not the other way around).
+                GivenElaborator.ambientUserName = Nothing
               }
           | tlc <- topLevelComponents,
             (v, _, t) <- tlc,

@@ -141,7 +141,12 @@ hoverInfo uri pos = do
         LSPQ.TypeNode {} -> empty
         LSPQ.PatternNode {} -> empty
         LSPQ.TermNode trm -> case trm of
+          -- Parser-injected @\_implicit_*@ lambdas are an
+          -- implementation detail of how @=>@-typed bindings get
+          -- their dictionaries; do not surface them on hover.
+          (Term.Var' v) | isSyntheticImplicit v -> empty
           (Term.Var' v) -> pure v
+          (ABT.Abs'' v _body) | isSyntheticImplicit v -> empty
           (ABT.Abs'' v _body) -> pure v
           _ -> empty
       FileAnalysis {localBindingInfo} <- FileAnalysis.getFileAnalysis uri
@@ -169,6 +174,15 @@ hoverInfo uri pos = do
         _ -> do
           pped <- lift $ ppedForFile uri
           pure . Text.unlines $ renderImplicitLine pped <$> refs
+
+    -- See 'wrapImplicitParams' in 'Unison.Syntax.TermParser': for
+    -- each leading @=>@ on a binding's declared type, the parser
+    -- wraps the body in a synthetic @\\_implicit_<base>_<i>@ lambda
+    -- whose binder is the lexical given the typechecker resolves
+    -- against. These binders are an implementation detail and
+    -- should not surface on hover.
+    isSyntheticImplicit :: Symbol.Symbol -> Bool
+    isSyntheticImplicit v = "_implicit_" `Text.isPrefixOf` Var.name (Var.reset v)
 
     renderImplicitLine :: PPED.PrettyPrintEnvDecl -> Reference -> Text
     renderImplicitLine pped ref =
