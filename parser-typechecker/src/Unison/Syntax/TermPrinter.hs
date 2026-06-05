@@ -61,6 +61,7 @@ import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.Precedence (InfixPrecedence (..), Precedence (..), increment, isTopLevelPrecedence, operatorPrecedence)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term
+import Unison.TypeTagRepr (TypeTagRepr (..))
 import Unison.Type (Type, pattern ForallsNamed')
 import Unison.Type qualified as Type
 import Unison.Util.Bytes qualified as Bytes
@@ -257,6 +258,9 @@ pretty0
             pure . paren (p >= Application) $
               fmt S.LinkKeyword "typeLink "
                 <> parenIfInfix name ic (styleHashQualified'' (fmt $ S.TypeReference (PrettyPrintEnv.typeFQN env.ppe r) r) name)
+          TypeTagLit' repr -> do
+            env <- ask
+            pure . fmt S.NumericLiteral . l $ "TypeTag " <> prettyTypeTagReprWithPPE env.ppe repr
           Ann' tm t -> do
             tm' <- pretty0 (ac Application Normal im doc) tm
             tp' <- TypePrinter.pretty0 im 0 t
@@ -2431,3 +2435,27 @@ isLeaf (Constructor' {}) = True
 isLeaf (Request' {}) = True
 isLeaf (Ref' {}) = True
 isLeaf _ = False
+
+prettyTypeTagReprWithPPE :: PrettyPrintEnv -> TypeTagRepr -> String
+prettyTypeTagReprWithPPE ppe = renderAtom
+  where
+    renderOuter = \case
+      TTArrow i o -> renderArrowArg i <> " -> " <> renderOuter o
+      TTEffect es t -> "{" <> intercalate ", " (map renderOuter es) <> "} " <> renderOuter t
+      other -> renderApp other
+
+    renderArrowArg = \case
+      TTArrow i o -> "(" <> renderArrowArg i <> " -> " <> renderOuter o <> ")"
+      other -> renderApp other
+
+    renderApp = \case
+      TTApp f x -> renderApp f <> " " <> renderAtom x
+      other -> renderAtom other
+
+    renderAtom = \case
+      TTRef r -> renderRef r
+      TTArrow i o -> "(" <> renderArrowArg i <> " -> " <> renderOuter o <> ")"
+      TTEffect es t -> "({" <> intercalate ", " (map renderOuter es) <> "} " <> renderOuter t <> ")"
+      TTApp f x -> "(" <> renderApp f <> " " <> renderAtom x <> ")"
+
+    renderRef r = unpack $ HQ.toTextWith Name.toText (PrettyPrintEnv.typeName ppe r)

@@ -47,11 +47,11 @@ outer = inner
   Run `update` to apply these changes to your codebase.
 ```
 
-## Serialization round-trip
+## toText rendering
 
 ``` unison
-> TypeTag.deserialize (TypeTag.serialize (summon : TypeTag Nat))
-> TypeTag.deserialize (TypeTag.serialize (summon : TypeTag [Nat]))
+> TypeTag.toText (summon : TypeTag Nat)
+> TypeTag.toText (summon : TypeTag [Nat])
 ```
 
 ``` ucm :added-by-ucm
@@ -59,14 +59,43 @@ outer = inner
 
   No changes found.
 
-    1 | > TypeTag.deserialize (TypeTag.serialize (summon : TypeTag Nat))
+    1 | > TypeTag.toText (summon : TypeTag Nat)
           ⧩
-          Some error: TypeTagLit(TTRef (ReferenceBuiltin "Nat"))
+          "Nat"
 
-    2 | > TypeTag.deserialize (TypeTag.serialize (summon : TypeTag [Nat]))
+    2 | > TypeTag.toText (summon : TypeTag [Nat])
           ⧩
-          Some
-            error: TypeTagLit(TTApp (TTRef (ReferenceBuiltin "Sequence")) (TTRef (ReferenceBuiltin "Nat")))
+          "Sequence Nat"
+```
+
+## Debug.toText rendering
+
+``` unison
+debugTag : TypeTag a => a -> Text
+debugTag _ =
+  match Debug.toText (summon : TypeTag a) with
+    None -> bug "no debug text"
+    Some (Left t) -> t
+    Some (Right t) -> t
+
+> debugTag 42
+> debugTag [1, 2, 3]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + debugTag : TypeTag a => a -> Text
+
+  Run `update` to apply these changes to your codebase.
+
+    8 | > debugTag 42
+          ⧩
+          "TypeTag Nat"
+
+    9 | > debugTag [1, 2, 3]
+          ⧩
+          "TypeTag (List Nat)"
 ```
 
 ## Value round-trip
@@ -91,5 +120,5 @@ loadTag =
 
     8 | > TypeTag.toText loadTag
           ⧩
-          "TTRef (ReferenceBuiltin \"Nat\")"
+          "Nat"
 ```

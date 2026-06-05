@@ -151,8 +151,6 @@ data POp
   | VALU -- value
   | TLTT -- Term.Link.toText
   | TAGT -- TypeTag.toText
-  | TAGS -- TypeTag.serialize
-  | TAGD -- TypeTag.deserialize
   -- Debug
   | PRNT -- print
   | INFO -- info
@@ -299,8 +297,6 @@ pOpCode op = case op of
   VALU -> 114
   TLTT -> 115
   TAGT -> 151
-  TAGS -> 153
-  TAGD -> 154
   TRCE -> 116
   ATOM -> 117
   TFRC -> 118

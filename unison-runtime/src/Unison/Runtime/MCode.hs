@@ -367,8 +367,6 @@ data Prim1
   | VALU -- value
   | TLTT --  Term.Link.toText
   | TAGT -- TypeTag.toText
-  | TAGS -- TypeTag.serialize
-  | TAGD -- TypeTag.deserialize
   -- debug
   | DBTX -- debug text
   | SDBL -- sandbox link list
@@ -1446,8 +1444,6 @@ emitPOp ANF.CACH = emitP1 CACH
 emitPOp ANF.LKUP = emitP1 LKUP
 emitPOp ANF.TLTT = emitP1 TLTT
 emitPOp ANF.TAGT = emitP1 TAGT
-emitPOp ANF.TAGS = emitP1 TAGS
-emitPOp ANF.TAGD = emitP1 TAGD
 emitPOp ANF.CVLD = emitP1 CVLD
 emitPOp ANF.LOAD = emitP1 LOAD
 emitPOp ANF.VALU = emitP1 VALU

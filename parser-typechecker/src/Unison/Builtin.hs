@@ -554,8 +554,6 @@ builtinsSrc =
     B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "Any.Any" $ forall1 "a" (\a -> a --> anyt),
     B "TypeTag.toText" $ forall1 "a" (\a -> typeTag a --> text),
-    B "TypeTag.serialize" $ forall1 "a" (\a -> typeTag a --> bytes),
-    B "TypeTag.deserialize" $ forall1 "a" (\a -> bytes --> optionalt (typeTag a)),
     B "Boolean.not" $ boolean --> boolean,
     B "Text.empty" text,
     B "Text.++" $ text --> text --> text,

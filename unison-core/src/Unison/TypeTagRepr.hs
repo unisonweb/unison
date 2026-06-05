@@ -3,14 +3,17 @@ module Unison.TypeTagRepr
     typeToRepr,
     typeTagRefs,
     updateTypeTagRepr,
+    renderTypeTagRepr,
   )
 where
 
 import Data.Map qualified as Map
+import Data.Text qualified as Text
 
 import Unison.ABT qualified as ABT
+import Unison.Hash qualified as Hash
 import Unison.Prelude
-import Unison.Reference (TypeReference)
+import Unison.Reference (TypeReference, Id' (..), pattern Builtin, pattern DerivedId)
 import Unison.Type qualified as Type
 
 data TypeTagRepr
@@ -61,3 +64,29 @@ typeToRepr = go
     goEffects ty = case ty of
       Type.Effects' es -> map go es
       _ -> [go ty]
+
+renderTypeTagRepr :: TypeTagRepr -> Text
+renderTypeTagRepr = renderOuter
+  where
+    renderOuter = \case
+      TTArrow i o -> renderArrowArg i <> " -> " <> renderOuter o
+      TTEffect es t -> "{" <> Text.intercalate ", " (map renderOuter es) <> "} " <> renderOuter t
+      other -> renderApp other
+
+    renderArrowArg = \case
+      TTArrow i o -> "(" <> renderArrowArg i <> " -> " <> renderOuter o <> ")"
+      other -> renderApp other
+
+    renderApp = \case
+      TTApp f x -> renderApp f <> " " <> renderAtom x
+      other -> renderAtom other
+
+    renderAtom = \case
+      TTRef r -> renderRef r
+      TTArrow i o -> "(" <> renderArrowArg i <> " -> " <> renderOuter o <> ")"
+      TTEffect es t -> "({" <> Text.intercalate ", " (map renderOuter es) <> "} " <> renderOuter t <> ")"
+      TTApp f x -> "(" <> renderApp f <> " " <> renderAtom x <> ")"
+
+    renderRef (Builtin name) = name
+    renderRef (DerivedId (Id h i)) =
+      "#" <> Text.take 8 (Hash.toBase32HexText h) <> if i == 0 then "" else "#" <> Text.pack (show i)

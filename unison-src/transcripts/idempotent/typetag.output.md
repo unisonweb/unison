@@ -47,37 +47,12 @@ outer = inner
   Run `update` to apply these changes to your codebase.
 ```
 
-## Serialization round-trip
+## toText rendering
 
 ``` unison
-> TypeTag.deserialize (TypeTag.serialize (summon : TypeTag Nat))
-> TypeTag.deserialize (TypeTag.serialize (summon : TypeTag [Nat]))
-```
-
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  No changes found.
-
-    1 | > TypeTag.deserialize (TypeTag.serialize (summon : TypeTag Nat))
-          ⧩
-          Some error: TypeTagLit(TTRef (ReferenceBuiltin "Nat"))
-
-    2 | > TypeTag.deserialize (TypeTag.serialize (summon : TypeTag [Nat]))
-          ⧩
-          Some
-            error: TypeTagLit(TTApp (TTRef (ReferenceBuiltin "Sequence")) (TTRef (ReferenceBuiltin "Nat")))
-```
-
-## Value round-trip
-
-``` unison
-valueRoundTrip : '{IO} (Either [Link.Term] (TypeTag Nat))
-valueRoundTrip _ =
-  v = Value.value (summon : TypeTag Nat)
-  Value.load v
-
-> !valueRoundTrip
+> TypeTag.toText (summon : TypeTag Nat)
+> TypeTag.toText (summon : TypeTag [Nat])
+> TypeTag.toText (summon : TypeTag (Nat -> Text))
 ```
 
 🛑
@@ -85,7 +60,17 @@ valueRoundTrip _ =
 The transcript failed due to an error in the stanza above. The error is:
 
 ``` 
-The expression in red needs the {IO} ability, but this location does not have access to any abilities.
+I couldn't find a given for TypeTag (Nat ->{𝕖24} Text) .
 
-    6 | > !valueRoundTrip
+    3 | > TypeTag.toText (summon : TypeTag (Nat -> Text))
+
+
+No matching givens are in scope.
+
+I couldn't find a given for TypeTag (Nat ->{𝕖24} Text) .
+
+    3 | > TypeTag.toText (summon : TypeTag (Nat -> Text))
+
+
+No matching givens are in scope.
 ```
