@@ -97,7 +97,7 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
   88.  Tuple               (type)
   89.  Tuple.              (1 term)
   90.  TypeTag             (builtin type)
-  91.  TypeTag.            (3 terms)
+  91.  TypeTag.            (1 term)
   92.  UDPSocket           (builtin type)
   93.  Unit                (type)
   94.  Unit.               (1 term)

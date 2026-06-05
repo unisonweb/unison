@@ -34,7 +34,7 @@ Numbers are not expanded when used as non-structured arguments (this is command 
 ``` ucm
 scratch/main> ls
 
-  1. builtin. (947 terms, 137 types)
+  1. builtin. (945 terms, 137 types)
   2. main     ('{IO} Either Failure [Text])
 
 scratch/main> run main 1 2- 3-4

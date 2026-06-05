@@ -66,7 +66,7 @@ proj/main> upgrade old new
 
 proj/main> ls lib
 
-  1. builtin. (774 terms, 119 types)
+  1. builtin. (772 terms, 119 types)
   2. new.     (1 term)
 
 proj/main> view thingy
@@ -179,7 +179,7 @@ proj/main> view thingy
 
 proj/main> ls lib
 
-  1. builtin. (774 terms, 119 types)
+  1. builtin. (772 terms, 119 types)
   2. new.     (1 term)
 
 proj/main> branches
@@ -283,12 +283,12 @@ proj/upgrade-old-to-new> update
 
 proj/main> ls lib
 
-  1. builtin. (774 terms, 119 types)
+  1. builtin. (772 terms, 119 types)
   2. new.     (1 term)
 
 proj/main> ls .
 
-  1. lib.   (775 terms, 119 types)
+  1. lib.   (773 terms, 119 types)
   2. thingy (Int)
 
 proj/main> branches
@@ -556,7 +556,7 @@ scratch/main> upgrade dep dep__2
 
 scratch/main> ls lib
 
-  1. builtin. (774 terms, 119 types)
+  1. builtin. (772 terms, 119 types)
   2. dep.     (1 term)
 ```
 
@@ -612,7 +612,7 @@ scratch/main> upgrade hello dep__2
 
 scratch/main> ls lib
 
-  1. builtin. (774 terms, 119 types)
+  1. builtin. (772 terms, 119 types)
   2. dep.     (1 term)
   3. dep__2.  (1 term)
 ```
@@ -688,7 +688,7 @@ scratch/main> view thing
 scratch/main> ls lib
 
   1. bar_2.   (1 term)
-  2. builtin. (774 terms, 119 types)
+  2. builtin. (772 terms, 119 types)
   3. foo_2.   (1 term)
 ```
 
@@ -777,7 +777,7 @@ thing =
 scratch/upgrade> ls lib
 
   1. bar_2.   (1 term)
-  2. builtin. (774 terms, 119 types)
+  2. builtin. (772 terms, 119 types)
   3. foo_2.   (1 term)
 ```
 
