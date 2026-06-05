@@ -92,14 +92,18 @@ import Unison.Runtime.Foreign.Function
     pseudoConstructors,
     writeBack,
   )
+import Unison.Runtime.Decompile qualified as Decomp
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
+import Unison.Runtime.MetaDecompile qualified as MetaDecomp
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
+import Unison.Term (Term)
+import Unison.Term qualified as Term
 import Unison.Type qualified as Rf
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
@@ -375,6 +379,24 @@ exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
   c <- peekOff stk i
   stk <- bump stk
   pokeBi stk =<< reflectValue env c
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MDCM i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  -- Snapshot the combinator→reference map so the @topTerms@
+  -- callback can surface partial-application structure (otherwise
+  -- captured args get dropped at the @UnkComb@ branch in
+  -- "Unison.Runtime.Decompile"). We return the bare 'Term.ref'
+  -- as the function body; @substitute@ will then re-apply the
+  -- captured args via @apps'@, producing structural @App@ nodes
+  -- around the reference rather than collapsing to a lone @Ref@.
+  -- Full closure-body expansion is a follow-up that needs the
+  -- 'EvalCtx'-level @decompTm@ map from "Interface.hs".
+  refs <- readTVarIO (combRefs env)
+  let topTerms :: Word64 -> Word64 -> Maybe (Term Symbol ())
+      topTerms rt _k = Term.ref () <$> EC.lookup rt refs
+      (_errs, term) = Decomp.decompile @Symbol pure topTerms v
+  poke stk (MetaDecomp.convertTerm term)
   pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i

@@ -656,6 +656,8 @@ builtinsSrc =
     B "Debug.trace" $ forall1 "a" (\a -> text --> a --> unit),
     B "Debug.toText" $
       forall1 "a" (\a -> a --> optionalt (eithert text text)),
+    B "Meta.decompile" $
+      forall1 "a" (\a -> a --> Type.app () (Type.metaTerm ()) (Type.metaTermF ())),
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),

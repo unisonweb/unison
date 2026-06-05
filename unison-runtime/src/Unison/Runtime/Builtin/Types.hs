@@ -10,6 +10,7 @@ import Unison.Builtin qualified as Ty (builtinTypes)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
+import Unison.Runtime.MetaSource qualified as Meta
 import Unison.Util.EnumContainers as EC
 
 builtinTypeNumbering :: Map Reference Word64
@@ -22,6 +23,7 @@ typeReferences = zip rs [1 ..]
       [r | (_, r) <- Ty.builtinTypes]
         ++ [DerivedId i | (_, i, _) <- Ty.builtinDataDecls]
         ++ [DerivedId i | (_, i, _) <- Ty.builtinEffectDecls]
+        ++ Meta.typeReferences
 
 builtinTypeBackref :: EnumMap Word64 Reference
 builtinTypeBackref = mapFromList $ swap <$> typeReferences

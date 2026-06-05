@@ -574,6 +574,9 @@ value'load =
 value'create :: SuperNormal ref Symbol
 value'create = unop0 0 $ \[x] -> TPrm VALU [x]
 
+meta'decompile :: SuperNormal ref Symbol
+meta'decompile = unop0 0 $ \[x] -> TPrm MDCM [x]
+
 check'sandbox :: SuperNormal ref Symbol
 check'sandbox = binop SDBX
 
@@ -861,6 +864,7 @@ builtinLookup =
         ("Debug.watch", (Tracked, watch)),
         ("Debug.trace", (Tracked, gen'trace)),
         ("Debug.toText", (Tracked, debug'text)),
+        ("Meta.decompile", (Untracked, meta'decompile)),
         ("unsafe.coerceAbilities", (Untracked, poly'coerce)),
         ("Char.toNat", (Untracked, coerceType NatTag)),
         ("Char.fromNat", (Untracked, coerceType CharTag)),

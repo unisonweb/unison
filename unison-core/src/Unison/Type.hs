@@ -11,6 +11,7 @@ import Data.Monoid (Any (..))
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
+import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.Kind qualified as K
 import Unison.LabeledDependency qualified as LD
@@ -451,6 +452,25 @@ codeRef, valueRef :: TypeReference
 codeRef = Reference.Builtin "Code"
 valueRef = Reference.Builtin "Value"
 
+-- ⚠️ Hash literals pinned to the @meta/main@ project's @Term@ and
+-- @TermF@ types. Update these in lockstep with
+-- 'Unison.Runtime.MetaSource' if those declarations change. See
+-- 'Unison.Runtime.MetaSource' for the warning header and rationale.
+metaTermRef, metaTermFRef :: TypeReference
+metaTermRef =
+  Reference.Derived
+    (unsafeMetaHash
+       "mk73ln9u11hd7uh2aqa6ep8ggn5h4kn71j23age6045cn05hak26jno6eb0e8oer8ap249pqsmortjhjm0e2ra3vukevq87b7eibcq8")
+    0
+metaTermFRef =
+  Reference.Derived
+    (unsafeMetaHash
+       "93jvs66ff15gqavq1c3qaphgm3gl5bi60qarrodupiir52vkmvps5rqv03a6picmpdmvupvojn8q73lsl116patp4bmt7inticppaa8")
+    0
+
+unsafeMetaHash :: Text -> Hash.Hash
+unsafeMetaHash = Hash.unsafeFromBase32HexText
+
 anyRef :: TypeReference
 anyRef = Reference.Builtin "Any"
 
@@ -561,6 +581,10 @@ effectType a = ref a $ effectRef
 code, value :: (Ord v) => a -> Type v a
 code a = ref a codeRef
 value a = ref a valueRef
+
+metaTerm, metaTermF :: (Ord v) => a -> Type v a
+metaTerm a = ref a metaTermRef
+metaTermF a = ref a metaTermFRef
 
 app :: (Ord v) => a -> Type v a -> Type v a -> Type v a
 app a f arg = ABT.tm' a (App f arg)

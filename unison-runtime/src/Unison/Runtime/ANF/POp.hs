@@ -175,6 +175,8 @@ data POp
   | KEEP -- keepAlive
   | FGNN -- foreign pointer new
   | FGNF -- foreign pointer add finalizer
+  -- meta
+  | MDCM -- Meta.decompile
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 pOpCode :: POp -> Word16
@@ -330,6 +332,7 @@ pOpCode op = case op of
   KEEP -> 148
   FGNN -> 149
   FGNF -> 150
+  MDCM -> 151
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]
