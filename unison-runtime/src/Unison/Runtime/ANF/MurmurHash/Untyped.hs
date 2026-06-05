@@ -197,6 +197,8 @@ hash64AddBLit rs = \case
     hash64AddInt 14 `combine` hash64AddInteger i
   BigNat n ->
     hash64AddInt 15 `combine` hash64AddNatural n
+  TypeTagVal _repr ->
+    hash64AddInt 16
 
 hash64AddCode :: (Show r) => HRefs r -> Code r -> Hash64 -> Hash64
 hash64AddCode rs (CodeRep sg _) = hash64AddGroup rs sg
@@ -318,6 +320,7 @@ hash64AddLit rs = \case
   C c -> hash64AddInt 5 `combine` hash64Add c
   LM rn -> hash64AddInt 6 `combine` hash64AddReferent rs rn
   LY i -> hash64AddInt 7 `combine` hash64AddTypeRef rs i
+  LTT _repr -> hash64AddInt 8
 
 hash64AddBranches ::
   (Show r) =>

@@ -53,6 +53,7 @@ import Unison.Term
     termLink,
     text,
     typeLink,
+    typeTagLit,
     pattern LamNamed',
   )
 import Unison.Term qualified as Term
@@ -159,6 +160,7 @@ decompileForeign backref topTerms = \case
       Ref r -> maybe l Ref $ backref r
       _ -> l
   WrapReference l -> pure $ typeLink () l
+  WrapTypeTag repr -> pure $ typeTagLit () repr
   WrapArray a ->
     app () (ref () iarrayFromListRef) . list ()
       <$> traverse (decompile backref topTerms) (toList a)

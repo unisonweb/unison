@@ -222,6 +222,7 @@ builtinTypeForTermLiterals term =
       Term.Match {} -> Nothing
       Term.TermLink {} -> Nothing
       Term.TypeLink {} -> Nothing
+      Term.TypeTagLit {} -> Nothing
     ABT.Var {} -> Nothing
     ABT.Cycle {} -> Nothing
     ABT.Abs {} -> Nothing

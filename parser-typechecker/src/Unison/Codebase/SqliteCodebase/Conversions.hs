@@ -53,6 +53,7 @@ import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol qualified as V1
 import Unison.Term qualified as V1.Term
 import Unison.Type qualified as V1.Type
+import Unison.TypeTagRepr qualified as V1
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Star2 qualified as V1.Star2
@@ -116,6 +117,7 @@ term1to2 h =
       V1.Term.Match e cases -> V2.Term.Match e (goCase <$> cases)
       V1.Term.TermLink r -> V2.Term.TermLink (rreferent1to2 h r)
       V1.Term.TypeLink r -> V2.Term.TypeLink (reference1to2 r)
+      V1.Term.TypeTagLit repr -> V2.Term.TypeTagLit (typeTagRepr1to2 repr)
       V1.Term.Blank _ -> error ("can't serialize term with blanks (" ++ show h ++ ")")
 
     goCase (V1.Term.MatchCase p g b) =
@@ -181,6 +183,7 @@ term2to1 h lookupCT =
           V2.Term.Match a cases -> V1.Term.Match a <$> traverse goCase cases
           V2.Term.TermLink rr -> V1.Term.TermLink <$> rreferent2to1 h lookupCT rr
           V2.Term.TypeLink r -> pure $ V1.Term.TypeLink (reference2to1 r)
+          V2.Term.TypeTagLit repr -> pure $ V1.Term.TypeTagLit (typeTagRepr2to1 repr)
         goCase = \case
           V2.Term.MatchCase pat cond body ->
             V1.Term.MatchCase <$> (goPat pat) <*> pure cond <*> pure body
@@ -283,6 +286,20 @@ reference2to1 = id
 
 reference1to2 :: V1.Reference -> V2.Reference
 reference1to2 = id
+
+typeTagRepr1to2 :: V1.TypeTagRepr -> V2.Term.TypeTagReprV2 V2.Reference
+typeTagRepr1to2 = \case
+  V1.TTRef r -> V2.Term.TTRef (reference1to2 r)
+  V1.TTApp f x -> V2.Term.TTApp (typeTagRepr1to2 f) (typeTagRepr1to2 x)
+  V1.TTArrow i o -> V2.Term.TTArrow (typeTagRepr1to2 i) (typeTagRepr1to2 o)
+  V1.TTEffect es t -> V2.Term.TTEffect (map typeTagRepr1to2 es) (typeTagRepr1to2 t)
+
+typeTagRepr2to1 :: V2.Term.TypeTagReprV2 V2.Reference -> V1.TypeTagRepr
+typeTagRepr2to1 = \case
+  V2.Term.TTRef r -> V1.TTRef (reference2to1 r)
+  V2.Term.TTApp f x -> V1.TTApp (typeTagRepr2to1 f) (typeTagRepr2to1 x)
+  V2.Term.TTArrow i o -> V1.TTArrow (typeTagRepr2to1 i) (typeTagRepr2to1 o)
+  V2.Term.TTEffect es t -> V1.TTEffect (map typeTagRepr2to1 es) (typeTagRepr2to1 t)
 
 referenceid1to2 :: V1.Reference.Id -> V2.Reference.Id
 referenceid1to2 = id

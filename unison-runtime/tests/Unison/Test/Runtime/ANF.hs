@@ -67,6 +67,7 @@ denormalizeLit (T t) = Term.text () (Util.Text.toText t)
 denormalizeLit (C c) = Term.char () c
 denormalizeLit (LM r) = Term.termLink () r
 denormalizeLit (LY r) = Term.typeLink () r
+denormalizeLit (LTT repr) = Term.typeTagLit () repr
 
 denormalize :: (Var v) => ANormal Reference v -> Term.Term0 v
 denormalize (TVar v) = Term.var () v

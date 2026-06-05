@@ -208,6 +208,7 @@ builtinTypesSrc =
     B' "Bytes" CT.Data,
     B' "Link.Term" CT.Data,
     B' "Link.Type" CT.Data,
+    B' "TypeTag" CT.Data,
     B' "IO" CT.Effect,
     Rename' "IO" "io2.IO",
     B' "Handle" CT.Data,
@@ -552,6 +553,7 @@ builtinsSrc =
     B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "Any.Any" $ forall1 "a" (\a -> a --> anyt),
+    B "TypeTag.toText" $ forall1 "a" (\a -> typeTag a --> text),
     B "Boolean.not" $ boolean --> boolean,
     B "Text.empty" text,
     B "Text.++" $ text --> text --> text,
@@ -1495,6 +1497,9 @@ code = Type.code ()
 value = Type.value ()
 
 termLink = Type.termLink ()
+
+typeTag :: Type -> Type
+typeTag a = Type.typeTag () `app` a
 
 stm = Type.effect1 () (Type.ref () Type.stmRef)
 

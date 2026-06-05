@@ -96,6 +96,7 @@ import Unison.Runtime.ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
+import Unison.TypeTagRepr (TypeTagRepr)
 import Unison.Runtime.InternalError (internalBug)
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.EnumContainers as EC
@@ -365,6 +366,7 @@ data Prim1
   | CVLD -- validate
   | VALU -- value
   | TLTT --  Term.Link.toText
+  | TAGT -- TypeTag.toText
   -- debug
   | DBTX -- debug text
   | SDBL -- sandbox link list
@@ -472,6 +474,7 @@ data MLit
   | MT !Text
   | MM !Referent -- Term Link
   | MY !Reference -- Type Link
+  | MTT !TypeTagRepr -- TypeTag literal
   deriving (Show, Eq, Ord)
 
 type Instr = GInstr CombIx
@@ -1440,6 +1443,7 @@ emitPOp ANF.MISS = emitP1 MISS
 emitPOp ANF.CACH = emitP1 CACH
 emitPOp ANF.LKUP = emitP1 LKUP
 emitPOp ANF.TLTT = emitP1 TLTT
+emitPOp ANF.TAGT = emitP1 TAGT
 emitPOp ANF.CVLD = emitP1 CVLD
 emitPOp ANF.LOAD = emitP1 LOAD
 emitPOp ANF.VALU = emitP1 VALU
@@ -1633,6 +1637,7 @@ litToMLit (ANF.F d) = MD d
 litToMLit (ANF.T t) = MT t
 litToMLit (ANF.LM r) = MM r
 litToMLit (ANF.LY r) = MY r
+litToMLit (ANF.LTT repr) = MTT repr
 
 -- | Emit a literal as a machine literal of the correct boxed/unboxed format.
 emitLit :: ANF.Lit Reference -> Instr

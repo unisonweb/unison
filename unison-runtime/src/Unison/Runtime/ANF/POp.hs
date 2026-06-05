@@ -150,6 +150,7 @@ data POp
   | SDBX -- sandbox
   | VALU -- value
   | TLTT -- Term.Link.toText
+  | TAGT -- TypeTag.toText
   -- Debug
   | PRNT -- print
   | INFO -- info
@@ -295,6 +296,7 @@ pOpCode op = case op of
   SDBX -> 113
   VALU -> 114
   TLTT -> 115
+  TAGT -> 151
   TRCE -> 116
   ATOM -> 117
   TFRC -> 118

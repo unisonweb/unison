@@ -69,6 +69,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.TypeTagRepr (typeTagRefs)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
 import Unison.Util.Map qualified as Map
@@ -355,6 +356,7 @@ hashTermFTokens ppe = \case
     H.Tag 18 : hashLengthToken cases : (cases >>= hashCaseTokens ppe)
   Term.TermLink rf -> [H.Tag 19, hashReferentToken ppe rf]
   Term.TypeLink r -> [H.Tag 20, hashTypeReferenceToken ppe r]
+  Term.TypeTagLit repr -> H.Tag 21 : map (hashTypeReferenceToken ppe) (typeTagRefs repr)
 
 hashTypeTokens :: forall v a. (Var v) => PrettyPrintEnv -> [v] -> Type v a -> [Token]
 hashTypeTokens ppe = go

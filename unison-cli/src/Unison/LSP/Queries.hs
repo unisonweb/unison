@@ -150,6 +150,7 @@ refInTerm term =
       Term.Match _a _cases -> Nothing
       Term.TermLink ref -> Just (LD.TermReferent ref)
       Term.TypeLink ref -> Just (LD.TypeReference ref)
+      Term.TypeTagLit {} -> Nothing
     ABT.Var _v -> Nothing
     ABT.Cycle _r -> Nothing
     ABT.Abs _v _r -> Nothing
@@ -264,6 +265,7 @@ findSmallestEnclosingNodeMatching pos pred term
                   <|> altSum (cases <&> \(MatchCase pat grd body) -> ((findSmallestEnclosingPatternMatching pos patPred pat) <|> (altMaybe grd >>= findSmallestEnclosingNodeMatching pos pred) <|> findSmallestEnclosingNodeMatching pos pred body))
               Term.TermLink {} -> guardInFile *> termPred term
               Term.TypeLink {} -> guardInFile *> termPred term
+              Term.TypeTagLit {} -> guardInFile *> termPred term
             ABT.Var _v -> guardInFile *> termPred term
             ABT.Cycle r -> findSmallestEnclosingNodeMatching pos pred r
             ABT.Abs _v r -> findSmallestEnclosingNodeMatching pos pred r

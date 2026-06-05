@@ -93,7 +93,15 @@ data F' text termRef typeRef termLink typeLink vt a
     Match a [MatchCase text typeRef a]
   | TermLink termLink
   | TypeLink typeLink
+  | TypeTagLit (TypeTagReprV2 typeRef)
   deriving (Foldable, Functor, Traversable, Show)
+
+data TypeTagReprV2 typeRef
+  = TTRef typeRef
+  | TTApp (TypeTagReprV2 typeRef) (TypeTagReprV2 typeRef)
+  | TTArrow (TypeTagReprV2 typeRef) (TypeTagReprV2 typeRef)
+  | TTEffect [TypeTagReprV2 typeRef] (TypeTagReprV2 typeRef)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 data MatchCase t r a = MatchCase (Pattern t r) (Maybe a) a
   deriving (Foldable, Functor, Generic, Generic1, Traversable, Show)
@@ -203,6 +211,7 @@ extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
       Match s cs -> Match s <$> (traverse goCase cs)
       TermLink r -> TermLink <$> ftermLink r
       TypeLink r -> TypeLink <$> ftypeLink r
+      TypeTagLit repr -> TypeTagLit <$> traverse ftypeRef repr
     goCase :: MatchCase text typeRef x -> m (MatchCase text' typeRef' x)
     goCase (MatchCase p g b) = MatchCase <$> goPat p <*> pure g <*> pure b
     goPat = rmapPatternM ftext ftypeRef
@@ -252,6 +261,7 @@ dependencies =
             _ -> pure ()
     TermLink r -> termLink r
     TypeLink r -> typeLink r
+    TypeTagLit repr -> Foldable.traverse_ typeRef repr
     _ -> pure ()
   where
     termRef r = Writer.tell (Set.singleton r, mempty, mempty, mempty)
@@ -345,3 +355,4 @@ unhashComponent componentHash refToVar m =
             Let a b -> ABT.tm () $ Let a b
             Match s cases -> ABT.tm () $ Match s cases
             TypeLink r -> ABT.tm () $ TypeLink r
+            TypeTagLit repr -> ABT.tm () $ TypeTagLit repr

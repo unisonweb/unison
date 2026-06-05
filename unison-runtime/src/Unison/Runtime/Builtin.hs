@@ -560,6 +560,11 @@ term'link'to'text :: SuperNormal ref Symbol
 term'link'to'text =
   unop0 0 $ \[link] -> TPrm TLTT [link]
 
+typetag'to'text :: SuperNormal ref Symbol
+typetag'to'text =
+  unop0 0 $ \[tag] -> TPrm TAGT [tag]
+
+
 value'load :: SuperNormal Reference Symbol
 value'load =
   unop0 2 $ \[vlu, t, r] ->
@@ -909,6 +914,7 @@ builtinLookup =
         ("Any.unsafeExtract", (Untracked, any'extract)),
         ("summon", (Untracked, summon'id)),
         ("Link.Term.toText", (Untracked, term'link'to'text)),
+        ("TypeTag.toText", (Untracked, typetag'to'text)),
         ("STM.atomically", (Tracked, stm'atomic)),
         ("validateSandboxed", (Untracked, check'sandbox)),
         ("Value.validateSandboxed", (Tracked, value'sandbox)),

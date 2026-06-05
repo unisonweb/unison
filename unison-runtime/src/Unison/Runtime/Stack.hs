@@ -225,6 +225,7 @@ import Unison.Runtime.MCode
 import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
+import Unison.TypeTagRepr (TypeTagRepr)
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid qualified as Monoid
@@ -1839,6 +1840,7 @@ data Foreign
   | WrapForeignPtr !(Ptr.ForeignPtr ())
   | WrapReference !Reference
   | WrapReferent !Referent
+  | WrapTypeTag !TypeTagRepr
   | WrapSeq !(Seq Val)
   | WrapSocket !Socket
   | WrapText !U.Text
@@ -1888,6 +1890,7 @@ foreignRef WrapPtr {} = Ty.ffiPtrRef
 foreignRef WrapForeignPtr {} = Ty.ffiForeignPtrRef
 foreignRef WrapReference {} = Ty.typeLinkRef
 foreignRef WrapReferent {} = Ty.termLinkRef
+foreignRef WrapTypeTag {} = Ty.typeTagRef
 foreignRef WrapSeq {} = Ty.listRef
 foreignRef WrapSocket {} = Ty.socketRef
 foreignRef WrapText {} = Ty.textRef
@@ -1931,6 +1934,7 @@ foreignName WrapPtr {} = "Ptr"
 foreignName WrapForeignPtr {} = "ForeignPtr"
 foreignName WrapReference {} = "Reference"
 foreignName WrapReferent {} = "Referent"
+foreignName WrapTypeTag {} = "TypeTag"
 foreignName WrapSeq {} = "Seq"
 foreignName WrapSocket {} = "Socket"
 foreignName WrapText {} = "Text"
@@ -2112,6 +2116,14 @@ instance BuiltinForeign Reference where
   wrapBuiltin = WrapReference
   maybeUnwrapBuiltin = \case
     WrapReference v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign TypeTagRepr where
+  builtinName = Tagged "TypeTag"
+  wrapBuiltin = WrapTypeTag
+  maybeUnwrapBuiltin = \case
+    WrapTypeTag v -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 

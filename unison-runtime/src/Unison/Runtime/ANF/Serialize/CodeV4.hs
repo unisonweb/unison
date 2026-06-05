@@ -12,6 +12,7 @@ import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.POp as ANF
 import Unison.Runtime.ANF.Serialize.Tags
+import Unison.TypeTagRepr (TypeTagRepr (..))
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Referenced
@@ -349,6 +350,7 @@ putLit = \case
   C c -> putTag CT <> putChar c
   LM r -> putTag LMT <> putNumberedReferent r
   LY r -> putTag LYT <> putRefNum r
+  LTT repr -> putTag LTTT <> putTypeTagRepr repr
 
 getLit :: (PrimBase m) => Get m (Lit RefNum)
 getLit =
@@ -360,7 +362,27 @@ getLit =
     CT -> C <$> getChar
     LMT -> LM <$> getNumberedReferent
     LYT -> LY <$> getRefNum
+    LTTT -> LTT <$> getTypeTagRepr
 {-# INLINEABLE getLit #-}
+
+putTypeTagRepr :: TypeTagRepr -> Builder
+putTypeTagRepr (TTRef r) = BU.word8 0 <> putReference r
+putTypeTagRepr (TTApp f x) = BU.word8 1 <> putTypeTagRepr f <> putTypeTagRepr x
+putTypeTagRepr (TTArrow i o) = BU.word8 2 <> putTypeTagRepr i <> putTypeTagRepr o
+putTypeTagRepr (TTEffect es t) = BU.word8 3 <> putNat (fromIntegral (length es)) <> foldMap putTypeTagRepr es <> putTypeTagRepr t
+
+getTypeTagRepr :: (PrimBase m) => Get m TypeTagRepr
+getTypeTagRepr =
+  getWord8 >>= \case
+    0 -> TTRef <$> getReference
+    1 -> TTApp <$> getTypeTagRepr <*> getTypeTagRepr
+    2 -> TTArrow <$> getTypeTagRepr <*> getTypeTagRepr
+    3 -> do
+      n <- getNat
+      es <- replicateM (fromIntegral n) getTypeTagRepr
+      t <- getTypeTagRepr
+      pure $ TTEffect es t
+    t -> unknownTag "TypeTagRepr" t
 
 putBranches ::
   (Var v) =>

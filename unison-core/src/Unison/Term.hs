@@ -39,6 +39,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.TypeTagRepr (TypeTagRepr, typeTagRefs, updateTypeTagRepr)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List (multimap, validate)
@@ -101,6 +102,7 @@ data F typeVar typeAnn patternAnn a
     Match a [MatchCase patternAnn a]
   | TermLink Referent
   | TypeLink Reference
+  | TypeTagLit TypeTagRepr
   deriving (Ord, Foldable, Functor, Generic, Generic1, Traversable)
 
 _Ref :: Prism' (F tv ta pa a) Reference
@@ -299,6 +301,7 @@ extraMap vtf atf apf = \case
   Match tm l -> Match tm (map (matchCaseExtraMap apf) l)
   TermLink r -> TermLink r
   TypeLink r -> TypeLink r
+  TypeTagLit r -> TypeTagLit r
 
 matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
 matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
@@ -503,6 +506,9 @@ pattern TermLink' r <- (ABT.out -> ABT.Tm (TermLink r))
 
 pattern TypeLink' :: Reference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern TypeLink' r <- (ABT.out -> ABT.Tm (TypeLink r))
+
+pattern TypeTagLit' :: TypeTagRepr -> ABT.Term (F typeVar typeAnn patternAnn) v a
+pattern TypeTagLit' r <- (ABT.out -> ABT.Tm (TypeTagLit r))
 
 pattern Builtin' :: Text -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
@@ -778,6 +784,9 @@ termLink a r = ABT.tm' a (TermLink r)
 
 typeLink :: (Ord v) => a -> Reference -> Term2 vt at ap v a
 typeLink a r = ABT.tm' a (TypeLink r)
+
+typeTagLit :: (Ord v) => a -> TypeTagRepr -> Term2 vt at ap v a
+typeTagLit a r = ABT.tm' a (TypeTagLit r)
 
 builtin :: (Ord v) => a -> Text -> Term2 vt at ap v a
 builtin a n = ref a (Reference.Builtin n)
@@ -1313,6 +1322,7 @@ generalizedDependencies termRef typeRef literalType dataConstructor dataType eff
       Referent.Con (ConstructorReference r id) CT.Data -> Writer.tell [dataConstructor r id] $> t
       Referent.Con (ConstructorReference r id) CT.Effect -> Writer.tell [effectConstructor r id] $> t
     f t@(TypeLink r) = Writer.tell [typeRef r] $> t
+    f t@(TypeTagLit repr) = Writer.tell (map typeRef (typeTagRefs repr)) $> t
     f t@(Ann _ typ) =
       Writer.tell (map typeRef . toList $ Type.dependencies typ) $> t
     f t@(Nat _) = Writer.tell [literalType Type.natRef] $> t
@@ -1371,6 +1381,7 @@ updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
       Just r -> referent r
     go (TermLink r) = TermLink (Map.findWithDefault r r termUpdates)
     go (TypeLink r) = TypeLink (Map.findWithDefault r r typeUpdates)
+    go (TypeTagLit repr) = TypeTagLit (updateTypeTagRepr typeUpdates repr)
     go (Ann tm tp) = Ann tm $ Type.updateDependencies typeUpdates tp
     go (Match tm cases) = Match tm (u <$> cases)
       where
@@ -1632,6 +1643,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Ref x == Ref y = x == y
   TermLink x == TermLink y = x == y
   TypeLink x == TypeLink y = x == y
+  TypeTagLit x == TypeTagLit y = x == y
   Constructor r == Constructor r2 = r == r2
   Request r == Request r2 = r == r2
   Handle h b == Handle h2 b2 = h == h2 && b == b2
@@ -1673,6 +1685,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
       go _ (Ref r) = s "Ref(" <> shows r <> s ")"
       go _ (TermLink r) = s "TermLink(" <> shows r <> s ")"
       go _ (TypeLink r) = s "TypeLink(" <> shows r <> s ")"
+      go _ (TypeTagLit r) = s "TypeTagLit(" <> shows r <> s ")"
       go _ (Let _ b body) =
         showParen True (s "let " <> shows b <> s " in " <> shows body)
       go _ (LetRec _ bs body) =

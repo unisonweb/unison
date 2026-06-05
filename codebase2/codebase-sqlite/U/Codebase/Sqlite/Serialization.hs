@@ -281,6 +281,8 @@ putSingleTerm t = putABT putSymbol putUnit putF t
         putWord8 20 *> putReferent' putRecursiveReference putReference r
       Term.TypeLink r ->
         putWord8 21 *> putReference r
+      Term.TypeTagLit repr ->
+        putWord8 22 *> putTypeTagReprV2 repr
     putMatchCase :: (MonadPut m) => (a -> m ()) -> Term.MatchCase LocalTextId TermFormat.TypeRef a -> m ()
     putMatchCase putChild (Term.MatchCase pat guard body) =
       putPattern pat *> putMaybe putChild guard *> putChild body
@@ -368,6 +370,7 @@ getSingleTerm = getABT getSymbol getUnit getF
         19 -> Term.Char <$> getChar
         20 -> Term.TermLink <$> getReferent
         21 -> Term.TypeLink <$> getReference
+        22 -> Term.TypeTagLit <$> getTypeTagReprV2
         tag -> unknownTag "getSingleTerm" tag
       where
         getReferent :: (MonadGet m) => m (Referent' TermFormat.TermRef TermFormat.TypeRef)
@@ -1057,6 +1060,31 @@ getReference =
     0 -> ReferenceBuiltin <$> getVarInt
     1 -> ReferenceDerived <$> (Reference.Id <$> getVarInt <*> getVarInt)
     x -> unknownTag "getRecursiveReference" x
+
+putTypeTagReprV2 ::
+  (MonadPut m, Integral t, Bits t, Integral r, Bits r) =>
+  Term.TypeTagReprV2 (Reference' t r) ->
+  m ()
+putTypeTagReprV2 = \case
+  Term.TTRef r -> putWord8 0 *> putReference r
+  Term.TTApp f x -> putWord8 1 *> putTypeTagReprV2 f *> putTypeTagReprV2 x
+  Term.TTArrow i o -> putWord8 2 *> putTypeTagReprV2 i *> putTypeTagReprV2 o
+  Term.TTEffect es t -> putWord8 3 *> putVarInt (length es) *> traverse_ putTypeTagReprV2 es *> putTypeTagReprV2 t
+
+getTypeTagReprV2 ::
+  (MonadGet m, Integral t, Bits t, Integral r, Bits r) =>
+  m (Term.TypeTagReprV2 (Reference' t r))
+getTypeTagReprV2 =
+  getWord8 >>= \case
+    0 -> Term.TTRef <$> getReference
+    1 -> Term.TTApp <$> getTypeTagReprV2 <*> getTypeTagReprV2
+    2 -> Term.TTArrow <$> getTypeTagReprV2 <*> getTypeTagReprV2
+    3 -> do
+      n <- getVarInt
+      es <- replicateM n getTypeTagReprV2
+      t <- getTypeTagReprV2
+      pure $ Term.TTEffect es t
+    x -> unknownTag "getTypeTagReprV2" x
 
 putRecursiveReference ::
   (MonadPut m, Integral t, Bits t, Integral r, Bits r) =>

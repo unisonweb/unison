@@ -34,6 +34,7 @@ import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Referenced
 import Unison.Runtime.Serialize
 import Unison.Runtime.Serialize.Get
+import Unison.TypeTagRepr (TypeTagRepr (..))
 import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Type (ANFBlank), Var (..))
 import Prelude hiding (getChar, putChar)
@@ -422,6 +423,7 @@ putLit (T t) = putTag TT <> putText (Util.Text.toText t)
 putLit (C c) = putTag CT <> putChar c
 putLit (LM r) = putTag LMT <> putReferent r
 putLit (LY r) = putTag LYT <> putReference r
+putLit (LTT repr) = putTag LTTT <> putTypeTagRepr repr
 
 getLit :: (PrimBase m) => Get m (Lit Reference)
 getLit =
@@ -433,6 +435,26 @@ getLit =
     CT -> C <$> getChar
     LMT -> LM <$> getReferent
     LYT -> LY <$> getReference
+    LTTT -> LTT <$> getTypeTagRepr
+
+putTypeTagRepr :: TypeTagRepr -> Builder
+putTypeTagRepr (TTRef r) = BU.word8 0 <> putReference r
+putTypeTagRepr (TTApp f x) = BU.word8 1 <> putTypeTagRepr f <> putTypeTagRepr x
+putTypeTagRepr (TTArrow i o) = BU.word8 2 <> putTypeTagRepr i <> putTypeTagRepr o
+putTypeTagRepr (TTEffect es t) = BU.word8 3 <> putNat (fromIntegral (length es)) <> foldMap putTypeTagRepr es <> putTypeTagRepr t
+
+getTypeTagRepr :: (PrimBase m) => Get m TypeTagRepr
+getTypeTagRepr =
+  getWord8 >>= \case
+    0 -> TTRef <$> getReference
+    1 -> TTApp <$> getTypeTagRepr <*> getTypeTagRepr
+    2 -> TTArrow <$> getTypeTagRepr <*> getTypeTagRepr
+    3 -> do
+      n <- getNat
+      es <- replicateM (fromIntegral n) getTypeTagRepr
+      t <- getTypeTagRepr
+      pure $ TTEffect es t
+    t -> unknownTag "TypeTagRepr" t
 
 putBLit :: Version -> BLit Reference -> Builder
 putBLit _ (Text t) = putTag TextT <> putText (Util.Text.toText t)
@@ -460,6 +482,7 @@ putBLit v (Arr a) = putTag ArrT <> putFoldable (putValue v) a
 putBLit _ (Map _) = exn [] "putBLit: impossible Map"
 putBLit _ (BigInt i) = putTag BigIntT <> putInteger i
 putBLit _ (BigNat n) = putTag BigNatT <> putNatural n
+putBLit _ (TypeTagVal repr) = putTag TypeTagValT <> putTypeTagRepr repr
 
 -- special function for serializing a list of pairs as a Unison map.
 -- This allows us to avoid inflating the map to a unison value during
@@ -512,6 +535,7 @@ getBLit s@(v, fo) =
     MapT -> exn [] "getBLit: unsupported literal map"
     BigIntT -> BigInt <$> getInteger
     BigNatT -> BigNat <$> getNatural
+    TypeTagValT -> TypeTagVal <$> getTypeTagRepr
 {-# SPECIALIZE getBLit :: DeserialIO (BLit Reference) #-}
 {-# SPECIALIZE getBLit :: DeserialST s (BLit Reference) #-}
 

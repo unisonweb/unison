@@ -10,6 +10,7 @@ module Unison.Runtime.MCode.Serialize
   )
 where
 
+import Control.Monad (replicateM)
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
 import Data.Void (Void)
@@ -19,7 +20,9 @@ import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.Array (PrimArray)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.MCode hiding (MatchT)
+import Unison.Runtime.MCode qualified as MCode
 import Unison.Runtime.Serialize
+import Unison.TypeTagRepr (TypeTagRepr (..))
 import Unison.Runtime.Serialize.Get
 import Unison.Util.Text qualified as Util.Text
 import Prelude hiding (getChar, putChar)
@@ -355,24 +358,26 @@ putCombIx (CIx r n i) = putReference r <> pWord n <> pWord i
 getCombIx :: (PrimBase m) => Get m CombIx
 getCombIx = CIx <$> getReference <*> gWord <*> gWord
 
-data MLitT = MIT | MNT | MCT | MDT | MTT | MMT | MYT
+data MLitT = MIT | MNT | MCT | MDT | MTextT | MMT | MYT | MTTT
 
 instance Tag MLitT where
   tag2word MIT = 0
   tag2word MNT = 1
   tag2word MCT = 2
   tag2word MDT = 3
-  tag2word MTT = 4
+  tag2word MTextT = 4
   tag2word MMT = 5
   tag2word MYT = 6
+  tag2word MTTT = 7
 
   word2tag 0 = pure MIT
   word2tag 1 = pure MNT
   word2tag 2 = pure MCT
   word2tag 3 = pure MDT
-  word2tag 4 = pure MTT
+  word2tag 4 = pure MTextT
   word2tag 5 = pure MMT
   word2tag 6 = pure MYT
+  word2tag 7 = pure MTTT
   word2tag n = unknownTag "MLitT" n
 
 putLit :: MLit -> Builder
@@ -380,9 +385,10 @@ putLit (MI i) = putTag MIT <> pInt i
 putLit (MN n) = putTag MNT <> pWord n
 putLit (MC c) = putTag MCT <> putChar c
 putLit (MD d) = putTag MDT <> putFloat d
-putLit (MT t) = putTag MTT <> putText (Util.Text.toText t)
+putLit (MT t) = putTag MTextT <> putText (Util.Text.toText t)
 putLit (MM r) = putTag MMT <> putReferent r
 putLit (MY r) = putTag MYT <> putReference r
+putLit (MCode.MTT repr) = putTag MTTT <> putTypeTagRepr repr
 
 getLit :: (PrimBase m) => Get m MLit
 getLit =
@@ -391,9 +397,29 @@ getLit =
     MNT -> MN <$> gWord
     MCT -> MC <$> getChar
     MDT -> MD <$> getFloat
-    MTT -> MT . Util.Text.fromText <$> getText
+    MTextT -> MT . Util.Text.fromText <$> getText
     MMT -> MM <$> getReferent
     MYT -> MY <$> getReference
+    MTTT -> MCode.MTT <$> getTypeTagRepr
+
+putTypeTagRepr :: TypeTagRepr -> Builder
+putTypeTagRepr (TTRef r) = BU.word8 0 <> putReference r
+putTypeTagRepr (TTApp f x) = BU.word8 1 <> putTypeTagRepr f <> putTypeTagRepr x
+putTypeTagRepr (TTArrow i o) = BU.word8 2 <> putTypeTagRepr i <> putTypeTagRepr o
+putTypeTagRepr (TTEffect es t) = BU.word8 3 <> pWord (fromIntegral (length es)) <> foldMap putTypeTagRepr es <> putTypeTagRepr t
+
+getTypeTagRepr :: (PrimBase m) => Get m TypeTagRepr
+getTypeTagRepr =
+  getWord8 >>= \case
+    0 -> TTRef <$> getReference
+    1 -> TTApp <$> getTypeTagRepr <*> getTypeTagRepr
+    2 -> TTArrow <$> getTypeTagRepr <*> getTypeTagRepr
+    3 -> do
+      n <- gWord
+      es <- replicateM (fromIntegral n) getTypeTagRepr
+      t <- getTypeTagRepr
+      pure $ TTEffect es t
+    t -> unknownTag "TypeTagRepr" t
 
 data BranchT = Test1T | Test2T | TestWT | TestTT | TestYT
 

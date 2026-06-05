@@ -777,3 +777,4 @@ expressionLeafNodes abt =
       Term.Match _a cases -> cases & foldMap \(Term.MatchCase {matchBody}) -> expressionLeafNodes matchBody
       Term.TermLink {} -> [abt]
       Term.TypeLink {} -> [abt]
+      Term.TypeTagLit {} -> [abt]

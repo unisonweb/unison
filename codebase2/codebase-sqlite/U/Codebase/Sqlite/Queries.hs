@@ -2794,6 +2794,8 @@ c2xTerm saveText saveDefn tm tp =
             r
       C.Term.TypeLink r ->
         C.Term.TypeLink <$> bitraverse lookupText lookupDefn r
+      C.Term.TypeTagLit repr ->
+        C.Term.TypeTagLit <$> traverse (bitraverse lookupText lookupDefn) repr
     goType ::
       forall m a.
       (MonadWriter (Seq Text, Seq Hash) m, MonadState (Map Text LocalTextId, Map Hash LocalDefnId) m) =>
