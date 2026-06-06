@@ -78,6 +78,7 @@ import Unison.Runtime.ANF.Serialize as ANF (getGroupCurrent, getOptInfos, putGro
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile (DecompError, DecompResult, decompile)
 import Unison.Runtime.Decompile qualified as Decomp
+import Unison.Runtime.MetaDecompile qualified as MetaDecomp
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
@@ -825,11 +826,26 @@ evalInContext ppe ctx prof activeThreads w = do
                 (show val)
                 (debugTextFormat fancy $ pretty ppe dv)
 
+      -- Reuse the same EvalCtx-aware decompile machinery as the
+      -- display path (debugText / exception reporting). Re-read
+      -- combRefs on each invocation so that lambdas freshly floated
+      -- by the watched expression itself also expand to their
+      -- source-level bodies — capturing 'decom' from the outer
+      -- scope would freeze a stale 'crs' snapshot and force the
+      -- decompiler down the 'ref () rf' fallback.
+      metaDecom :: Val -> IO Val
+      metaDecom val = do
+        crs' <- readTVarIO (combRefs $ ccache ctx)
+        let decom' = decompileCtx crs' ctx
+        pure $ MetaDecomp.convertTerm . snd $ decom' val
+
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
       maybe
-        (apply0 (Just hook) (ccache ctx) {tracer = debugText} activeThreads w)
-        (\pc -> apply0 (Just hook) (ccache ctx) {tracer = debugText, profiler = pc} activeThreads w)
+        (apply0 (Just hook) (ccache ctx) {tracer = debugText, metaDecompile = metaDecom} activeThreads w)
+        ( \pc ->
+            apply0 (Just hook) (ccache ctx) {tracer = debugText, metaDecompile = metaDecom, profiler = pc} activeThreads w
+        )
         prof
 
   pure $ finish result
@@ -966,7 +982,7 @@ debugTextFormat fancy =
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText ()
+    CCache sandboxed debugText metaDecom ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -1006,6 +1022,7 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
               (debugTextFormat fancy $ tabulateErrors errs)
               (show c)
               (debugTextFormat fancy $ pretty PPE.empty dv)
+    metaDecom val = pure $ MetaDecomp.convertTerm . snd $ decom val
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     srcCombs :: EnumMap Word64 Combs

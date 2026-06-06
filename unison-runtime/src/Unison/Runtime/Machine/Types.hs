@@ -162,6 +162,14 @@ instance RuntimeProfiler ProfileComm where
 data CCache prof = CCache
   { sandboxed :: Bool,
     tracer :: Bool -> Val -> Tracer,
+    -- | How Meta.decompile (MDCM) renders a runtime value into a
+    -- meta.Term meta.TermF closure. Overridden at evaluation start
+    -- in "Unison.Runtime.Interface" with an EvalCtx-aware version
+    -- that re-reads combRefs/decompTm so freshly-compiled lambdas
+    -- in the watched expression also expand correctly. Lives in IO
+    -- specifically so the lookup tables can be re-read on each call;
+    -- baseCCache supplies a stub that errors if no installer ran.
+    metaDecompile :: Val -> IO Val,
     profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
@@ -193,7 +201,7 @@ refNumTm cc r =
 
 baseCCache :: Bool -> IO (CCache ())
 baseCCache sandboxed = do
-  CCache sandboxed noTrace ()
+  CCache sandboxed noTrace noMetaDecompile ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
@@ -209,6 +217,10 @@ baseCCache sandboxed = do
   where
     cacheableCombs = mempty
     noTrace _ _ = NoTrace
+    -- Default: the runtime doesn't have an EvalCtx-aware decompile
+    -- registered yet. 'Interface.hs' overrides this at evaluation
+    -- start; until then, callers fall back to the bare value.
+    noMetaDecompile _v = error "Meta.decompile: no decompiler installed"
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
 
