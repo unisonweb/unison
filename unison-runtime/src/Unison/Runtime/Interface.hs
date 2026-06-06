@@ -826,18 +826,13 @@ evalInContext ppe ctx prof activeThreads w = do
                 (show val)
                 (debugTextFormat fancy $ pretty ppe dv)
 
-      -- Reuse the same EvalCtx-aware decompile machinery as the
-      -- display path (debugText / exception reporting). Re-read
-      -- combRefs on each invocation so that lambdas freshly floated
-      -- by the watched expression itself also expand to their
-      -- source-level bodies — capturing 'decom' from the outer
-      -- scope would freeze a stale 'crs' snapshot and force the
-      -- decompiler down the 'ref () rf' fallback.
+      -- Use the same EvalCtx-aware decompile machinery as the
+      -- display path (debugText / exception reporting / Debug.toText)
+      -- and then re-shape the result into a runtime closure of
+      -- meta.Term meta.TermF for our user code to pattern-match on.
       metaDecom :: Val -> IO Val
-      metaDecom val = do
-        crs' <- readTVarIO (combRefs $ ccache ctx)
-        let decom' = decompileCtx crs' ctx
-        pure $ MetaDecomp.convertTerm . snd $ decom' val
+      metaDecom val =
+        pure . MetaDecomp.convertTerm . snd $ decom val
 
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
