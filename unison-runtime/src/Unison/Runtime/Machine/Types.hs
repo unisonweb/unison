@@ -170,6 +170,13 @@ data CCache prof = CCache
     -- specifically so the lookup tables can be re-read on each call;
     -- baseCCache supplies a stub that errors if no installer ran.
     metaDecompile :: Val -> IO Val,
+    -- | How Meta.typecheck (MTYC) processes a meta.Term meta.TermF
+    -- closure into an Either Text (Term TypeF, Code) closure.
+    -- Overridden at evaluation start so the implementation can use
+    -- the EvalCtx-level data spec and float remap state when
+    -- compiling the typechecked Term into runnable Code. baseCCache
+    -- supplies a stub.
+    metaTypecheck :: Val -> IO Val,
     profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
@@ -201,7 +208,7 @@ refNumTm cc r =
 
 baseCCache :: Bool -> IO (CCache ())
 baseCCache sandboxed = do
-  CCache sandboxed noTrace noMetaDecompile ()
+  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
@@ -221,6 +228,7 @@ baseCCache sandboxed = do
     -- registered yet. 'Interface.hs' overrides this at evaluation
     -- start; until then, callers fall back to the bare value.
     noMetaDecompile _v = error "Meta.decompile: no decompiler installed"
+    noMetaTypecheck _v = error "Meta.typecheck: no typechecker installed"
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
 

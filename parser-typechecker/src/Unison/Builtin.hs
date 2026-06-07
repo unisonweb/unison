@@ -663,7 +663,11 @@ builtinsSrc =
         --> io
           ( eithert
               text
-              (Type.app () (Type.metaTerm ()) (Type.metaTypeF ()))
+              ( tuple
+                  [ Type.app () (Type.metaTerm ()) (Type.metaTypeF ()),
+                    code
+                  ]
+              )
           ),
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->

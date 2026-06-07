@@ -95,8 +95,6 @@ import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
-import Unison.Runtime.MetaCompile qualified as MetaCompile
-import Unison.Runtime.MetaDecompile qualified as MetaDecompile
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
@@ -389,20 +387,15 @@ exec env henv !_activeThreads !stk !k _ (Prim1 MDCM i) = do
   -- 'baseCCache' supplies a stub that errors if no installer ran.
   poke stk =<< metaDecompile env v
   pure (False, henv, stk, k)
-exec _env henv !_activeThreads !stk !k _ (Prim1 MTYC i) = do
+exec env henv !_activeThreads !stk !k _ (Prim1 MTYC i) = do
   v <- peekOff stk i
   stk <- bump stk
-  -- Decode the input meta.Term meta.TermF closure back into a
-  -- source-level Term, run the Unison typechecker, and build a
-  -- runtime Either Text (Term TypeF) closure for the result.
-  let textVal t =
-        BoxedVal (Foreign (WrapText (Util.Text.fromText t)))
-      result = case MetaCompile.typecheckVal v of
-        Left err ->
-          BoxedVal (Data1 Rf.eitherRef TT.leftTag (textVal err))
-        Right ty ->
-          BoxedVal (Data1 Rf.eitherRef TT.rightTag (MetaDecompile.typeTermVal ty))
-  poke stk result
+  -- Dispatch to the metaTypecheck function installed on the CCache.
+  -- At evaluation time, 'Unison.Runtime.Interface' overrides this
+  -- with an EvalCtx-aware version that compiles the typechecked
+  -- term into runnable Code via prepareEvaluation; baseCCache
+  -- supplies a stub that errors if no installer ran.
+  poke stk =<< metaTypecheck env v
   pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i

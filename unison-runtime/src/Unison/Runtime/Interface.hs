@@ -78,7 +78,10 @@ import Unison.Runtime.ANF.Serialize as ANF (getGroupCurrent, getOptInfos, putGro
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile (DecompError, DecompResult, decompile)
 import Unison.Runtime.Decompile qualified as Decomp
+import Unison.Runtime.MetaCompile qualified as MetaC
 import Unison.Runtime.MetaDecompile qualified as MetaDecomp
+import Unison.Runtime.Referenced (Referenced (..))
+import Unison.Util.Text qualified as Util.Text
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
@@ -833,17 +836,60 @@ evalInContext ppe ctx prof activeThreads w = do
       metaDecom :: Val -> IO Val
       metaDecom val =
         pure . MetaDecomp.convertTerm . snd $ decom val
+      -- Decode meta.Term meta.TermF → source-level Term, run the
+      -- typechecker, compile the typechecked Term into Code, and
+      -- return Either Text (Term TypeF, Code) as a runtime closure.
+      -- The Code is constructed via the existing prepareEvaluation
+      -- pipeline (which floats lambdas, performs ANF normalization,
+      -- and registers the resulting combinators in the runtime
+      -- cache so the returned Code is immediately evaluable).
+      metaTC :: Val -> IO Val
+      metaTC val = case MetaC.compileTerm val of
+        Left err -> pure (metaLeftText err)
+        Right tm -> case MetaC.typecheckTerm tm of
+          Left err -> pure (metaLeftText err)
+          Right ty -> do
+            (_ctx', rcode, _mainRef) <- prepareEvaluation ppe tm ctx
+            let codeVal = case rcode of
+                  -- The main term sits at the head of the rcode
+                  -- list returned by prepareEvaluation.
+                  ((_, c) : _) ->
+                    BoxedVal (Foreign (WrapCode (Plain c)))
+                  [] -> metaLeftText "Meta.typecheck: prepareEvaluation produced no code"
+            pure (metaRightPair (MetaDecomp.typeTermVal ty) codeVal)
 
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
       maybe
-        (apply0 (Just hook) (ccache ctx) {tracer = debugText, metaDecompile = metaDecom} activeThreads w)
+        ( apply0
+            (Just hook)
+            (ccache ctx) {tracer = debugText, metaDecompile = metaDecom, metaTypecheck = metaTC}
+            activeThreads
+            w
+        )
         ( \pc ->
-            apply0 (Just hook) (ccache ctx) {tracer = debugText, metaDecompile = metaDecom, profiler = pc} activeThreads w
+            apply0
+              (Just hook)
+              (ccache ctx) {tracer = debugText, metaDecompile = metaDecom, metaTypecheck = metaTC, profiler = pc}
+              activeThreads
+              w
         )
         prof
 
   pure $ finish result
+
+-- | @Left t@ as a runtime @Either Text x@ closure.
+metaLeftText :: Text -> Val
+metaLeftText t =
+  BoxedVal (Data1 RF.eitherRef TT.leftTag (BoxedVal (Foreign (WrapText (Util.Text.fromText t)))))
+
+-- | @Right (a, b)@ as a runtime @Either Text (a, b)@ closure.
+metaRightPair :: Val -> Val -> Val
+metaRightPair a b =
+  let unitVal = BoxedVal (Enum RF.unitRef TT.unitTag)
+      inner = BoxedVal (Data2 RF.pairRef TT.pairTag b unitVal)
+      pair = BoxedVal (Data2 RF.pairRef TT.pairTag a inner)
+   in BoxedVal (Data1 RF.eitherRef TT.rightTag pair)
 
 executeMainComb ::
   CombIx ->
@@ -977,7 +1023,7 @@ debugTextFormat fancy =
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText metaDecom ()
+    CCache sandboxed debugText metaDecom metaTCStub ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -1018,6 +1064,8 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
               (show c)
               (debugTextFormat fancy $ pretty PPE.empty dv)
     metaDecom val = pure $ MetaDecomp.convertTerm . snd $ decom val
+    metaTCStub _val =
+      pure (metaLeftText "Meta.typecheck: unavailable in restored-cache context")
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     srcCombs :: EnumMap Word64 Combs
