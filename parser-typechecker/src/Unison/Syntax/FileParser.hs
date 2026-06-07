@@ -25,7 +25,9 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference
-import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
+import Unison.OpaqueDeclaration (OpaqueBody (..), OpaqueDeclaration (..))
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
+import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynOpaqueBody (..), SynOpaqueDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.Parser
@@ -89,8 +91,10 @@ file = do
   let synDecls = maybe id applyNamespaceToSynDecls maybeNamespaceVar unNamespacedSynDecls
 
   -- Make real data/effect decls from the "syntactic" ones, and capture the
-  -- file's type aliases (already cycle-checked, in dependency order).
-  (dataDecls, effectDecls, fileAliases) <- synDeclsToDecls synDecls
+  -- file's type aliases (already cycle-checked, in dependency order) plus
+  -- the file's opaque-type decls (un-hashed; resolved + hashed below once we
+  -- have the alias env).
+  (dataDecls, effectDecls, fileAliases, fileOpaques) <- synDeclsToDecls synDecls
 
   -- Decls and aliases can reference each other but not cyclically. We
   -- hash in two passes around 'environmentFor':
@@ -163,6 +167,43 @@ file = do
           [ (Name.unsafeParseVar v, Reference.DerivedId rid)
           | (v, (rid, _)) <- Map.toList fileAliasesWithHashes
           ]
+
+  -- Convert each parsed @SynOpaqueDecl@ to a core 'OpaqueDeclaration' and
+  -- compute its hash. Opaques may reference file decls and aliases in their
+  -- RHS, so we resolve names against @aliasNamesForDecls <> UF.names env@.
+  -- Body items are left as-is here; their names/terms get fully bound later
+  -- when the body fns flow through the term parser in a follow-up phase.
+  let envNamesForOpaques :: Names
+      envNamesForOpaques =
+        Names.shadowing (aliasNamesForDecls <> UF.names env) envNamesAfterPhase1
+  let resolveOpaque :: SynOpaqueDecl v -> P v m (TypeReferenceId, OpaqueDeclaration v Ann)
+      resolveOpaque sd = do
+        resolvedRhs <-
+          Type.Names.bindNames
+            Name.unsafeParseVar
+            Name.toVar
+            (Set.fromList sd.tyvars)
+            envNamesForOpaques
+            sd.rhs
+            & onLeft \errs -> resolutionFailures (toList errs)
+        let bodyItems =
+              [ OpaqueBody {OpaqueDeclaration.name = b.name, OpaqueDeclaration.nameAnn = b.nameAnn, OpaqueDeclaration.term = b.term}
+              | b <- sd.body
+              ]
+        let opaque =
+              OpaqueDeclaration
+                { OpaqueDeclaration.modifier = sd.modifier,
+                  OpaqueDeclaration.annotation = sd.annotation,
+                  OpaqueDeclaration.paramNames = sd.tyvars,
+                  OpaqueDeclaration.rhs = resolvedRhs,
+                  OpaqueDeclaration.body = bodyItems
+                }
+        pure (Hashing.hashOpaqueDeclaration opaque, opaque)
+  fileOpaquesWithHashes :: Map v (TypeReferenceId, OpaqueDeclaration v Ann) <-
+    fmap Map.fromList $
+      for fileOpaques \(v, sd) -> do
+        (refId, od) <- resolveOpaque sd
+        pure (v, (refId, od))
 
   -- Generate the record accessors with *un-namespaced* names below, because we need to know these names in order to
   -- perform rewriting. As an example,
@@ -263,6 +304,7 @@ file = do
       (UF.datasId env)
       (UF.effectsId env)
       fileAliasesWithHashes
+      fileOpaquesWithHashes
       (terms <> accessors)
       (List.multimap watches)
 
@@ -310,13 +352,16 @@ applyNamespaceToSynDecls namespace decls =
                 & over (#name . mapped) (Var.namespaced2 namespace)
             )
         SynDecl'Opaque decl ->
-          -- TODO(opaque): also substitute through body item terms; for now we
-          -- only rewrite the RHS and decl name, which is enough for top-level
-          -- parsing not to drop the decl. Body-item namespacing lands with
-          -- the typecheck integration.
+          -- Rewrite the RHS, the decl name, and any type-position references
+          -- inside body item terms. We don't (yet) namespace the body item
+          -- *names* themselves — the body fns will get their names properly
+          -- adjusted when they flow as terms in a later phase.
+          -- TODO(opaque): namespace body-item names once body fns are
+          -- threaded through the term-stanza pipeline.
           SynDecl'Opaque
             ( decl
                 & over #rhs (ABT.substsInheritAnnotation typeReplacements)
+                & over (#body . mapped . #term) (Term.typeMap (ABT.substsInheritAnnotation typeReplacements))
                 & over (#name . mapped) (Var.namespaced2 namespace)
             )
     )
@@ -346,10 +391,11 @@ synDeclsToDecls ::
     m
     ( Map v (DataDeclaration v Ann),
       Map v (EffectDeclaration v Ann),
-      [(v, Unison.TypeAlias.TypeAlias v Ann)]
+      [(v, Unison.TypeAlias.TypeAlias v Ann)],
+      [(v, SynOpaqueDecl v)]
     )
 synDeclsToDecls decls = do
-  let (datasRaw, effectsRaw, aliasesRaw) = partitionDecls decls
+  let (datasRaw, effectsRaw, aliasesRaw, opaquesRaw) = partitionDecls decls
 
   -- Cycle-check aliases and order them so each appears after the aliases
   -- it references — callers downstream resolve and hash in this order.
@@ -378,18 +424,22 @@ synDeclsToDecls decls = do
           | decl <- effectsRaw
           ]
 
-  pure (datas, effects, aliases)
+  pure (datas, effects, aliases, opaquesRaw)
 
--- | Split a parsed decl list into data, effect, and alias maps.
+-- | Split a parsed decl list into data, effect, alias, and opaque parts.
 partitionDecls ::
   (Ord v) =>
   [SynDecl v] ->
-  ([SynDataDecl v], [SynEffectDecl v], Map v (Unison.TypeAlias.TypeAlias v Ann))
-partitionDecls = foldr step ([], [], Map.empty)
+  ( [SynDataDecl v],
+    [SynEffectDecl v],
+    Map v (Unison.TypeAlias.TypeAlias v Ann),
+    [(v, SynOpaqueDecl v)]
+  )
+partitionDecls = foldr step ([], [], Map.empty, [])
   where
-    step (SynDecl'Data d) (ds, es, as) = (d : ds, es, as)
-    step (SynDecl'Effect d) (ds, es, as) = (ds, d : es, as)
-    step (SynDecl'TypeAlias d) (ds, es, as) =
+    step (SynDecl'Data d) (ds, es, as, os) = (d : ds, es, as, os)
+    step (SynDecl'Effect d) (ds, es, as, os) = (ds, d : es, as, os)
+    step (SynDecl'TypeAlias d) (ds, es, as, os) =
       ( ds,
         es,
         Map.insert
@@ -399,13 +449,11 @@ partitionDecls = foldr step ([], [], Map.empty)
                 Unison.TypeAlias.body = d.body
               }
           )
-          as
+          as,
+        os
       )
-    -- TODO(opaque): collect opaque decls and plumb them into UnisonFile.
-    -- For now we silently drop them; the parser accepts the syntax but the
-    -- decls are not yet visible to elaboration/codegen. Subsequent phases
-    -- will collect, hash, and integrate them.
-    step (SynDecl'Opaque _) (ds, es, as) = (ds, es, as)
+    step (SynDecl'Opaque d) (ds, es, as, os) =
+      (ds, es, as, (d.name.payload, d) : os)
 
 applyNamespaceToStanza ::
   forall a v.
@@ -441,11 +489,12 @@ validateUnisonFile ::
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
   Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) ->
+  Map v (TypeReferenceId, OpaqueDeclaration v Ann) ->
   [(v, Ann, Term v Ann)] ->
   Map WatchKind [(v, Ann, Term v Ann)] ->
   P v m (UnisonFile v Ann)
-validateUnisonFile fn datas effects aliases terms watches =
-  checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches
+validateUnisonFile fn datas effects aliases opaques terms watches =
+  checkForDuplicateTermsAndConstructors fn datas effects aliases opaques terms watches
 
 -- | Because types and abilities can introduce their own constructors and fields it's difficult
 -- to detect all duplicate terms during parsing itself. Here we collect all terms and
@@ -457,10 +506,11 @@ checkForDuplicateTermsAndConstructors ::
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
   Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) ->
+  Map v (TypeReferenceId, OpaqueDeclaration v Ann) ->
   [(v, Ann, Term v Ann)] ->
   Map WatchKind [(v, Ann, Term v Ann)] ->
   P v m (UnisonFile v Ann)
-checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches = do
+checkForDuplicateTermsAndConstructors fn datas effects aliases opaques terms watches = do
   when (not . null $ duplicates) $ do
     let dupeList :: [(v, [Ann])]
         dupeList =
@@ -474,8 +524,7 @@ checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches = d
         dataDeclarationsId = datas,
         effectDeclarationsId = effects,
         typeAliasesId = aliases,
-        -- TODO(opaque): plumbed through 'validateUnisonFile' once the parser collects opaques.
-        opaqueDeclarationsId = Map.empty,
+        opaqueDeclarationsId = opaques,
         terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
         watches
       }
