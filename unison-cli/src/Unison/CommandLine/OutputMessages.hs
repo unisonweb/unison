@@ -3164,6 +3164,7 @@ prettyEntityValidationFailure = \case
       Share.NamespaceDiffType -> "namespace diff"
       Share.CausalType -> "causal"
       Share.TypeAliasComponentType -> "type alias component"
+      Share.OpaqueDeclarationComponentType -> "opaque declaration component"
 
 prettyTransportError :: Share.CodeserverTransportError -> Pretty
 prettyTransportError = \case
@@ -3221,6 +3222,7 @@ prettyEntityType = \case
   Share.NamespaceDiffType -> "namespace diff"
   Share.CausalType -> "causal"
   Share.TypeAliasComponentType -> "type alias component"
+  Share.OpaqueDeclarationComponentType -> "opaque declaration component"
 
 invalidRepoInfo :: Text -> Share.RepoInfo -> Pretty
 invalidRepoInfo err repoInfo =

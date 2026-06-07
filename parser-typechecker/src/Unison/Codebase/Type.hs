@@ -22,6 +22,7 @@ import Unison.ShortHash (ShortHash)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.TypeAlias (TypeAlias)
 import Unison.TypeEntry (TypeEntry)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView)
@@ -55,6 +56,17 @@ data Codebase m v a = Codebase
     getTypeEntry :: TypeReferenceId -> Sqlite.Transaction (Maybe (TypeEntry v a)),
     -- | Check whether a type-position reference resolves to an alias.
     isTypeAlias :: TypeReference -> Sqlite.Transaction Bool,
+    -- | Get an opaque declaration. Returns @Nothing@ if no such opaque
+    -- declaration exists, or if the reference points to a regular type
+    -- declaration or alias.
+    --
+    -- TODO(opaque): the returned 'OpaqueDeclaration' currently has an empty
+    -- @body@; body items will be fetched via the membership table once it
+    -- lands.
+    getOpaqueDeclaration :: TypeReferenceId -> Sqlite.Transaction (Maybe (OpaqueDeclaration v a)),
+    -- | Check whether a type-position reference resolves to an opaque
+    -- declaration.
+    isOpaqueDeclaration :: TypeReference -> Sqlite.Transaction Bool,
     -- | Get the type of a given decl.
     getDeclType :: TypeReference -> Sqlite.Transaction CT.ConstructorType,
     expectDeclNumConstructors :: TypeReferenceId -> Sqlite.Transaction Int,
@@ -71,6 +83,15 @@ data Codebase m v a = Codebase
     -- codebase; aliases cannot be enqueued for deferred persistence the way
     -- recursive decl components can, because aliases are non-recursive.
     putTypeAlias :: TypeReferenceId -> TypeAlias v a -> Sqlite.Transaction (),
+    -- | Save an opaque type declaration. The RHS's dependencies must already
+    -- be in the codebase; opaques cannot be enqueued for deferred persistence
+    -- because their RHS is non-recursive.
+    --
+    -- TODO(opaque): body items are not saved by this call; they are persisted
+    -- as ordinary terms by the surrounding @addDefsToCodebase@ flow, and the
+    -- membership row that links each body term to this parent is written
+    -- separately (plan §2.2).
+    putOpaqueDeclaration :: TypeReferenceId -> OpaqueDeclaration v a -> Sqlite.Transaction (),
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
     getBranchForHash :: CausalHash -> m (Maybe (Branch m)),

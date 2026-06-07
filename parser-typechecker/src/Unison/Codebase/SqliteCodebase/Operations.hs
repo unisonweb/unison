@@ -60,6 +60,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.TypeAlias (TypeAlias)
 import Unison.TypeEntry (TypeEntry)
 import Unison.TypeEntry qualified as TypeEntry
@@ -280,6 +281,34 @@ putTypeAlias :: Reference.Id -> TypeAlias Symbol Ann -> Transaction ()
 putTypeAlias (Reference.Id h _) ta =
   unlessM (Ops.objectExistsForHash h) do
     void $ Q.saveTypeAlias v2HashHandle Nothing h (Cv.typeAlias1to2 ta)
+
+-- | Look up an opaque declaration by reference. Returns 'Nothing' if no
+-- opaque declaration is stored at that reference.
+--
+-- TODO(opaque): when the membership table lands, the body items will be
+-- recovered here as a separate sub-query and re-attached to the returned
+-- 'OpaqueDeclaration' value's @body@ field. For now the @body@ is empty.
+getOpaqueDeclaration :: Reference.Id -> Transaction (Maybe (OpaqueDeclaration Symbol Ann))
+getOpaqueDeclaration rid =
+  runMaybeT do
+    od2 <- Ops.loadOpaqueDeclarationByReference (Cv.referenceid1to2 rid)
+    pure (Cv.opaqueDeclaration2to1 od2)
+
+isOpaqueDeclaration :: Reference -> Transaction Bool
+isOpaqueDeclaration r = Ops.isOpaqueDeclarationReference (Cv.reference1to2 r)
+
+-- | Save an opaque declaration. Opaque decls are non-recursive in their RHS
+-- (the LHS may not appear in the RHS, by parse-time check), so they are stored
+-- as single-element components, mirroring 'putTypeAlias'.
+--
+-- TODO(opaque): body items are not persisted here; they are stored as ordinary
+-- terms by the surrounding @addDefsToCodebase@ machinery once Phase 4 lands.
+-- The membership row linking each body term to its parent opaque decl will be
+-- written separately (plan §2.2).
+putOpaqueDeclaration :: Reference.Id -> OpaqueDeclaration Symbol Ann -> Transaction ()
+putOpaqueDeclaration (Reference.Id h _) od =
+  unlessM (Ops.objectExistsForHash h) do
+    void $ Q.saveOpaqueDeclaration v2HashHandle Nothing h (Cv.opaqueDeclaration1to2 od)
 
 putTermComponent ::
   TVar (Map Hash TermBufferEntry) ->

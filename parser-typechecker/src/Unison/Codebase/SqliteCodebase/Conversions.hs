@@ -17,6 +17,7 @@ import U.Codebase.Sqlite.Symbol qualified as V2
 import U.Codebase.Term qualified as V2.Term
 import U.Codebase.TermEdit qualified as V2.TermEdit
 import U.Codebase.Type qualified as V2.Type
+import U.Codebase.OpaqueDeclaration qualified as V2.OpaqueDeclaration
 import U.Codebase.TypeAlias qualified as V2.TypeAlias
 import U.Codebase.TypeEdit qualified as V2.TypeEdit
 import U.Codebase.WatchKind qualified as V2
@@ -54,6 +55,7 @@ import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol qualified as V1
 import Unison.Term qualified as V1.Term
 import Unison.Type qualified as V1.Type
+import Unison.OpaqueDeclaration qualified as V1.OpaqueDeclaration
 import Unison.TypeAlias qualified as V1.TypeAlias
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation
@@ -353,6 +355,44 @@ typeAlias1to2 (V1.TypeAlias.TypeAlias params body) =
   V2.TypeAlias.TypeAliasR
     (symbol1to2 <$> params)
     (ttype1to2 body)
+
+-- | Convert a v2 opaque declaration to v1 form. The v1 form additionally
+-- carries a list of body items; this conversion produces an empty body list
+-- since v2 storage strips body fns off the decl (they are stored as ordinary
+-- terms via the membership relation; see 'plan §2.2'). Callers that need the
+-- body must look it up separately.
+opaqueDeclaration2to1 :: V2.OpaqueDeclaration.OpaqueDeclaration V2.Symbol -> V1.OpaqueDeclaration.OpaqueDeclaration V1.Symbol Ann
+opaqueDeclaration2to1 (V2.OpaqueDeclaration.OpaqueDeclarationR modifier params rhs) =
+  V1.OpaqueDeclaration.OpaqueDeclaration
+    { V1.OpaqueDeclaration.modifier = opaqueModifier2to1 modifier,
+      V1.OpaqueDeclaration.annotation = Ann.External,
+      V1.OpaqueDeclaration.paramNames = symbol2to1 <$> params,
+      V1.OpaqueDeclaration.rhs = ttype2to1 rhs,
+      V1.OpaqueDeclaration.body = []
+    }
+
+-- | Convert a v1 opaque declaration to its v2 storage form. The body items
+-- are dropped: they are stored as ordinary terms with their own hashes, and
+-- their parent-of relation lives in the membership table rather than on the
+-- decl itself.
+opaqueDeclaration1to2 :: V1.OpaqueDeclaration.OpaqueDeclaration V1.Symbol a -> V2.OpaqueDeclaration.OpaqueDeclaration V2.Symbol
+opaqueDeclaration1to2 od =
+  V2.OpaqueDeclaration.OpaqueDeclarationR
+    (opaqueModifier1to2 (V1.OpaqueDeclaration.modifier od))
+    (symbol1to2 <$> V1.OpaqueDeclaration.paramNames od)
+    (ttype1to2 (V1.OpaqueDeclaration.rhs od))
+
+-- | The v1 'OpaqueDeclaration' shares its modifier type with 'DataDeclaration',
+-- so the structural/unique constructors are the ones from 'V1.Decl.Modifier'.
+opaqueModifier2to1 :: V2.OpaqueDeclaration.OpaqueModifier -> V1.Decl.Modifier
+opaqueModifier2to1 = \case
+  V2.OpaqueDeclaration.OpaqueStructural -> V1.Decl.Structural
+  V2.OpaqueDeclaration.OpaqueUnique t -> V1.Decl.Unique t
+
+opaqueModifier1to2 :: V1.Decl.Modifier -> V2.OpaqueDeclaration.OpaqueModifier
+opaqueModifier1to2 = \case
+  V1.Decl.Structural -> V2.OpaqueDeclaration.OpaqueStructural
+  V1.Decl.Unique t -> V2.OpaqueDeclaration.OpaqueUnique t
 
 dtype2to1 :: Hash -> V2.Decl.Type V2.Symbol -> V1.Type.Type V1.Symbol Ann
 dtype2to1 h = type2to1' (rreference2to1 h)

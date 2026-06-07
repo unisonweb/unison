@@ -53,6 +53,11 @@ module Unison.Codebase
     isTypeAlias,
     putTypeAlias,
 
+    -- * Opaque declarations
+    getOpaqueDeclaration,
+    isOpaqueDeclaration,
+    putOpaqueDeclaration,
+
     -- * Branches
     SqliteCodebase.Operations.branchExists,
     getBranchForHash,
@@ -180,6 +185,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.TypeAlias (TypeAlias)
 import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
@@ -370,6 +376,12 @@ addDefsToCodebase c uf = do
   traverse_ (goType Right) (UF.dataDeclarationsId' uf)
   traverse_ (goType Left) (UF.effectDeclarationsId' uf)
   traverse_ goAlias (UF.typeAliasesId' uf)
+  -- TODO(opaque): body items are not yet extracted to ordinary term defs
+  -- (Phase 4 work). For now we only persist the opaque decl's own
+  -- (modifier, paramNames, rhs) identity; the @body@ field is stored as an
+  -- empty list and any body fns the parser produced are dropped on the floor
+  -- when reading back from the codebase.
+  traverse_ goOpaque (UF.opaqueDeclarationsId' uf)
   -- put terms
   traverse_ goTerm (UF.hashTermsId uf)
   where
@@ -380,6 +392,8 @@ addDefsToCodebase c uf = do
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
     goAlias :: (Reference.Id, TypeAlias v a) -> Sqlite.Transaction ()
     goAlias (ref, ta) = putTypeAlias c ref ta
+    goOpaque :: (Reference.Id, OpaqueDeclaration v a) -> Sqlite.Transaction ()
+    goOpaque (ref, od) = putOpaqueDeclaration c ref od
 
 getTypeOfConstructor :: (Ord v) => Codebase m v a -> ConstructorReference -> Sqlite.Transaction (Maybe (Type v a))
 getTypeOfConstructor codebase (ConstructorReference r0 cid) =
