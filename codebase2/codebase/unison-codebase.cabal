@@ -22,6 +22,7 @@ library
       U.Codebase.Decl
       U.Codebase.Kind
       U.Codebase.Referent
+      U.Codebase.OpaqueDeclaration
       U.Codebase.Reflog
       U.Codebase.Term
       U.Codebase.TermEdit
