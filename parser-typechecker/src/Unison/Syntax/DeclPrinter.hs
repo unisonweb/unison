@@ -5,6 +5,8 @@ module Unison.Syntax.DeclPrinter
     prettyDeclOrBuiltinHeader,
     prettyTypeAlias,
     prettyTypeAliasHeader,
+    prettyOpaqueDecl,
+    prettyOpaqueDeclHeader,
     getFieldAndAccessorNames,
     AccessorName,
     RenderUniqueTypeGuids (..),
@@ -27,6 +29,8 @@ import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
+import Unison.OpaqueDeclaration (OpaqueBody (..), OpaqueDeclaration (..))
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -35,9 +39,10 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (Reference, TypeReference)
 import Unison.Referent qualified as Referent
-import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.Syntax.HashQualified qualified as HQ (toText, unsafeFromVar)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NamePrinter (prettyName, styleHashQualified'')
+import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter (runPretty)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Syntax.Var qualified as Var (namespaced)
@@ -383,6 +388,56 @@ prettyTypeAlias (PrettyPrintEnvDecl _unsuffixifiedPPE suffixifiedPPE) name ta =
     prettyTypeAliasHeader name ta
       <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
       <> runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) (TypeAlias.body ta))
+
+-- | Render the header @[modifier] opaque type \<Name\> \<params\>@.
+prettyOpaqueDeclHeader ::
+  (Var v) =>
+  RenderUniqueTypeGuids ->
+  HQ.HashQualified Name ->
+  OpaqueDeclaration v a ->
+  Pretty SyntaxText
+prettyOpaqueDeclHeader guid name od =
+  P.sepNonEmpty
+    " "
+    [ prettyModifier guid (OpaqueDeclaration.modifier od),
+      fmt S.DataTypeKeyword "opaque type",
+      styleHashQualified'' (fmt $ S.HashQualifier name) name,
+      P.sep " " (fmt S.DataTypeParams . P.text . Var.name <$> OpaqueDeclaration.paramNames od)
+    ]
+
+-- | Render a complete @[modifier] opaque type \<Name\> \<params\> = \<rhs\> where \<body\>@
+-- declaration. Body items are rendered with 'TermPrinter.prettyBinding' so any
+-- embedded type signature is emitted alongside the definition.
+prettyOpaqueDecl ::
+  (Var v) =>
+  PrettyPrintEnvDecl ->
+  RenderUniqueTypeGuids ->
+  HQ.HashQualified Name ->
+  OpaqueDeclaration v a ->
+  Pretty SyntaxText
+prettyOpaqueDecl (PrettyPrintEnvDecl _unsuffixifiedPPE suffixifiedPPE) guid name od =
+  P.group $
+    prettyOpaqueDeclHeader guid name od
+      <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
+      <> runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) (OpaqueDeclaration.rhs od))
+      <> bodyBlock
+  where
+    -- @where@ stays on the same line as the RHS so the layout-sensitive
+    -- parser opens a fresh block right after it; body items are then
+    -- indented two columns. This mirrors how ability/effect decls render.
+    bodyBlock = case OpaqueDeclaration.body od of
+      [] -> mempty
+      bs ->
+        " "
+          <> fmt S.ControlKeyword "where"
+          <> P.newline
+          <> P.indentN 2 (P.lines (renderBodyItem <$> bs))
+    renderBodyItem :: (Var v) => OpaqueBody v a -> Pretty SyntaxText
+    renderBodyItem b =
+      TermPrinter.prettyBinding
+        suffixifiedPPE
+        (HQ.unsafeFromVar (OpaqueDeclaration.name b))
+        (OpaqueDeclaration.term b)
 
 fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = P.withSyntax

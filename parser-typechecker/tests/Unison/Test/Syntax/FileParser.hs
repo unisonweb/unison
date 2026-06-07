@@ -2,18 +2,26 @@ module Unison.Test.Syntax.FileParser where
 
 import Data.Functor.Identity (Identity (..))
 import Data.List (uncons)
+import Data.Map qualified as Map
 import Data.Set (elems)
 import Data.Text qualified as Text
 import EasyTest
 import Text.Megaparsec.Error qualified as MPE
+import Unison.HashQualified qualified as HQ
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Parser.Ann qualified as P
 import Unison.Parsers (unsafeGetRightFrom, unsafeParseFileBuiltinsOnly)
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrintError (renderParseErrorAsANSI)
 import Unison.Symbol (Symbol)
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.FileParser (file)
+import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as P
 import Unison.Test.Common qualified as Common
 import Unison.UnisonFile (UnisonFile)
+import Unison.UnisonFile qualified as UF
+import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
 
 test1 :: Test ()
@@ -68,7 +76,8 @@ test =
       typeAliasCycleTest,
       opaqueDeclParsesTest,
       opaqueDeclWithUniqueModifierParsesTest,
-      opaqueDeclParameterizedParsesTest
+      opaqueDeclParameterizedParsesTest,
+      opaqueDeclRoundtripTest
     ]
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -204,3 +213,41 @@ parses s = scope s $ do
         unsafeGetRightFrom s . runIdentity $
           P.run (P.rootFile file) s Common.parsingEnv
   pure p >> ok
+
+-- | An opaque type declaration survives a parse → pretty-print → re-parse
+-- roundtrip with the same set of opaque-decl names and the same parameter
+-- arity. We don't compare hashes because annotation positions differ between
+-- the original source and the pretty-printed source, but the structural
+-- shape (name, arity) is stable.
+opaqueDeclRoundtripTest :: Test ()
+opaqueDeclRoundtripTest =
+  scope "opaqueDeclRoundtripTest" $ do
+    let src =
+          unlines
+            [ "opaque type Logarithm = Float where",
+              "  toFloat l = l"
+            ]
+    let parsed1 = parseOrFail src
+    rendered <- case Map.toList (UF.opaqueDeclarationsId parsed1) of
+      [] -> crash "parsed file had no opaque decl"
+      [(v, (_ref, od))] -> do
+        let hq = HQ.NameOnly (Name.unsafeParseVar v)
+        let pretty =
+              DeclPrinter.prettyOpaqueDecl
+                PPED.empty
+                DeclPrinter.RenderUniqueTypeGuids'No
+                hq
+                od
+        pure (Text.unpack (P.toPlain 80 (P.syntaxToColor pretty)))
+      _ -> crash "parsed file had more than one opaque decl"
+    let parsed2 = parseOrFail rendered
+    let shape uf =
+          [ (v, length (OpaqueDeclaration.paramNames od))
+          | (v, (_ref, od)) <- Map.toList (UF.opaqueDeclarationsId uf)
+          ]
+    expectEqual (shape parsed1) (shape parsed2)
+  where
+    parseOrFail :: String -> UnisonFile Symbol P.Ann
+    parseOrFail s =
+      unsafeGetRightFrom s . runIdentity $
+        P.run (P.rootFile file) s Common.parsingEnv
