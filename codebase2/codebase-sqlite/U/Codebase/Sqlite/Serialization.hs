@@ -6,9 +6,11 @@ module U.Codebase.Sqlite.Serialization
     decomposePatchFormat,
     decomposeTermFormat,
     decomposeTypeAliasFormat,
+    decomposeOpaqueDeclarationFormat,
     decomposeWatchFormat,
     getBranchFormat,
     getTypeAliasEntry,
+    getOpaqueDeclarationEntry,
     getLocalBranch,
     getDeclElement,
     getDeclElementNumConstructors,
@@ -21,8 +23,10 @@ module U.Codebase.Sqlite.Serialization
     getTempPatchFormat,
     getTempTermFormat,
     getTempTypeAliasFormat,
+    getTempOpaqueDeclarationFormat,
     getTermAndType,
     getTypeAliasFormat,
+    getOpaqueDeclarationFormat,
     getTypeFromTermAndType,
     getTermFormat,
     getWatchResultFormat,
@@ -37,12 +41,14 @@ module U.Codebase.Sqlite.Serialization
     putTempEntity,
     putTermFormat,
     putTypeAliasFormat,
+    putOpaqueDeclarationFormat,
     putWatchResultFormat,
     recomposeBranchFormat,
     recomposeDeclFormat,
     recomposePatchFormat,
     recomposeTermFormat,
     recomposeTypeAliasFormat,
+    recomposeOpaqueDeclarationFormat,
     recomposeWatchFormat,
 
     -- * Exported for Share
@@ -91,7 +97,9 @@ import U.Codebase.Sqlite.Symbol (Symbol (..))
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.TempEntity qualified as TempEntity
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
+import U.Codebase.OpaqueDeclaration qualified as OpaqueDeclaration
 import U.Codebase.Term qualified as Term
 import U.Codebase.Type qualified as Type
 import U.Codebase.TypeAlias qualified as TypeAlias
@@ -575,6 +583,44 @@ getTypeAliasEntry =
     <$> getList getSymbol
     <*> getType getReference
 
+-- * OpaqueDeclaration format
+
+putOpaqueDeclarationFormat :: (MonadPut m) => OpaqueDeclarationFormat.OpaqueDeclarationFormat -> m ()
+putOpaqueDeclarationFormat = \case
+  OpaqueDeclarationFormat.OpaqueDeclaration localIds entry ->
+    putWord8 0 *> putLocalIds localIds *> putOpaqueDeclarationEntry entry
+
+putOpaqueDeclarationEntry :: (MonadPut m) => OpaqueDeclaration.OpaqueDeclarationR OpaqueDeclarationFormat.TypeRef Symbol -> m ()
+putOpaqueDeclarationEntry (OpaqueDeclaration.OpaqueDeclarationR modifier paramNames rhs) = do
+  putOpaqueModifier modifier
+  putFoldable putSymbol paramNames
+  putType putReference putSymbol rhs
+
+putOpaqueModifier :: (MonadPut m) => OpaqueDeclaration.OpaqueModifier -> m ()
+putOpaqueModifier = \case
+  OpaqueDeclaration.OpaqueStructural -> putWord8 0
+  OpaqueDeclaration.OpaqueUnique guid -> putWord8 1 *> putText guid
+
+getOpaqueDeclarationFormat :: (MonadGet m) => m OpaqueDeclarationFormat.OpaqueDeclarationFormat
+getOpaqueDeclarationFormat =
+  getWord8 >>= \case
+    0 -> OpaqueDeclarationFormat.OpaqueDeclaration <$> getLocalIds <*> getOpaqueDeclarationEntry
+    other -> unknownTag "OpaqueDeclarationFormat" other
+
+getOpaqueDeclarationEntry :: (MonadGet m) => m (OpaqueDeclaration.OpaqueDeclarationR OpaqueDeclarationFormat.TypeRef Symbol)
+getOpaqueDeclarationEntry =
+  OpaqueDeclaration.OpaqueDeclarationR
+    <$> getOpaqueModifier
+    <*> getList getSymbol
+    <*> getType getReference
+
+getOpaqueModifier :: (MonadGet m) => m OpaqueDeclaration.OpaqueModifier
+getOpaqueModifier =
+  getWord8 >>= \case
+    0 -> pure OpaqueDeclaration.OpaqueStructural
+    1 -> OpaqueDeclaration.OpaqueUnique <$> getText
+    other -> unknownTag "OpaqueModifier" other
+
 putBranchFormat :: (MonadPut m) => BranchFormat.BranchFormat -> m ()
 putBranchFormat b | debug && trace ("putBranchFormat " ++ show b) False = undefined
 putBranchFormat b = case b of
@@ -834,6 +880,12 @@ decomposeTypeAliasFormat =
     0 -> TypeAliasFormat.SyncTypeAlias <$> getLocalIds <*> getRemainingByteString
     tag -> error $ "decomposeTypeAliasFormat: unknown tag " ++ show tag
 
+decomposeOpaqueDeclarationFormat :: (MonadGet m) => m OpaqueDeclarationFormat.SyncOpaqueDeclarationFormat
+decomposeOpaqueDeclarationFormat =
+  getWord8 >>= \case
+    0 -> OpaqueDeclarationFormat.SyncOpaqueDeclaration <$> getLocalIds <*> getRemainingByteString
+    tag -> error $ "decomposeOpaqueDeclarationFormat: unknown tag " ++ show tag
+
 decomposeComponent :: (MonadGet m) => m (Vector (LocalIds, BS.ByteString))
 decomposeComponent = do
   offsets <- getList (getVarInt @_ @Int)
@@ -857,6 +909,11 @@ recomposeDeclFormat = \case
 recomposeTypeAliasFormat :: (MonadPut m) => TypeAliasFormat.SyncTypeAliasFormat -> m ()
 recomposeTypeAliasFormat = \case
   TypeAliasFormat.SyncTypeAlias localIds bytes ->
+    putWord8 0 *> putLocalIds localIds *> putByteString bytes
+
+recomposeOpaqueDeclarationFormat :: (MonadPut m) => OpaqueDeclarationFormat.SyncOpaqueDeclarationFormat -> m ()
+recomposeOpaqueDeclarationFormat = \case
+  OpaqueDeclarationFormat.SyncOpaqueDeclaration localIds bytes ->
     putWord8 0 *> putLocalIds localIds *> putByteString bytes
 
 recomposeComponent :: (MonadPut m) => Vector (LocalIds, BS.ByteString) -> m ()
@@ -924,6 +981,9 @@ putTempEntity = \case
     putSyncCausal gdc
   Entity.TA ta -> case ta of
     TypeAliasFormat.SyncTypeAlias localIds bytes ->
+      putWord8 0 *> putLocalIdsWith putText putHash32 localIds *> putFramedByteString bytes
+  Entity.OD od -> case od of
+    OpaqueDeclarationFormat.SyncOpaqueDeclaration localIds bytes ->
       putWord8 0 *> putLocalIdsWith putText putHash32 localIds *> putFramedByteString bytes
   where
     putHash32 = putText . Hash32.toText
@@ -1000,6 +1060,15 @@ getTempTypeAliasFormat =
         <$> getLocalIdsWith getText getHash32
         <*> getFramedByteString
     tag -> unknownTag "getTempTypeAliasFormat" tag
+
+getTempOpaqueDeclarationFormat :: (MonadGet m) => m TempEntity.TempOpaqueDeclarationFormat
+getTempOpaqueDeclarationFormat =
+  getWord8 >>= \case
+    0 ->
+      OpaqueDeclarationFormat.SyncOpaqueDeclaration
+        <$> getLocalIdsWith getText getHash32
+        <*> getFramedByteString
+    tag -> unknownTag "getTempOpaqueDeclarationFormat" tag
 
 getTempPatchFormat :: (MonadGet m) => m TempEntity.TempPatchFormat
 getTempPatchFormat =

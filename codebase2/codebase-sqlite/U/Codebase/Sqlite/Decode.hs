@@ -15,11 +15,13 @@ module U.Codebase.Sqlite.Decode
     decodeSyncTermFormat,
     decodeSyncTermAndType,
     decodeSyncTypeAliasFormat,
+    decodeSyncOpaqueDeclarationFormat,
     decodeTermElementDiscardingTerm,
     decodeTermElementDiscardingType,
     decodeTermElementWithType,
     decodeTermFormat,
     decodeTypeAliasFormat,
+    decodeOpaqueDeclarationFormat,
 
     -- * @temp_entity.blob@
     decodeTempCausalFormat,
@@ -28,6 +30,7 @@ module U.Codebase.Sqlite.Decode
     decodeTempPatchFormat,
     decodeTempTermFormat,
     decodeTempTypeAliasFormat,
+    decodeTempOpaqueDeclarationFormat,
 
     -- * @watch_result.result@
     decodeWatchResultFormat,
@@ -36,9 +39,11 @@ module U.Codebase.Sqlite.Decode
     unsyncTermComponent,
     unsyncDeclComponent,
     unsyncTypeAliasFormat,
+    unsyncOpaqueDeclarationFormat,
 
     -- * helpers
     decodeTypeAliasEntry,
+    decodeOpaqueDeclarationEntry,
   )
 where
 
@@ -53,6 +58,7 @@ import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.TempEntity qualified as TempEntity
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Util.Serialization (Get)
 import U.Util.Serialization qualified as Serialization (lengthFramedArray)
@@ -141,6 +147,14 @@ decodeSyncTypeAliasFormat :: ByteString -> Either DecodeError TypeAliasFormat.Sy
 decodeSyncTypeAliasFormat =
   getFromBytesOr "decomposeTypeAliasFormat" Serialization.decomposeTypeAliasFormat
 
+decodeOpaqueDeclarationFormat :: ByteString -> Either DecodeError OpaqueDeclarationFormat.OpaqueDeclarationFormat
+decodeOpaqueDeclarationFormat =
+  getFromBytesOr "getOpaqueDeclarationFormat" Serialization.getOpaqueDeclarationFormat
+
+decodeSyncOpaqueDeclarationFormat :: ByteString -> Either DecodeError OpaqueDeclarationFormat.SyncOpaqueDeclarationFormat
+decodeSyncOpaqueDeclarationFormat =
+  getFromBytesOr "decomposeOpaqueDeclarationFormat" Serialization.decomposeOpaqueDeclarationFormat
+
 decodeTermElementDiscardingTerm :: C.Reference.Pos -> ByteString -> Either DecodeError (LocalIds, TermFormat.Type)
 decodeTermElementDiscardingTerm i =
   getFromBytesOr ("lookupTermElementDiscardingTerm " <> tShow i) (Serialization.lookupTermElementDiscardingTerm i)
@@ -183,6 +197,10 @@ decodeTempTypeAliasFormat :: ByteString -> Either DecodeError TempEntity.TempTyp
 decodeTempTypeAliasFormat =
   getFromBytesOr "getTempTypeAliasFormat" Serialization.getTempTypeAliasFormat
 
+decodeTempOpaqueDeclarationFormat :: ByteString -> Either DecodeError TempEntity.TempOpaqueDeclarationFormat
+decodeTempOpaqueDeclarationFormat =
+  getFromBytesOr "getTempOpaqueDeclarationFormat" Serialization.getTempOpaqueDeclarationFormat
+
 ------------------------------------------------------------------------------------------------------------------------
 -- watch_result.result
 
@@ -217,3 +235,14 @@ unsyncTypeAliasFormat (TypeAliasFormat.SyncTypeAlias localIds bs) = do
 decodeTypeAliasEntry :: ByteString -> Either DecodeError TypeAliasFormat.TypeAlias
 decodeTypeAliasEntry =
   getFromBytesOr "getTypeAliasEntry" Serialization.getTypeAliasEntry
+
+unsyncOpaqueDeclarationFormat ::
+  OpaqueDeclarationFormat.SyncOpaqueDeclarationFormat' t d ->
+  Either DecodeError (OpaqueDeclarationFormat.OpaqueDeclarationFormat' t d)
+unsyncOpaqueDeclarationFormat (OpaqueDeclarationFormat.SyncOpaqueDeclaration localIds bs) = do
+  entry <- decodeOpaqueDeclarationEntry bs
+  pure (OpaqueDeclarationFormat.OpaqueDeclaration localIds entry)
+
+decodeOpaqueDeclarationEntry :: ByteString -> Either DecodeError OpaqueDeclarationFormat.OpaqueDeclaration
+decodeOpaqueDeclarationEntry =
+  getFromBytesOr "getOpaqueDeclarationEntry" Serialization.getOpaqueDeclarationEntry

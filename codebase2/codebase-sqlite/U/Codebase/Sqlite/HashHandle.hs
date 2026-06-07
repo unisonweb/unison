@@ -4,6 +4,7 @@ module U.Codebase.Sqlite.HashHandle
     HashValidationError (..),
     DeclHashingError (..),
     TypeAliasHashingError (..),
+    OpaqueDeclarationHashingError (..),
     HashingFailure (..),
     crashOnHashingFailure,
   )
@@ -21,6 +22,7 @@ import U.Codebase.Sqlite.Patch.Format (HashPatchLocalIds)
 import U.Codebase.Sqlite.Patch.Full (LocalPatch)
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type
@@ -76,6 +78,10 @@ data TypeAliasHashingError
   = TypeAliasHashMismatch HashMismatch
   | TypeAliasHashResolutionFailure
 
+data OpaqueDeclarationHashingError
+  = OpaqueDeclarationHashMismatch HashMismatch
+  | OpaqueDeclarationHashResolutionFailure
+
 data HashHandle = HashHandle
   { -- | Hash type
     toReference :: C.Term.Type Symbol -> C.Reference,
@@ -112,5 +118,9 @@ data HashHandle = HashHandle
     verifyTypeAliasFormatHash ::
       ComponentHash ->
       TypeAliasFormat.HashTypeAliasFormat ->
-      Maybe TypeAliasHashingError
+      Maybe TypeAliasHashingError,
+    verifyOpaqueDeclarationFormatHash ::
+      ComponentHash ->
+      OpaqueDeclarationFormat.HashOpaqueDeclarationFormat ->
+      Maybe OpaqueDeclarationHashingError
   }

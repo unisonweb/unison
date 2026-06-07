@@ -63,8 +63,10 @@ module U.Codebase.Sqlite.Queries
     expectDeclObject,
     expectObjectWithType,
     expectTypeAliasObject,
+    expectOpaqueDeclarationObject,
     loadDeclObject,
     loadTypeAliasObject,
+    loadOpaqueDeclarationObject,
     expectNamespaceObject,
     loadNamespaceObject,
     expectPatchObject,
@@ -279,6 +281,7 @@ module U.Codebase.Sqlite.Queries
     addUpgradeBranchTable,
     addHistoryComments,
     addTypeAliasSupport,
+    addOpaqueDeclarationSupport,
     addHistoryCommentHashing,
     historyCommentHashingCleanup,
 
@@ -302,8 +305,10 @@ module U.Codebase.Sqlite.Queries
     s2cDecl,
     s2cTermWithType,
     s2cTypeAlias,
+    s2cOpaqueDeclaration,
     saveDeclComponent,
     saveTypeAlias,
+    saveOpaqueDeclaration,
     saveReferenceH,
     saveSyncEntity,
     saveTermComponent,
@@ -410,7 +415,7 @@ import U.Codebase.Sqlite.LocalIds
     LocalTextId (..),
   )
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
-import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent, TypeAliasComponent))
+import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, OpaqueDeclarationComponent, Patch, TermComponent, TypeAliasComponent))
 import U.Codebase.Sqlite.ObjectType qualified as ObjectType
 import U.Codebase.Sqlite.Orphans ()
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
@@ -430,8 +435,11 @@ import U.Codebase.Sqlite.TempEntityType (TempEntityType)
 import U.Codebase.Sqlite.TempEntityType qualified as TempEntityType
 import U.Codebase.Sqlite.Term.Format qualified as S.Term
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as S.OpaqueDeclaration
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.TypeAlias.Format qualified as S.TypeAlias
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
+import U.Codebase.OpaqueDeclaration qualified as C.OpaqueDeclaration
 import U.Codebase.Term qualified as C
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type
@@ -474,7 +482,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 27
+currentSchemaVersion = 28
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -575,6 +583,10 @@ historyCommentHashingCleanup =
 addTypeAliasSupport :: Transaction ()
 addTypeAliasSupport =
   executeStatements $(embedProjectStringFile "sql/023-add-type-alias-support.sql")
+
+addOpaqueDeclarationSupport :: Transaction ()
+addOpaqueDeclarationSupport =
+  executeStatements $(embedProjectStringFile "sql/024-add-opaque-decl-support.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -847,6 +859,16 @@ loadTypeAliasObject oid =
 expectTypeAliasObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectTypeAliasObject oid =
   expectObjectOfType oid TypeAliasComponent
+
+-- | Load an opaque declaration object.
+loadOpaqueDeclarationObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
+loadOpaqueDeclarationObject oid =
+  loadObjectOfType oid OpaqueDeclarationComponent
+
+-- | Expect an opaque declaration object.
+expectOpaqueDeclarationObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction a
+expectOpaqueDeclarationObject oid =
+  expectObjectOfType oid OpaqueDeclarationComponent
 
 -- | Load a namespace object.
 loadNamespaceObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
@@ -1165,6 +1187,7 @@ expectEntity hash = do
           Namespace -> Entity.N <$> decodeSyncNamespaceFormat bytes
           Patch -> Entity.P <$> decodeSyncPatchFormat bytes
           TypeAliasComponent -> Entity.TA <$> decodeSyncTypeAliasFormat bytes
+          OpaqueDeclarationComponent -> Entity.OD <$> decodeSyncOpaqueDeclarationFormat bytes
 
 -- | Read an entity out of temp storage.
 expectTempEntity :: Hash32 -> Transaction TempEntity
@@ -1183,6 +1206,7 @@ expectTempEntity hash = do
         TempEntityType.PatchType -> Entity.P <$> decodeTempPatchFormat blob
         TempEntityType.CausalType -> Entity.C <$> decodeTempCausalFormat blob
         TempEntityType.TypeAliasComponentType -> Entity.TA <$> decodeTempTypeAliasFormat blob
+        TempEntityType.OpaqueDeclarationComponentType -> Entity.OD <$> decodeTempOpaqueDeclarationFormat blob
 
 -- | look up all of the input entity's dependencies in the main table, to convert it to a sync entity
 tempToSyncEntity :: TempEntity -> Transaction SyncEntity
@@ -1193,11 +1217,22 @@ tempToSyncEntity = \case
   Entity.P patch -> Entity.P <$> tempToSyncPatch patch
   Entity.C causal -> Entity.C <$> tempToSyncCausal causal
   Entity.TA ta -> Entity.TA <$> tempToSyncTypeAlias ta
+  Entity.OD od -> Entity.OD <$> tempToSyncOpaqueDeclaration od
   where
     tempToSyncTypeAlias :: TempEntity.TempTypeAliasFormat -> Transaction TypeAliasFormat.SyncTypeAliasFormat
     tempToSyncTypeAlias = \case
       TypeAliasFormat.SyncTypeAlias LocalIds.LocalIds {textLookup, defnLookup} bs ->
         TypeAliasFormat.SyncTypeAlias
+          <$> ( LocalIds.LocalIds
+                  <$> saveTexts textLookup
+                  <*> traverse expectObjectIdForHash32 defnLookup
+              )
+          <*> pure bs
+
+    tempToSyncOpaqueDeclaration :: TempEntity.TempOpaqueDeclarationFormat -> Transaction OpaqueDeclarationFormat.SyncOpaqueDeclarationFormat
+    tempToSyncOpaqueDeclaration = \case
+      OpaqueDeclarationFormat.SyncOpaqueDeclaration LocalIds.LocalIds {textLookup, defnLookup} bs ->
+        OpaqueDeclarationFormat.SyncOpaqueDeclaration
           <$> ( LocalIds.LocalIds
                   <$> saveTexts textLookup
                   <*> traverse expectObjectIdForHash32 defnLookup
@@ -1285,11 +1320,22 @@ syncToTempEntity = \case
   Entity.P patch -> Entity.P <$> syncToTempPatch patch
   Entity.C causal -> Entity.C <$> syncToTempCausal causal
   Entity.TA ta -> Entity.TA <$> syncToTempTypeAlias ta
+  Entity.OD od -> Entity.OD <$> syncToTempOpaqueDeclaration od
   where
     syncToTempTypeAlias :: TypeAliasFormat.SyncTypeAliasFormat -> Transaction TempEntity.TempTypeAliasFormat
     syncToTempTypeAlias = \case
       TypeAliasFormat.SyncTypeAlias LocalIds.LocalIds {textLookup, defnLookup} bs ->
         TypeAliasFormat.SyncTypeAlias
+          <$> ( LocalIds.LocalIds
+                  <$> traverse expectText textLookup
+                  <*> traverse expectPrimaryHash32ByObjectId defnLookup
+              )
+          <*> pure bs
+
+    syncToTempOpaqueDeclaration :: OpaqueDeclarationFormat.SyncOpaqueDeclarationFormat -> Transaction TempEntity.TempOpaqueDeclarationFormat
+    syncToTempOpaqueDeclaration = \case
+      OpaqueDeclarationFormat.SyncOpaqueDeclaration LocalIds.LocalIds {textLookup, defnLookup} bs ->
+        OpaqueDeclarationFormat.SyncOpaqueDeclaration
           <$> ( LocalIds.LocalIds
                   <$> traverse expectText textLookup
                   <*> traverse expectPrimaryHash32ByObjectId defnLookup
@@ -2155,6 +2201,7 @@ getTransitiveDependentsWithinScope scope query = do
               dep :. Only TermComponent -> let !terms = Set.insert dep deps.terms in Defns terms deps.types
               dep :. Only DeclComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
               dep :. Only TypeAliasComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
+              dep :. Only OpaqueDeclarationComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
               _ -> deps -- namespaces and patches have no dependents we'd track here
           )
           (Defns Set.empty Set.empty)
@@ -2612,6 +2659,15 @@ saveSyncEntity hh hash entity = do
           let bytes = runPutS (Serialization.recomposeTypeAliasFormat staf)
           objId <- saveTypeAlias hh (Just bytes) (Hash32.toHash hash) cta
           pure (Right objId)
+    Entity.OD sodf -> do
+      odf :: OpaqueDeclarationFormat.OpaqueDeclarationFormat <-
+        either (unsafeIO . UnliftIO.throwIO) pure $ unsyncOpaqueDeclarationFormat sodf
+      case odf of
+        OpaqueDeclarationFormat.OpaqueDeclaration localIds entry -> do
+          cod <- s2cOpaqueDeclaration localIds entry
+          let bytes = runPutS (Serialization.recomposeOpaqueDeclarationFormat sodf)
+          objId <- saveOpaqueDeclaration hh (Just bytes) (Hash32.toHash hash) cod
+          pure (Right objId)
     Entity.C scf -> case scf of
       Sqlite.Causal.SyncCausalFormat {valueHash, parents} -> do
         hashId <- saveHash hash
@@ -2787,6 +2843,73 @@ saveTypeAlias hh maybeEncodedBytes h ta = do
   let LocalIds tIds oIds = localIds
       self = C.Reference.Id oId 0
       dependencies :: Set S.TypeAlias.TypeRef = C.TypeAlias.dependencies sta
+      getSRef :: C.Reference.Reference' LocalTextId LocalDefnId -> S.Reference.Reference
+      getSRef = \case
+        ReferenceBuiltin t -> ReferenceBuiltin (tIds Vector.! fromIntegral t)
+        C.Reference.Derived h' i -> C.Reference.Derived (oIds Vector.! fromIntegral h') i
+  addToDependentsIndex (Set.toList (Set.map getSRef dependencies)) self
+  pure oId
+
+-- | Unlocalize an opaque declaration.
+s2cOpaqueDeclaration :: LocalIds -> S.OpaqueDeclaration.OpaqueDeclaration -> Transaction (C.OpaqueDeclaration.OpaqueDeclaration Symbol)
+s2cOpaqueDeclaration ids (C.OpaqueDeclaration.OpaqueDeclarationR modifier params rhs) = do
+  (substText, substHash) <- localIdsToLookups expectText expectPrimaryHashByObjectId ids
+  pure $ C.OpaqueDeclaration.OpaqueDeclarationR modifier params (C.Type.rmap (bimap substText substHash) rhs)
+
+c2sOpaqueDeclaration ::
+  forall m t d.
+  (Monad m) =>
+  (Text -> m t) ->
+  (Hash -> m d) ->
+  C.OpaqueDeclaration.OpaqueDeclaration Symbol ->
+  m (LocalIds' t d, S.OpaqueDeclaration.OpaqueDeclaration)
+c2sOpaqueDeclaration saveText saveDefn (C.OpaqueDeclaration.OpaqueDeclarationR modifier params rhs) = do
+  done =<< (runWriterT . flip evalStateT mempty) do
+    rhs' <- ABT.transformM goType rhs
+    pure (C.OpaqueDeclaration.OpaqueDeclarationR modifier params rhs')
+  where
+    goType ::
+      forall mm a.
+      (MonadWriter (Seq Text, Seq Hash) mm, MonadState (Map Text LocalTextId, Map Hash LocalDefnId) mm) =>
+      C.Type.F' C.Reference a ->
+      mm (C.Type.F' S.OpaqueDeclaration.TypeRef a)
+    goType = \case
+      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText lookupDefn r
+      C.Type.Arrow i o -> pure $ C.Type.Arrow i o
+      C.Type.Ann a k -> pure $ C.Type.Ann a k
+      C.Type.App f a -> pure $ C.Type.App f a
+      C.Type.Effect e a -> pure $ C.Type.Effect e a
+      C.Type.Effects es -> pure $ C.Type.Effects es
+      C.Type.Forall a -> pure $ C.Type.Forall a
+      C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
+    done :: (S.OpaqueDeclaration.OpaqueDeclaration, (Seq Text, Seq Hash)) -> m (LocalIds' t d, S.OpaqueDeclaration.OpaqueDeclaration)
+    done (od, (localTextValues, localDefnValues)) = do
+      textIds <- traverse saveText localTextValues
+      defnIds <- traverse saveDefn localDefnValues
+      let ids =
+            LocalIds
+              (Vector.fromList (Foldable.toList textIds))
+              (Vector.fromList (Foldable.toList defnIds))
+      pure (ids, od)
+
+saveOpaqueDeclaration ::
+  HashHandle ->
+  Maybe ByteString ->
+  Hash ->
+  C.OpaqueDeclaration.OpaqueDeclaration Symbol ->
+  Transaction ObjectId
+saveOpaqueDeclaration hh maybeEncodedBytes h od = do
+  (localIds, sod) <- c2sOpaqueDeclaration saveText expectObjectIdForPrimaryHash od
+  hashId <- saveHashHash h
+  let bytes = fromMaybe mkByteString maybeEncodedBytes
+      mkByteString =
+        S.putBytes Serialization.putOpaqueDeclarationFormat $
+          S.OpaqueDeclaration.OpaqueDeclaration localIds sod
+  oId <- saveObject hh hashId ObjectType.OpaqueDeclarationComponent bytes
+  -- populate dependents index
+  let LocalIds tIds oIds = localIds
+      self = C.Reference.Id oId 0
+      dependencies :: Set S.OpaqueDeclaration.TypeRef = C.OpaqueDeclaration.dependencies sod
       getSRef :: C.Reference.Reference' LocalTextId LocalDefnId -> S.Reference.Reference
       getSRef = \case
         ReferenceBuiltin t -> ReferenceBuiltin (tIds Vector.! fromIntegral t)
