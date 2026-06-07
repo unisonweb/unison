@@ -665,10 +665,12 @@ builtinsSrc =
               text
               ( tuple
                   [ Type.app () (Type.metaTerm ()) (Type.metaTypeF ()),
-                    code
+                    termLink
                   ]
               )
           ),
+    B "Meta.eval" $
+      forall1 "a" $ \a -> termLink --> io a,
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),

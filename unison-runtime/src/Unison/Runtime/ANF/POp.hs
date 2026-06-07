@@ -178,6 +178,7 @@ data POp
   -- meta
   | MDCM -- Meta.decompile
   | MTYC -- Meta.typecheck
+  | MEVL -- Meta.eval
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 pOpCode :: POp -> Word16
@@ -335,6 +336,7 @@ pOpCode op = case op of
   FGNF -> 150
   MDCM -> 151
   MTYC -> 152
+  MEVL -> 153
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]

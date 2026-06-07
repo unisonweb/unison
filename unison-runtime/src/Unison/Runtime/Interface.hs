@@ -80,7 +80,6 @@ import Unison.Runtime.Decompile (DecompError, DecompResult, decompile)
 import Unison.Runtime.Decompile qualified as Decomp
 import Unison.Runtime.MetaCompile qualified as MetaC
 import Unison.Runtime.MetaDecompile qualified as MetaDecomp
-import Unison.Runtime.Referenced (Referenced (..))
 import Unison.Util.Text qualified as Util.Text
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
@@ -849,22 +848,15 @@ evalInContext ppe ctx prof activeThreads w = do
         Right tm -> case MetaC.typecheckTerm tm of
           Left err -> pure (metaLeftText err)
           Right ty -> do
-            (_ctx', rcode, mainRef) <- prepareEvaluation ppe tm ctx
-            -- prepareEvaluation returns a list with the main term
-            -- plus every floated sub-lambda. Look up the main one
-            -- by its reference; otherwise the wrong Code value
-            -- leaks out (the user's expression compiles to multiple
-            -- sub-Codes and the first one is rarely the intended
-            -- result).
-            case Prelude.lookup mainRef rcode of
-              Just c ->
-                pure
-                  ( metaRightPair
-                      (MetaDecomp.typeTermVal ty)
-                      (BoxedVal (Foreign (WrapCode (Plain c))))
-                  )
-              Nothing ->
-                pure (metaLeftText "Meta.typecheck: missing main code combinator after prepareEvaluation")
+            -- Compile + register the term so a follow-up
+            -- Meta.eval call can resolve its Reference via refTm.
+            -- We return the main term's Reference as a Link.Term
+            -- rather than the raw Code value — Link.Term is the
+            -- natural input for apply0 in the eval primop.
+            (_ctx', _rcode, mainRef) <- prepareEvaluation ppe tm ctx
+            let linkVal =
+                  BoxedVal (Foreign (WrapReferent (RF.Ref mainRef)))
+            pure (metaRightPair (MetaDecomp.typeTermVal ty) linkVal)
 
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $

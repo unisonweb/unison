@@ -397,6 +397,30 @@ exec env henv !_activeThreads !stk !k _ (Prim1 MTYC i) = do
   -- supplies a stub that errors if no installer ran.
   poke stk =<< metaTypecheck env v
   pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MEVL i) = do
+  -- Input is a Link.Term (Foreign WrapReferent). Resolve its
+  -- Reference's Word64 in refTm and read out the cached form
+  -- in 'combs': for a CachedVal we hand back the stored value
+  -- directly, and for a Comb (lambda/function) we hand back the
+  -- 'PAp' closure with no args saturated, which IS the function
+  -- closure that callers can then apply.
+  referent <- peekOffBi @Referent stk i
+  case referent of
+    Ref' ref -> do
+      rtm <- readTVarIO (refTm env)
+      case M.lookup ref rtm of
+        Just w -> do
+          cmbs <- readTVarIO (combs env)
+          let entryCix = CIx ref w 0
+          stk <- bump stk
+          case unRComb $ rCombSection cmbs entryCix of
+            Comb entryComb ->
+              poke stk (BoxedVal $ PAp entryCix entryComb nullSeg)
+            CachedVal _ val ->
+              poke stk val
+          pure (False, henv, stk, k)
+        Nothing -> die [] ("Meta.eval: reference not registered in cache: " <> show ref)
+    Con' {} -> die [] "Meta.eval: expected Ref referent, got constructor"
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
   pure (False, henv, stk, k)
