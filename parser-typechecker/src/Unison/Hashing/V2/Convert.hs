@@ -7,6 +7,7 @@ module Unison.Hashing.V2.Convert
     hashCausal,
     hashDataDecls,
     hashDecls,
+    hashOpaqueDeclaration,
     hashTypeAlias,
     hashPatch,
     hashClosedTerm,
@@ -47,6 +48,7 @@ import Unison.Referent qualified as Memory.Referent
 import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Term qualified as Memory.Term
 import Unison.Type qualified as Memory.Type
+import Unison.OpaqueDeclaration qualified as Memory.OpaqueDeclaration
 import Unison.TypeAlias qualified as Memory.TypeAlias
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation
@@ -260,6 +262,34 @@ m2hTypeAlias ta =
       Hashing.paramNames = Memory.TypeAlias.paramNames ta,
       Hashing.body = m2hType (Memory.TypeAlias.body ta)
     }
+
+-- | Compute the 'Reference.Id' for an opaque type declaration. Only the
+-- modifier + bound + RHS contribute to the hash; body functions are stored as
+-- ordinary terms with their own hashes (see plan §2.1).
+hashOpaqueDeclaration ::
+  (Var v, Show v) =>
+  Memory.OpaqueDeclaration.OpaqueDeclaration v a ->
+  Memory.Reference.Id
+hashOpaqueDeclaration = h2mReferenceId . Hashing.hashOpaqueDeclaration . m2hOpaqueDeclaration
+
+m2hOpaqueDeclaration ::
+  (Ord v) =>
+  Memory.OpaqueDeclaration.OpaqueDeclaration v a ->
+  Hashing.OpaqueDeclaration v a
+m2hOpaqueDeclaration od =
+  Hashing.OpaqueDeclaration
+    { Hashing.opaqueAnnotation = Memory.OpaqueDeclaration.annotation od,
+      Hashing.opaqueModifier = m2hOpaqueModifier (Memory.OpaqueDeclaration.modifier od),
+      Hashing.opaqueParamNames = Memory.OpaqueDeclaration.paramNames od,
+      Hashing.opaqueRhs = m2hType (Memory.OpaqueDeclaration.rhs od)
+    }
+
+-- | The 'Memory.DD.Modifier' type is shared with data and effect decls; here we
+-- map the cases that an opaque type can use (Structural, Unique).
+m2hOpaqueModifier :: Memory.DD.Modifier -> Hashing.OpaqueModifier
+m2hOpaqueModifier = \case
+  Memory.DD.Structural -> Hashing.OpaqueStructural
+  Memory.DD.Unique guid -> Hashing.OpaqueUnique guid
 
 hashDecls ::
   (Var v) =>
