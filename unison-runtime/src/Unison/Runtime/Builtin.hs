@@ -864,7 +864,7 @@ builtinLookup =
         ("Debug.watch", (Tracked, watch)),
         ("Debug.trace", (Tracked, gen'trace)),
         ("Debug.toText", (Tracked, debug'text)),
-        ("Meta.decompile", (Untracked, meta'decompile)),
+        ("Meta.decompile", (Tracked, meta'decompile)),
         ("unsafe.coerceAbilities", (Untracked, poly'coerce)),
         ("Char.toNat", (Untracked, coerceType NatTag)),
         ("Char.fromNat", (Untracked, coerceType CharTag)),
