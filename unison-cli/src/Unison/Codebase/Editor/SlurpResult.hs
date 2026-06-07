@@ -316,11 +316,12 @@ filterUnisonFile
       dataDeclarations'
       effectDeclarations'
       typeAliases'
+      opaqueDeclarations'
       topLevelComponents'
       watchComponents
       hashTerms
     ) =
-    UF.TypecheckedUnisonFileId fileNamespace' datas effects typeAliases' tlcs watches hashTerms'
+    UF.TypecheckedUnisonFileId fileNamespace' datas effects typeAliases' opaqueDeclarations' tlcs watches hashTerms'
     where
       keep = adds
       keepTerms = SC.terms keep

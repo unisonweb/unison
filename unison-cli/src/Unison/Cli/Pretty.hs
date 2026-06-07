@@ -394,7 +394,10 @@ prettyLibdepName =
   P.blue . P.text . NameSegment.toEscapedText
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> P.Pretty P.ColorText
-prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects aliases terms watches) =
+prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects aliases _opaques terms watches) =
+  -- TODO(opaque): render opaques. For now skip them in this printer; the
+  -- canonical pretty-printer for opaques lives in 'DeclPrinter.prettyOpaqueDecl'
+  -- and the in-codebase render path doesn't go through 'prettyUnisonFile'.
   P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> prettyAliases <> catMaybes prettyTerms <> prettyWatches)
   where
     prettyEffects = map prettyEffectDecl (Map.toList effects)

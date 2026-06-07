@@ -474,6 +474,8 @@ checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches = d
         dataDeclarationsId = datas,
         effectDeclarationsId = effects,
         typeAliasesId = aliases,
+        -- TODO(opaque): plumbed through 'validateUnisonFile' once the parser collects opaques.
+        opaqueDeclarationsId = Map.empty,
         terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
         watches
       }

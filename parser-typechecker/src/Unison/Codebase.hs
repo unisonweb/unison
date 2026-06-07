@@ -352,6 +352,7 @@ installUcmDependencies c = do
             (Map.fromList Builtin.builtinDataDecls)
             (Map.fromList Builtin.builtinEffectDecls)
             mempty
+            mempty
             [Builtin.builtinTermsSrc Parser.Intrinsic]
             mempty
         )

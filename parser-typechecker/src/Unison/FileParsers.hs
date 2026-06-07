@@ -324,6 +324,7 @@ synthesizeFile env0 uf = do
         (UF.dataDeclarationsId uf)
         (UF.effectDeclarationsId uf)
         (UF.typeAliasesId uf)
+        (UF.opaqueDeclarationsId uf)
         terms'
         (map tlcKind watches')
   where

@@ -6,6 +6,8 @@ import Control.Lens
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.Name (Name)
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Prelude
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
@@ -24,6 +26,10 @@ data UnisonFile v a = UnisonFileId
     effectDeclarationsId :: Map v (TypeReferenceId, EffectDeclaration v a),
     -- | Type aliases declared in the file, after normalisation.
     typeAliasesId :: Map v (TypeReferenceId, TypeAlias v a),
+    -- | Opaque type declarations declared in the file. Body items are kept as
+    -- ordinary 'Term's inside the 'OpaqueDeclaration'; they ride along as
+    -- terms in later phases.
+    opaqueDeclarationsId :: Map v (TypeReferenceId, OpaqueDeclaration v a),
     terms :: Map v (a {- ann for name of the binding -}, Term v a),
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
   }
@@ -34,15 +40,17 @@ pattern UnisonFile ::
   Map v (TypeReference, DataDeclaration v a) ->
   Map v (TypeReference, EffectDeclaration v a) ->
   Map v (TypeReference, TypeAlias v a) ->
+  Map v (TypeReference, OpaqueDeclaration v a) ->
   Map v (a, Term v a) ->
   Map WatchKind [(v, a, Term v a)] ->
   UnisonFile v a
-pattern UnisonFile fn ds es as tms ws <-
+pattern UnisonFile fn ds es as os tms ws <-
   UnisonFileId
     fn
     (fmap (first Reference.DerivedId) -> ds)
     (fmap (first Reference.DerivedId) -> es)
     (fmap (first Reference.DerivedId) -> as)
+    (fmap (first Reference.DerivedId) -> os)
     tms
     ws
 
@@ -55,6 +63,7 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
     dataDeclarationsId' :: Map v (TypeReferenceId, DataDeclaration v a),
     effectDeclarationsId' :: Map v (TypeReferenceId, EffectDeclaration v a),
     typeAliasesId' :: Map v (TypeReferenceId, TypeAlias v a),
+    opaqueDeclarationsId' :: Map v (TypeReferenceId, OpaqueDeclaration v a),
     topLevelComponents' :: [[(v, a {- ann for whole binding -}, Term v a, Type v a)]],
     watchComponents :: [(WatchKind, [(v, a {- ann for whole watch -}, Term v a, Type v a)])],
     hashTermsId :: Map v (a {- ann for whole binding -}, TermReferenceId, Maybe WatchKind, Term v a, Type v a)
@@ -68,6 +77,7 @@ pattern TypecheckedUnisonFile ::
   Map v (TypeReference, DataDeclaration v a) ->
   Map v (TypeReference, EffectDeclaration v a) ->
   Map v (TypeReference, TypeAlias v a) ->
+  Map v (TypeReference, OpaqueDeclaration v a) ->
   [[(v, a, Term v a, Type v a)]] ->
   [(WatchKind, [(v, a, Term v a, Type v a)])] ->
   Map
@@ -79,24 +89,26 @@ pattern TypecheckedUnisonFile ::
       ABT.Term Type.F v a
     ) ->
   TypecheckedUnisonFile v a
-pattern TypecheckedUnisonFile fn ds es as tlcs wcs hts <-
+pattern TypecheckedUnisonFile fn ds es as os tlcs wcs hts <-
   TypecheckedUnisonFileId
     fn
     (fmap (first Reference.DerivedId) -> ds)
     (fmap (first Reference.DerivedId) -> es)
     (fmap (first Reference.DerivedId) -> as)
+    (fmap (first Reference.DerivedId) -> os)
     tlcs
     wcs
     (fmap (over _2 Reference.DerivedId) -> hts)
 
 instance (Ord v) => Functor (TypecheckedUnisonFile v) where
-  fmap f (TypecheckedUnisonFileId fn ds es as tlcs wcs hashTerms) =
-    TypecheckedUnisonFileId fn' ds' es' as' tlcs' wcs' hashTerms'
+  fmap f (TypecheckedUnisonFileId fn ds es as os tlcs wcs hashTerms) =
+    TypecheckedUnisonFileId fn' ds' es' as' os' tlcs' wcs' hashTerms'
     where
       fn' = (fmap . first) f fn
       ds' = ds <&> \(refId, decl) -> (refId, fmap f decl)
       es' = es <&> \(refId, effect) -> (refId, fmap f effect)
       as' = as <&> \(refId, alias) -> (refId, TypeAlias.amap f alias)
+      os' = os <&> \(refId, opaque) -> (refId, OpaqueDeclaration.amap f opaque)
       tlcs' =
         tlcs
           & (fmap . fmap) \(v, a, tm, tp) -> (v, f a, Term.amap f tm, fmap f tp)

@@ -10,6 +10,7 @@ module Unison.UnisonFile
     declsToTypeLookup,
     dependencies,
     effectDeclarations,
+    opaqueDeclarations,
     typecheckingTerm,
     watchesOfKind,
     definitionLocation,
@@ -22,6 +23,7 @@ module Unison.UnisonFile
     dataDeclarations',
     discardTypes,
     effectDeclarations',
+    opaqueDeclarations',
     hashConstructors,
     constructorsId,
     constructorsForDecls,
@@ -61,6 +63,8 @@ import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Prelude
 import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
@@ -89,6 +93,7 @@ emptyUnisonFile =
       dataDeclarationsId = Map.empty,
       effectDeclarationsId = Map.empty,
       typeAliasesId = Map.empty,
+      opaqueDeclarationsId = Map.empty,
       terms = Map.empty,
       watches = Map.empty
     }
@@ -100,11 +105,13 @@ leftBiasedMerge lhs rhs =
       mergedDataDecls = Map.foldlWithKey' (addNotIn lhsTypeNames) (dataDeclarationsId lhs) (dataDeclarationsId rhs)
       mergedEffectDecls = Map.foldlWithKey' (addNotIn lhsTypeNames) (effectDeclarationsId lhs) (effectDeclarationsId rhs)
       mergedTypeAliases = Map.foldlWithKey' (addNotIn lhsTypeNames) (typeAliasesId lhs) (typeAliasesId rhs)
+      mergedOpaques = Map.foldlWithKey' (addNotIn lhsTypeNames) (opaqueDeclarationsId lhs) (opaqueDeclarationsId rhs)
    in UnisonFileId
         { fileNamespace = fileNamespace lhs,
           dataDeclarationsId = mergedDataDecls,
           effectDeclarationsId = mergedEffectDecls,
           typeAliasesId = mergedTypeAliases,
+          opaqueDeclarationsId = mergedOpaques,
           terms = mergedTerms,
           watches = mergedWatches
         }
@@ -116,6 +123,7 @@ leftBiasedMerge lhs rhs =
     lhsTypeNames =
       Map.keysSet (dataDeclarationsId lhs)
         <> Map.keysSet (effectDeclarationsId lhs)
+        <> Map.keysSet (opaqueDeclarationsId lhs)
 
     addNotIn :: forall x. Set v -> Map v x -> v -> x -> Map v x
     addNotIn namesToAvoid b k v = case Set.member k namesToAvoid of
@@ -132,6 +140,9 @@ dataDeclarations = fmap (first Reference.DerivedId) . dataDeclarationsId
 
 effectDeclarations :: UnisonFile v a -> Map v (Reference, EffectDeclaration v a)
 effectDeclarations = fmap (first Reference.DerivedId) . effectDeclarationsId
+
+opaqueDeclarations :: UnisonFile v a -> Map v (Reference, OpaqueDeclaration v a)
+opaqueDeclarations = fmap (first Reference.DerivedId) . opaqueDeclarationsId
 
 watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, a, Term v a)]
 watchesOfKind kind uf = Map.findWithDefault [] kind (watches uf)
@@ -175,12 +186,15 @@ dataDeclarations' = fmap (first Reference.DerivedId) . dataDeclarationsId'
 effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (TypeReference, EffectDeclaration v a)
 effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 
+opaqueDeclarations' :: TypecheckedUnisonFile v a -> Map v (TypeReference, OpaqueDeclaration v a)
+opaqueDeclarations' = fmap (first Reference.DerivedId) . opaqueDeclarationsId'
+
 hashTerms :: TypecheckedUnisonFile v a -> Map v (a, TermReference, Maybe WatchKind, Term v a, Type v a)
 hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
 mapTerms :: (Term v a -> Term v a) -> UnisonFile v a -> UnisonFile v a
-mapTerms f (UnisonFileId fn datas effects aliases terms watches) =
-  UnisonFileId fn datas effects aliases terms' watches'
+mapTerms f (UnisonFileId fn datas effects aliases opaques terms watches) =
+  UnisonFileId fn datas effects aliases opaques terms' watches'
   where
     terms' = over (mapped . _2) f terms
     watches' = over (mapped . mapped . _3) f watches
@@ -212,7 +226,7 @@ mapTerms f (UnisonFileId fn datas effects aliases terms watches) =
 -- then converting back to a "regular" UnisonFile with free variables in the
 -- terms.
 prepareRewrite :: (Monoid a, Var v) => UnisonFile v a -> ([v] -> Term v a -> Term v a, UnisonFile v a, UnisonFile v a -> UnisonFile v a)
-prepareRewrite uf@(UnisonFileId _fn _datas _effects _aliases _terms watches) =
+prepareRewrite uf@(UnisonFileId _fn _datas _effects _aliases _opaques _terms watches) =
   (freshen, mapTerms substs uf, mapTerms refToVar)
   where
     -- fn to replace free vars with unique refs
@@ -249,8 +263,8 @@ prepareRewrite uf@(UnisonFileId _fn _datas _effects _aliases _terms watches) =
 -- This function returns what symbols were modified.
 -- The `Set v` is symbols that should be left alone.
 rewrite :: (Var v, Eq a) => Set v -> (Term v a -> Maybe (Term v a)) -> UnisonFile v a -> ([v], UnisonFile v a)
-rewrite leaveAlone rewriteFn uf@(UnisonFileId fn datas effects aliases _terms watches) =
-  (rewritten, UnisonFileId fn datas effects aliases (Map.fromList $ unEitherTerms terms') (unEither <$> watches'))
+rewrite leaveAlone rewriteFn uf@(UnisonFileId fn datas effects aliases opaques _terms watches) =
+  (rewritten, UnisonFileId fn datas effects aliases opaques (Map.fromList $ unEitherTerms terms') (unEither <$> watches'))
   where
     terms' = go (termBindings uf)
     watches' = go <$> watches
@@ -268,11 +282,12 @@ typecheckedUnisonFile ::
   Map v (Reference.Id, DataDeclaration v a) ->
   Map v (Reference.Id, EffectDeclaration v a) ->
   Map v (Reference.Id, TypeAlias v a) ->
+  Map v (Reference.Id, OpaqueDeclaration v a) ->
   [[(v, a, Term v a, Type v a)]] ->
   [(WatchKind, [(v, a, Term v a, Type v a)])] ->
   TypecheckedUnisonFile v a
-typecheckedUnisonFile datas effects aliases tlcs watches =
-  TypecheckedUnisonFileId Nothing datas effects aliases tlcs watches hashImpl
+typecheckedUnisonFile datas effects aliases opaques tlcs watches =
+  TypecheckedUnisonFileId Nothing datas effects aliases opaques tlcs watches hashImpl
   where
     hashImpl :: (Map v (a, Reference.Id, Maybe WatchKind, Term v a, Type v a))
     hashImpl =
@@ -336,7 +351,7 @@ topLevelComponents file =
 termSignatureExternalLabeledDependencies ::
   (Ord v) => TypecheckedUnisonFile v a -> Set LabeledDependency
 termSignatureExternalLabeledDependencies
-  tuf@(TypecheckedUnisonFile _ _ _ _ _ _ hashTerms) =
+  tuf@(TypecheckedUnisonFile _ _ _ _ _ _ _ hashTerms) =
     Set.difference
       ( Set.map LD.typeRef
           . foldMap Type.dependencies
@@ -348,14 +363,15 @@ termSignatureExternalLabeledDependencies
       (Set.map LD.typeRef $ localDeclRefs tuf)
 
 typeReferences :: (Ord v) => TypecheckedUnisonFile v a -> Set Reference
-typeReferences (TypecheckedUnisonFile _fn datas effs _ _ _ hterms) =
+typeReferences (TypecheckedUnisonFile _fn datas effs _ opaques _ _ hterms) =
   Set.unions
     [ foldMap Type.dependencies
         . fmap (\(_a, _r, _wk, _e, t) -> t)
         . toList
         $ hterms,
       foldMap (DD.typeDependencies . snd) datas,
-      foldMap (DD.typeDependencies . toDataDecl . snd) effs
+      foldMap (DD.typeDependencies . toDataDecl . snd) effs,
+      foldMap (OpaqueDeclaration.rhsDependencies . snd) opaques
     ]
 
 externalTypeDependencies ::
@@ -364,9 +380,9 @@ externalTypeDependencies tuf =
   Set.difference (typeReferences tuf) (localDeclRefs tuf)
 
 localDeclRefs :: (Ord v) => TypecheckedUnisonFile v a -> Set Reference
-localDeclRefs (TypecheckedUnisonFile _fn datas effs _ _ _ _) =
+localDeclRefs (TypecheckedUnisonFile _fn datas effs _ opaques _ _ _) =
   Set.fromList $
-    (fst <$> toList datas) <> (fst <$> toList effs)
+    (fst <$> toList datas) <> (fst <$> toList effs) <> (fst <$> toList opaques)
 
 -- Returns the dependencies of the `UnisonFile` input. Needed so we can
 -- load information about these dependencies before starting typechecking.
@@ -379,7 +395,8 @@ dependencies file =
             Set.unions
               [ foldMap (DD.typeDependencies . snd) file.dataDeclarationsId,
                 foldMap (DD.typeDependencies . DD.toDataDecl . snd) file.effectDeclarationsId,
-                foldMap (TypeAlias.dependencies . snd) file.typeAliasesId
+                foldMap (TypeAlias.dependencies . snd) file.typeAliasesId,
+                foldMap (OpaqueDeclaration.rhsDependencies . snd) file.opaqueDeclarationsId
               ]
         },
       foldMap (Term.dependencies . snd) file.terms,
@@ -387,10 +404,10 @@ dependencies file =
     ]
 
 discardTypes :: (Ord v) => TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes (TypecheckedUnisonFileId fn datas effects aliases terms watches _) =
+discardTypes (TypecheckedUnisonFileId fn datas effects aliases opaques terms watches _) =
   let watches' = g . mconcat <$> List.multimap watches
       g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]
-   in UnisonFileId fn (coerce datas) (coerce effects) (coerce aliases) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches'
+   in UnisonFileId fn (coerce datas) (coerce effects) (coerce aliases) (coerce opaques) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches'
 
 declsToTypeLookup :: (Var v) => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =
@@ -546,11 +563,12 @@ termNamespaceBindingsMap uf =
 -- | All bindings in the term namespace: data declarations and effect declarations.
 typeNamespaceBindings :: (Ord v) => TypecheckedUnisonFile v a -> Set v
 typeNamespaceBindings uf =
-  datas <> effs <> aliases
+  datas <> effs <> aliases <> opaques
   where
     datas = Map.keysSet uf.dataDeclarationsId'
     effs = Map.keysSet uf.effectDeclarationsId'
     aliases = Map.keysSet uf.typeAliasesId'
+    opaques = Map.keysSet uf.opaqueDeclarationsId'
 
 -- | Like 'typeNamespaceBindings', but returns a map from variable name to reference.
 typeNamespaceBindingsMap :: (Ord v) => TypecheckedUnisonFile v a -> Map v TypeReferenceId
@@ -558,7 +576,8 @@ typeNamespaceBindingsMap uf =
   Map.unions
     [ Map.map fst uf.dataDeclarationsId',
       Map.map fst uf.effectDeclarationsId',
-      Map.map fst uf.typeAliasesId'
+      Map.map fst uf.typeAliasesId',
+      Map.map fst uf.opaqueDeclarationsId'
     ]
 
 -- | View the top-level definitions of a typechecked unison file as a map from name to ref id (throwing away
@@ -571,7 +590,8 @@ toDefnsIdsByName file =
         Map.unions
           [ g file.dataDeclarationsId',
             g file.effectDeclarationsId',
-            g file.typeAliasesId'
+            g file.typeAliasesId',
+            g file.opaqueDeclarationsId'
           ]
     }
   where

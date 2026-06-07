@@ -546,6 +546,7 @@ loop e = do
                   (Map.fromList Builtin.builtinDataDecls)
                   (Map.fromList Builtin.builtinEffectDecls)
                   mempty
+                  mempty
                   [Builtin.builtinTermsSrc Intrinsic]
                   mempty
           Cli.runTransaction (Codebase.addDefsToCodebase env.codebase uf)
@@ -571,6 +572,7 @@ loop e = do
                 UF.typecheckedUnisonFile
                   (Map.fromList Builtin.builtinDataDecls)
                   (Map.fromList Builtin.builtinEffectDecls)
+                  mempty
                   mempty
                   [Builtin.builtinTermsSrc Intrinsic]
                   mempty
@@ -1274,6 +1276,7 @@ addWatch watchName (Just uf) = do
                 (UF.dataDeclarationsId' uf)
                 (UF.effectDeclarationsId' uf)
                 (UF.typeAliasesId' uf)
+                (UF.opaqueDeclarationsId' uf)
                 (UF.topLevelComponents' uf)
                 (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, ann, Term.var a v, ty)])])
             )
