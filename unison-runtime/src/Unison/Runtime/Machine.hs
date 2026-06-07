@@ -397,13 +397,17 @@ exec env henv !_activeThreads !stk !k _ (Prim1 MTYC i) = do
   -- supplies a stub that errors if no installer ran.
   poke stk =<< metaTypecheck env v
   pure (False, henv, stk, k)
-exec env henv !_activeThreads !stk !k _ (Prim1 MEVL i) = do
-  -- Input is a Link.Term (Foreign WrapReferent). Resolve its
-  -- Reference's Word64 in refTm and read out the cached form
-  -- in 'combs': for a CachedVal we hand back the stored value
-  -- directly, and for a Comb (lambda/function) we hand back the
-  -- 'PAp' closure with no args saturated, which IS the function
-  -- closure that callers can then apply.
+exec env henv !activeThreads !stk !k _ (Prim1 MEVL i) = do
+  -- Input is a Link.Term. Branch on the cached combinator's shape:
+  --   * CachedVal: a pre-evaluated pure constant — push the stored
+  --     Val directly.
+  --   * Comb with arity 0: a unit-thunk wrapper (the common case
+  --     for bare-constant terms after lambda-lift) — invoke it via
+  --     apply0 + hook so we capture the unwrapped value.
+  --   * Comb with arity ≥ 1: a function/lambda — push the PAp
+  --     closure with no args so callers can apply it themselves.
+  --     We deliberately don't invoke (apply0 with True ck reads
+  --     garbage off the stack for under-saturated calls).
   referent <- peekOffBi @Referent stk i
   case referent of
     Ref' ref -> do
@@ -414,10 +418,18 @@ exec env henv !_activeThreads !stk !k _ (Prim1 MEVL i) = do
           let entryCix = CIx ref w 0
           stk <- bump stk
           case unRComb $ rCombSection cmbs entryCix of
-            Comb entryComb ->
-              poke stk (BoxedVal $ PAp entryCix entryComb nullSeg)
             CachedVal _ val ->
               poke stk val
+            Comb (LamI 0 _ _) -> do
+              -- 0-arity: invoke and capture the body's result.
+              captured <- newIORef (boxedVal BlackHole)
+              let hook xstk = peek (packXStack xstk) >>= writeIORef captured
+              apply0 (Just hook) env activeThreads w
+              result <- readIORef captured
+              poke stk result
+            Comb entryComb ->
+              -- ≥1 arity: hand back the lambda closure intact.
+              poke stk (BoxedVal $ PAp entryCix entryComb nullSeg)
           pure (False, henv, stk, k)
         Nothing -> die [] ("Meta.eval: reference not registered in cache: " <> show ref)
     Con' {} -> die [] "Meta.eval: expected Ref referent, got constructor"
