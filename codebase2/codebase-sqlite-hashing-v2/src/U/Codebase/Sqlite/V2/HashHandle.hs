@@ -13,6 +13,7 @@ import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
 import U.Codebase.Sqlite.HashHandle
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Term.Hashing as H2
+import U.Codebase.OpaqueDeclaration.Hashing qualified as H2
 import U.Codebase.TypeAlias.Hashing qualified as H2
 import U.Util.Type (removeAllEffectVars)
 import Unison.Hashing.V2 qualified as H2
@@ -32,7 +33,8 @@ v2HashHandle =
       hashPatchFormatFull,
       verifyTermFormatHash = H2.verifyTermFormatHash,
       verifyDeclFormatHash = H2.verifyDeclFormatHash,
-      verifyTypeAliasFormatHash = H2.verifyTypeAliasFormatHash
+      verifyTypeAliasFormatHash = H2.verifyTypeAliasFormatHash,
+      verifyOpaqueDeclarationFormatHash = H2.verifyOpaqueDeclarationFormatHash
     }
   where
     hashBranchFormatFull localIds localBranch =

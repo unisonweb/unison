@@ -9,6 +9,7 @@ module Unison.Hashing.V2.Convert2
     v2ToH2Term,
     v2ToH2Decl,
     v2ToH2TypeAlias,
+    v2ToH2OpaqueDeclaration,
     hashBranchFormatToH2Branch,
     hashPatchFormatToH2Patch,
   )
@@ -34,6 +35,7 @@ import U.Codebase.Sqlite.Patch.TypeEdit qualified as Memory.TypeEdit
 import U.Codebase.Term qualified as V2 (TypeRef)
 import U.Codebase.Term qualified as V2.Term
 import U.Codebase.Type qualified as V2.Type
+import U.Codebase.OpaqueDeclaration qualified as V2.OpaqueDeclaration
 import U.Codebase.TypeAlias qualified as V2.TypeAlias
 import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
@@ -255,3 +257,17 @@ v2ToH2TypeAlias (V2.TypeAlias.TypeAliasR params body) =
       H2.paramNames = params,
       H2.body = v2ToH2Type body
     }
+
+v2ToH2OpaqueDeclaration :: V2.OpaqueDeclaration.OpaqueDeclaration Unison.Symbol -> H2.OpaqueDeclaration Unison.Symbol ()
+v2ToH2OpaqueDeclaration (V2.OpaqueDeclaration.OpaqueDeclarationR modifier params rhs) =
+  H2.OpaqueDeclaration
+    { H2.opaqueAnnotation = (),
+      H2.opaqueModifier = v2ToH2OpaqueModifier modifier,
+      H2.opaqueParamNames = params,
+      H2.opaqueRhs = v2ToH2Type rhs
+    }
+  where
+    v2ToH2OpaqueModifier :: V2.OpaqueDeclaration.OpaqueModifier -> H2.OpaqueModifier
+    v2ToH2OpaqueModifier = \case
+      V2.OpaqueDeclaration.OpaqueStructural -> H2.OpaqueStructural
+      V2.OpaqueDeclaration.OpaqueUnique t -> H2.OpaqueUnique t
