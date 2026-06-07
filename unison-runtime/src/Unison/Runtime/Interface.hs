@@ -849,14 +849,22 @@ evalInContext ppe ctx prof activeThreads w = do
         Right tm -> case MetaC.typecheckTerm tm of
           Left err -> pure (metaLeftText err)
           Right ty -> do
-            (_ctx', rcode, _mainRef) <- prepareEvaluation ppe tm ctx
-            let codeVal = case rcode of
-                  -- The main term sits at the head of the rcode
-                  -- list returned by prepareEvaluation.
-                  ((_, c) : _) ->
-                    BoxedVal (Foreign (WrapCode (Plain c)))
-                  [] -> metaLeftText "Meta.typecheck: prepareEvaluation produced no code"
-            pure (metaRightPair (MetaDecomp.typeTermVal ty) codeVal)
+            (_ctx', rcode, mainRef) <- prepareEvaluation ppe tm ctx
+            -- prepareEvaluation returns a list with the main term
+            -- plus every floated sub-lambda. Look up the main one
+            -- by its reference; otherwise the wrong Code value
+            -- leaks out (the user's expression compiles to multiple
+            -- sub-Codes and the first one is rarely the intended
+            -- result).
+            case Prelude.lookup mainRef rcode of
+              Just c ->
+                pure
+                  ( metaRightPair
+                      (MetaDecomp.typeTermVal ty)
+                      (BoxedVal (Foreign (WrapCode (Plain c))))
+                  )
+              Nothing ->
+                pure (metaLeftText "Meta.typecheck: missing main code combinator after prepareEvaluation")
 
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
