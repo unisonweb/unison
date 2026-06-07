@@ -452,11 +452,11 @@ codeRef, valueRef :: TypeReference
 codeRef = Reference.Builtin "Code"
 valueRef = Reference.Builtin "Value"
 
--- ⚠️ Hash literals pinned to the @meta/main@ project's @Term@ and
--- @TermF@ types. Update these in lockstep with
+-- ⚠️ Hash literals pinned to the @meta/main@ project's @Term@,
+-- @TermF@, and @TypeF@ types. Update these in lockstep with
 -- 'Unison.Runtime.MetaSource' if those declarations change. See
 -- 'Unison.Runtime.MetaSource' for the warning header and rationale.
-metaTermRef, metaTermFRef :: TypeReference
+metaTermRef, metaTermFRef, metaTypeFRef :: TypeReference
 metaTermRef =
   Reference.Derived
     (unsafeMetaHash
@@ -466,6 +466,11 @@ metaTermFRef =
   Reference.Derived
     (unsafeMetaHash
        "93jvs66ff15gqavq1c3qaphgm3gl5bi60qarrodupiir52vkmvps5rqv03a6picmpdmvupvojn8q73lsl116patp4bmt7inticppaa8")
+    0
+metaTypeFRef =
+  Reference.Derived
+    (unsafeMetaHash
+       "oicrvedbi8k56rmhs1ojbt8a6umrnch37q6ckvs614138mbgkgmookerabnlm1bh225gd3jo5bib067j5ticm9qv4g1c3grdmu43fo8")
     0
 
 unsafeMetaHash :: Text -> Hash.Hash
@@ -582,9 +587,10 @@ code, value :: (Ord v) => a -> Type v a
 code a = ref a codeRef
 value a = ref a valueRef
 
-metaTerm, metaTermF :: (Ord v) => a -> Type v a
+metaTerm, metaTermF, metaTypeF :: (Ord v) => a -> Type v a
 metaTerm a = ref a metaTermRef
 metaTermF a = ref a metaTermFRef
+metaTypeF a = ref a metaTypeFRef
 
 app :: (Ord v) => a -> Type v a -> Type v a -> Type v a
 app a f arg = ABT.tm' a (App f arg)

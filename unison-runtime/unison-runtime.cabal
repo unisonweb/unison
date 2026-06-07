@@ -70,6 +70,7 @@ library
       Unison.Runtime.Machine.Types
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
+      Unison.Runtime.MetaCompile
       Unison.Runtime.MetaDecompile
       Unison.Runtime.MetaSource
       Unison.Runtime.Pattern

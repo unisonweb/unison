@@ -16,6 +16,7 @@
 --    @meta.Term meta.TermF@.
 module Unison.Runtime.MetaDecompile
   ( convertTerm,
+    typeTermVal,
   )
 where
 
