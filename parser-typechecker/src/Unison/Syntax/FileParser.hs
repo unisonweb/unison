@@ -27,6 +27,7 @@ import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.OpaqueDeclaration (OpaqueBody (..), OpaqueDeclaration (..))
 import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
+import Unison.OpaqueDeclaration.Expand qualified as OpaqueDeclaration.Expand
 import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynOpaqueBody (..), SynOpaqueDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
@@ -169,21 +170,54 @@ file = do
           ]
 
   -- Convert each parsed @SynOpaqueDecl@ to a core 'OpaqueDeclaration' and
-  -- compute its hash. Opaques may reference file decls and aliases in their
-  -- RHS, so we resolve names against @aliasNamesForDecls <> UF.names env@.
-  -- Body items are left as-is here; their names/terms get fully bound later
-  -- when the body fns flow through the term parser in a follow-up phase.
-  let envNamesForOpaques :: Names
-      envNamesForOpaques =
+  -- compute its hash. Opaques may reference file decls, aliases, and other
+  -- opaques in their RHS, so we (a) order them by dependency, (b) accumulate
+  -- each opaque's name into the resolution env as we go, and (c) raise
+  -- 'OpaqueDeclCycle' on self-reference or cross-opaque cycles.
+  let opaquesAsMap :: Map v (SynOpaqueDecl v)
+      opaquesAsMap = Map.fromList fileOpaques
+      -- A stripped-down OpaqueDeclaration carrying just the fields needed
+      -- for dependency ordering. The body is irrelevant — only the RHS
+      -- contributes to type-level deps — and the modifier doesn't matter
+      -- here either.
+      opaquesForOrdering :: Map v (OpaqueDeclaration v Ann)
+      opaquesForOrdering =
+        opaquesAsMap
+          & Map.map \sd ->
+            OpaqueDeclaration
+              { OpaqueDeclaration.modifier = sd.modifier,
+                OpaqueDeclaration.annotation = sd.annotation,
+                OpaqueDeclaration.paramNames = sd.tyvars,
+                OpaqueDeclaration.rhs = sd.rhs,
+                OpaqueDeclaration.body = []
+              }
+  orderedOpaques :: [(v, SynOpaqueDecl v)] <-
+    case OpaqueDeclaration.Expand.inDependencyOrder opaquesForOrdering of
+      Right ordered -> pure [(v, opaquesAsMap Map.! v) | (v, _) <- ordered]
+      Left (OpaqueDeclaration.Expand.OpaqueCycle names) ->
+        let anns =
+              names
+                & Set.toList
+                & mapMaybe (\v -> (\sd -> (v, sd.annotation)) <$> Map.lookup v opaquesAsMap)
+            firstAnn = case anns of
+              ((_, a) : _) -> a
+              _ -> Ann.External
+         in P.customFailure (OpaqueDeclCycle firstAnn (map fst anns))
+
+  let envNamesForOpaquesStart :: Names
+      envNamesForOpaquesStart =
         Names.shadowing (aliasNamesForDecls <> UF.names env) envNamesAfterPhase1
-  let resolveOpaque :: SynOpaqueDecl v -> P v m (TypeReferenceId, OpaqueDeclaration v Ann)
-      resolveOpaque sd = do
+  let resolveOpaque ::
+        Names ->
+        SynOpaqueDecl v ->
+        P v m (TypeReferenceId, OpaqueDeclaration v Ann)
+      resolveOpaque accNames sd = do
         resolvedRhs <-
           Type.Names.bindNames
             Name.unsafeParseVar
             Name.toVar
             (Set.fromList sd.tyvars)
-            envNamesForOpaques
+            accNames
             sd.rhs
             & onLeft \errs -> resolutionFailures (toList errs)
         let bodyItems =
@@ -199,11 +233,20 @@ file = do
                   OpaqueDeclaration.body = bodyItems
                 }
         pure (Hashing.hashOpaqueDeclaration opaque, opaque)
-  fileOpaquesWithHashes :: Map v (TypeReferenceId, OpaqueDeclaration v Ann) <-
-    fmap Map.fromList $
-      for fileOpaques \(v, sd) -> do
-        (refId, od) <- resolveOpaque sd
-        pure (v, (refId, od))
+      opaqueStep ::
+        (Names, Map v (TypeReferenceId, OpaqueDeclaration v Ann)) ->
+        (v, SynOpaqueDecl v) ->
+        P v m (Names, Map v (TypeReferenceId, OpaqueDeclaration v Ann))
+      opaqueStep (accNames, acc) (v, sd) = do
+        (refId, resolved) <- resolveOpaque accNames sd
+        let accNames' =
+              Names.fromTermsAndTypes
+                []
+                [(Name.unsafeParseVar v, Reference.DerivedId refId)]
+                <> accNames
+        pure (accNames', Map.insert v (refId, resolved) acc)
+  (_, fileOpaquesWithHashes :: Map v (TypeReferenceId, OpaqueDeclaration v Ann)) <-
+    foldM opaqueStep (envNamesForOpaquesStart, Map.empty) orderedOpaques
 
   -- Generate the record accessors with *un-namespaced* names below, because we need to know these names in order to
   -- perform rewriting. As an example,

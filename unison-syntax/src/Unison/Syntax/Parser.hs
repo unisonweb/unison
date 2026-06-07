@@ -238,6 +238,10 @@ data Error v
     -- the annotation of one alias in the cycle and the list of alias names
     -- involved.
     TypeAliasCycle Ann [v]
+  | -- | A set of @opaque type@ declarations form a dependency cycle (or a
+    -- single opaque type whose RHS mentions itself). Carries the annotation
+    -- of one opaque in the cycle and the list of opaque names involved.
+    OpaqueDeclCycle Ann [v]
   deriving (Show, Eq, Ord)
 
 tokenToPair :: L.Token a -> (Ann, a)

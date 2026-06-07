@@ -77,7 +77,10 @@ test =
       opaqueDeclParsesTest,
       opaqueDeclWithUniqueModifierParsesTest,
       opaqueDeclParameterizedParsesTest,
-      opaqueDeclRoundtripTest
+      opaqueDeclRoundtripTest,
+      opaqueDeclCrossReferenceTest,
+      opaqueDeclSelfReferenceCycleTest,
+      opaqueDeclCrossCycleTest
     ]
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -205,6 +208,52 @@ opaqueDeclParameterizedParsesTest =
         "  empty s = s",
         "  insert x s = s"
       ]
+
+-- | One opaque type can reference another in its RHS; the file parses and
+-- both opaques land in the file's opaque map.
+opaqueDeclCrossReferenceTest :: Test ()
+opaqueDeclCrossReferenceTest =
+  scope "opaqueDeclCrossReferenceTest" . parses $
+    unlines
+      [ "opaque type Inner = Nat where",
+        "  toNat i = i",
+        "opaque type Outer = Inner where",
+        "  toInner o = o"
+      ]
+
+-- | @opaque type T = T@ — an opaque whose RHS mentions itself — is rejected
+-- with 'OpaqueDeclCycle'.
+opaqueDeclSelfReferenceCycleTest :: Test ()
+opaqueDeclSelfReferenceCycleTest =
+  scope "opaqueDeclSelfReferenceCycleTest" $
+    expectFileParseFailure
+      (unlines ["opaque type T = T where", "  ignore t = t"])
+      expectation
+  where
+    expectation :: (Var e) => P.Error e -> Test ()
+    expectation e = case e of
+      P.OpaqueDeclCycle {} -> ok
+      _ -> crash "Error wasn't OpaqueDeclCycle"
+
+-- | Two opaque types whose RHSes reference each other form a cycle and are
+-- rejected with 'OpaqueDeclCycle'.
+opaqueDeclCrossCycleTest :: Test ()
+opaqueDeclCrossCycleTest =
+  scope "opaqueDeclCrossCycleTest" $
+    expectFileParseFailure
+      ( unlines
+          [ "opaque type A = B where",
+            "  a x = x",
+            "opaque type B = A where",
+            "  b x = x"
+          ]
+      )
+      expectation
+  where
+    expectation :: (Var e) => P.Error e -> Test ()
+    expectation e = case e of
+      P.OpaqueDeclCycle {} -> ok
+      _ -> crash "Error wasn't OpaqueDeclCycle"
 
 parses :: String -> Test ()
 parses s = scope s $ do
