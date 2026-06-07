@@ -309,6 +309,16 @@ applyNamespaceToSynDecls namespace decls =
                 & over #body (ABT.substsInheritAnnotation typeReplacements)
                 & over (#name . mapped) (Var.namespaced2 namespace)
             )
+        SynDecl'Opaque decl ->
+          -- TODO(opaque): also substitute through body item terms; for now we
+          -- only rewrite the RHS and decl name, which is enough for top-level
+          -- parsing not to drop the decl. Body-item namespacing lands with
+          -- the typecheck integration.
+          SynDecl'Opaque
+            ( decl
+                & over #rhs (ABT.substsInheritAnnotation typeReplacements)
+                & over (#name . mapped) (Var.namespaced2 namespace)
+            )
     )
     decls
   where
@@ -391,6 +401,11 @@ partitionDecls = foldr step ([], [], Map.empty)
           )
           as
       )
+    -- TODO(opaque): collect opaque decls and plumb them into UnisonFile.
+    -- For now we silently drop them; the parser accepts the syntax but the
+    -- decls are not yet visible to elaboration/codegen. Subsequent phases
+    -- will collect, hash, and integrate them.
+    step (SynDecl'Opaque _) (ds, es, as) = (ds, es, as)
 
 applyNamespaceToStanza ::
   forall a v.

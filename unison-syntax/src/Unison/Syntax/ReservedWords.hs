@@ -24,6 +24,7 @@ keywords =
       "let",
       "match",
       "namespace",
+      "opaque",
       "termLink",
       "then",
       "true",

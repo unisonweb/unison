@@ -65,7 +65,10 @@ test =
       typeAliasExpandsInDataDeclTest,
       typeAliasExpandsInTermSignatureTest,
       abilityRowAliasTest,
-      typeAliasCycleTest
+      typeAliasCycleTest,
+      opaqueDeclParsesTest,
+      opaqueDeclWithUniqueModifierParsesTest,
+      opaqueDeclParameterizedParsesTest
     ]
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -164,6 +167,35 @@ typeAliasCycleTest =
     expectation e = case e of
       P.TypeAliasCycle {} -> ok
       _ -> crash "Error wasn't TypeAliasCycle"
+
+-- | A minimal monomorphic opaque type with a single body item parses.
+opaqueDeclParsesTest :: Test ()
+opaqueDeclParsesTest =
+  scope "opaqueDeclParsesTest" . parses $
+    unlines
+      [ "opaque type Logarithm = Float where",
+        "  toFloat l = exp l"
+      ]
+
+-- | An opaque type with a @unique@ modifier between @opaque@ and @type@
+-- parses.
+opaqueDeclWithUniqueModifierParsesTest :: Test ()
+opaqueDeclWithUniqueModifierParsesTest =
+  scope "opaqueDeclWithUniqueModifierParsesTest" . parses $
+    unlines
+      [ "opaque unique type Token = Text where",
+        "  fromText t = t"
+      ]
+
+-- | A parameterized opaque type with multiple body items parses.
+opaqueDeclParameterizedParsesTest :: Test ()
+opaqueDeclParameterizedParsesTest =
+  scope "opaqueDeclParameterizedParsesTest" . parses $
+    unlines
+      [ "opaque type Set a = a where",
+        "  empty s = s",
+        "  insert x s = s"
+      ]
 
 parses :: String -> Test ()
 parses s = scope s $ do
