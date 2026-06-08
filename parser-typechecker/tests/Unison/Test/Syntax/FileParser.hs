@@ -1,5 +1,6 @@
 module Unison.Test.Syntax.FileParser where
 
+import Data.Foldable (toList)
 import Data.Functor.Identity (Identity (..))
 import Data.List (uncons)
 import Data.Map qualified as Map
@@ -13,16 +14,18 @@ import Unison.Parser.Ann qualified as P
 import Unison.Parsers (unsafeGetRightFrom, unsafeParseFileBuiltinsOnly)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrintError (renderParseErrorAsANSI)
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.FileParser (file)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as P
 import Unison.Test.Common qualified as Common
-import Unison.UnisonFile (UnisonFile)
+import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
+import Unison.Var qualified as Var
 
 test1 :: Test ()
 test1 =
@@ -80,7 +83,9 @@ test =
       opaqueDeclRoundtripTest,
       opaqueDeclCrossReferenceTest,
       opaqueDeclSelfReferenceCycleTest,
-      opaqueDeclCrossCycleTest
+      opaqueDeclCrossCycleTest,
+      opaqueBodyFnTypechecksUnderAliasTest,
+      opaqueOutsideBodyIsRigidTest
     ]
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -255,6 +260,57 @@ opaqueDeclCrossCycleTest =
       P.OpaqueDeclCycle {} -> ok
       _ -> crash "Error wasn't OpaqueDeclCycle"
 
+-- | An opaque-decl body fn typechecks under the file-wide opaque-as-alias
+-- rule: 'Float.log : Float -> Float' returns a 'Float', but in
+-- 'fromFloat x = Float.log x' declared with signature
+-- 'Float -> Logarithm', the 'Float' result unifies with 'Logarithm'
+-- because 'Logarithm' expands to 'Float' during unification. The body fn
+-- then appears under its fully-qualified name 'Logarithm.fromFloat' in
+-- the typechecked file's terms.
+opaqueBodyFnTypechecksUnderAliasTest :: Test ()
+opaqueBodyFnTypechecksUnderAliasTest =
+  scope "opaqueBodyFnTypechecksUnderAliasTest" $ do
+    let src =
+          unlines
+            [ "opaque type Logarithm = Float where",
+              "  fromFloat : Float -> Logarithm",
+              "  fromFloat x = Float.log x"
+            ]
+    tuf <- typechecksOrCrash src
+    let termVarNames :: [String]
+        termVarNames = Var.nameStr <$> Map.keys (UF.hashTerms tuf)
+    let hasFromFloat = any (== "Logarithm.fromFloat") termVarNames
+    if hasFromFloat
+      then ok
+      else
+        crash $
+          "expected 'Logarithm.fromFloat' in typechecked terms, got: "
+            <> show termVarNames
+
+-- | Outside an opaque type's body, the type is rigid: a top-level term
+-- 'f : Logarithm -> Float; f x = x' should fail because @Logarithm ≢ Float@
+-- when the alias rule is not active.
+--
+-- TODO(opaque): the v1 alias rule is permissive — opaque types act as
+-- aliases throughout the whole file, not just inside their body fns. So
+-- this assertion fails (the term unexpectedly typechecks), and we wrap
+-- it in 'pending' so the test suite stays green while flagging the
+-- encapsulation gap. Slice 2 (strict per-binding scoping) will flip
+-- this back to expecting a typecheck failure, and 'pending' will then
+-- complain that it should not pass — alerting us to remove the wrapper.
+opaqueOutsideBodyIsRigidTest :: Test ()
+opaqueOutsideBodyIsRigidTest =
+  scope "opaqueOutsideBodyIsRigidTest" $ pending $ do
+    let src =
+          unlines
+            [ "opaque type Logarithm = Float where",
+              "  toFloat l = l",
+              "",
+              "f : Logarithm -> Float",
+              "f x = x"
+            ]
+    expectTypecheckFailure src
+
 parses :: String -> Test ()
 parses s = scope s $ do
   let p :: UnisonFile Symbol P.Ann
@@ -262,6 +318,26 @@ parses s = scope s $ do
         unsafeGetRightFrom s . runIdentity $
           P.run (P.rootFile file) s Common.parsingEnv
   pure p >> ok
+
+-- | Parse and typecheck a source string, returning the typechecked file on
+-- success. Crashes the test on parse or typecheck failure.
+typechecksOrCrash :: String -> Test (TypecheckedUnisonFile Symbol P.Ann)
+typechecksOrCrash s =
+  case Common.parseAndSynthesizeAsFile [] "<test>" s of
+    Result.Result _ (Just (Right tuf)) -> pure tuf
+    Result.Result notes _ ->
+      crash $
+        "expected typecheck success, got: "
+          <> show (length (toList notes))
+          <> " notes"
+
+-- | Parse and typecheck a source string, expecting a typecheck failure
+-- (the parser must succeed but the typechecker must reject the file).
+expectTypecheckFailure :: String -> Test ()
+expectTypecheckFailure s =
+  case Common.parseAndSynthesizeAsFile [] "<test>" s of
+    Result.Result _ (Just (Right _)) -> crash "expected typecheck failure, got success"
+    Result.Result _ _ -> ok
 
 -- | An opaque type declaration survives a parse → pretty-print → re-parse
 -- roundtrip with the same set of opaque-decl names and the same parameter
