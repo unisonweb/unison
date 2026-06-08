@@ -94,6 +94,7 @@ createSchema = do
   Q.addHistoryCommentHashing
   Q.historyCommentHashingCleanup
   Q.addTypeAliasSupport
+  Q.addOpaqueDeclarationSupport
   (_, emptyCausalHashId) <- emptyCausalHash
   (_, ProjectBranchRow {projectId, branchId}) <-
     insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId

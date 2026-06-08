@@ -22,6 +22,7 @@ module Unison.Server.Backend
     bestNameForTerm,
     bestNameForType,
     definitionsByName,
+    displayOpaqueDeclaration,
     displayType,
     docsInBranchToHtmlFiles,
     encodeFrontmatter,
@@ -172,7 +173,7 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
-import Unison.Syntax.Name as Name (toText, unsafeParseText)
+import Unison.Syntax.Name as Name (toText, toVar, unsafeParseText)
 import Unison.Syntax.NamePrinter qualified as NP
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
@@ -181,6 +182,8 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.OpaqueDeclaration (OpaqueBody (..), OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.TypeAlias (TypeAlias)
 import Unison.Typechecker qualified as Typechecker
 import Unison.Util.AnnotatedText (AnnotatedText)
@@ -669,6 +672,13 @@ data DefinitionResults = DefinitionResults
   { termResults :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
     typeResults :: Map Reference (DisplayObject () (DD.Decl Symbol Ann)),
     typeAliasResults :: Map Reference (DisplayObject () (TypeAlias Symbol Ann)),
+    -- | Opaque type declarations. Each entry's body field has been populated
+    -- by 'loadOpaqueDeclarationWithBody', which queries the namespace for any
+    -- term whose name is a direct child of the opaque type's canonical name
+    -- and bundles those term defs as the opaque decl's body items. This is the
+    -- lightweight namespace-derived membership lookup described in plan §2.2;
+    -- see 'TODO(opaque)' notes below for the strict SQL-table alternative.
+    opaqueDeclResults :: Map Reference (DisplayObject () (OpaqueDeclaration Symbol Ann)),
     noResults :: [HQ.HashQualified Name]
   }
   deriving stock (Show)
@@ -676,9 +686,10 @@ data DefinitionResults = DefinitionResults
 -- | Finds ALL direct references contained within a 'DefinitionResults' so we can
 -- build a pretty printer for them.
 definitionResultsDependencies :: DefinitionResults -> Set LD.LabeledDependency
-definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
+definitionResultsDependencies (DefinitionResults {termResults, typeResults, opaqueDeclResults}) =
   let topLevelTerms = Set.fromList . fmap LD.TermReference $ Map.keys termResults
       topLevelTypes = Set.fromList . fmap LD.TypeReference $ Map.keys typeResults
+      topLevelOpaques = Set.fromList . fmap LD.TypeReference $ Map.keys opaqueDeclResults
       termDeps =
         termResults
           & foldOf
@@ -691,7 +702,25 @@ definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
         typeResults
           & ifoldMap \typeRef ddObj ->
             foldMap (DD.labeledDeclDependenciesIncludingSelfAndFieldAccessors typeRef) ddObj
-   in termDeps <> typeDeps <> topLevelTerms <> topLevelTypes
+      -- Opaque decls' RHS dependencies plus each body fn's dependencies (the
+      -- bodies live in the 'OpaqueDeclaration' record at this point).
+      opaqueDeps =
+        opaqueDeclResults
+          & foldOf
+            ( folded
+                . folded
+                . to opaqueDeclLabeledDependencies
+            )
+   in termDeps <> typeDeps <> opaqueDeps <> topLevelTerms <> topLevelTypes <> topLevelOpaques
+  where
+    opaqueDeclLabeledDependencies :: OpaqueDeclaration Symbol Ann -> Set LD.LabeledDependency
+    opaqueDeclLabeledDependencies od =
+      let rhsDeps = Set.map LD.TypeReference (OpaqueDeclaration.rhsDependencies od)
+          bodyDeps =
+            foldMap
+              (\b -> Term.labeledDependencies (OpaqueDeclaration.term b))
+              (OpaqueDeclaration.body od)
+       in rhsDeps <> bodyDeps
 
 expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction CausalHash
 expandShortCausalHash hash = do
@@ -1037,9 +1066,13 @@ definitionsByName ::
   NameSearch Sqlite.Transaction ->
   IncludeCycles ->
   Names.SearchType ->
+  -- | The full namespace 'Names'; used to look up body fns for opaque-decl
+  -- results by walking the names whose parent matches the opaque type's name.
+  -- See 'loadOpaqueDeclarationWithBody'.
+  Names ->
   Set (HQ.HashQualified Name) ->
   Sqlite.Transaction DefinitionResults
-definitionsByName codebase nameSearch includeCycles searchType query = do
+definitionsByName codebase nameSearch includeCycles searchType names query = do
   QueryResult misses results <- hqNameQuery codebase nameSearch searchType query
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
@@ -1057,7 +1090,12 @@ definitionsByName codebase nameSearch includeCycles searchType query = do
   typeAliases <-
     Map.fromList . catMaybes
       <$> traverse (\ref -> fmap (ref,) <$> displayTypeAlias codebase ref) (Set.toList typeRefs)
-  pure (DefinitionResults terms types typeAliases misses)
+  opaqueDecls <-
+    Map.fromList . catMaybes
+      <$> traverse
+        (\ref -> fmap (ref,) <$> displayOpaqueDeclaration codebase names ref)
+        (Set.toList typeRefs)
+  pure (DefinitionResults terms types typeAliases opaqueDecls misses)
   where
     searchResultsToTermRefs :: [SR.SearchResult] -> Set Reference
     searchResultsToTermRefs results =
@@ -1107,6 +1145,86 @@ displayTypeAlias codebase = \case
     Codebase.getTypeAlias codebase rid <&> \case
       Just alias -> Just (UserObject alias)
       Nothing -> Nothing
+
+-- | Load a type-position reference as an opaque declaration, populating the
+-- body field by walking 'names' for term names whose parent is the opaque
+-- type's canonical name. Returns 'Nothing' for refs that point at regular
+-- decls or type aliases.
+--
+-- TODO(opaque): this is the lightweight namespace-pattern-derived membership
+-- lookup (plan §2.2). It assumes a body fn for opaque type @T@ is named
+-- @T.foo@. The stricter alternative — a dedicated @opaque_body_membership@
+-- SQL table — would survive renames; defer to a follow-up.
+displayOpaqueDeclaration ::
+  Codebase m Symbol Ann ->
+  Names ->
+  Reference ->
+  Sqlite.Transaction (Maybe (DisplayObject () (OpaqueDeclaration Symbol Ann)))
+displayOpaqueDeclaration codebase names = \case
+  Reference.Builtin _ -> pure Nothing
+  ref@(Reference.DerivedId rid) ->
+    Codebase.getOpaqueDeclaration codebase rid >>= \case
+      Nothing -> pure Nothing
+      Just od0 -> do
+        -- Find the opaque type's canonical name(s) in the namespace; for each,
+        -- bundle every term whose name is a direct child of that name.
+        let opaqueNames = Names.namesForReference names ref
+        bodies <- loadOpaqueBodies codebase names opaqueNames
+        pure (Just (UserObject (od0 {OpaqueDeclaration.body = bodies})))
+
+-- | Look up all body fns for an opaque decl given its type's canonical names
+-- in the namespace. Returns one 'OpaqueBody' per direct-child term name,
+-- de-duplicated by var name (so an opaque type with multiple namespace names
+-- doesn't yield duplicate body items).
+--
+-- TODO(opaque): when the membership table lands, swap this for an exact
+-- ref-based query that doesn't depend on naming convention.
+loadOpaqueBodies ::
+  Codebase m Symbol Ann ->
+  Names ->
+  Set Name ->
+  Sqlite.Transaction [OpaqueBody Symbol Ann]
+loadOpaqueBodies codebase names opaqueNames = do
+  -- For each opaque name, collect the term names whose 'Name.parent' equals it.
+  let parentNameSet = opaqueNames
+      directChildren :: Set (Name, Referent)
+      directChildren =
+        Set.fromList
+          [ (childName, refnt)
+          | (childName, refnt) <- R.toList (Names.terms names),
+            Just parent <- [Name.parent childName],
+            Set.member parent parentNameSet
+          ]
+      -- Pull out the term-ref children only (constructors are not opaque bodies).
+      directChildTermRefs :: [(Name, Reference.Id)]
+      directChildTermRefs =
+        [ (n, rid)
+        | (n, Referent.Ref (Reference.DerivedId rid)) <- Set.toList directChildren
+        ]
+  -- Build OpaqueBody entries. The body fn's var name uses the namespaced form
+  -- (e.g. @Logarithm.fromFloat@) so it matches what the parser produces when
+  -- the user later edits this same decl; the term is annotated with its type
+  -- so 'prettyOpaqueDecl' can emit the signature.
+  bodyEntries <- for directChildTermRefs $ \(childName, rid) -> do
+    (term, ty) <- Codebase.unsafeGetTermWithType codebase rid
+    let annotatedTerm = case term of
+          Term.Ann' _ _ -> term
+          _ -> Term.ann (ABT.annotation term) term ty
+        v = Name.toVar childName
+    pure
+      OpaqueBody
+        { name = v,
+          nameAnn = ABT.annotation annotatedTerm,
+          term = annotatedTerm
+        }
+  -- De-dup by var name in case the type has multiple aliases and the same
+  -- body shows up under more than one parent.
+  pure
+    ( Map.elems
+        ( Map.fromList
+            [(OpaqueDeclaration.name b, b) | b <- bodyEntries]
+        )
+    )
 
 -- | Version of 'termsToSyntax' which works over arbitrary traversals.
 --

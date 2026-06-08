@@ -31,6 +31,7 @@ editDefinitionByFQN ::
 editDefinitionByFQN fileURI fqn = do
   Env {codebase} <- ask
   nameSearch <- getNameSearch
+  curNames <- getCurrentNames
   lastTouchedFileV <- asks lastTouchedFileVar
   mayLastTouchedFile <- liftIO $ atomically $ readTVar lastTouchedFileV
   (mayUnisonFile, fileUri, fp) <- case mayLastTouchedFile of
@@ -44,8 +45,8 @@ editDefinitionByFQN fileURI fqn = do
     Left err -> throwError err
     Right parsedFQN -> do
       pure parsedFQN
-  Backend.DefinitionResults {termResults, typeResults} <- liftIO $ do
-    Codebase.runTransaction codebase $ Backend.definitionsByName codebase nameSearch Backend.IncludeCycles Names.ExactName (Set.singleton (HQ.NameOnly parsedFQN))
+  Backend.DefinitionResults {termResults, typeResults, opaqueDeclResults} <- liftIO $ do
+    Codebase.runTransaction codebase $ Backend.definitionsByName codebase nameSearch Backend.IncludeCycles Names.ExactName curNames (Set.singleton (HQ.NameOnly parsedFQN))
   pped <- currentPPED
   toIO <- lift $ askRunInIO
   let appendText _fp rendered _aboveFold = toIO $ do
@@ -59,5 +60,5 @@ editDefinitionByFQN fileURI fqn = do
         void $ sendRequest Msg.SMethod_WorkspaceApplyEdit params $ \case
           Left err -> Debug.debugM Debug.LSP "Error applying workspace edit" err
           Right _ -> pure ()
-  numRendered <- renderToFile codebase (const True) appendText mayUnisonFile fp WithinFold pped termResults typeResults mempty
+  numRendered <- renderToFile codebase (const True) appendText mayUnisonFile fp WithinFold pped termResults typeResults mempty opaqueDeclResults
   pure (numRendered > 0)

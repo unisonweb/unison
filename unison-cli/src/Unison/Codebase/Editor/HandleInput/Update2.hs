@@ -423,7 +423,19 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
                       ]
               )
               (Map.toList (UF.typeAliasesId' tuf))
-      pure $ dataDeclUpdates <> effectDeclUpdates <> aliasUpdates
+      -- Opaque decls: same shape as aliases — no constructors, just rebind
+      -- the type name. The body fns are persisted as ordinary terms and
+      -- updated by 'termUpdates' below.
+      let opaqueDeclUpdates =
+            foldMap
+              ( \(symbol, (typeRefId, _od)) ->
+                  let split = splitVar symbol
+                   in [ BranchUtil.makeAnnihilateTypeName split,
+                        BranchUtil.makeAddTypeName split (Reference.fromId typeRefId)
+                      ]
+              )
+              (Map.toList (UF.opaqueDeclarationsId' tuf))
+      pure $ dataDeclUpdates <> effectDeclUpdates <> aliasUpdates <> opaqueDeclUpdates
       where
         makeDataDeclUpdates (symbol, (typeRefId, dataDecl)) = makeDeclUpdates (symbol, (typeRefId, Right dataDecl))
         makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclUpdates (symbol, (typeRefId, Left effectDecl))

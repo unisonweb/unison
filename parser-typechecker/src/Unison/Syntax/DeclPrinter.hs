@@ -432,12 +432,29 @@ prettyOpaqueDecl (PrettyPrintEnvDecl _unsuffixifiedPPE suffixifiedPPE) guid name
           <> fmt S.ControlKeyword "where"
           <> P.newline
           <> P.indentN 2 (P.lines (renderBodyItem <$> bs))
+    -- Inside the body block we render the body fn's *short* name (the part
+    -- after the opaque type's own name), so re-parsing the rendered output
+    -- doesn't double-namespace it: the parser unconditionally prefixes body
+    -- items with the opaque type's name (see 'Unison.Syntax.FileParser.resolveOpaque').
     renderBodyItem :: (Var v) => OpaqueBody v a -> Pretty SyntaxText
     renderBodyItem b =
       TermPrinter.prettyBinding
         suffixifiedPPE
-        (HQ.unsafeFromVar (OpaqueDeclaration.name b))
+        (HQ.unsafeFromVar (shortBodyName name (OpaqueDeclaration.name b)))
         (OpaqueDeclaration.term b)
+
+-- | Strip the opaque type's qualifying prefix off a body-fn var, so the body
+-- item renders with its short name (e.g. @fromFloat@) inside the @where@
+-- block. If the parent name isn't a prefix — which shouldn't happen, since
+-- the parser builds body fn names via 'Var.namespaced2' on the LHS — fall
+-- back to the original var.
+shortBodyName :: (Var v) => HQ.HashQualified Name -> v -> v
+shortBodyName hqParent bodyVar =
+  fromMaybe bodyVar do
+    parentName <- HQ.toName hqParent
+    bodyName <- HQ.toName (HQ.unsafeFromVar bodyVar)
+    stripped <- Name.stripNamePrefix parentName bodyName
+    pure (Name.toVar stripped)
 
 fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = P.withSyntax
