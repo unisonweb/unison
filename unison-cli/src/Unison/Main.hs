@@ -173,7 +173,7 @@ main version = do
                 ]
             )
         Run (RunFromSymbol mainName) args -> do
-          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
+          getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(_, _, theCodebase) -> do
             RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
@@ -185,7 +185,7 @@ main version = do
               case e of
                 Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                 Right contents -> do
-                  getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+                  getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(initRes, _, theCodebase) -> do
                     withRuntimes RTI.OneOff \(rt, sbrt) -> do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpCheckForChanges _ = pure ()
@@ -213,7 +213,7 @@ main version = do
           case e of
             Left _ -> exitError "I had trouble reading this input."
             Right contents -> do
-              getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+              getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(initRes, _, theCodebase) -> do
                 withRuntimes RTI.OneOff \(rt, sbrt) -> do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpCheckForChanges _ = pure ()
@@ -479,7 +479,7 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
           case shouldFork of
             UseFork -> do
               -- A forked codebase does not need to Create a codebase, because it already exists
-              getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) $ const (pure ())
+              getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate $ const (pure ())
               path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
               (absPath, absTmp) <- bitraverse Directory.canonicalizePath Directory.canonicalizePath (path, tmp)
               if (absPath == absTmp)
