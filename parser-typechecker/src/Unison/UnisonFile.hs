@@ -428,7 +428,13 @@ dependencies file =
               ]
         },
       foldMap (Term.dependencies . snd) file.terms,
-      foldMap (foldMap (Term.dependencies . view _3)) file.watches
+      foldMap (foldMap (Term.dependencies . view _3)) file.watches,
+      -- Opaque body fns live inside 'opaqueDeclarationsId' rather than in
+      -- 'terms', but they ARE typechecked alongside regular file terms, so
+      -- their dependencies need to be loaded for 'TypeLookup' too.
+      foldMap
+        (foldMap (Term.dependencies . OpaqueDeclaration.term) . OpaqueDeclaration.body . snd)
+        file.opaqueDeclarationsId
     ]
 
 discardTypes :: (Ord v) => TypecheckedUnisonFile v a -> UnisonFile v a
