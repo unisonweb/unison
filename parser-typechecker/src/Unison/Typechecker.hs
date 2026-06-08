@@ -46,6 +46,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.TypeAlias qualified as TA
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
@@ -85,6 +86,14 @@ data NamedReference v loc = NamedReference
 data Env v loc = Env
   { ambientAbilities :: [Type v loc],
     typeLookup :: TL.TypeLookup v loc,
+    -- | Opaque-type alias entries that are visible only when checking
+    -- inside one of the parent opaque's body fns. Indexed by the
+    -- opaque type's 'Reference'.
+    scopedAliases :: Map Reference (TA.TypeAlias v loc),
+    -- | Body-fn var name → parent opaque-type 'Reference'. When a body
+    -- fn is being checked, the matching 'scopedAliases' entry becomes
+    -- visible to 'Context.whnfAlias'.
+    bodyFnScope :: Map v Reference,
     -- | TDNR environment - maps short names like `+` to fully-qualified
     -- lists of named references whose full name matches the short name
     -- Example: `+` maps to [Nat.+, Float.+, Int.+]
@@ -126,6 +135,8 @@ synthesize ppe pmccSwitch env t =
             env.variances
             (TypeVar.liftType <$> env.ambientAbilities)
             env.typeLookup
+            env.scopedAliases
+            env.bodyFnScope
             (TypeVar.liftTerm t)
    in Result.hoist (pure . runIdentity) $ fmap TypeVar.lowerType result
 

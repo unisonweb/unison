@@ -50,6 +50,8 @@ typecheckTerm codebase tm = do
         Typechecker.Env
           { ambientAbilities = [],
             typeLookup,
+            scopedAliases = Map.empty,
+            bodyFnScope = Map.empty,
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,
