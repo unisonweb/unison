@@ -220,8 +220,27 @@ file = do
             accNames
             sd.rhs
             & onLeft \errs -> resolutionFailures (toList errs)
-        let bodyItems =
-              [ OpaqueBody {OpaqueDeclaration.name = b.name, OpaqueDeclaration.nameAnn = b.nameAnn, OpaqueDeclaration.term = b.term}
+        -- Prefix each body item's name with the opaque type's (now fully-
+        -- qualified) name so that body fns surface as ordinary top-level
+        -- terms named e.g. @Logarithm.fromFloat@. Substitute through each
+        -- body term so intra-body references (one body fn calling another
+        -- by its short name) target the qualified sibling. This mirrors
+        -- how 'applyNamespaceToStanza' rewrites sibling references in
+        -- ordinary term stanzas.
+        let opaqueName :: v
+            opaqueName = sd.name.payload
+            bodyVarReplacements :: [(v, Term2 v Ann Ann v ())]
+            bodyVarReplacements =
+              [ (b.name, Term.var () (Var.namespaced2 opaqueName b.name))
+              | b <- sd.body
+              ]
+            bodyItems =
+              [ OpaqueBody
+                  { OpaqueDeclaration.name = Var.namespaced2 opaqueName b.name,
+                    OpaqueDeclaration.nameAnn = b.nameAnn,
+                    OpaqueDeclaration.term =
+                      ABT.substsInheritAnnotation bodyVarReplacements b.term
+                  }
               | b <- sd.body
               ]
         let opaque =
@@ -284,10 +303,19 @@ file = do
             Nothing -> id
             Just namespace -> over (mapped . _1) (Var.namespaced2 namespace)
 
+  let opaqueNamesForDecls :: Names
+      opaqueNamesForDecls =
+        Names.fromTermsAndTypes
+          []
+          [ (Name.unsafeParseVar v, Reference.DerivedId rid)
+          | (v, (rid, _)) <- Map.toList fileOpaquesWithHashes
+          ]
+
   -- At this stage of the file parser, we've parsed all the type and ability
-  -- declarations. File-local alias names are visible during term parsing
-  -- so type-position references to them resolve to alias refs.
-  let envNamesWithAliases = aliasNamesForDecls <> UF.names env
+  -- declarations. File-local alias and opaque names are visible during term
+  -- parsing so type-position references to them resolve to alias / opaque
+  -- refs.
+  let envNamesWithAliases = aliasNamesForDecls <> opaqueNamesForDecls <> UF.names env
   let updateEnvForTermParsing e =
         e
           { names = Names.shadowing envNamesWithAliases namesStart,
@@ -325,10 +353,28 @@ file = do
           Binding ((spanningAnn, v), at) -> ((v, spanningAnn, Term.generalizeTypeSignatures at) : terms, watches)
           Bindings bs -> ([(v, spanningAnn, Term.generalizeTypeSignatures at) | ((spanningAnn, v), at) <- bs] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
+        -- Opaque-decl body items surface as ordinary top-level terms during
+        -- typechecking. Their names are already fully qualified (set in
+        -- 'resolveOpaque'), so they slot directly into 'fqLocalTerms' and
+        -- get 'bindNames'-resolved alongside the file's other terms.
+        opaqueBodyTermsByOpaque :: [(v, [(v, Ann, Term v Ann)])]
+        opaqueBodyTermsByOpaque =
+          [ ( opaqueVar,
+              [ (b.name, b.nameAnn, Term.generalizeTypeSignatures b.term)
+              | b <- od.body
+              ]
+            )
+          | (opaqueVar, (_, od)) <- Map.toList fileOpaquesWithHashes
+          ]
+        opaqueBodyTerms :: [(v, Ann, Term v Ann)]
+        opaqueBodyTerms = concatMap snd opaqueBodyTermsByOpaque
         -- All locally declared term variables, running example:
         --   [foo.alice, bar.alice, zonk.bob]
         fqLocalTerms :: [v]
-        fqLocalTerms = (stanzas >>= getVars) <> (view _1 <$> accessors)
+        fqLocalTerms =
+          (stanzas >>= getVars)
+            <> (view _1 <$> accessors)
+            <> (view _1 <$> opaqueBodyTerms)
     let bindNames =
           Term.bindNames
             Name.unsafeParseVar
@@ -341,13 +387,47 @@ file = do
     watches <- case List.validate (traverseOf (traversed . _3) bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
+    -- Resolve free vars in opaque body terms, then write the resolved terms
+    -- back into the OpaqueDeclaration.body lists.
+    boundOpaqueBodyTermsByOpaque ::
+      [(v, [(v, Ann, Term v Ann)])] <-
+      forM opaqueBodyTermsByOpaque \(opaqueVar, bs) -> do
+        bs' <- case List.validate (traverseOf _3 bindNames) bs of
+          Left es -> resolutionFailures (toList es)
+          Right xs -> pure xs
+        pure (opaqueVar, bs')
+    let fileOpaquesWithBoundBodies ::
+          Map v (TypeReferenceId, OpaqueDeclaration v Ann)
+        fileOpaquesWithBoundBodies =
+          List.foldl'
+            ( \acc (opaqueVar, bs) ->
+                Map.adjust
+                  ( \(rid, od) ->
+                      ( rid,
+                        od
+                          { OpaqueDeclaration.body =
+                              [ OpaqueBody
+                                  { OpaqueDeclaration.name = v',
+                                    OpaqueDeclaration.nameAnn = a',
+                                    OpaqueDeclaration.term = tm'
+                                  }
+                              | (v', a', tm') <- bs
+                              ]
+                          }
+                      )
+                  )
+                  opaqueVar
+                  acc
+            )
+            fileOpaquesWithHashes
+            boundOpaqueBodyTermsByOpaque
 
     validateUnisonFile
       maybeAnnotatedNamespace
       (UF.datasId env)
       (UF.effectsId env)
       fileAliasesWithHashes
-      fileOpaquesWithHashes
+      fileOpaquesWithBoundBodies
       (terms <> accessors)
       (List.multimap watches)
 
@@ -396,11 +476,11 @@ applyNamespaceToSynDecls namespace decls =
             )
         SynDecl'Opaque decl ->
           -- Rewrite the RHS, the decl name, and any type-position references
-          -- inside body item terms. We don't (yet) namespace the body item
-          -- *names* themselves — the body fns will get their names properly
-          -- adjusted when they flow as terms in a later phase.
-          -- TODO(opaque): namespace body-item names once body fns are
-          -- threaded through the term-stanza pipeline.
+          -- inside body item terms. Body-item *name* qualification (prefixing
+          -- each body name with the opaque type's name) and intra-body
+          -- term-level substitution happen unconditionally in the
+          -- 'SynOpaqueDecl' → 'OpaqueDeclaration' conversion below, so we
+          -- skip them here to avoid double-prefixing.
           SynDecl'Opaque
             ( decl
                 & over #rhs (ABT.substsInheritAnnotation typeReplacements)

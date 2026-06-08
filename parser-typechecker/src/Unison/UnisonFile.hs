@@ -11,6 +11,7 @@ module Unison.UnisonFile
     dependencies,
     effectDeclarations,
     opaqueDeclarations,
+    opaqueBodyTermBindings,
     typecheckingTerm,
     watchesOfKind,
     definitionLocation,
@@ -178,6 +179,19 @@ typecheckingTerm uf =
 termBindings :: UnisonFile v a -> [(v, a, Term v a)]
 termBindings uf =
   Map.foldrWithKey (\k (a, t) b -> (k, a, t) : b) [] uf.terms
+    <> opaqueBodyTermBindings uf
+
+-- | Extract opaque-decl body items as ordinary term bindings, so they flow
+-- through the typechecker like top-level definitions. Their names are
+-- already fully qualified by 'Unison.Syntax.FileParser.resolveOpaque'
+-- (e.g. @Logarithm.fromFloat@), and their bodies have already had names
+-- bound during file parsing.
+opaqueBodyTermBindings :: UnisonFile v a -> [(v, a, Term v a)]
+opaqueBodyTermBindings uf =
+  [ (b.name, b.nameAnn, b.term)
+  | (_v, (_rid, od)) <- Map.toList uf.opaqueDeclarationsId,
+    b <- OpaqueDeclaration.body od
+  ]
 
 -- backwards compatibility with the old data type
 dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (TypeReference, DataDeclaration v a)
