@@ -92,6 +92,7 @@ import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.TypeAlias (TypeAlias)
 import Unison.Typechecker.Context qualified as Context
 import Unison.Util.Conflicted (Conflicted)
@@ -313,6 +314,10 @@ data Output
       -- decls); for now we just enumerate them from the file and display
       -- the always-add form. Cross-file alias updates land later.
       !(Map Symbol (TypeAlias Symbol Ann))
+      -- Opaque type declarations declared in the file. Same story as aliases:
+      -- they're enumerated from the file and shown in always-add form for
+      -- now. Cross-file opaque-decl updates land later.
+      !(Map Symbol (OpaqueDeclaration Symbol Ann))
       !(Map Referent (NESet Name))
       !Bool -- merging? (can expand later to include: upgrading?)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)

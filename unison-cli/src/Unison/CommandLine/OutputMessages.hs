@@ -158,6 +158,7 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
@@ -1089,7 +1090,7 @@ notifyUser dir issueFn = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  Typechecked oldPpe newPpe slurpEntries fileAliases aliases isMergeBranch -> do
+  Typechecked oldPpe newPpe slurpEntries fileAliases fileOpaques aliases isMergeBranch -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -1146,7 +1147,14 @@ notifyUser dir issueFn = \case
             & map (\(v, ta) -> (Name.unsafeParseVar v, ta))
             & sortAlphabeticallyOn (view _1)
 
-    let existAdds = not (List.null newTypes && List.null newTerms && List.null newAliases)
+    let newOpaques :: [(Name, OpaqueDeclaration Symbol Ann)]
+        newOpaques =
+          fileOpaques
+            & Map.toList
+            & map (\(v, od) -> (Name.unsafeParseVar v, od))
+            & sortAlphabeticallyOn (view _1)
+
+    let existAdds = not (List.null newTypes && List.null newTerms && List.null newAliases && List.null newOpaques)
         existUpdates = not (List.null updatedTypes && List.null updatedTerms)
         existDeletes = not (List.null deletedTypes && List.null deletedTerms)
         existChanges = existAdds || existUpdates || existDeletes
@@ -1170,6 +1178,15 @@ notifyUser dir issueFn = \case
     let renderedNewAliases :: Pretty
         renderedNewAliases =
           P.lines (map (\(name, ta) -> P.green ("+ " <> renderAlias name ta)) newAliases)
+
+    let renderOpaque :: Name -> OpaqueDeclaration Symbol Ann -> Pretty
+        renderOpaque name od =
+          P.syntaxToColor
+            (DeclPrinter.prettyOpaqueDecl pped DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) od)
+
+    let renderedNewOpaques :: Pretty
+        renderedNewOpaques =
+          P.lines (map (\(name, od) -> P.green ("+ " <> renderOpaque name od)) newOpaques)
 
     let renderedNewTypes :: Pretty
         renderedNewTypes =
@@ -1247,6 +1264,7 @@ notifyUser dir issueFn = \case
             "\n\n"
             [ P.linesNonEmpty
                 [ renderedNewAliases,
+                  renderedNewOpaques,
                   renderedNewTypes,
                   renderedUpdatedTypes,
                   renderedDeletedTypes
