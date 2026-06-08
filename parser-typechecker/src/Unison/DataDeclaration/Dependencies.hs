@@ -126,6 +126,7 @@ hashFieldAccessors ppe declName vars declRef dd = do
               },
           scopedAliases = mempty,
           bodyFnScope = mempty,
+          opaqueDeclarations = mempty,
           termsByShortname = mempty,
           freeNameToFuzzyTermsByShortName = Map.empty,
           topLevelComponents = Map.empty,

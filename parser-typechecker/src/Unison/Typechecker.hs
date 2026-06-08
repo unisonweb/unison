@@ -36,6 +36,7 @@ import Unison.Blank qualified as B
 import Unison.Builtin.Decls qualified as BuiltinDecls
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Name qualified as Name
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Reference (Reference)
@@ -94,6 +95,10 @@ data Env v loc = Env
     -- fn is being checked, the matching 'scopedAliases' entry becomes
     -- visible to 'Context.whnfAlias'.
     bodyFnScope :: Map v Reference,
+    -- | Opaque-type declarations visible to kind inference. Carries the
+    -- full RHS (not just the alias-form) so the kindchecker can derive
+    -- each opaque ref's kind. Keyed by the opaque type's 'Reference'.
+    opaqueDeclarations :: Map Reference (OpaqueDeclaration v loc),
     -- | TDNR environment - maps short names like `+` to fully-qualified
     -- lists of named references whose full name matches the short name
     -- Example: `+` maps to [Nat.+, Float.+, Int.+]
@@ -137,6 +142,7 @@ synthesize ppe pmccSwitch env t =
             env.typeLookup
             env.scopedAliases
             env.bodyFnScope
+            env.opaqueDeclarations
             (TypeVar.liftTerm t)
    in Result.hoist (pure . runIdentity) $ fmap TypeVar.lowerType result
 

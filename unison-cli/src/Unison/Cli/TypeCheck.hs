@@ -52,6 +52,7 @@ typecheckTerm codebase tm = do
             typeLookup,
             scopedAliases = Map.empty,
             bodyFnScope = Map.empty,
+            opaqueDeclarations = Map.empty,
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,

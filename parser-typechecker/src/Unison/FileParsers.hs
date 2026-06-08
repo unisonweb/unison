@@ -105,6 +105,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             typeLookup = tl,
             scopedAliases = opaqueScopedAliases uf,
             bodyFnScope = opaqueBodyFnScope uf,
+            opaqueDeclarations = opaqueDeclarationsForEnv uf,
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,
@@ -200,6 +201,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             typeLookup,
             scopedAliases = opaqueScopedAliases uf,
             bodyFnScope = opaqueBodyFnScope uf,
+            opaqueDeclarations = opaqueDeclarationsForEnv uf,
             termsByShortname,
             freeNameToFuzzyTermsByShortName,
             topLevelComponents = Map.empty,
@@ -237,6 +239,20 @@ opaqueBodyFnScope uf =
     [ (b.name, Reference.DerivedId r)
     | (_v, (r, od)) <- Map.toList uf.opaqueDeclarationsId,
       b <- OpaqueDeclaration.body od
+    ]
+
+-- | Opaque declarations from the unison file, keyed by their 'Reference'.
+-- These flow into kind inference so the kindchecker knows each opaque
+-- ref's kind. Body functions are not part of this map — they are checked
+-- as ordinary terms.
+opaqueDeclarationsForEnv ::
+  (Ord v) =>
+  UnisonFile v ->
+  Map Reference (OpaqueDeclaration.OpaqueDeclaration v Ann)
+opaqueDeclarationsForEnv uf =
+  Map.fromList
+    [ (Reference.DerivedId r, od)
+    | (_v, (r, od)) <- Map.toList uf.opaqueDeclarationsId
     ]
 
 -- | 'fuzzyFindByEditDistanceRanked' finds matches for the given 'name' within 'names' by edit distance.

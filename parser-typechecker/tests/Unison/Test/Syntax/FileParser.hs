@@ -87,7 +87,9 @@ test =
       opaqueBodyFnTypechecksUnderAliasTest,
       opaqueOutsideBodyIsRigidTest,
       opaqueBodyFnCallableFromOutsideTest,
-      opaqueOutsideBodyRejectsRhsAssignTest
+      opaqueOutsideBodyRejectsRhsAssignTest,
+      opaqueParameterizedKindInfersTest,
+      opaqueKindAppArityRejectedTest
     ]
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -339,6 +341,42 @@ opaqueOutsideBodyRejectsRhsAssignTest =
               "",
               "bad : Logarithm",
               "bad = 0.5"
+            ]
+    expectTypecheckFailure src
+
+-- | A parameterized opaque type used in a term signature kind-checks:
+-- 'Box' has kind '* -> *', so 'Box Nat -> Nat' is well-kinded. Without
+-- kind inference threading opaques, this fails because the kindchecker
+-- does not know 'Box's kind.
+opaqueParameterizedKindInfersTest :: Test ()
+opaqueParameterizedKindInfersTest =
+  scope "opaqueParameterizedKindInfersTest" $ do
+    let src =
+          unlines
+            [ "opaque type Box a = a where",
+              "  wrap x = x",
+              "",
+              "useBox : Box Nat -> Nat",
+              "useBox b = 0"
+            ]
+    _ <- typechecksOrCrash src
+    ok
+
+-- | Applying a kind-1 opaque to two type arguments must fail. 'Box' has
+-- kind '* -> *', so 'Box Nat Text' is ill-kinded. Today this surfaces as
+-- a typecheck failure (the kindchecker's arity mismatch propagates out);
+-- a friendlier error path would be nice but is not required for v1.
+-- TODO(opaque): consider a dedicated kind-error message for this case.
+opaqueKindAppArityRejectedTest :: Test ()
+opaqueKindAppArityRejectedTest =
+  scope "opaqueKindAppArityRejectedTest" $ do
+    let src =
+          unlines
+            [ "opaque type Box a = a where",
+              "  wrap x = x",
+              "",
+              "useBox : Box Nat Text -> Nat",
+              "useBox b = 0"
             ]
     expectTypecheckFailure src
 

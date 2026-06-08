@@ -233,6 +233,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
                             typeLookup,
                             scopedAliases = Map.empty,
                             bodyFnScope = Map.empty,
+                            opaqueDeclarations = Map.empty,
                             freeNameToFuzzyTermsByShortName = Map.empty,
                             topLevelComponents = Map.empty,
                             variances = Variance.fromTypeLookup typeLookup

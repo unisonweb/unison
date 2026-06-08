@@ -103,6 +103,7 @@ import Unison.Referent (Referent)
 import Unison.Syntax.TypePrinter qualified as TP
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker.Components (minimize')
 import Unison.Typechecker.Context.Structure hiding
@@ -3694,9 +3695,12 @@ synthesizeClosed ::
   -- | Body-fn var name → parent opaque-type Reference. Used by
   -- 'whnfAlias' to decide which scoped aliases are active.
   Map v Reference ->
+  -- | Opaque type declarations, keyed by their 'Reference'. Used by
+  -- kind inference to derive each opaque ref's kind from its RHS.
+  Map Reference (OpaqueDeclaration.OpaqueDeclaration v loc) ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosed ppe pmcSwitch vars abilities lookupType scopedAliases bodyFnScope term0 =
+synthesizeClosed ppe pmcSwitch vars abilities lookupType scopedAliases bodyFnScope opaques term0 =
   let datas = TL.dataDecls lookupType
       effects = TL.effectDecls lookupType
       aliasCtx =
@@ -3718,7 +3722,7 @@ synthesizeClosed ppe pmcSwitch vars abilities lookupType scopedAliases bodyFnSco
           -- opaque aliases uniformly: the kind equations are well-defined
           -- regardless of opaque scoping, and 'whnfAlias' is the only
           -- thing that needs scope.
-          doKindInference ppe datas effects (TL.typeAliases lookupType <> scopedAliases) term
+          doKindInference ppe datas effects (TL.typeAliases lookupType <> scopedAliases) opaques term
           synthesizeClosed' abilities term
 
 doKindInference ::
@@ -3731,9 +3735,10 @@ doKindInference ::
   DataDeclarations v loc ->
   Map Reference (EffectDeclaration v loc) ->
   Map Reference (TypeAlias.TypeAlias v loc) ->
+  Map Reference (OpaqueDeclaration.OpaqueDeclaration v loc) ->
   Term v loc ->
   MT v loc (Result v loc) ()
-doKindInference ppe datas effects aliases term = do
+doKindInference ppe datas effects aliases opaques term = do
   getPatternMatchCoverageCheckAndKindInferenceSwitch >>= \case
     PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled -> pure ()
     PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled -> do
@@ -3750,7 +3755,16 @@ doKindInference ppe datas effects aliases term = do
             st0 <- KindInference.inferAliases ppe (KindInference.initialState (KindInference.kindEnv ppe)) aliasesBefore
             st1 <- KindInference.inferDeclsFromState ppe st0 decls
             st2 <- KindInference.inferAliases ppe st1 aliasesAfter
-            KindInference.kindCheckAnnotations ppe st2 (TypeVar.lowerTerm term)
+            -- Opaques run last. They may reference file decls and
+            -- aliases in their RHS but for v1 are not referenced by
+            -- aliases/decls themselves. Inter-opaque references resolve
+            -- inside the single-batch call (FileParser's
+            -- 'OpaqueDeclaration.Expand.inDependencyOrder' guarantees no
+            -- cycles).
+            -- TODO(opaque): support decls/aliases referencing opaques
+            -- (reverse direction) via a symmetric two-phase split.
+            st3 <- KindInference.inferOpaques ppe st2 opaques
+            KindInference.kindCheckAnnotations ppe st3 (TypeVar.lowerTerm term)
       case kindInferRes of
         Left (ke Nel.:| _kes) -> failWith (KindInferenceFailure ke)
         Right () -> pure ()

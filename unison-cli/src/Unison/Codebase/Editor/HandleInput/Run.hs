@@ -185,6 +185,7 @@ synthesizeForce tl typeOfFunc = do
             typeLookup = mempty {TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc} <> tl,
             scopedAliases = Map.empty,
             bodyFnScope = Map.empty,
+            opaqueDeclarations = Map.empty,
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,
