@@ -444,10 +444,13 @@ declsToTypeLookup uf =
     (wrangle (dataDeclarations uf))
     (wrangle (effectDeclarations uf))
     (wrangleAliases (typeAliasesId uf))
+    (wrangleOpaques (opaqueDeclarationsId uf))
   where
     wrangle = Map.fromList . Map.elems
     wrangleAliases m =
       Map.fromList [(Reference.DerivedId r, ta) | (r, ta) <- Map.elems m]
+    wrangleOpaques m =
+      Map.fromList [(Reference.DerivedId r, od) | (r, od) <- Map.elems m]
 
 typecheckedToTypeLookup :: TypecheckedUnisonFile v a -> TL.TypeLookup v a
 typecheckedToTypeLookup tuf =
@@ -456,10 +459,13 @@ typecheckedToTypeLookup tuf =
     (wrangle (dataDeclarations' tuf))
     (wrangle (effectDeclarations' tuf))
     (wrangleAliases (typeAliasesId' tuf))
+    (wrangleOpaques (opaqueDeclarationsId' tuf))
   where
     wrangle = Map.fromList . Map.elems
     wrangleAliases m =
       Map.fromList [(Reference.DerivedId r, ta) | (r, ta) <- Map.elems m]
+    wrangleOpaques m =
+      Map.fromList [(Reference.DerivedId r, od) | (r, od) <- Map.elems m]
 
 -- NOTE: opaque-as-alias entries are intentionally NOT injected into
 -- 'TypeLookup.typeAliases' here. Opaque types act as aliases only

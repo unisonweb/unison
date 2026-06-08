@@ -9,6 +9,8 @@ import Unison.Prelude
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Type (Type)
 import Unison.TypeAlias (TypeAlias)
 import Unison.TypeAlias qualified as TypeAlias
@@ -19,7 +21,8 @@ data TypeLookup v a = TypeLookup
   { typeOfTerms :: Map TermReference (Type v a),
     dataDecls :: Map TypeReference (DataDeclaration v a),
     effectDecls :: Map TypeReference (EffectDeclaration v a),
-    typeAliases :: Map TypeReference (TypeAlias v a)
+    typeAliases :: Map TypeReference (TypeAlias v a),
+    opaqueDecls :: Map TypeReference (OpaqueDeclaration v a)
   }
   deriving (Show)
 
@@ -60,11 +63,11 @@ typeOfTerm' tl r = case Map.lookup r (typeOfTerms tl) of
   Just a -> Right a
 
 instance Semigroup (TypeLookup v a) where
-  TypeLookup a b c d <> TypeLookup a2 b2 c2 d2 =
-    TypeLookup (a <> a2) (b <> b2) (c <> c2) (d <> d2)
+  TypeLookup a b c d e <> TypeLookup a2 b2 c2 d2 e2 =
+    TypeLookup (a <> a2) (b <> b2) (c <> c2) (d <> d2) (e <> e2)
 
 instance Monoid (TypeLookup v a) where
-  mempty = TypeLookup mempty mempty mempty mempty
+  mempty = TypeLookup mempty mempty mempty mempty mempty
 
 -- TypeAlias.amap requires @Ord v@, so this is a named function rather
 -- than a Functor instance.
@@ -75,3 +78,4 @@ amap f tl =
     (fmap f <$> dataDecls tl)
     (fmap f <$> effectDecls tl)
     (TypeAlias.amap f <$> typeAliases tl)
+    (OpaqueDeclaration.amap f <$> opaqueDecls tl)

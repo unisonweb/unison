@@ -186,6 +186,7 @@ import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.OpaqueDeclaration (OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.TypeAlias (TypeAlias)
 import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
@@ -462,7 +463,7 @@ typeLookupForDependencies codebase s = do
     goTerm tl ref =
       getTypeOfTerm codebase ref >>= \case
         Just typ ->
-          let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty mempty
+          let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty mempty mempty
            in depthFirstAccumTypes z (Type.dependencies typ)
         Nothing -> pure tl
 
@@ -470,17 +471,22 @@ typeLookupForDependencies codebase s = do
     goType tl ref@(Reference.DerivedId id) =
       getTypeAlias codebase id >>= \case
         Just ta ->
-          let z = tl <> TypeLookup mempty mempty mempty (Map.singleton ref ta)
+          let z = tl <> TypeLookup mempty mempty mempty (Map.singleton ref ta) mempty
            in depthFirstAccumTypes z (Type.dependencies (TypeAlias.body ta))
         Nothing ->
-          getTypeDeclaration codebase id >>= \case
-            Just (Left ed) ->
-              let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed) mempty
-               in depthFirstAccumTypes z (DD.typeDependencies $ DD.toDataDecl ed)
-            Just (Right dd) ->
-              let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty mempty
-               in depthFirstAccumTypes z (DD.typeDependencies dd)
-            Nothing -> pure tl
+          getOpaqueDeclaration codebase id >>= \case
+            Just od ->
+              let z = tl <> TypeLookup mempty mempty mempty mempty (Map.singleton ref od)
+               in depthFirstAccumTypes z (OpaqueDeclaration.rhsDependencies od)
+            Nothing ->
+              getTypeDeclaration codebase id >>= \case
+                Just (Left ed) ->
+                  let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed) mempty mempty
+                   in depthFirstAccumTypes z (DD.typeDependencies $ DD.toDataDecl ed)
+                Just (Right dd) ->
+                  let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty mempty mempty
+                   in depthFirstAccumTypes z (DD.typeDependencies dd)
+                Nothing -> pure tl
     goType tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
     unseen tl r =
@@ -489,6 +495,7 @@ typeLookupForDependencies codebase s = do
             <|> Map.lookup r (TL.typeOfTerms tl) $> ()
             <|> Map.lookup r (TL.effectDecls tl) $> ()
             <|> Map.lookup r (TL.typeAliases tl) $> ()
+            <|> Map.lookup r (TL.opaqueDecls tl) $> ()
         )
 
 -- | Get the type of a term.
@@ -543,8 +550,20 @@ expectTypeOfReferent c r =
 componentReferencesForReference :: Reference -> Sqlite.Transaction (Set Reference)
 componentReferencesForReference = \case
   r@Reference.Builtin {} -> pure (Set.singleton r)
-  Reference.Derived h _i ->
-    Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength h
+  r@(Reference.Derived h _i) -> do
+    -- Type aliases and opaque declarations are stored as single-element
+    -- "components" but with a different on-disk format than term/decl
+    -- components. 'unsafeGetComponentLength' assumes the term/decl framed-array
+    -- layout, so calling it on a type-alias or opaque-decl object yields a
+    -- bogus length (and an enormous iteration). For these two object kinds,
+    -- just return the reference itself.
+    Operations.isTypeAliasReference (Cv.reference1to2 r) >>= \case
+      True -> pure (Set.singleton r)
+      False ->
+        Operations.isOpaqueDeclarationReference (Cv.reference1to2 r) >>= \case
+          True -> pure (Set.singleton r)
+          False ->
+            Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength h
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.

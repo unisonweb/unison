@@ -122,7 +122,8 @@ hashFieldAccessors ppe declName vars declRef dd = do
               { typeOfTerms = mempty,
                 dataDecls = Map.singleton declRef (void dd),
                 effectDecls = mempty,
-                typeAliases = mempty
+                typeAliases = mempty,
+                opaqueDecls = mempty
               },
           scopedAliases = mempty,
           bodyFnScope = mempty,

@@ -3710,6 +3710,11 @@ synthesizeClosed ppe pmcSwitch vars abilities lookupType scopedAliases bodyFnSco
             bodyFnScope = bodyFnScope
           }
       term = annotateRefs (TL.typeOfTerm' lookupType) term0
+      -- Opaque decls loaded from the codebase via 'TypeLookup' are unioned
+      -- with file-local opaques so kind inference can register their kinds
+      -- (and so terms referencing body fns of stored opaques can resolve
+      -- those opaque refs). File-local opaques win on key conflict.
+      allOpaques = opaques `Map.union` TL.opaqueDecls lookupType
    in case term of
         Left missingRef ->
           compilerCrashResult (UnknownTermReference missingRef)
@@ -3722,7 +3727,7 @@ synthesizeClosed ppe pmcSwitch vars abilities lookupType scopedAliases bodyFnSco
           -- opaque aliases uniformly: the kind equations are well-defined
           -- regardless of opaque scoping, and 'whnfAlias' is the only
           -- thing that needs scope.
-          doKindInference ppe datas effects (TL.typeAliases lookupType <> scopedAliases) opaques term
+          doKindInference ppe datas effects (TL.typeAliases lookupType <> scopedAliases) allOpaques term
           synthesizeClosed' abilities term
 
 doKindInference ::
