@@ -6,6 +6,7 @@
 
 module Unison.Runtime.Decompile
   ( decompile,
+    decompileTypedTerm,
     DecompResult,
     DecompError (..),
   )
@@ -16,10 +17,11 @@ import Data.Set (singleton)
 import Data.Text qualified as DT
 import Numeric.Natural (Natural)
 import Unison.ABT (substs)
+import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Prelude
-import Unison.Reference (Reference, pattern Builtin)
+import Unison.Reference (Reference, TypeReference, pattern Builtin)
 import Unison.Referent (pattern Ref)
 import Unison.Referent qualified as Referent
 import Unison.Runtime.ANF (maskTags)
@@ -56,10 +58,12 @@ import Unison.Term
     pattern LamNamed',
   )
 import Unison.Term qualified as Term
+import Unison.Type (Type)
 import Unison.Type
   ( anyRef,
     booleanRef,
   )
+import Unison.Type qualified as Type
 import Unison.Util.Bytes qualified as By
 import Unison.Util.Text qualified as Text
 import Unison.Var (Var)
@@ -135,6 +139,61 @@ tag2bool :: (Var v) => Word64 -> DecompResult v
 tag2bool 0 = pure (boolean () False)
 tag2bool 1 = pure (boolean () True)
 tag2bool n = err (BadBool n) $ con booleanRef n
+
+-- | Phase 9b skeleton: a parallel, type-aware decompile pass that operates on
+-- an already-decompiled 'Term' (the untyped 'decompile' output) plus its
+-- statically-known type. When the outer type is a registered opaque @T@, this
+-- function rewrites the term to be the @reify@-rendered form: build
+-- @T.reify <term>@, evaluate it via the provided evaluator handle, strip the
+-- outer @'(...)@ thunk wrapper, and return the body. Otherwise it returns the
+-- term unchanged.
+--
+-- The reify lookup answers \"for the given opaque-type reference @T@, what
+-- 'Term' should I apply to the value to obtain the thunk?\" — typically this
+-- is @'Term.ref' 'TypeReference' Logarithm.reify@ but the lookup keeps that
+-- concern out of this module.
+--
+-- TODO(opaque) Phase 9c: walk @t@ alongside the term recursively for
+-- container element types, data-constructor field types, and closure
+-- captures so e.g. @Set Logarithm@ renders its members through
+-- 'Logarithm.reify'.
+decompileTypedTerm ::
+  forall m v.
+  (Monad m, Var v) =>
+  -- | Evaluate a closed Term and return its decompiled result.
+  (Term v () -> m (Maybe (Term v ()))) ->
+  -- | Reify-fn lookup: given an opaque-type reference, return the body fn
+  -- term-reference if it has a registered @reify@.
+  (TypeReference -> Maybe (Term v ())) ->
+  Type v () ->
+  Term v () ->
+  m (Term v ())
+decompileTypedTerm evalT reifyOf ty tm =
+  case opaqueHead ty of
+    Just opaqueRef
+      | Just reifyTm <- reifyOf opaqueRef -> do
+          -- 'T.reify <tm>' produces a thunk; force it by ignoring nothing
+          -- (we return the underlying lambda body below).
+          let applied = Term.app () reifyTm tm
+          evalT applied >>= \case
+            Just rendered -> pure (stripDelay rendered)
+            Nothing -> pure tm
+    _ -> pure tm
+  where
+    -- Extract the opaque-type reference at the head of a type, looking
+    -- past type applications (so @T α β@ reports @T@). We accept either a
+    -- bare 'Type.Ref'' or any chain of 'Type.App''s ending in one.
+    opaqueHead :: Type v () -> Maybe TypeReference
+    opaqueHead t = case ABT.out t of
+      ABT.Tm (Type.Ref r) -> Just r
+      ABT.Tm (Type.App f _) -> opaqueHead f
+      _ -> Nothing
+
+    -- Strip the outer @() -> body@ produced by decompiling a thunk.
+    stripDelay :: Term v () -> Term v ()
+    stripDelay t = case t of
+      LamNamed' _v body -> body
+      _ -> t
 
 substitute :: (Var v) => Term v () -> [Term v ()] -> Term v ()
 substitute = align []

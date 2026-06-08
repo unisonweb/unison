@@ -162,6 +162,20 @@ definitionLocation v uf =
     <|> watches uf ^? folded . folded . filteredBy (_1 . only v) . _2
     <|> dataDeclarations uf ^? ix v . _2 . to DD.annotation
     <|> effectDeclarations uf ^? ix v . _2 . to (DD.annotation . DD.toDataDecl)
+    <|> opaqueBodyDefinitionLocation v uf
+
+-- | Lookup the binding-location of an opaque-decl body fn by its
+-- fully-qualified var name (e.g. @Logarithm.reify@). Body fns are folded
+-- into the file's term components by 'opaqueBodyTermBindings' for
+-- typechecking, so 'synthesizeFile' may end up looking them up here.
+opaqueBodyDefinitionLocation :: (Eq v) => v -> UnisonFile v a -> Maybe a
+opaqueBodyDefinitionLocation v uf =
+  listToMaybe
+    [ b.nameAnn
+    | (_v, (_ref, od)) <- Map.toList uf.opaqueDeclarationsId,
+      b <- OpaqueDeclaration.body od,
+      b.name == v
+    ]
 
 -- | Converts a file to a single let rec with a body of `()`, for
 -- purposes of typechecking.

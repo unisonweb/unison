@@ -11,20 +11,26 @@
 -- * 'expectedReifyType' — build the canonical type for an opaque decl.
 -- * 'validateOpaqueReifySignatures' — scan a typechecked file's opaque decls
 --   for body fns named @reify@ and verify their inferred types match.
+-- * 'reifyLookupForFile' — build a map @TypeReference -> 'Term'@ that the
+--   runtime layer's 'Unison.Runtime.Decompile.decompileTypedTerm' uses to
+--   render values of opaque type through their registered @reify@ fn.
 module Unison.UnisonFile.OpaqueReify
   ( expectedReifyType,
     validateOpaqueReifySignatures,
+    reifyLookupForFile,
   )
 where
 
 import Data.Map qualified as Map
 import Unison.Builtin.Decls qualified as DD
 import Unison.Name qualified as Name
-import Unison.Syntax.Name qualified as Name (toVar, unsafeParseVar)
+import Unison.Syntax.Name qualified as Name (toVar, unsafeParseText, unsafeParseVar)
 import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
-import Unison.Reference (TypeReferenceId)
+import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
+import Unison.Term (Term)
+import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
@@ -104,3 +110,38 @@ validateOpaqueReifySignatures
           Name.joinDot
             (Name.unsafeParseVar parent)
             (Name.unsafeParseVar child)
+
+-- | Build a 'TypeReference -> Maybe (Term)' lookup for the runtime decompile
+-- pipeline. The keys are opaque-type references declared in the file; the
+-- values are @Term.ref T.reify@ for any opaque @T@ with a registered
+-- @reify@ body fn (signature already validated by
+-- 'validateOpaqueReifySignatures').
+--
+-- TODO(opaque) Phase 7: extend this to also consult the codebase membership
+-- table, so opaque types loaded from the codebase (rather than the current
+-- file) can render through their stored reify fns.
+reifyLookupForFile ::
+  forall v a.
+  (Var v, Monoid a) =>
+  TypecheckedUnisonFile v a ->
+  TypeReference ->
+  Maybe (Term v ())
+reifyLookupForFile
+  TypecheckedUnisonFileId
+    { opaqueDeclarationsId',
+      hashTermsId
+    } =
+    \tref -> Map.lookup tref bodyRefMap
+    where
+      bodyRefMap :: Map.Map TypeReference (Term v ())
+      bodyRefMap =
+        Map.fromList
+          [ (Reference.DerivedId refId, Term.refId () bodyRefId)
+          | (opaqueName, (refId, _od)) <- Map.toList opaqueDeclarationsId',
+            let reifyFqn =
+                  Name.toVar $
+                    Name.joinDot
+                      (Name.unsafeParseVar opaqueName)
+                      (Name.unsafeParseText "reify"),
+            Just (_, bodyRefId, _wk, _tm, _tp) <- [Map.lookup reifyFqn hashTermsId]
+          ]
