@@ -85,7 +85,9 @@ test =
       opaqueDeclSelfReferenceCycleTest,
       opaqueDeclCrossCycleTest,
       opaqueBodyFnTypechecksUnderAliasTest,
-      opaqueOutsideBodyIsRigidTest
+      opaqueOutsideBodyIsRigidTest,
+      opaqueBodyFnCallableFromOutsideTest,
+      opaqueOutsideBodyRejectsRhsAssignTest
     ]
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -290,17 +292,9 @@ opaqueBodyFnTypechecksUnderAliasTest =
 -- | Outside an opaque type's body, the type is rigid: a top-level term
 -- 'f : Logarithm -> Float; f x = x' should fail because @Logarithm ≢ Float@
 -- when the alias rule is not active.
---
--- TODO(opaque): the v1 alias rule is permissive — opaque types act as
--- aliases throughout the whole file, not just inside their body fns. So
--- this assertion fails (the term unexpectedly typechecks), and we wrap
--- it in 'pending' so the test suite stays green while flagging the
--- encapsulation gap. Slice 2 (strict per-binding scoping) will flip
--- this back to expecting a typecheck failure, and 'pending' will then
--- complain that it should not pass — alerting us to remove the wrapper.
 opaqueOutsideBodyIsRigidTest :: Test ()
 opaqueOutsideBodyIsRigidTest =
-  scope "opaqueOutsideBodyIsRigidTest" $ pending $ do
+  scope "opaqueOutsideBodyIsRigidTest" $ do
     let src =
           unlines
             [ "opaque type Logarithm = Float where",
@@ -308,6 +302,43 @@ opaqueOutsideBodyIsRigidTest =
               "",
               "f : Logarithm -> Float",
               "f x = x"
+            ]
+    expectTypecheckFailure src
+
+-- | Body fns of an opaque type are callable from outside the body —
+-- the opaque rule scopes only its body fns' /bodies/, not the act of
+-- referencing them. So @useLog : Float -> Logarithm; useLog x =
+-- Logarithm.fromFloat x@ typechecks: 'Logarithm.fromFloat' has the
+-- signature @Float -> Logarithm@, and we're calling it with a 'Float'.
+opaqueBodyFnCallableFromOutsideTest :: Test ()
+opaqueBodyFnCallableFromOutsideTest =
+  scope "opaqueBodyFnCallableFromOutsideTest" $ do
+    let src =
+          unlines
+            [ "opaque type Logarithm = Float where",
+              "  fromFloat : Float -> Logarithm",
+              "  fromFloat x = Float.log x",
+              "",
+              "useLog : Float -> Logarithm",
+              "useLog x = Logarithm.fromFloat x"
+            ]
+    _ <- typechecksOrCrash src
+    ok
+
+-- | Mirror image of 'opaqueOutsideBodyIsRigidTest': a top-level term
+-- that attempts to assign a 'Float' literal to a 'Logarithm' must
+-- fail, because outside the body @Logarithm ≢ Float@.
+opaqueOutsideBodyRejectsRhsAssignTest :: Test ()
+opaqueOutsideBodyRejectsRhsAssignTest =
+  scope "opaqueOutsideBodyRejectsRhsAssignTest" $ do
+    let src =
+          unlines
+            [ "opaque type Logarithm = Float where",
+              "  fromFloat : Float -> Logarithm",
+              "  fromFloat x = Float.log x",
+              "",
+              "bad : Logarithm",
+              "bad = 0.5"
             ]
     expectTypecheckFailure src
 
