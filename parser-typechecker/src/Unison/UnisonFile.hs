@@ -429,7 +429,7 @@ declsToTypeLookup uf =
     mempty
     (wrangle (dataDeclarations uf))
     (wrangle (effectDeclarations uf))
-    (wrangleAliases (typeAliasesId uf) <> opaqueAliases (opaqueDeclarationsId uf))
+    (wrangleAliases (typeAliasesId uf))
   where
     wrangle = Map.fromList . Map.elems
     wrangleAliases m =
@@ -441,36 +441,19 @@ typecheckedToTypeLookup tuf =
     mempty
     (wrangle (dataDeclarations' tuf))
     (wrangle (effectDeclarations' tuf))
-    (wrangleAliases (typeAliasesId' tuf) <> opaqueAliases (opaqueDeclarationsId' tuf))
+    (wrangleAliases (typeAliasesId' tuf))
   where
     wrangle = Map.fromList . Map.elems
     wrangleAliases m =
       Map.fromList [(Reference.DerivedId r, ta) | (r, ta) <- Map.elems m]
 
--- | Build synthetic TypeAlias entries for each opaque decl, so the
--- typechecker treats opaque types as expandable while elaborating the
--- file's terms (including the opaque-decl body fns themselves).
---
--- TODO(opaque): this is the permissive v1 — opaque types become alias-like
--- throughout the *whole file*, not just inside each opaque-block's body
--- functions. The strict scoping rule (so only body fns of T see
--- @T ≡ rhs[T]@, and the rest of the file sees T as rigid) is slice 2.
--- The encapsulation breach stays contained to the file declaring the
--- opaque type because downstream codebase consumers don't get these
--- synthetic entries in their TypeLookup.
-opaqueAliases ::
-  Map v (TypeReferenceId, OpaqueDeclaration v a) ->
-  Map TypeReference (TypeAlias v a)
-opaqueAliases m =
-  Map.fromList
-    [ ( Reference.DerivedId r,
-        TypeAlias.TypeAlias
-          { TypeAlias.paramNames = OpaqueDeclaration.paramNames od,
-            TypeAlias.body = OpaqueDeclaration.rhs od
-          }
-      )
-    | (r, od) <- Map.elems m
-    ]
+-- NOTE: opaque-as-alias entries are intentionally NOT injected into
+-- 'TypeLookup.typeAliases' here. Opaque types act as aliases only
+-- inside their own body fns; that scoping is handled in
+-- 'Unison.FileParsers.opaqueScopedAliases' /
+-- 'Unison.FileParsers.opaqueBodyFnScope', which feed the
+-- 'Unison.Typechecker.Env.scopedAliases' / 'bodyFnScope' fields
+-- consumed by 'Unison.Typechecker.Context.whnfAlias'.
 
 -- Returns true if the file has any definitions or watches
 nonEmpty :: TypecheckedUnisonFile v a -> Bool
