@@ -49,6 +49,7 @@ import Unison.Typechecker.Variance qualified as Variance
 import Unison.UnisonFile (definitionLocation)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.UnisonFile.OpaqueReify qualified as OpaqueReify
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List qualified as List
 import Unison.Util.Map qualified as Map (upsert)
@@ -376,14 +377,22 @@ synthesizeFile env0 uf = do
            in case Foldable.find hasE (Map.keys $ UF.watches uf) of
                 Nothing -> error "wat"
                 Just kind -> (kind, tlc)
-    pure $
-      UF.typecheckedUnisonFile
-        (UF.dataDeclarationsId uf)
-        (UF.effectDeclarationsId uf)
-        (UF.typeAliasesId uf)
-        (UF.opaqueDeclarationsId uf)
-        terms'
-        (map tlcKind watches')
+    let tuf =
+          UF.typecheckedUnisonFile
+            (UF.dataDeclarationsId uf)
+            (UF.effectDeclarationsId uf)
+            (UF.typeAliasesId uf)
+            (UF.opaqueDeclarationsId uf)
+            terms'
+            (map tlcKind watches')
+    -- Phase 9a: validate any opaque-decl 'reify' body fn against its
+    -- canonical signature shape. Surface each mismatch as a separate note
+    -- and fail the synthesis if any were found.
+    case OpaqueReify.validateOpaqueReifySignatures tuf of
+      [] -> pure tuf
+      mismatches -> do
+        Result.tellAndFailMany
+          (Seq.fromList [Result.OpaqueReifyBadSignature v loc found expected | (v, loc, found, expected) <- mismatches])
   where
     applyTdnrDecisions ::
       [Context.InfoNote v Ann] ->

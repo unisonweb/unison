@@ -10,6 +10,7 @@ import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
+import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 
 type Result notes = ResultT notes Identity
@@ -23,6 +24,12 @@ data Note v loc
   | TypeError (Context.ErrorNote v loc)
   | TypeInfo (Context.InfoNote v loc)
   | CompilerBug (CompilerBug v loc)
+  | -- | The @reify@ body item of an opaque type was found, but its inferred
+    -- type does not match the expected shape
+    -- @forall a*. T a* ->{} '(T a*)@. Carries the fully-qualified body-fn
+    -- name (e.g. @Logarithm.reify@), the binding's location, the type as
+    -- inferred, and the expected canonical shape.
+    OpaqueReifyBadSignature v loc (Type v loc) (Type v loc)
   deriving (Show)
 
 data CompilerBug v loc
@@ -77,6 +84,9 @@ fromParsing (Right a) = pure a
 
 tellAndFail :: (Monad f) => note -> ResultT (Seq note) f a
 tellAndFail note = tell1 note *> Fail.fail "Elegantly and responsibly"
+
+tellAndFailMany :: (Monad f) => Seq note -> ResultT (Seq note) f a
+tellAndFailMany notes = tell notes *> Fail.fail "Elegantly and responsibly"
 
 compilerBug :: (Monad f) => CompilerBug v loc -> ResultT (Seq (Note v loc)) f a
 compilerBug = tellAndFail . CompilerBug

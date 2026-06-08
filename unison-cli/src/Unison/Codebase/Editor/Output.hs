@@ -288,6 +288,10 @@ data Output
   | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
   | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
+  | -- | An opaque type's @reify@ body fn was found, but its inferred type
+    -- didn't match the canonical @T a* ->{} '(T a*)@ shape. Each tuple is
+    -- (fully-qualified body-fn name, location, inferred type, expected type).
+    OpaqueReifyBadSignatures Path.Absolute Text PPE.PrettyPrintEnv [(Symbol, Ann, Type Symbol Ann, Type Symbol Ann)]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure
       -- | A function to apply to the `Error` after serializing it, allowing more context to be added.
@@ -580,6 +584,7 @@ outputShouldUsePager o = case o of
   LoadingFile {} -> False
   Typechecked {} -> False
   TypeErrors {} -> False
+  OpaqueReifyBadSignatures {} -> False
   Evaluated {} -> False
   EvaluationFailure {} -> False
   _ -> True
@@ -648,6 +653,7 @@ isFailure o = case o of
   ParseErrors {} -> True
   TypeWarns {} -> False
   TypeErrors {} -> True
+  OpaqueReifyBadSignatures {} -> True
   CompilerBugs {} -> True
   DisplayConflicts {} -> False
   EvaluationFailure {} -> True

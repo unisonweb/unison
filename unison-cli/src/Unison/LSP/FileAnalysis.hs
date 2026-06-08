@@ -398,6 +398,8 @@ analyseNotes codebase fileUri ppe src notes = do
                 Context.IllegalContextExtension _con _el _s -> todoAnnotation
                 Context.OtherBug _s -> todoAnnotation
         pure (noteDiagnostic note ranges, [])
+      Result.OpaqueReifyBadSignature _v loc _found _expected ->
+        pure (noteDiagnostic note (singleRange loc), [])
 
     leafNodeRanges label mismatchSite = do
       let locs = ABT.annotation <$> expressionLeafNodes mismatchSite

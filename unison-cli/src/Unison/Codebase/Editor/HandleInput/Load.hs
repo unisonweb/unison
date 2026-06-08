@@ -459,10 +459,17 @@ parseAndTypecheckUnisonFile names sourceName text = do
           | Result.CompilerBug (Result.TypecheckerBug bug) <-
               toList notes
           ]
+        opaqueReifyMismatches =
+          [ (v, loc, found, expected)
+          | Result.OpaqueReifyBadSignature v loc found expected <- toList notes
+          ]
 
     when (not (null tes)) do
       currentPath <- Cli.getCurrentPath
       Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
+    when (not (null opaqueReifyMismatches)) do
+      currentPath <- Cli.getCurrentPath
+      Cli.respond (Output.OpaqueReifyBadSignatures currentPath text suffixifiedPPE opaqueReifyMismatches)
     when (not (null cbs)) do
       Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
     Cli.returnEarlyWithoutOutput
