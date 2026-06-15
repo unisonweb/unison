@@ -16,7 +16,7 @@ bar k = k (x -> x)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + bar : (∀ r. (a -> r) ->{g} r) ->{g} a
+  + bar : (∀ r. (a -> r) -> r) -> a
   + foo : a -> a
 
   Run `update` to apply these changes to your codebase.

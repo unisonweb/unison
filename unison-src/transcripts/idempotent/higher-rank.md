@@ -20,7 +20,7 @@ f id = (id 1, id "hi")
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + f : (∀ a. a ->{g} a) ->{g} (Nat, Text)
+  + f : (∀ a. a -> a) -> (Nat, Text)
 
   Run `update` to apply these changes to your codebase.
 
@@ -41,7 +41,7 @@ f id _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + f : (∀ a g. '{g} a ->{h} '{g} a) -> '{h} ()
+  + f : (∀ a g. '{g} a -> '{g} a) -> '()
 
   Run `update` to apply these changes to your codebase.
 ```

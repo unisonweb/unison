@@ -61,7 +61,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"     Branch   Remote branch\\n1.   main     \"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"     Branch   Remote branch\\n1.   main     \"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 1.75 ms (cpu), 2.16 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -98,7 +98,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Loading changes detected in <mcp-virtual-source>.\",\"No changes found.\",\"  1 | > x = 1 + 2\\n        â§©\\n        3\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Loading changes detected in <mcp-virtual-source>.\",\"No changes found.\",\"  1 | > x = 1 + 2\\n        â§©\\n        3\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"evaluating watches: 5.91 ms (cpu), 6.17 ms (system)\\nUnisonFileChanged: 30.7 ms (cpu), 31.7 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -135,7 +135,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"This is a scratch project for testing tools in MCP.\\n\\n\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"This is a scratch project for testing tools in MCP.\\n\\n\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 27.4 ms (cpu), 29.5 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -174,7 +174,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Some \\\"hello\\\"\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"hello\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Some \\\"hello\\\"\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"helloInputPattern: 24.4 ms (cpu), 25.8 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -211,7 +211,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"content\":[{\"text\":\"{\\\"errorMessages\\\":[],\\\"outputMessages\\\":[\\\"1. main : '{IO, Exception} Optional Text\\\\n2. myFailingTest : [Result]\\\\n3. myPassingTest : [Result]\\\\n4. myTerm : Nat\\\\n5. type MyType\\\\n6. MyType.MyConstructor : MyType\\\\n7. README : Doc2\\\\n\\\"],\\\"sourceCodeUpdates\\\":[],\\\"stderr\\\":\\\"\\\",\\\"stdout\\\":\\\"\\\"}\",\"type\":\"text\"}],\"isError\":false}",
+                  "text": "{\"content\":[{\"text\":\"{\\\"errorMessages\\\":[],\\\"outputMessages\\\":[\\\"1. main : '{IO, Exception} Optional Text\\\\n2. myFailingTest : [Result]\\\\n3. myPassingTest : [Result]\\\\n4. myTerm : Nat\\\\n5. type MyType\\\\n6. MyType.MyConstructor : MyType\\\\n7. README : Doc2\\\\n\\\"],\\\"sourceCodeUpdates\\\":[],\\\"stderr\\\":\\\"\\\",\\\"stdout\\\":\\\"InputPattern: 5.21 ms (cpu), 5.94 ms (system)\\\\n\\\"}\",\"type\":\"text\"}],\"isError\":false}",
                   "type": "text"
               }
           ],
@@ -248,7 +248,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. builtins. (944 terms, 136 types)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. builtins. (1011 terms, 150 types)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 5.88 ms (cpu), 6.46 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -282,7 +282,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"     Branch   Remote branch\\n1.   main     \"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"     Branch   Remote branch\\n1.   main     \"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 1.94 ms (cpu), 2.35 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -319,7 +319,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"type MyType = MyConstructor\\n\\nmyTerm : Nat\\nmyTerm = 99\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"type MyType = MyConstructor\\n\\nmyTerm : Nat\\nmyTerm = 99\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 7.61 ms (cpu), 8.16 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -356,7 +356,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. myFailingTest : [Result]\\n2. myPassingTest : [Result]\\n3. myTerm : Nat\\n4. type MyType\\n5. MyType.MyConstructor : MyType\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. myFailingTest : [Result]\\n2. myPassingTest : [Result]\\n3. myTerm : Nat\\n4. type MyType\\n5. MyType.MyConstructor : MyType\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 5.07 ms (cpu), 5.96 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -393,7 +393,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. myTerm : Nat\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. myTerm : Nat\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 7.94 ms (cpu), 8.73 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -462,7 +462,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Cached test results (`help testcache` to learn more)\\n\\n  1. myPassingTest   â passing\\n\\n  2. myFailingTest   â failing\\n\\nð« 1 test(s) failing, â 1 test(s) passing\\n\\nTip: Use view 1 to view the source of a test.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Cached test results (`help testcache` to learn more)\\n\\n  1. myPassingTest   â passing\\n\\n  2. myFailingTest   â failing\\n\\nð« 1 test(s) failing, â 1 test(s) passing\\n\\nTip: Use view 1 to view the source of a test.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 6.14 ms (cpu), 6.83 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -505,7 +505,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Loading changes detected in <mcp-virtual-source>.\",\"+ myTerm : Nat\\n\\nRun `update` to apply these changes to your codebase.\",\"Done.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Loading changes detected in <mcp-virtual-source>.\",\"+ myTerm : Nat\\n\\nRun `update` to apply these changes to your codebase.\",\"Done.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"UnisonFileChanged: 18.2 ms (cpu), 19.1 ms (system)\\nupdateProjectBranchRoot: 3.61 ms (cpu), 3.85 ms (system)\\nInputPattern: 9.62 ms (cpu), 10.1 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -565,7 +565,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Renamed:\\n\\n  termToRename -> renamedTerm\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Renamed:\\n\\n  termToRename -> renamedTerm\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"updateProjectBranchRoot: 3.65 ms (cpu), 3.85 ms (system)\\nInputPattern: 15.5 ms (cpu), 16.5 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -627,7 +627,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"updateProjectBranchRoot: 3.64 ms (cpu), 3.87 ms (system)\\nInputPattern: 16.3 ms (cpu), 18.1 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -690,7 +690,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Moved:\\n\\n  source.termA -> dest.termA\\n  source.termB -> dest.termB\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Moved:\\n\\n  source.termA -> dest.termA\\n  source.termB -> dest.termB\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"updateProjectBranchRoot: 3.63 ms (cpu), 3.86 ms (system)\\nInputPattern: 27.5 ms (cpu), 30.6 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -752,7 +752,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"I deleted these terms:\\n\\n  1. termToDelete\\n\\nTip: You can use `undo` or use a hash from `reflog` to undo this change.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"I deleted these terms:\\n\\n  1. termToDelete\\n\\nTip: You can use `undo` or use a hash from `reflog` to undo this change.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"updateProjectBranchRoot: 3.29 ms (cpu), 3.49 ms (system)\\nInputPattern: 8.94 ms (cpu), 9.67 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -815,7 +815,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"updateProjectBranchRoot: 3.29 ms (cpu), 3.52 ms (system)\\nInputPattern: 11.5 ms (cpu), 13.2 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -878,7 +878,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"entries\":[{\"branch\":\"reflog-test\",\"fromHash\":\"#bkqqb4f3c3\",\"project\":\"scratch\",\"reason\":\"update\",\"toHash\":\"#qim3pjrq57\"},{\"branch\":\"reflog-test\",\"fromHash\":\"#sg60bvjo91\",\"project\":\"scratch\",\"reason\":\"builtins.merge scratch/reflog-test:lib.builtins\",\"toHash\":\"#bkqqb4f3c3\"},{\"branch\":\"reflog-test\",\"fromHash\":null,\"project\":\"scratch\",\"reason\":\"Branch Created\",\"toHash\":\"#sg60bvjo91\"}],\"hasMore\":false}",
+                  "text": "{\"entries\":[{\"branch\":\"reflog-test\",\"fromHash\":\"#brb3t2a1p7\",\"project\":\"scratch\",\"reason\":\"update\",\"toHash\":\"#scvjkp58fd\"},{\"branch\":\"reflog-test\",\"fromHash\":\"#sg60bvjo91\",\"project\":\"scratch\",\"reason\":\"builtins.merge scratch/reflog-test:lib.builtins\",\"toHash\":\"#brb3t2a1p7\"},{\"branch\":\"reflog-test\",\"fromHash\":null,\"project\":\"scratch\",\"reason\":\"Branch Created\",\"toHash\":\"#sg60bvjo91\"}],\"hasMore\":false}",
                   "type": "text"
               }
           ],
@@ -916,7 +916,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Note: The most recent namespace hash is immediately below this message.\\n\\nâ 1. #qim3pjrq57\\n\\n  + Adds / updates:\\n  \\n    reflogTestTerm\\n\\nâ¡ 2. #bkqqb4f3c3 (start of history)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Note: The most recent namespace hash is immediately below this message.\\n\\nâ 1. #scvjkp58fd\\n\\n  + Adds / updates:\\n  \\n    reflogTestTerm\\n\\nâ¡ 2. #brb3t2a1p7 (start of history)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 5.44 ms (cpu), 6.01 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -954,7 +954,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done. I've created the from-current branch based off of reflog-test.\\n\\nTip: To merge your work back into the reflog-test branch, first `switch /reflog-test` then `merge /from-current`.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done. I've created the from-current branch based off of reflog-test.\\n\\nTip: To merge your work back into the reflog-test branch, first `switch /reflog-test` then `merge /from-current`.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 5.94 ms (cpu), 6.84 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
@@ -990,7 +990,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done. I've created an empty branch scratch/empty-branch.\\n\\nTip: Use `merge /somebranch` to initialize this branch.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done. I've created an empty branch scratch/empty-branch.\\n\\nTip: Use `merge /somebranch` to initialize this branch.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"InputPattern: 4.81 ms (cpu), 7.72 ms (system)\\n\"}",
                   "type": "text"
               }
           ],
