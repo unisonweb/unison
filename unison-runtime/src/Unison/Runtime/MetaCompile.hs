@@ -37,6 +37,7 @@ import Unison.Typechecker (Env (..))
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.GivenResolver qualified as GR
+import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Hash qualified as Hash
@@ -317,21 +318,27 @@ shapeError expected _v =
 -- ---------------------------------------------------------------
 
 -- | Run Unison's typechecker on a source-level term using only the
--- builtin type environment. Returns either an explanation of the
--- typecheck failure or the inferred 'Type'.
+-- builtin type environment plus the caller-supplied 'TypeLookup'.
+-- Returns either an explanation of the typecheck failure or the
+-- inferred 'Type'.
 --
--- For the MVP we set up a minimal 'Env' — no TDNR, no ambient
--- abilities, no namespace givens — sufficient to typecheck closed
--- terms whose only free 'Ref's resolve via 'Builtin.typeLookup'.
--- Derived term references (user code) will fail at the typecheck
--- step until we plumb a richer lookup through.
-typecheckTerm :: Term Symbol () -> Either Text (Type Symbol ())
-typecheckTerm tm =
+-- The caller is responsible for assembling a 'TypeLookup' covering
+-- the transitive type/decl dependencies of @tm@ — see
+-- 'Unison.Runtime.Interface.typeLookupForMetaTerm' for the canonical
+-- IO-side dep walk over a 'CodeLookup'. Builtins are always merged
+-- in; pass 'mempty' if the term only references builtins.
+--
+-- The MVP 'Env' still has no TDNR, no ambient abilities, and no
+-- namespace givens — sufficient for typechecking fully-elaborated
+-- terms that came back through 'Meta.decompile' or were constructed
+-- programmatically.
+typecheckTerm :: TL.TypeLookup Symbol () -> Term Symbol () -> Either Text (Type Symbol ())
+typecheckTerm extraTL tm =
   let env :: Env Symbol ()
       env =
         Env
           { ambientAbilities = [],
-            typeLookup = () <$ Builtin.typeLookup,
+            typeLookup = extraTL <> (() <$ Builtin.typeLookup),
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,
@@ -350,5 +357,8 @@ typecheckTerm tm =
 -- | Combined entry point used by the @MTYC@ primop: decode the
 -- runtime 'Val', then run 'typecheckTerm' on the result. Returns
 -- the inferred 'Type' on success, or an explanation otherwise.
-typecheckVal :: Val -> Either Text (Type Symbol ())
-typecheckVal v = compileTerm v >>= typecheckTerm
+--
+-- The 'TypeLookup' argument extends 'Builtin.typeLookup' with any
+-- codebase-resident dependencies the term may reference.
+typecheckVal :: TL.TypeLookup Symbol () -> Val -> Either Text (Type Symbol ())
+typecheckVal extraTL v = compileTerm v >>= typecheckTerm extraTL
