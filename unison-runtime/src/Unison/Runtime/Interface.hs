@@ -920,20 +920,40 @@ evalInContext ppe cl ctx prof activeThreads w = do
               let linkVal =
                     BoxedVal (Foreign (WrapReferent (RF.Ref mainRef)))
               pure (metaRightPair (MetaDecomp.typeTermVal ty) linkVal)
+      -- Decode a Link.Term Val into a Referent, look up the term's
+      -- source via the runtime's CodeLookup, and return
+      -- Optional (meta.Term meta.TermF). Builtin references and
+      -- constructor referents return None — neither has a source
+      -- term to hand back.
+      metaLoadF :: Val -> IO Val
+      metaLoadF = \case
+        BoxedVal (Foreign (WrapReferent (RF.Ref r))) ->
+          -- The Referent embedded in a Link.Term at runtime may be an
+          -- intermediate (rehashed) reference produced by
+          -- prepareEvaluation. Backmap through the EvalCtx's float +
+          -- intermediate remaps to recover the codebase Reference.Id
+          -- before consulting the CodeLookup.
+          case backmapRef ctx r of
+            RF.DerivedId i ->
+              getTerm cl i >>= \case
+                Nothing -> pure metaNone
+                Just tm -> pure (metaSome (MetaDecomp.convertTerm tm))
+            RF.Builtin _ -> pure metaNone
+        _ -> pure metaNone
 
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
       maybe
         ( apply0
             (Just hook)
-            (ccache ctx) {tracer = debugText, metaDecompile = metaDecom, metaTypecheck = metaTC}
+            (ccache ctx) {tracer = debugText, metaDecompile = metaDecom, metaTypecheck = metaTC, metaLoad = metaLoadF}
             activeThreads
             w
         )
         ( \pc ->
             apply0
               (Just hook)
-              (ccache ctx) {tracer = debugText, metaDecompile = metaDecom, metaTypecheck = metaTC, profiler = pc}
+              (ccache ctx) {tracer = debugText, metaDecompile = metaDecom, metaTypecheck = metaTC, metaLoad = metaLoadF, profiler = pc}
               activeThreads
               w
         )
@@ -953,6 +973,14 @@ metaRightPair a b =
       inner = BoxedVal (Data2 RF.pairRef TT.pairTag b unitVal)
       pair = BoxedVal (Data2 RF.pairRef TT.pairTag a inner)
    in BoxedVal (Data1 RF.eitherRef TT.rightTag pair)
+
+-- | @None@ as a runtime @Optional x@ closure.
+metaNone :: Val
+metaNone = BoxedVal (Enum RF.optionalRef TT.noneTag)
+
+-- | @Some x@ as a runtime @Optional x@ closure.
+metaSome :: Val -> Val
+metaSome v = BoxedVal (Data1 RF.optionalRef TT.someTag v)
 
 executeMainComb ::
   CombIx ->
@@ -1086,7 +1114,7 @@ debugTextFormat fancy =
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText metaDecom metaTCStub ()
+    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -1129,6 +1157,9 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
     metaDecom val = pure $ MetaDecomp.convertTerm . snd $ decom val
     metaTCStub _val =
       pure (metaLeftText "Meta.typecheck: unavailable in restored-cache context")
+    -- No CodeLookup is available in a restored-cache context, so
+    -- Meta.load can't resolve anything; return None.
+    metaLoadStub _val = pure metaNone
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     srcCombs :: EnumMap Word64 Combs

@@ -177,6 +177,12 @@ data CCache prof = CCache
     -- compiling the typechecked Term into runnable Code. baseCCache
     -- supplies a stub.
     metaTypecheck :: Val -> IO Val,
+    -- | How Meta.load (MLOD) resolves a Link.Term closure into
+    -- Optional (meta.Term meta.TermF) by looking up the term's
+    -- source in the codebase via the runtime's CodeLookup. The
+    -- installer in "Unison.Runtime.Interface" closes over the live
+    -- CodeLookup at evaluation start; baseCCache supplies a stub.
+    metaLoad :: Val -> IO Val,
     profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
@@ -208,7 +214,7 @@ refNumTm cc r =
 
 baseCCache :: Bool -> IO (CCache ())
 baseCCache sandboxed = do
-  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck ()
+  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck noMetaLoad ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
@@ -229,6 +235,7 @@ baseCCache sandboxed = do
     -- start; until then, callers fall back to the bare value.
     noMetaDecompile _v = error "Meta.decompile: no decompiler installed"
     noMetaTypecheck _v = error "Meta.typecheck: no typechecker installed"
+    noMetaLoad _v = error "Meta.load: no loader installed"
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
 

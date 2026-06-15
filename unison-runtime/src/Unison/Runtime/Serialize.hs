@@ -536,6 +536,7 @@ instance Tag Prim1 where
   tag2word MDCM = 66
   tag2word MTYC = 67
   tag2word MEVL = 68
+  tag2word MLOD = 69
 
   word2tag 0 = pure DECI
   word2tag 1 = pure DECN
@@ -607,6 +608,7 @@ instance Tag Prim1 where
   word2tag 66 = pure MDCM
   word2tag 67 = pure MTYC
   word2tag 68 = pure MEVL
+  word2tag 69 = pure MLOD
   word2tag n = unknownTag "Prim1" n
 
 instance Tag Prim2 where

@@ -397,6 +397,16 @@ exec env henv !_activeThreads !stk !k _ (Prim1 MTYC i) = do
   -- supplies a stub that errors if no installer ran.
   poke stk =<< metaTypecheck env v
   pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MLOD i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  -- Dispatch to the metaLoad function installed on the CCache.
+  -- 'Unison.Runtime.Interface' installs an implementation that
+  -- looks up the referenced term in the runtime's CodeLookup and
+  -- packages the source-level Term as a meta.Term meta.TermF Val
+  -- via 'MetaDecompile.convertTerm'.
+  poke stk =<< metaLoad env v
+  pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Prim1 MEVL i) = do
   -- Input is a Link.Term. Branch on the cached combinator's shape:
   --   * CachedVal: a pre-evaluated pure constant — push the stored
