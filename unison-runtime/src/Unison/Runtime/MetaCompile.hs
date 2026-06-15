@@ -30,9 +30,11 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
+import Unison.Kind qualified as Kind
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Result qualified as Result
 import Unison.Type (Type)
+import Unison.Type qualified as Type
 import Unison.Typechecker (Env (..))
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
@@ -145,9 +147,11 @@ decodeTermF = \case
         e <- decodeMetaTerm eVal
         pure (ABT.tm' () (Term.Handle h e))
   -- Ann a (Term TypeF)
-  BoxedVal (Data2 ref tag _ _)
-    | ref == Meta.termFRef && tag == TT.metaTermFAnnTag ->
-        Left "Meta.compile: Ann decoding not yet implemented (needs Term TypeF reader)"
+  BoxedVal (Data2 ref tag tmVal tyVal)
+    | ref == Meta.termFRef && tag == TT.metaTermFAnnTag -> do
+        tm <- decodeMetaTerm tmVal
+        ty <- decodeMetaType tyVal
+        pure (Term.ann () tm ty)
   -- Ref Reference
   BoxedVal (Data1 ref tag refVal)
     | ref == Meta.termFRef && tag == TT.metaTermFRefTag -> do
@@ -190,6 +194,101 @@ decodeTermF = \case
     | ref == Meta.termFRef && tag == TT.metaTermFMatchTag ->
         Left "Meta.compile: Match decoding not yet implemented"
   v -> shapeError "meta.TermF" v
+
+-- ---------------------------------------------------------------
+-- meta.Term meta.TypeF — inverse of MetaDecompile.typeTermVal.
+--
+-- A 'meta.Term meta.TypeF' is the same @Term f = Term (Set Name)
+-- (ABT f (Term f))@ wrapper as a meta.Term meta.TermF, just
+-- parameterised by 'meta.TypeF' instead of 'meta.TermF'. The decode
+-- pipeline mirrors 'decodeMetaTerm'/'decodeAbt'/'decodeTermF' but
+-- produces 'Type.Type Symbol ()' values instead of source terms.
+-- ---------------------------------------------------------------
+
+decodeMetaType :: Val -> Either Text (Type.Type Symbol ())
+decodeMetaType v = case v of
+  BoxedVal (Data2 ref tag _freeVars abtVal)
+    | ref == Meta.termRef && tag == TT.metaTermTermTag ->
+        decodeTypeAbt abtVal
+  _ -> shapeError "meta.Term meta.TypeF" v
+
+decodeTypeAbt :: Val -> Either Text (Type.Type Symbol ())
+decodeTypeAbt = \case
+  BoxedVal (Data1 ref tag nameVal)
+    | ref == Meta.abtRef && tag == TT.metaAbtVarTag -> do
+        name <- decodeName nameVal
+        pure (Type.var () (nameToSymbol name))
+  BoxedVal (Data2 ref tag nameVal bodyVal)
+    | ref == Meta.abtRef && tag == TT.metaAbtAbsTag -> do
+        name <- decodeName nameVal
+        body <- decodeMetaType bodyVal
+        pure (ABT.abs' () (nameToSymbol name) body)
+  BoxedVal (Data1 ref tag bodyVal)
+    | ref == Meta.abtRef && tag == TT.metaAbtCycleTag -> do
+        body <- decodeMetaType bodyVal
+        pure (ABT.cycle' () body)
+  BoxedVal (Data1 ref tag fVal)
+    | ref == Meta.abtRef && tag == TT.metaAbtTmTag ->
+        decodeTypeF fVal
+  v -> shapeError "meta.ABT (TypeF)" v
+
+decodeTypeF :: Val -> Either Text (Type.Type Symbol ())
+decodeTypeF = \case
+  BoxedVal (Data1 ref tag refVal)
+    | ref == Meta.typeFRef && tag == TT.metaTypeFRefTag -> do
+        r <- decodeReference refVal
+        pure (Type.ref () r)
+  BoxedVal (Data2 ref tag aVal bVal)
+    | ref == Meta.typeFRef && tag == TT.metaTypeFArrowTag -> do
+        a <- decodeMetaType aVal
+        b <- decodeMetaType bVal
+        pure (Type.arrow () a b)
+  BoxedVal (Data2 ref tag aVal bVal)
+    | ref == Meta.typeFRef && tag == TT.metaTypeFImplicitArrowTag -> do
+        a <- decodeMetaType aVal
+        b <- decodeMetaType bVal
+        pure (ABT.tm' () (Type.ImplicitArrow a b))
+  BoxedVal (Data2 ref tag aVal bVal)
+    | ref == Meta.typeFRef && tag == TT.metaTypeFAppTag -> do
+        a <- decodeMetaType aVal
+        b <- decodeMetaType bVal
+        pure (Type.app () a b)
+  BoxedVal (Data2 ref tag aVal bVal)
+    | ref == Meta.typeFRef && tag == TT.metaTypeFEffectTag -> do
+        a <- decodeMetaType aVal
+        b <- decodeMetaType bVal
+        pure (ABT.tm' () (Type.Effect a b))
+  BoxedVal (Data1 ref tag seqVal)
+    | ref == Meta.typeFRef && tag == TT.metaTypeFEffectsTag -> do
+        es <- decodeList decodeMetaType seqVal
+        pure (ABT.tm' () (Type.Effects es))
+  BoxedVal (Data1 ref tag bodyVal)
+    | ref == Meta.typeFRef && tag == TT.metaTypeFForallTag -> do
+        body <- decodeMetaType bodyVal
+        pure (ABT.tm' () (Type.Forall body))
+  BoxedVal (Data1 ref tag bodyVal)
+    | ref == Meta.typeFRef && tag == TT.metaTypeFIntroOuterTag -> do
+        body <- decodeMetaType bodyVal
+        pure (ABT.tm' () (Type.IntroOuter body))
+  BoxedVal (Data2 ref tag aVal kVal)
+    | ref == Meta.typeFRef && tag == TT.metaTypeFAnnTag -> do
+        a <- decodeMetaType aVal
+        k <- decodeKind kVal
+        pure (ABT.tm' () (Type.Ann a k))
+  v -> shapeError "meta.TypeF" v
+
+-- meta.Kind = KStar | KArrow Kind Kind
+decodeKind :: Val -> Either Text Kind.Kind
+decodeKind = \case
+  BoxedVal (Enum ref tag)
+    | ref == Meta.kindRef && tag == TT.metaKindKStarTag ->
+        pure Kind.Star
+  BoxedVal (Data2 ref tag aVal bVal)
+    | ref == Meta.kindRef && tag == TT.metaKindKArrowTag -> do
+        a <- decodeKind aVal
+        b <- decodeKind bVal
+        pure (Kind.Arrow a b)
+  v -> shapeError "meta.Kind" v
 
 -- ---------------------------------------------------------------
 -- meta.Literal
