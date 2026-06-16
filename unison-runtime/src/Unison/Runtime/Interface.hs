@@ -963,17 +963,22 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
               Left err -> pure (metaLeftText err)
               Right ty -> do
                 let rid = Hashing.hashClosedTerm tm
+                    codebaseRef = RF.DerivedId rid
                 put rid tm ty
-                -- Also register the term in the runtime cache so a
-                -- follow-up Meta.eval can find it. prepareEvaluation
-                -- returns the post-ANF intermediate reference; we use
-                -- that as the Link.Term payload, mirroring
-                -- Meta.typecheck. (The persisted codebase Reference.Id
-                -- is rid, computed above; the two only coincide when
-                -- the term has no float/intermediate remapping.)
-                (_ctx', _rcode, mainRef) <- prepareEvaluation ppe tm ctx
+                -- Compile + register the term so a follow-up
+                -- Meta.eval can find it. prepareEvaluation gives us
+                -- the post-ANF intermediate reference; we then also
+                -- alias the codebase Reference.Id to the same cache
+                -- entry so the returned Link.Term — which now uses
+                -- the canonical codebase hash — can be passed
+                -- straight to ucm commands like @alias.term@ and
+                -- @mark.given@, AND used directly by Meta.eval.
+                (ctx', _rcode, mainRef) <- prepareEvaluation ppe tm ctx
+                w <- refNumTm (ccache ctx') mainRef
+                atomically $
+                  modifyTVar' (refTm (ccache ctx')) (Map.insert codebaseRef w)
                 let linkVal =
-                      BoxedVal (Foreign (WrapReferent (RF.Ref mainRef)))
+                      BoxedVal (Foreign (WrapReferent (RF.Ref codebaseRef)))
                 pure (metaRight linkVal)
 
   result <-
