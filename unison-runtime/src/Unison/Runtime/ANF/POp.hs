@@ -181,6 +181,7 @@ data POp
   | MEVL -- Meta.eval
   | MLOD -- Meta.load
   | MSTR -- Meta.store
+  | MDDS -- Meta.dataDeclShape
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 pOpCode :: POp -> Word16
@@ -341,6 +342,7 @@ pOpCode op = case op of
   MEVL -> 153
   MLOD -> 154
   MSTR -> 155
+  MDDS -> 156
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]

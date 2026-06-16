@@ -68,8 +68,11 @@ import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
 import Unison.PrettyPrintEnv
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.Hash qualified as UHash
 import Unison.Reference (Reference)
 import Unison.Reference qualified as RF
+import Unison.Util.Bytes qualified as UBytes
+import Data.Sequence qualified as USeq
 import Unison.Referent qualified as RF (pattern Ref)
 import Unison.Runtime
 import Unison.Runtime.ANF as ANF
@@ -81,6 +84,7 @@ import Unison.Runtime.Decompile (DecompError, DecompResult, decompile)
 import Unison.Runtime.Decompile qualified as Decomp
 import Unison.Runtime.MetaCompile qualified as MetaC
 import Unison.Runtime.MetaDecompile qualified as MetaDecomp
+import Unison.Runtime.MetaSource qualified as Meta
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Util.Text qualified as Util.Text
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
@@ -980,6 +984,29 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                 let linkVal =
                       BoxedVal (Foreign (WrapReferent (RF.Ref codebaseRef)))
                 pure (metaRight linkVal)
+      -- Decode a meta.Reference Val, look up the type declaration in
+      -- the codebase via CodeLookup, and return Optional (List
+      -- (meta.ConstructorReference, Nat)). The Nat is the field
+      -- arity of the corresponding constructor.
+      metaDataDeclShapeF :: Val -> IO Val
+      metaDataDeclShapeF val = case MetaC.decodeReference val of
+        Left _ -> pure metaNone
+        Right (RF.Builtin _) -> pure metaNone
+        Right r@(RF.DerivedId i) ->
+          getTypeDeclaration cl i >>= \case
+            Nothing -> pure metaNone
+            Just decl ->
+              let arities = case DD.declFields decl of
+                    Left as -> as
+                    Right as -> as
+                  ctorVals =
+                    zipWith
+                      (\cid arity -> ctorRefPair r (fromIntegral cid) (fromIntegral arity))
+                      [0 :: Int ..]
+                      arities
+                  listVal =
+                    BoxedVal (Foreign (WrapSeq (USeq.fromList ctorVals)))
+               in pure (metaSome listVal)
 
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
@@ -991,7 +1018,8 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                 metaDecompile = metaDecom,
                 metaTypecheck = metaTC,
                 metaLoad = metaLoadF,
-                metaStore = metaStoreF
+                metaStore = metaStoreF,
+                metaDataDeclShape = metaDataDeclShapeF
               }
             activeThreads
             w
@@ -1005,6 +1033,7 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                   metaTypecheck = metaTC,
                   metaLoad = metaLoadF,
                   metaStore = metaStoreF,
+                  metaDataDeclShape = metaDataDeclShapeF,
                   profiler = pc
                 }
               activeThreads
@@ -1038,6 +1067,57 @@ metaSome v = BoxedVal (Data1 RF.optionalRef TT.someTag v)
 -- | @Right x@ as a runtime @Either Text x@ closure (single payload).
 metaRight :: Val -> Val
 metaRight v = BoxedVal (Data1 RF.eitherRef TT.rightTag v)
+
+-- | Build a runtime @(meta.ConstructorReference, Nat)@ tuple Val.
+-- The first component is @meta.ConstructorReference.ConstructorReference
+-- (meta.Reference.ReferenceDerived ...) cid@; the second is the field
+-- arity. Tuples in Unison are encoded as nested pairs terminated by
+-- Unit.
+ctorRefPair :: Reference -> Word64 -> Word64 -> Val
+ctorRefPair tyRef cid arity =
+  let unitVal = BoxedVal (Enum RF.unitRef TT.unitTag)
+      tyRefVal = encodeMetaReference tyRef
+      ctorRefVal =
+        BoxedVal
+          ( Data2
+              Meta.constructorReferenceRef
+              TT.metaConstructorReferenceTag
+              tyRefVal
+              (NatVal cid)
+          )
+      natVal = NatVal arity
+      inner = BoxedVal (Data2 RF.pairRef TT.pairTag natVal unitVal)
+   in BoxedVal (Data2 RF.pairRef TT.pairTag ctorRefVal inner)
+
+-- | Build a runtime @meta.Reference@ Val.
+encodeMetaReference :: Reference -> Val
+encodeMetaReference = \case
+  RF.Builtin t ->
+    BoxedVal
+      ( Data1
+          Meta.referenceRef
+          TT.metaReferenceBuiltinTag
+          (BoxedVal (Foreign (WrapText (Util.Text.fromText t))))
+      )
+  RF.DerivedId (RF.Id h i) ->
+    let hashVal =
+          BoxedVal
+            ( Data1
+                Meta.hashRef
+                TT.metaHashHashTag
+                ( BoxedVal
+                    ( Foreign
+                        (WrapBytes (UBytes.fromByteString (UHash.toByteString h)))
+                    )
+                )
+            )
+     in BoxedVal
+          ( Data2
+              Meta.referenceRef
+              TT.metaReferenceDerivedTag
+              hashVal
+              (NatVal (fromIntegral i))
+          )
 
 executeMainComb ::
   CombIx ->
@@ -1171,7 +1251,7 @@ debugTextFormat fancy =
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub metaStoreStub ()
+    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub metaStoreStub metaDDSStub ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -1220,6 +1300,8 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
     -- No codebase write callback in a restored-cache context.
     metaStoreStub _val =
       pure (metaLeftText "Meta.store: unavailable in restored-cache context")
+    -- No CodeLookup in a restored-cache context.
+    metaDDSStub _val = pure metaNone
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     srcCombs :: EnumMap Word64 Combs

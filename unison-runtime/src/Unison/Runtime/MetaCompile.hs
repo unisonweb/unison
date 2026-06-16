@@ -17,6 +17,7 @@
 -- actually needs them.
 module Unison.Runtime.MetaCompile
   ( compileTerm,
+    decodeReference,
     typecheckTerm,
     typecheckVal,
   )

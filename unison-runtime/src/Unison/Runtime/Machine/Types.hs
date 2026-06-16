@@ -191,6 +191,12 @@ data CCache prof = CCache
     -- typecheck fails or no codebase is wired up, Right with the
     -- hash-addressed Link.Term on success.
     metaStore :: Val -> IO Val,
+    -- | How Meta.dataDeclShape (MDDS) decodes a meta.Reference Val
+    -- (the type reference), looks up the type declaration via the
+    -- runtime's CodeLookup, and returns Optional (List (meta.
+    -- ConstructorReference, Nat)) — one entry per constructor with
+    -- its field arity. baseCCache supplies a stub.
+    metaDataDeclShape :: Val -> IO Val,
     profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
@@ -222,7 +228,7 @@ refNumTm cc r =
 
 baseCCache :: Bool -> IO (CCache ())
 baseCCache sandboxed = do
-  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck noMetaLoad noMetaStore ()
+  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck noMetaLoad noMetaStore noMetaDataDeclShape ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
@@ -245,6 +251,7 @@ baseCCache sandboxed = do
     noMetaTypecheck _v = error "Meta.typecheck: no typechecker installed"
     noMetaLoad _v = error "Meta.load: no loader installed"
     noMetaStore _v = error "Meta.store: no storer installed"
+    noMetaDataDeclShape _v = error "Meta.dataDeclShape: no inspector installed"
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
 

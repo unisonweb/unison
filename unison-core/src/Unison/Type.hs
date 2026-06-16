@@ -456,7 +456,7 @@ valueRef = Reference.Builtin "Value"
 -- @TermF@, and @TypeF@ types. Update these in lockstep with
 -- 'Unison.Runtime.MetaSource' if those declarations change. See
 -- 'Unison.Runtime.MetaSource' for the warning header and rationale.
-metaTermRef, metaTermFRef, metaTypeFRef :: TypeReference
+metaTermRef, metaTermFRef, metaTypeFRef, metaReferenceRef, metaConstructorReferenceRef :: TypeReference
 metaTermRef =
   Reference.Derived
     (unsafeMetaHash
@@ -471,6 +471,16 @@ metaTypeFRef =
   Reference.Derived
     (unsafeMetaHash
        "oicrvedbi8k56rmhs1ojbt8a6umrnch37q6ckvs614138mbgkgmookerabnlm1bh225gd3jo5bib067j5ticm9qv4g1c3grdmu43fo8")
+    0
+metaReferenceRef =
+  Reference.Derived
+    (unsafeMetaHash
+       "gvpjsqnj5m6e2nm11gg8t9rk77m9marjn41etnlc7m3l9cm996tskui3n6jktovsflbblmeke0bjp0oulm0ch9bh2hgnto6akac30ug")
+    0
+metaConstructorReferenceRef =
+  Reference.Derived
+    (unsafeMetaHash
+       "vm23ecflceu98bgshtqcsg1fp95j04ptv8lmv61b6hqbqdc5q5tad8bp36rhlq7ulqs9q6gsich87d56j3297dhic30l3iupjfaiju0")
     0
 
 unsafeMetaHash :: Text -> Hash.Hash
@@ -587,10 +597,12 @@ code, value :: (Ord v) => a -> Type v a
 code a = ref a codeRef
 value a = ref a valueRef
 
-metaTerm, metaTermF, metaTypeF :: (Ord v) => a -> Type v a
+metaTerm, metaTermF, metaTypeF, metaReference, metaConstructorReference :: (Ord v) => a -> Type v a
 metaTerm a = ref a metaTermRef
 metaTermF a = ref a metaTermFRef
 metaTypeF a = ref a metaTypeFRef
+metaReference a = ref a metaReferenceRef
+metaConstructorReference a = ref a metaConstructorReferenceRef
 
 app :: (Ord v) => a -> Type v a -> Type v a -> Type v a
 app a f arg = ABT.tm' a (App f arg)

@@ -417,6 +417,12 @@ exec env henv !_activeThreads !stk !k _ (Prim1 MSTR i) = do
   -- supplies a stub that errors.
   poke stk =<< metaStore env v
   pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MDDS i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  -- Dispatch to metaDataDeclShape installed on the CCache.
+  poke stk =<< metaDataDeclShape env v
+  pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Prim1 MEVL i) = do
   -- Input is a Link.Term. Branch on the cached combinator's shape:
   --   * CachedVal: a pre-evaluated pure constant — push the stored
