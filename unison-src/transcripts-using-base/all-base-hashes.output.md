@@ -3056,7 +3056,8 @@ This transcript is intended to make visible accidental changes to the hashing al
         
   831.  -- ##Meta.dataDeclShape
         builtin.Meta.dataDeclShape : Reference
-        ->{IO} Optional [(ConstructorReference, Nat)]
+        ->{IO} Optional
+          [(ConstructorReference, [meta.Term TypeF])]
         
   832.  -- ##Meta.decompile
         builtin.Meta.decompile : a ->{IO} meta.Term TermF

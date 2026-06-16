@@ -996,14 +996,13 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
           getTypeDeclaration cl i >>= \case
             Nothing -> pure metaNone
             Just decl ->
-              let arities = case DD.declFields decl of
-                    Left as -> as
-                    Right as -> as
+              let dataDecl = DD.asDataDecl decl
+                  ctorTypes = DD.constructorTypes dataDecl
                   ctorVals =
                     zipWith
-                      (\cid arity -> ctorRefPair r (fromIntegral cid) (fromIntegral arity))
+                      (\cid ty -> ctorRefShape r (fromIntegral cid) ty)
                       [0 :: Int ..]
-                      arities
+                      ctorTypes
                   listVal =
                     BoxedVal (Foreign (WrapSeq (USeq.fromList ctorVals)))
                in pure (metaSome listVal)
@@ -1068,13 +1067,13 @@ metaSome v = BoxedVal (Data1 RF.optionalRef TT.someTag v)
 metaRight :: Val -> Val
 metaRight v = BoxedVal (Data1 RF.eitherRef TT.rightTag v)
 
--- | Build a runtime @(meta.ConstructorReference, Nat)@ tuple Val.
--- The first component is @meta.ConstructorReference.ConstructorReference
--- (meta.Reference.ReferenceDerived ...) cid@; the second is the field
--- arity. Tuples in Unison are encoded as nested pairs terminated by
--- Unit.
-ctorRefPair :: Reference -> Word64 -> Word64 -> Val
-ctorRefPair tyRef cid arity =
+-- | Build a runtime @(meta.ConstructorReference, [meta.Term meta.TypeF])@
+-- tuple Val. The first component is the constructor ref; the second
+-- is the list of its field types (encoded as meta.Term meta.TypeF
+-- via MetaDecomp.typeTermVal). Tuples in Unison are encoded as
+-- nested pairs terminated by Unit.
+ctorRefShape :: Reference -> Word64 -> Type.Type Symbol () -> Val
+ctorRefShape tyRef cid ctorTy =
   let unitVal = BoxedVal (Enum RF.unitRef TT.unitTag)
       tyRefVal = encodeMetaReference tyRef
       ctorRefVal =
@@ -1085,9 +1084,27 @@ ctorRefPair tyRef cid arity =
               tyRefVal
               (NatVal cid)
           )
-      natVal = NatVal arity
-      inner = BoxedVal (Data2 RF.pairRef TT.pairTag natVal unitVal)
+      fieldTypes = constructorFieldTypes ctorTy
+      fieldTypeVals = MetaDecomp.typeTermVal <$> fieldTypes
+      fieldListVal =
+        BoxedVal (Foreign (WrapSeq (USeq.fromList fieldTypeVals)))
+      inner = BoxedVal (Data2 RF.pairRef TT.pairTag fieldListVal unitVal)
    in BoxedVal (Data2 RF.pairRef TT.pairTag ctorRefVal inner)
+
+-- | Strip outer foralls from a constructor type and return its field
+-- types (everything to the left of the final arrow).
+constructorFieldTypes :: Type.Type Symbol () -> [Type.Type Symbol ()]
+constructorFieldTypes = init' . extractArrows . stripForalls
+  where
+    stripForalls = \case
+      Type.ForallsNamed' _ ty -> stripForalls ty
+      ty -> ty
+    extractArrows = \case
+      Type.Arrows' spine -> spine
+      ty -> [ty]
+    init' [] = []
+    init' [_] = []
+    init' xs = init xs
 
 -- | Build a runtime @meta.Reference@ Val.
 encodeMetaReference :: Reference -> Val

@@ -1,10 +1,16 @@
-# Derive Functor from the shape of the data type
+# Derive Functor with type-aware field dispatch
 
-The previous Functor derive transcript still required the user to
-supply the `map` implementation by hand. Now the macro pulls the
-shape — the list of constructors and field arities — out of the
-codebase via the new `Meta.dataDeclShape` builtin and *generates*
-the map function for any positive ADT.
+The previous `Meta.dataDeclShape` returned only the arity of each
+constructor's field list, so the derived `map` applied `f` to every
+field — fine for `Optional` (only one field, of type `a`) but wrong
+for any constructor whose fields aren't all of the parameter type.
+
+The updated `Meta.dataDeclShape` now returns
+`[(meta.ConstructorReference, [meta.Term meta.TypeF])]` — one
+constructor entry, with the *type* of each field rather than just the
+count. The deriver consults each field type and only applies `f` when
+the field has the form @Var name@ (i.e. is exactly the type's mapped
+parameter); other fields pass through unchanged.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio
@@ -35,8 +41,6 @@ scratch/main> add
 
 ## meta.Term builders
 
-Plain-Unison helpers for the pieces we need:
-
 ``` unison
 emptySet : Set meta.Name
 emptySet = Set.Set Map.Tip
@@ -65,6 +69,11 @@ List.map : (a -> b) -> [a] -> [b]
 List.map f xs = match xs with
   [] -> []
   h +: t -> f h +: List.map f t
+
+List.zip : [a] -> [b] -> [(a, b)]
+List.zip xs ys = match (xs, ys) with
+  (xh +: xt, yh +: yt) -> (xh, yh) +: List.zip xt yt
+  _ -> []
 
 mkTm : meta.TermF (meta.Term meta.TermF) -> meta.Term meta.TermF
 mkTm tf = meta.Term.Term emptySet (meta.ABT.Tm tf)
@@ -107,6 +116,7 @@ mkMatch scrut clauses = mkTm (meta.TermF.Match scrut clauses)
   + List.map       : (a ->{g} b) -> [a] ->{g} [b]
   + List.range     : Nat -> Nat -> [Nat]
   + List.replicate : Nat -> a -> [a]
+  + List.zip       : [a] -> [b] -> [(a, b)]
   + mkAbs          : Text -> meta.Term TermF -> meta.Term TermF
   + mkApp          : meta.Term TermF
                      -> meta.Term TermF
@@ -131,33 +141,46 @@ scratch/main> add
   Done.
 ```
 
-## The deriver
+## Type-aware deriver
 
-For each constructor `(ref, arity)` we emit a match case
-`ref x0 x1 ... -> ref (f x0) (f x1) ...`. Wrapping the body with one
-ABT.Abs per captured variable keeps the meta-encoded match in canonical
-form.
+`isVarType` checks whether a field type is bare `Var x` — meaning
+exactly the parameter we're mapping over. Anything else (`Ref`, `App`,
+`Arrow`, …) gets passed through unmodified.
 
 ``` unison
+isVarType : meta.Term meta.TypeF -> Boolean
+isVarType ty = match ty with
+  meta.Term.Term _ (meta.ABT.Var _) -> true
+  _ -> false
+
+mkFieldExpr : (Text, meta.Term meta.TypeF) -> meta.Term meta.TermF
+mkFieldExpr tup = match tup with (varName, fieldType) ->
+  if isVarType fieldType
+  then mkApp (mkVar "f") (mkVar varName)
+  else mkVar varName
+
 mkFunctorCase :
-  (meta.ConstructorReference, Nat) -> meta.MatchCase (meta.Term meta.TermF)
-mkFunctorCase tup = match tup with (cr, arity) ->
+  (meta.ConstructorReference, [meta.Term meta.TypeF])
+  -> meta.MatchCase (meta.Term meta.TermF)
+mkFunctorCase tup = match tup with (cr, fieldTypes) ->
   ctorRef = match cr with
     meta.ConstructorReference.ConstructorReference r _ -> r
   ctorCid = match cr with
     meta.ConstructorReference.ConstructorReference _ cid -> cid
+  arity = List.size fieldTypes
   pat = meta.Pattern.PConstructor ctorRef ctorCid
           (List.replicate arity meta.Pattern.PVar)
   varNames =
     List.map (n -> "x" ++ Nat.toText n) (List.range 0 arity)
-  ctorTerm = mkConstructor cr
-  step acc vn = mkApp acc (mkApp (mkVar "f") (mkVar vn))
-  appliedToFArgs = List.foldl step ctorTerm varNames
-  bodyWithAbs = List.foldRight mkAbs appliedToFArgs varNames
+  -- For each (varName, fieldType), apply f only when the field is
+  -- the mapped type variable.
+  pairs = List.zip varNames fieldTypes
+  argExprs = List.map mkFieldExpr pairs
+  step acc arg = mkApp acc arg
+  bodyApplied = List.foldl step (mkConstructor cr) argExprs
+  bodyWithAbs = List.foldRight mkAbs bodyApplied varNames
   meta.MatchCase.MatchCase pat None bodyWithAbs
 
--- Build the map function for a type whose declaration is at typeRef.
--- Returns None when the type isn't in the codebase.
 deriveMap : meta.Reference ->{IO} Optional (meta.Term meta.TermF)
 deriveMap typeRef =
   match Meta.dataDeclShape typeRef with
@@ -171,7 +194,9 @@ deriveMap typeRef =
   Loading changes detected in scratch.u.
 
   + deriveMap     : Reference ->{IO} Optional (meta.Term TermF)
-  + mkFunctorCase : (ConstructorReference, Nat)
+  + isVarType     : meta.Term TypeF -> Boolean
+  + mkFieldExpr   : (Text, meta.Term TypeF) -> meta.Term TermF
+  + mkFunctorCase : (ConstructorReference, [meta.Term TypeF])
                     -> MatchCase (meta.Term TermF)
 
   Run `update` to apply these changes to your codebase.
@@ -186,23 +211,21 @@ scratch/main> add
   Done.
 ```
 
-## Get a type's meta.Reference from a sample value
-
-Decompile any value of the type, walk into the constructor node, and
-read off the type reference.
+## Sample-driven type-reference lookup
 
 ``` unison
+-- Walk down the spine of applications until reaching the head; if
+-- the head is a Constructor node, return its type reference.
 typeRefOf : a ->{IO} Optional meta.Reference
-typeRefOf sample = match Meta.decompile sample with
+typeRefOf sample = headRef (Meta.decompile sample)
+
+headRef : meta.Term meta.TermF -> Optional meta.Reference
+headRef tm = match tm with
   meta.Term.Term _ abt -> match abt with
     meta.ABT.Tm tf -> match tf with
       meta.TermF.Constructor
         (meta.ConstructorReference.ConstructorReference r _) -> Some r
-      meta.TermF.App
-        (meta.Term.Term _ (meta.ABT.Tm
-          (meta.TermF.Constructor
-            (meta.ConstructorReference.ConstructorReference r _))))
-        _ -> Some r
+      meta.TermF.App f _ -> headRef f
       _ -> None
     _ -> None
 ```
@@ -210,6 +233,7 @@ typeRefOf sample = match Meta.decompile sample with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
+  + headRef   : meta.Term TermF -> Optional Reference
   + typeRefOf : a ->{IO} Optional Reference
 
   Run `update` to apply these changes to your codebase.
@@ -224,7 +248,7 @@ scratch/main> add
   Done.
 ```
 
-## Derive Functor for Optional
+## Test: Optional
 
 ``` unison
 storeFunctorOptional : '{IO} Either Text Link.Term
@@ -256,7 +280,65 @@ scratch/main> run storeFunctorOptional
   Right (termLink #d5p81hm53s)
 ```
 
-## Alias, view, and use
+## Test: a user-defined ADT with mixed fields
+
+A `Tagged` type whose constructor stores a `Text` label AND an `a`.
+With the old (untyped) shape API the deriver would (incorrectly)
+apply `f` to the label. The new field-type check correctly leaves
+the label alone and only `f`-applies the parameter-typed field.
+
+``` unison
+unique type Tagged a = Tagged Text a
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Tagged a
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+storeFunctorTagged : '{IO} Either Text Link.Term
+storeFunctorTagged _ = match typeRefOf (Tagged "x" 0) with
+  None -> Left "couldn't get type ref"
+  Some taggedRef -> match deriveMap taggedRef with
+    None -> Left "Meta.dataDeclShape returned None"
+    Some mapAst -> Meta.store [| Functor.Functor ${mapAst} |]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + storeFunctorTagged : '{IO} Either Text Link.Term
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> run storeFunctorTagged
+
+  Right (termLink #g9a66blfs0)
+```
+
+## Inspect the generated instances
 
 ``` ucm
 scratch/main> alias.term #d5p81hm53s Functor.optional
@@ -272,27 +354,34 @@ scratch/main> view Functor.optional
         Some x0 -> Some (f x0)
         None    -> None))
 
-scratch/main> mark.given Functor.optional
+scratch/main> alias.term #g9a66blfs0 Functor.tagged
 
-  Marked Functor.optional. It will now participate in implicit
-  resolution.
+  Done.
+
+scratch/main> view Functor.tagged
+
+  Functor.tagged : Functor Tagged
+  Functor.tagged =
+    Functor
+      (f x -> let
+        (Tagged x0 x1) = x
+        Tagged x0 (f x1))
 ```
 
-The view above shows the synthesised map function — note we never
-wrote `cases None -> None | Some x -> Some (f x)`; the deriver built
-it from the constructor list alone.
+`Functor.tagged`'s body leaves the `Text` label untouched and only
+`f`-applies the parameter-typed field — exactly what the typed-shape
+check buys us.
 
 ``` unison
-example : '{IO} (Optional Nat, Optional Nat)
-example _ = match Functor.optional with
-  Functor.Functor m ->
-    (m (n -> n Nat.+ 1) (Some 41), m (n -> n Nat.+ 1) None)
+useTagged : '{IO} Tagged Nat
+useTagged _ = match Functor.tagged with
+  Functor.Functor m -> m (n -> n Nat.* 10) (Tagged "answer" 4)
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + example : '{IO} (Optional Nat, Optional Nat)
+  + useTagged : '{IO} Tagged Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -305,7 +394,7 @@ scratch/main> add
 
   Done.
 
-scratch/main> run example
+scratch/main> run useTagged
 
-  (Some 42, None)
+  Tagged "answer" 40
 ```

@@ -679,9 +679,18 @@ builtinsSrc =
       Type.app () (Type.metaTerm ()) (Type.metaTermF ())
         --> io (eithert text termLink),
     B "Meta.dataDeclShape" $
-      -- Reference -> Optional (List (ConstructorReference, Nat))
+      -- Reference -> Optional (List (ConstructorReference, [meta.Term meta.TypeF]))
       Type.metaReference ()
-        --> io (optionalt (list (tuple [Type.metaConstructorReference (), nat]))),
+        --> io
+          ( optionalt
+              ( list
+                  ( tuple
+                      [ Type.metaConstructorReference (),
+                        list (Type.app () (Type.metaTerm ()) (Type.metaTypeF ()))
+                      ]
+                  )
+              )
+          ),
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),
