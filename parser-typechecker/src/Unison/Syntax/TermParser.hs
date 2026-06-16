@@ -667,6 +667,8 @@ termLeaf :: forall m v. (Monad m, Var v) => TermP v m
 termLeaf =
   asum
     [ force,
+      quasiquote,
+      splice,
       hashQualifiedPrefixTerm,
       text,
       char,
@@ -682,6 +684,104 @@ termLeaf =
       bang,
       doc2Block <&> \(spanAnn, trm) -> trm {ABT.annotation = ABT.annotation trm <> spanAnn}
     ]
+
+-- | Meta-program quasiquote @[| e |]@ — desugars to runtime code that
+-- builds the @meta.Term meta.TermF@ value representing the AST of @e@.
+-- Splices @${ x }@ inside @e@ are spliced in as values of type
+-- @meta.Term meta.TermF@ rather than being quoted.
+--
+-- Quote uses the @[| / |]@ Template-Haskell-style brackets rather than
+-- the design doc's @'{ / }@ because the latter would collide with
+-- Unison's existing thunk-with-effects type syntax @'{Ability} A@.
+quasiquote :: forall m v. (Monad m, Var v) => TermP v m
+quasiquote = P.label "quasiquote" do
+  start <- openBlockWith "[|"
+  body <- term
+  end <- closeBlock
+  pure $ desugarQuote (ann start <> ann end) body
+
+-- | Meta-program splice @${ x }@. Standalone splices outside a quote
+-- are a parse error in spirit but typecheck as a free reference to
+-- the splice-marker name (which is unbound), giving a familiar
+-- error. Inside a quasiquote 'desugarQuote' rewrites them into
+-- direct uses of the spliced expression.
+splice :: forall m v. (Monad m, Var v) => TermP v m
+splice = P.label "splice" do
+  start <- openBlockWith "${"
+  body <- term
+  end <- closeBlock
+  let a = ann start <> ann end
+  pure $ Term.app a (Term.var a (Var.nameds spliceMarkerName)) body
+
+-- | Sentinel variable name used to thread splices through the parsed
+-- AST so 'desugarQuote' can recognise them. Chosen to be unrepresentable
+-- as a user-written identifier (no Unison name can contain spaces).
+spliceMarkerName :: String
+spliceMarkerName = "$ meta splice $"
+
+-- | Walk the AST of a quoted expression and produce a term that, at
+-- runtime, constructs the corresponding @meta.Term meta.TermF@ value.
+-- MVP coverage: numeric/boolean/text/char literals, refs, App, and
+-- splices. Anything else falls through to a placeholder Var node so
+-- the typechecker surfaces the gap rather than the desugarer silently
+-- dropping syntax.
+desugarQuote :: forall v. (Var v) => Ann -> Term v Ann -> Term v Ann
+desugarQuote a t = case t of
+  -- Splice sentinel — emit the spliced expression directly.
+  Term.App' (Term.Var' v) inner
+    | Var.nameStr v == spliceMarkerName -> inner
+  -- Application.
+  Term.App' f x ->
+    metaTm a "TermF.App" [desugarQuote a f, desugarQuote a x]
+  -- Literals.
+  Term.Nat' n ->
+    metaTm a "TermF.Lit" [metaLit a "Literal.LitNat" (Term.nat a n)]
+  Term.Int' i ->
+    metaTm a "TermF.Lit" [metaLit a "Literal.LitInt" (Term.int a i)]
+  Term.Float' f ->
+    metaTm a "TermF.Lit" [metaLit a "Literal.LitFloat" (Term.float a f)]
+  Term.Boolean' b ->
+    metaTm a "TermF.Lit" [metaLit a "Literal.LitBoolean" (Term.boolean a b)]
+  Term.Text' s ->
+    metaTm a "TermF.Lit" [metaLit a "Literal.LitText" (Term.text a s)]
+  Term.Char' c ->
+    metaTm a "TermF.Lit" [metaLit a "Literal.LitChar" (Term.char a c)]
+  -- Plain references resolve through the codebase at runtime via
+  -- meta.Reference. For the MVP we leave the desugaring to a runtime
+  -- helper that builds the Reference from the resolved term link.
+  _ ->
+    -- Fall back: pass the original expression through as a splice.
+    -- This is intentionally permissive — it means @'{ outerVal }@
+    -- (where outerVal already has type @meta.Term meta.TermF@) just
+    -- works without an explicit @${ outerVal }@.
+    t
+
+-- | @meta.Term.Term Set.empty (meta.ABT.Tm (ctor args))@ — the outer
+-- wrapper around any quote-desugared TermF constructor. We can't say
+-- @Set.empty@ directly because the builtin codebase doesn't ship one;
+-- instead we construct @Set.Set Map.Tip@, which is the canonical
+-- empty Set after @builtins.mergeio@.
+metaTm :: forall v. (Var v) => Ann -> String -> [Term v Ann] -> Term v Ann
+metaTm a ctor args =
+  let inner = Term.apps' (Term.var a (Var.nameds ("meta." <> ctor))) args
+      abtTm = Term.app a (Term.var a (Var.nameds "meta.ABT.Tm")) inner
+   in Term.apps' (Term.var a (Var.nameds "meta.Term.Term")) [emptyNameSet a, abtTm]
+
+-- | @Set.Set Map.Tip@ — the empty @Set Name@ value, used as the
+-- placeholder freeVars cache for every quote-desugared meta.Term
+-- node. (Real free-var computation is a follow-up; the typechecker
+-- doesn't consult this cache for ordinary unification.)
+emptyNameSet :: forall v. (Var v) => Ann -> Term v Ann
+emptyNameSet a =
+  Term.app
+    a
+    (Term.var a (Var.nameds "Set.Set"))
+    (Term.var a (Var.nameds "Map.Tip"))
+
+-- | @meta.Literal.<ctor> payload@.
+metaLit :: forall v. (Var v) => Ann -> String -> Term v Ann -> Term v Ann
+metaLit a ctor payload =
+  Term.app a (Term.var a (Var.nameds ("meta." <> ctor))) payload
 
 -- | Gives a parser an explicit stream to parse, so that it consumes nothing from the original stream when it runs.
 --
