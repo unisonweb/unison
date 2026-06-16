@@ -55,7 +55,7 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
   46.  ListenSocket        (builtin type)
   47.  Map                 (type)
   48.  Map.                (2 terms)
-  49.  Meta.               (5 terms)
+  49.  Meta.               (6 terms)
   50.  MutableArray        (builtin type)
   51.  MutableArray.       (6 terms)
   52.  MutableByteArray    (builtin type)

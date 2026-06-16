@@ -12,7 +12,7 @@ scratch/main> alias.type lib.builtins.Nat Foo
 scratch/main> ls .
 
   1. Foo  (builtin type)
-  2. lib. (1013 terms, 150 types)
+  2. lib. (1014 terms, 150 types)
 ```
 
 It won't create a conflicted name, though.
@@ -29,7 +29,7 @@ scratch/main> alias.type lib.builtins.Int Foo
 scratch/main> ls .
 
   1. Foo  (builtin type)
-  2. lib. (1013 terms, 150 types)
+  2. lib. (1014 terms, 150 types)
 ```
 
 You can use `debug.alias.type.force` for that.
@@ -43,7 +43,7 @@ scratch/main> ls .
 
   1. Foo  (builtin type)
   2. Foo  (builtin type)
-  3. lib. (1013 terms, 150 types)
+  3. lib. (1014 terms, 150 types)
 ```
 
 ``` ucm :hide
