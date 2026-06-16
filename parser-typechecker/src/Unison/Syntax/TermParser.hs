@@ -754,25 +754,34 @@ desugarQuote ns a = go Set.empty
                   [metaName a (Var.name v), bodyDes]
             lamInner = Term.app a (Term.var a (Var.nameds "meta.TermF.Lam")) absNode
          in wrapTermFrees a frees (Term.app a (Term.var a (Var.nameds "meta.ABT.Tm")) lamInner)
-      -- Variables — emit @meta.ABT.Var@ if the binder is in scope.
-      -- If the var name resolves to a single codebase term reference,
-      -- lift it to a @meta.TermF.Ref@. Otherwise fall through and let
-      -- the typechecker treat it as an auto-splice.
-      Term.Var' v
-        | Set.member v bound ->
-            let varNode =
-                  Term.app
-                    a
-                    (Term.var a (Var.nameds "meta.ABT.Var"))
-                    (metaName a (Var.name v))
-             in wrapTermFrees a (Set.singleton v) varNode
-        | otherwise -> case resolveFreeVar v of
-            Just (Referent.Ref r) -> metaTm bound a t "TermF.Ref" [metaReference a r]
-            Just (Referent.Con (ConstructorReference r cid) CT.Data) ->
-              metaTm bound a t "TermF.Constructor" [metaCtorRef a r (fromIntegral cid)]
-            Just (Referent.Con (ConstructorReference r cid) CT.Effect) ->
-              metaTm bound a t "TermF.Request" [metaCtorRef a r (fromIntegral cid)]
-            Nothing -> t
+      -- Variables.
+      -- * Quote-bound (introduced by an enclosing [| x -> ... |]) →
+      --   emit @meta.ABT.Var@ inside this quote.
+      -- * Resolves to a codebase term ref → @meta.TermF.Ref@.
+      -- * Resolves to a constructor → @meta.TermF.Constructor@ /
+      --   @meta.TermF.Request@.
+      -- * Otherwise (free in the quote, no codebase resolution) →
+      --   still @meta.ABT.Var@. This lets nested quotes refer to
+      --   binders from the enclosing quote by name, which is how the
+      --   Oleg-style staged power example threads its variable
+      --   through recursion. Users who want to splice an outer-scope
+      --   value have to write @${ ... }@ explicitly.
+      Term.Var' v ->
+        let varNode =
+              Term.app
+                a
+                (Term.var a (Var.nameds "meta.ABT.Var"))
+                (metaName a (Var.name v))
+            asMetaVar = wrapTermFrees a (Set.singleton v) varNode
+         in if Set.member v bound
+              then asMetaVar
+              else case resolveFreeVar v of
+                Just (Referent.Ref r) -> metaTm bound a t "TermF.Ref" [metaReference a r]
+                Just (Referent.Con (ConstructorReference r cid) CT.Data) ->
+                  metaTm bound a t "TermF.Constructor" [metaCtorRef a r (fromIntegral cid)]
+                Just (Referent.Con (ConstructorReference r cid) CT.Effect) ->
+                  metaTm bound a t "TermF.Request" [metaCtorRef a r (fromIntegral cid)]
+                Nothing -> asMetaVar
       -- References — codebase-resolved Refs become @meta.TermF.Ref@
       -- nodes wrapping a @meta.Reference@ constructed inline from the
       -- builtin name or the hash + index.
