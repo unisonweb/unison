@@ -964,13 +964,16 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
               Right ty -> do
                 let rid = Hashing.hashClosedTerm tm
                 put rid tm ty
+                -- Also register the term in the runtime cache so a
+                -- follow-up Meta.eval can find it. prepareEvaluation
+                -- returns the post-ANF intermediate reference; we use
+                -- that as the Link.Term payload, mirroring
+                -- Meta.typecheck. (The persisted codebase Reference.Id
+                -- is rid, computed above; the two only coincide when
+                -- the term has no float/intermediate remapping.)
+                (_ctx', _rcode, mainRef) <- prepareEvaluation ppe tm ctx
                 let linkVal =
-                      BoxedVal
-                        ( Foreign
-                            ( WrapReferent
-                                (RF.Ref (RF.DerivedId rid))
-                            )
-                        )
+                      BoxedVal (Foreign (WrapReferent (RF.Ref mainRef)))
                 pure (metaRight linkVal)
 
   result <-
