@@ -26,8 +26,10 @@ import Data.Foldable (toList)
 import Data.Functor.Identity (runIdentity)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.String (fromString)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Word (Word64)
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
 import Unison.Kind qualified as Kind
@@ -48,19 +50,22 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Runtime.MetaSource qualified as Meta
+import Unison.Pattern (Pattern, SeqOp)
+import Unison.Pattern qualified as Pat
 import Unison.Runtime.Stack
   ( Closure (..),
     Foreign (..),
     Val (..),
     pattern BoxedVal,
     pattern CharVal,
+    pattern DataC,
     pattern DoubleVal,
     pattern IntVal,
     pattern NatVal,
   )
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
-import Unison.Term (Term)
+import Unison.Term (MatchCase (..), Term)
 import Unison.Term qualified as Term
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Text qualified as Util.Text
@@ -136,10 +141,12 @@ decodeTermF = \case
         absT <- decodeMetaTerm absVal
         pure (ABT.tm' () (Term.Let False bnd absT))
   -- If c t e — uses DataG (3 args)
-  BoxedVal (DataG ref tag _seg)
-    | ref == Meta.termFRef && tag == TT.metaTermFIfTag ->
-        -- TODO: decode DataG segment; for now flag as unsupported.
-        Left "Meta.compile: If decoding not yet implemented (DataG seg)"
+  BoxedVal (DataC ref tag [cVal, tVal, eVal])
+    | ref == Meta.termFRef && tag == TT.metaTermFIfTag -> do
+        c <- decodeMetaTerm cVal
+        t <- decodeMetaTerm tVal
+        e <- decodeMetaTerm eVal
+        pure (Term.iff () c t e)
   -- Handle h e
   BoxedVal (Data2 ref tag hVal eVal)
     | ref == Meta.termFRef && tag == TT.metaTermFHandleTag -> do
@@ -186,13 +193,22 @@ decodeTermF = \case
     | ref == Meta.termFRef && tag == TT.metaTermFTypeLinkTag -> do
         r <- decodeReference rVal
         pure (Term.typeLink () r)
-  -- LetRec / Match — defer.
-  BoxedVal (Data2 ref tag _ _)
-    | ref == Meta.termFRef && tag == TT.metaTermFLetRecTag ->
-        Left "Meta.compile: LetRec decoding not yet implemented"
-  BoxedVal (Data2 ref tag _ _)
-    | ref == Meta.termFRef && tag == TT.metaTermFMatchTag ->
-        Left "Meta.compile: Match decoding not yet implemented"
+  -- LetRec [bindings] body — bindings and body are sub-Terms (the
+  -- ABT.Cycle binders live above this LetRec node, so what we get
+  -- here is the F-level constructor only).
+  BoxedVal (Data2 ref tag bsVal bodyVal)
+    | ref == Meta.termFRef && tag == TT.metaTermFLetRecTag -> do
+        bs <- decodeList decodeMetaTerm bsVal
+        body <- decodeMetaTerm bodyVal
+        -- isTop = False is the conservative default; the typechecker
+        -- and runtime don't distinguish top vs nested let-rec for
+        -- meta-decoded terms.
+        pure (ABT.tm' () (Term.LetRec False bs body))
+  BoxedVal (Data2 ref tag scrutVal casesVal)
+    | ref == Meta.termFRef && tag == TT.metaTermFMatchTag -> do
+        scrut <- decodeMetaTerm scrutVal
+        cases <- decodeList decodeMatchCase casesVal
+        pure (ABT.tm' () (Term.Match scrut cases))
   v -> shapeError "meta.TermF" v
 
 -- ---------------------------------------------------------------
@@ -291,6 +307,107 @@ decodeKind = \case
   v -> shapeError "meta.Kind" v
 
 -- ---------------------------------------------------------------
+-- meta.MatchCase — inverse of MetaDecompile.matchCaseVal.
+-- ---------------------------------------------------------------
+
+decodeMatchCase :: Val -> Either Text (MatchCase () (Term Symbol ()))
+decodeMatchCase = \case
+  BoxedVal (DataC ref tag [pVal, gVal, bVal])
+    | ref == Meta.matchCaseRef && tag == TT.metaMatchCaseTag -> do
+        pat <- decodePattern pVal
+        guard <- decodeOptional decodeMetaTerm gVal
+        body <- decodeMetaTerm bVal
+        pure (MatchCase pat guard body)
+  v -> shapeError "meta.MatchCase" v
+
+-- ---------------------------------------------------------------
+-- meta.Pattern — inverse of MetaDecompile.patternVal.
+-- ---------------------------------------------------------------
+
+decodePattern :: Val -> Either Text (Pattern ())
+decodePattern = \case
+  BoxedVal (Enum ref tag)
+    | ref == Meta.patternRef && tag == TT.metaPatternPUnboundTag ->
+        pure (Pat.Unbound ())
+    | ref == Meta.patternRef && tag == TT.metaPatternPVarTag ->
+        pure (Pat.Var ())
+  BoxedVal (Data1 ref tag inner)
+    | ref == Meta.patternRef ->
+        if
+          | tag == TT.metaPatternPBooleanTag -> do
+              b <- decodeBoolean inner
+              pure (Pat.Boolean () b)
+          | tag == TT.metaPatternPIntTag, IntVal i <- inner ->
+              pure (Pat.Int () (fromIntegral i))
+          | tag == TT.metaPatternPNatTag, NatVal n <- inner ->
+              pure (Pat.Nat () n)
+          | tag == TT.metaPatternPFloatTag, DoubleVal f <- inner ->
+              pure (Pat.Float () f)
+          | tag == TT.metaPatternPTextTag -> do
+              t <- decodeText inner
+              pure (Pat.Text () t)
+          | tag == TT.metaPatternPCharTag, CharVal c <- inner ->
+              pure (Pat.Char () c)
+          | tag == TT.metaPatternPBytesTag -> do
+              b <- decodeBytes inner
+              pure (Pat.Bytes () b)
+          | tag == TT.metaPatternPAsTag -> do
+              p <- decodePattern inner
+              pure (Pat.As () p)
+          | tag == TT.metaPatternPEffectPureTag -> do
+              p <- decodePattern inner
+              pure (Pat.EffectPure () p)
+          | tag == TT.metaPatternPSequenceLiteralTag -> do
+              ps <- decodeList decodePattern inner
+              pure (Pat.SequenceLiteral () ps)
+          | otherwise ->
+              Left ("Meta.compile: unknown Pattern Data1 tag: " <> Text.pack (show tag))
+  BoxedVal (DataC ref tag [rVal, cidVal, psVal])
+    | ref == Meta.patternRef && tag == TT.metaPatternPConstructorTag -> do
+        r <- decodeReference rVal
+        cid <- decodeNat cidVal
+        ps <- decodeList decodePattern psVal
+        pure (Pat.Constructor () (ConstructorReference r (fromIntegral cid)) ps)
+  BoxedVal (DataC ref tag [rVal, cidVal, psVal, contVal])
+    | ref == Meta.patternRef && tag == TT.metaPatternPEffectBindTag -> do
+        r <- decodeReference rVal
+        cid <- decodeNat cidVal
+        ps <- decodeList decodePattern psVal
+        cont <- decodePattern contVal
+        pure (Pat.EffectBind () (ConstructorReference r (fromIntegral cid)) ps cont)
+  BoxedVal (DataC ref tag [lVal, opVal, rVal])
+    | ref == Meta.patternRef && tag == TT.metaPatternPSequenceOpTag -> do
+        l <- decodePattern lVal
+        op <- decodeSeqOp opVal
+        r <- decodePattern rVal
+        pure (Pat.SequenceOp () l op r)
+  v -> shapeError "meta.Pattern" v
+
+decodeSeqOp :: Val -> Either Text SeqOp
+decodeSeqOp = \case
+  BoxedVal (Enum ref tag)
+    | ref == Meta.seqOpRef ->
+        if
+          | tag == TT.metaSeqOpPConsTag -> pure Pat.Cons
+          | tag == TT.metaSeqOpPSnocTag -> pure Pat.Snoc
+          | tag == TT.metaSeqOpPConcatTag -> pure Pat.Concat
+          | otherwise -> Left ("Meta.compile: unknown SeqOp tag: " <> Text.pack (show tag))
+  v -> shapeError "meta.SeqOp" v
+
+decodeOptional :: (Val -> Either Text a) -> Val -> Either Text (Maybe a)
+decodeOptional f = \case
+  BoxedVal (Enum _ tag)
+    | tag == TT.noneTag -> pure Nothing
+  BoxedVal (Data1 _ tag inner)
+    | tag == TT.someTag -> Just <$> f inner
+  v -> shapeError "Optional" v
+
+decodeNat :: Val -> Either Text Word64
+decodeNat = \case
+  NatVal n -> pure n
+  v -> shapeError "Nat" v
+
+-- ---------------------------------------------------------------
 -- meta.Literal
 -- ---------------------------------------------------------------
 
@@ -309,8 +426,14 @@ decodeLiteral = \case
           | tag == TT.metaLitTextTag -> do
               t <- decodeText inner
               pure (Term.text () t)
-          | tag == TT.metaLitBytesTag ->
-              Left "Meta.compile: Bytes literal decode not yet implemented"
+          | tag == TT.metaLitBytesTag -> do
+              b <- decodeBytes inner
+              -- Bytes literals have no dedicated Term constructor;
+              -- mirror Decompile.decompileBytes by lowering to a
+              -- `Bytes.fromList [n0, n1, …]` call. The typechecker
+              -- and runtime both understand this form.
+              let nats = Term.list () (Term.nat () . fromIntegral <$> Bytes.toWord8s b)
+              pure (Term.app () (Term.builtin () (fromString "Bytes.fromList")) nats)
           | otherwise ->
               Left ("Meta.compile: unknown Literal tag: " <> Text.pack (show tag))
   v -> shapeError "meta.Literal" v
