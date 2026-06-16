@@ -56,7 +56,7 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
-import Unison.Codebase.Runtime (CompileOpts (..), Response (..))
+import Unison.Codebase.Runtime (CompileOpts (..), MetaPutTerm, Response (..))
 import Unison.Codebase.Runtime.Profile (Profile (..), ProfileSpec (..), foldedProfile, fullProfile, miniProfile)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
@@ -571,10 +571,11 @@ interpEvalDirect ::
   IORef EvalCtx ->
   Maybe ProfileComm ->
   CodeLookup Symbol IO () ->
+  Maybe (MetaPutTerm Symbol) ->
   PrettyPrintEnv ->
   Term Symbol ->
   IO (Either Error (Response DecompError, Term Symbol))
-interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
+interpEvalDirect activeThreads cleanupThreads ctxVar prof cl metaPut ppe tm =
   catchErrors $ do
     ctx <- readIORef ctxVar
     (tyrs, tmrs) <- collectDeps cl tm
@@ -582,7 +583,7 @@ interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
     (ctx, _, init) <- prepareEvaluation ppe tm ctx
     initw <- refNumTm (ccache ctx) init
     writeIORef ctxVar ctx
-    evalInContext ppe cl ctx prof activeThreads initw
+    evalInContext ppe cl metaPut ctx prof activeThreads initw
       `UnliftIO.finally` cleanupThreads
 
 profileEval ::
@@ -590,14 +591,15 @@ profileEval ::
   IO () ->
   IORef EvalCtx ->
   CodeLookup Symbol IO () ->
+  Maybe (MetaPutTerm Symbol) ->
   PrettyPrintEnv ->
   Maybe String ->
   Term Symbol ->
   IO (Either Error (Response DecompError, Term Symbol))
-profileEval actThr cleanThr ctxVar cl ppe mout tm = do
+profileEval actThr cleanThr ctxVar cl metaPut ppe mout tm = do
   prof <- spawnProfiler
   result <-
-    interpEvalDirect actThr cleanThr ctxVar (Just prof) cl ppe tm
+    interpEvalDirect actThr cleanThr ctxVar (Just prof) cl metaPut ppe tm
   case result of
     Left err -> pure $ Left err
     Right (errs, tmr) -> case prof of
@@ -635,15 +637,16 @@ interpEval ::
   IO () ->
   IORef EvalCtx ->
   CodeLookup Symbol IO () ->
+  Maybe (MetaPutTerm Symbol) ->
   PrettyPrintEnv ->
   ProfileSpec ->
   Term Symbol ->
   IO (Either Error (Response DecompError, Term Symbol))
-interpEval actThr cleanThr ctxVar cl ppe = \case
+interpEval actThr cleanThr ctxVar cl metaPut ppe = \case
   NoProf ->
-    interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
-  MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
-  FullProf file -> profileEval actThr cleanThr ctxVar cl ppe $ Just file
+    interpEvalDirect actThr cleanThr ctxVar Nothing cl metaPut ppe
+  MiniProf -> profileEval actThr cleanThr ctxVar cl metaPut ppe Nothing
+  FullProf file -> profileEval actThr cleanThr ctxVar cl metaPut ppe $ Just file
 
 -- Slightly inefficient method of encoding text. Matches the old way of
 -- encoding e.g. the compiled version below. Compiled code is not
@@ -856,12 +859,13 @@ backReference frs irs r = do
 evalInContext ::
   PrettyPrintEnv ->
   CodeLookup Symbol IO () ->
+  Maybe (MetaPutTerm Symbol) ->
   EvalCtx ->
   Maybe ProfileComm ->
   ActiveThreads ->
   Word64 ->
   IO (Either Error (Response DecompError, Term Symbol))
-evalInContext ppe cl ctx prof activeThreads w = do
+evalInContext ppe cl metaPut ctx prof activeThreads w = do
   r <- newIORef (boxedVal BlackHole)
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
@@ -940,20 +944,61 @@ evalInContext ppe cl ctx prof activeThreads w = do
                 Just tm -> pure (metaSome (MetaDecomp.convertTerm tm))
             RF.Builtin _ -> pure metaNone
         _ -> pure metaNone
+      -- Decode a meta.Term meta.TermF Val, typecheck it against the
+      -- codebase via 'typeLookupForMetaTerm', hash the source term,
+      -- and persist (Reference.Id, Term, Type) through the
+      -- 'MetaPutTerm' callback wired up by the caller. Return
+      -- Either Text Link.Term: Left if decode or typecheck fail or
+      -- no codebase callback is installed (e.g. headless runtime),
+      -- Right with the new hash's Link.Term on success.
+      metaStoreF :: Val -> IO Val
+      metaStoreF val = case metaPut of
+        Nothing ->
+          pure (metaLeftText "Meta.store: no codebase write callback available")
+        Just put -> case MetaC.compileTerm val of
+          Left err -> pure (metaLeftText err)
+          Right tm -> do
+            extraTL <- typeLookupForMetaTerm cl tm
+            case MetaC.typecheckTerm extraTL tm of
+              Left err -> pure (metaLeftText err)
+              Right ty -> do
+                let rid = Hashing.hashClosedTerm tm
+                put rid tm ty
+                let linkVal =
+                      BoxedVal
+                        ( Foreign
+                            ( WrapReferent
+                                (RF.Ref (RF.DerivedId rid))
+                            )
+                        )
+                pure (metaRight linkVal)
 
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
       maybe
         ( apply0
             (Just hook)
-            (ccache ctx) {tracer = debugText, metaDecompile = metaDecom, metaTypecheck = metaTC, metaLoad = metaLoadF}
+            (ccache ctx)
+              { tracer = debugText,
+                metaDecompile = metaDecom,
+                metaTypecheck = metaTC,
+                metaLoad = metaLoadF,
+                metaStore = metaStoreF
+              }
             activeThreads
             w
         )
         ( \pc ->
             apply0
               (Just hook)
-              (ccache ctx) {tracer = debugText, metaDecompile = metaDecom, metaTypecheck = metaTC, metaLoad = metaLoadF, profiler = pc}
+              (ccache ctx)
+                { tracer = debugText,
+                  metaDecompile = metaDecom,
+                  metaTypecheck = metaTC,
+                  metaLoad = metaLoadF,
+                  metaStore = metaStoreF,
+                  profiler = pc
+                }
               activeThreads
               w
         )
@@ -981,6 +1026,10 @@ metaNone = BoxedVal (Enum RF.optionalRef TT.noneTag)
 -- | @Some x@ as a runtime @Optional x@ closure.
 metaSome :: Val -> Val
 metaSome v = BoxedVal (Data1 RF.optionalRef TT.someTag v)
+
+-- | @Right x@ as a runtime @Either Text x@ closure (single payload).
+metaRight :: Val -> Val
+metaRight v = BoxedVal (Data1 RF.eitherRef TT.rightTag v)
 
 executeMainComb ::
   CombIx ->
@@ -1114,7 +1163,7 @@ debugTextFormat fancy =
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub ()
+    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub metaStoreStub ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -1160,6 +1209,9 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
     -- No CodeLookup is available in a restored-cache context, so
     -- Meta.load can't resolve anything; return None.
     metaLoadStub _val = pure metaNone
+    -- No codebase write callback in a restored-cache context.
+    metaStoreStub _val =
+      pure (metaLeftText "Meta.store: unavailable in restored-cache context")
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     srcCombs :: EnumMap Word64 Combs

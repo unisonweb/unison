@@ -586,6 +586,9 @@ meta'eval = unop0 0 $ \[x] -> TPrm MEVL [x]
 meta'load :: SuperNormal ref Symbol
 meta'load = unop0 0 $ \[x] -> TPrm MLOD [x]
 
+meta'store :: SuperNormal ref Symbol
+meta'store = unop0 0 $ \[x] -> TPrm MSTR [x]
+
 check'sandbox :: SuperNormal ref Symbol
 check'sandbox = binop SDBX
 
@@ -877,6 +880,7 @@ builtinLookup =
         ("Meta.typecheck", (Tracked, meta'typecheck)),
         ("Meta.eval", (Tracked, meta'eval)),
         ("Meta.load", (Tracked, meta'load)),
+        ("Meta.store", (Tracked, meta'store)),
         ("unsafe.coerceAbilities", (Untracked, poly'coerce)),
         ("Char.toNat", (Untracked, coerceType NatTag)),
         ("Char.fromNat", (Untracked, coerceType CharTag)),

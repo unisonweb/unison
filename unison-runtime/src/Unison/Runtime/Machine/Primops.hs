@@ -111,6 +111,7 @@ prim1 _env !stk MDCM _ = pure stk
 prim1 _env !stk MTYC _ = pure stk
 prim1 _env !stk MEVL _ = pure stk
 prim1 _env !stk MLOD _ = pure stk
+prim1 _env !stk MSTR _ = pure stk
 {-# INLINE prim1 #-}
 
 -- Wrap an implementation to act on an index on two indices

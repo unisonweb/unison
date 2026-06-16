@@ -78,7 +78,19 @@ evalUnisonTermE mode ppe useCache tm = do
         pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
 
   let cache = if useCache then watchCache else Runtime.noCache
-  r <- liftIO (Runtime.evaluateTerm' (Codebase.codebaseToCodeLookup codebase) cache ppe prof theRuntime tm)
+      -- Wire Meta.store through to the SQLite codebase. The runtime
+      -- decodes + typechecks + hashes the meta term and hands us the
+      -- (Reference.Id, Term, Type) triple; we lift annotations from
+      -- () to External and commit via Codebase.putTerm.
+      metaPut :: Runtime.MetaPutTerm Symbol
+      metaPut rid tmU tyU =
+        Codebase.runTransaction codebase $
+          Codebase.putTerm
+            codebase
+            rid
+            (Term.amap (const Ann.External) tmU)
+            (Ann.External <$ tyU)
+  r <- liftIO (Runtime.evaluateTerm' (Codebase.codebaseToCodeLookup codebase) (Just metaPut) cache ppe prof theRuntime tm)
   when useCache do
     case r of
       Right (Runtime.DecompErrs errs, _)

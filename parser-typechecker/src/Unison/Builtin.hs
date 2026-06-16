@@ -675,6 +675,9 @@ builtinsSrc =
       termLink
         --> io
           (optionalt (Type.app () (Type.metaTerm ()) (Type.metaTermF ()))),
+    B "Meta.store" $
+      Type.app () (Type.metaTerm ()) (Type.metaTermF ())
+        --> io (eithert text termLink),
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),

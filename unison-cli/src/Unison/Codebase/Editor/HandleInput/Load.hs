@@ -498,7 +498,15 @@ evalUnisonFile mode ppe unisonFile args = do
 
   Cli.with_ (withArgs args) do
     let codeLookup = Codebase.codebaseToCodeLookup env.codebase
-    liftIO (Runtime.evaluateWatches codeLookup ppe prof watchCache theRuntime unisonFile) >>= \case
+        metaPut :: Runtime.MetaPutTerm Symbol
+        metaPut rid tmU tyU =
+          Codebase.runTransaction env.codebase $
+            Codebase.putTerm
+              env.codebase
+              rid
+              (Term.amap (const Ann.External) tmU)
+              (Ann.External <$ tyU)
+    liftIO (Runtime.evaluateWatches codeLookup (Just metaPut) ppe prof watchCache theRuntime unisonFile) >>= \case
       Right (nts, resp, map) -> do
         cache <- case resp of
           Runtime.DecompErrs errs

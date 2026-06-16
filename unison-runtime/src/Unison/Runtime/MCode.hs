@@ -378,6 +378,7 @@ data Prim1
   | MTYC -- Meta.typecheck
   | MEVL -- Meta.eval
   | MLOD -- Meta.load
+  | MSTR -- Meta.store
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Prim2
@@ -1466,6 +1467,7 @@ emitPOp ANF.MDCM = emitP1 MDCM
 emitPOp ANF.MTYC = emitP1 MTYC
 emitPOp ANF.MEVL = emitP1 MEVL
 emitPOp ANF.MLOD = emitP1 MLOD
+emitPOp ANF.MSTR = emitP1 MSTR
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 -- Bools

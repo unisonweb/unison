@@ -407,6 +407,16 @@ exec env henv !_activeThreads !stk !k _ (Prim1 MLOD i) = do
   -- via 'MetaDecompile.convertTerm'.
   poke stk =<< metaLoad env v
   pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MSTR i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  -- Dispatch to the metaStore function installed on the CCache.
+  -- 'Unison.Runtime.Interface' installs an implementation that
+  -- decodes the meta.Term, typechecks it, hashes it, and persists
+  -- it via the MetaPutTerm callback the caller wired up; baseCCache
+  -- supplies a stub that errors.
+  poke stk =<< metaStore env v
+  pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Prim1 MEVL i) = do
   -- Input is a Link.Term. Branch on the cached combinator's shape:
   --   * CachedVal: a pre-evaluated pure constant — push the stored
