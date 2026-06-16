@@ -457,7 +457,13 @@ pretty0
                     inner' <- pretty0 (ac (InfixOp Highest) Normal im doc) inner
                     args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
                     pure (fmt S.ControlKeyword "give " <> PP.hang inner' args')
-            _ -> notDoc go
+            _ -> do
+              env <- ask
+              case toQuotedSource env.ppe term of
+                Just inner -> do
+                  inner' <- pretty0 (ac Bottom Normal im doc) inner
+                  pure (PP.group (fmt S.ControlKeyword "[| " <> inner' <> fmt S.ControlKeyword " |]"))
+                Nothing -> notDoc go
         where
           notDoc go = do
             env <- ask
@@ -2407,6 +2413,118 @@ nameEndsWith ppe suffix r = case PrettyPrintEnv.termName ppe (Referent.Ref r) of
     let tn = Name.toText n
      in tn == Text.drop 1 suffix || Text.isSuffixOf suffix tn
   _ -> False
+
+-- | Match a constructor reference by name, tolerant of PPE
+-- shortening. Suffix is the fully-qualified tail (no leading dot,
+-- e.g. @"meta.Term.Term"@); we accept the PPE-printed name if it is
+-- equal to the suffix, ends with @"." <> suffix@, OR is the
+-- right-most segment of suffix on its own (so PPE-shortened names
+-- like @"Tm"@ still match @"meta.ABT.Tm"@).
+ctorNameEndsWith :: PrettyPrintEnv -> Text -> ConstructorReference.ConstructorReference -> CT.ConstructorType -> Bool
+ctorNameEndsWith ppe suffix cref ct =
+  let hq = PrettyPrintEnv.termName ppe (Referent.Con cref ct)
+   in case HQ.toName hq of
+        Just n ->
+          let tn = Name.toText n
+              segs = Text.splitOn "." tn
+              suffixSegs = Text.splitOn "." suffix
+           in tn == suffix
+                || Text.isSuffixOf ("." <> suffix) tn
+                || segs `List.isSuffixOf` suffixSegs
+                || suffixSegs `List.isSuffixOf` segs
+        Nothing -> False
+
+-- | Attempt to recognise a quote-desugared @meta.Term meta.TermF@
+-- value and recover the source term it represents, so the pretty
+-- printer can emit @[| ... |]@ instead of the raw constructor soup
+-- the parser generates. Returns 'Nothing' for any expression that
+-- doesn't look like a desugared quote — the printer falls back to
+-- normal output.
+toQuotedSource ::
+  forall v.
+  (Var v) =>
+  PrettyPrintEnv ->
+  Term3 v PrintAnnotation ->
+  Maybe (Term3 v PrintAnnotation)
+toQuotedSource ppe = unwrapTermNode
+  where
+    a :: PrintAnnotation
+    a = mempty
+
+    -- @meta.Term.Term <frees> <abt>@
+    unwrapTermNode tm = case tm of
+      App' (App' (Constructor' cr) _frees) abt
+        | ctorNameEndsWith ppe "meta.Term.Term" cr CT.Data ->
+            unwrapAbt abt
+      _ -> Nothing
+
+    -- @meta.ABT.{Var, Abs, Cycle, Tm}@
+    unwrapAbt tm = case tm of
+      App' (Constructor' cr) (App' (Constructor' nc) (Text' name))
+        | ctorNameEndsWith ppe "meta.ABT.Var" cr CT.Data,
+          ctorNameEndsWith ppe "meta.Name.Name" nc CT.Data ->
+            Just (var a (Var.named name))
+      App' (App' (Constructor' cr) (App' (Constructor' nc) (Text' name))) body
+        | ctorNameEndsWith ppe "meta.ABT.Abs" cr CT.Data,
+          ctorNameEndsWith ppe "meta.Name.Name" nc CT.Data -> do
+            body' <- unwrapTermNode body
+            Just (lam a (a, Var.named name) body')
+      App' (Constructor' cr) inner
+        | ctorNameEndsWith ppe "meta.ABT.Cycle" cr CT.Data ->
+            unwrapTermNode inner
+      App' (Constructor' cr) tf
+        | ctorNameEndsWith ppe "meta.ABT.Tm" cr CT.Data ->
+            unwrapTermF tf
+      _ -> Nothing
+
+    -- @meta.TermF.{App, Lam, Lit, Ref, ...}@
+    unwrapTermF tm = case tm of
+      App' (App' (Constructor' cr) f) x
+        | ctorNameEndsWith ppe "meta.TermF.App" cr CT.Data -> do
+            f' <- unwrapTermNode f
+            x' <- unwrapTermNode x
+            Just (app a f' x')
+      App' (Constructor' cr) inner
+        | ctorNameEndsWith ppe "meta.TermF.Lam" cr CT.Data ->
+            unwrapTermNode inner
+      App' (Constructor' cr) lit
+        | ctorNameEndsWith ppe "meta.TermF.Lit" cr CT.Data ->
+            unwrapLit lit
+      App' (Constructor' cr) refVal
+        | ctorNameEndsWith ppe "meta.TermF.Ref" cr CT.Data ->
+            unwrapReferenceAsVar refVal
+      _ -> Nothing
+
+    -- @meta.Literal.LitNat <Nat>@ etc.
+    unwrapLit tm = case tm of
+      App' (Constructor' cr) (Nat' n)
+        | ctorNameEndsWith ppe "meta.Literal.LitNat" cr CT.Data ->
+            Just (nat a n)
+      App' (Constructor' cr) (Int' i)
+        | ctorNameEndsWith ppe "meta.Literal.LitInt" cr CT.Data ->
+            Just (int a i)
+      App' (Constructor' cr) (Float' f)
+        | ctorNameEndsWith ppe "meta.Literal.LitFloat" cr CT.Data ->
+            Just (float a f)
+      App' (Constructor' cr) (Boolean' b)
+        | ctorNameEndsWith ppe "meta.Literal.LitBoolean" cr CT.Data ->
+            Just (boolean a b)
+      App' (Constructor' cr) (Text' s)
+        | ctorNameEndsWith ppe "meta.Literal.LitText" cr CT.Data ->
+            Just (text a s)
+      App' (Constructor' cr) (Char' c)
+        | ctorNameEndsWith ppe "meta.Literal.LitChar" cr CT.Data ->
+            Just (char a c)
+      _ -> Nothing
+
+    -- @meta.Reference.ReferenceBuiltin "Nat.+"@ -> print as the bare
+    -- name so the quote round-trips through the parser's name
+    -- resolution.
+    unwrapReferenceAsVar tm = case tm of
+      App' (Constructor' cr) (Text' name)
+        | ctorNameEndsWith ppe "meta.Reference.ReferenceBuiltin" cr CT.Data ->
+            Just (var a (Var.named name))
+      _ -> Nothing
 
 -- Modifies a PrettyPrintEnv to avoid picking a name for a term or type ref
 -- which is the same as a locally introduced variable. For example:

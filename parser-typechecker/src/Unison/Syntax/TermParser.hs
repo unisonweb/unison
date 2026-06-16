@@ -48,11 +48,13 @@ import Unison.Parser.Ann (Ann (Ann))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Reference (TypeReference)
+import Unison.Hash qualified as Hash
+import Unison.Reference (Reference, TypeReference)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.Lexer.Unison qualified as L
-import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
+import Unison.Syntax.Name qualified as Name (parseText, toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
@@ -698,7 +700,8 @@ quasiquote = P.label "quasiquote" do
   start <- openBlockWith "[|"
   body <- term
   end <- closeBlock
-  pure $ desugarQuote (ann start <> ann end) body
+  ns <- asks names
+  pure $ desugarQuote ns (ann start <> ann end) body
 
 -- | Meta-program splice @${ x }@. Standalone splices outside a quote
 -- are a parse error in spirit but typecheck as a free reference to
@@ -721,62 +724,185 @@ spliceMarkerName = "$ meta splice $"
 
 -- | Walk the AST of a quoted expression and produce a term that, at
 -- runtime, constructs the corresponding @meta.Term meta.TermF@ value.
--- MVP coverage: numeric/boolean/text/char literals, refs, App, and
--- splices. Anything else falls through to a placeholder Var node so
--- the typechecker surfaces the gap rather than the desugarer silently
--- dropping syntax.
-desugarQuote :: forall v. (Var v) => Ann -> Term v Ann -> Term v Ann
-desugarQuote a t = case t of
-  -- Splice sentinel — emit the spliced expression directly.
-  Term.App' (Term.Var' v) inner
-    | Var.nameStr v == spliceMarkerName -> inner
-  -- Application.
-  Term.App' f x ->
-    metaTm a "TermF.App" [desugarQuote a f, desugarQuote a x]
-  -- Literals.
-  Term.Nat' n ->
-    metaTm a "TermF.Lit" [metaLit a "Literal.LitNat" (Term.nat a n)]
-  Term.Int' i ->
-    metaTm a "TermF.Lit" [metaLit a "Literal.LitInt" (Term.int a i)]
-  Term.Float' f ->
-    metaTm a "TermF.Lit" [metaLit a "Literal.LitFloat" (Term.float a f)]
-  Term.Boolean' b ->
-    metaTm a "TermF.Lit" [metaLit a "Literal.LitBoolean" (Term.boolean a b)]
-  Term.Text' s ->
-    metaTm a "TermF.Lit" [metaLit a "Literal.LitText" (Term.text a s)]
-  Term.Char' c ->
-    metaTm a "TermF.Lit" [metaLit a "Literal.LitChar" (Term.char a c)]
-  -- Plain references resolve through the codebase at runtime via
-  -- meta.Reference. For the MVP we leave the desugaring to a runtime
-  -- helper that builds the Reference from the resolved term link.
-  _ ->
-    -- Fall back: pass the original expression through as a splice.
-    -- This is intentionally permissive — it means @'{ outerVal }@
-    -- (where outerVal already has type @meta.Term meta.TermF@) just
-    -- works without an explicit @${ outerVal }@.
-    t
+-- The 'Set v' parameter is the set of variables bound by enclosing
+-- quote-level binders (lambdas) — those become @meta.ABT.Var@; any
+-- other free variable in the quote is passed through unchanged so the
+-- typechecker treats it as an auto-spliced @meta.Term meta.TermF@
+-- value (cross-stage persistence).
+desugarQuote :: forall v. (Var v) => Names -> Ann -> Term v Ann -> Term v Ann
+desugarQuote ns a = go Set.empty
+  where
+    -- 'bound' is the set of quote-scoped variables introduced by
+    -- enclosing lambdas in the quote. A var is meta-level Var iff
+    -- it's in 'bound'; the cached freeVars set on each meta.Term
+    -- wrapper is (ABT.freeVars subterm) ∩ bound.
+    go :: Set v -> Term v Ann -> Term v Ann
+    go bound t = case t of
+      -- Splice sentinel — emit the spliced expression directly.
+      Term.App' (Term.Var' v) inner
+        | Var.nameStr v == spliceMarkerName -> inner
+      -- Lambda with named binder — introduce the binder into 'bound'
+      -- and emit @meta.TermF.Lam@ wrapping an @meta.ABT.Abs@ over the
+      -- recursive desugaring.
+      Term.LamNamed' v body ->
+        let bodyDes = go (Set.insert v bound) body
+            frees = ABT.freeVars body `Set.intersection` bound
+            absNode =
+              wrapTermFrees a frees $
+                Term.apps'
+                  (Term.var a (Var.nameds "meta.ABT.Abs"))
+                  [metaName a (Var.name v), bodyDes]
+            lamInner = Term.app a (Term.var a (Var.nameds "meta.TermF.Lam")) absNode
+         in wrapTermFrees a frees (Term.app a (Term.var a (Var.nameds "meta.ABT.Tm")) lamInner)
+      -- Variables — emit @meta.ABT.Var@ if the binder is in scope.
+      -- If the var name resolves to a single codebase term reference,
+      -- lift it to a @meta.TermF.Ref@. Otherwise fall through and let
+      -- the typechecker treat it as an auto-splice.
+      Term.Var' v
+        | Set.member v bound ->
+            let varNode =
+                  Term.app
+                    a
+                    (Term.var a (Var.nameds "meta.ABT.Var"))
+                    (metaName a (Var.name v))
+             in wrapTermFrees a (Set.singleton v) varNode
+        | otherwise -> case resolveFreeVar v of
+            Just (Referent.Ref r) -> metaTm bound a t "TermF.Ref" [metaReference a r]
+            Just (Referent.Con (ConstructorReference r cid) CT.Data) ->
+              metaTm bound a t "TermF.Constructor" [metaCtorRef a r (fromIntegral cid)]
+            Just (Referent.Con (ConstructorReference r cid) CT.Effect) ->
+              metaTm bound a t "TermF.Request" [metaCtorRef a r (fromIntegral cid)]
+            Nothing -> t
+      -- References — codebase-resolved Refs become @meta.TermF.Ref@
+      -- nodes wrapping a @meta.Reference@ constructed inline from the
+      -- builtin name or the hash + index.
+      Term.Ref' r ->
+        metaTm bound a t "TermF.Ref" [metaReference a r]
+      -- Constructors and Requests carry a ConstructorReference; emit
+      -- the corresponding @meta.TermF.Constructor@ / @Request@ wrapping
+      -- a @meta.ConstructorReference@.
+      Term.Constructor' (ConstructorReference r cid) ->
+        metaTm bound a t "TermF.Constructor" [metaCtorRef a r (fromIntegral cid)]
+      Term.Request' (ConstructorReference r cid) ->
+        metaTm bound a t "TermF.Request" [metaCtorRef a r (fromIntegral cid)]
+      -- Application.
+      Term.App' f x ->
+        metaTm bound a t "TermF.App" [go bound f, go bound x]
+      -- Literals.
+      Term.Nat' n ->
+        metaTm bound a t "TermF.Lit" [metaLit a "Literal.LitNat" (Term.nat a n)]
+      Term.Int' i ->
+        metaTm bound a t "TermF.Lit" [metaLit a "Literal.LitInt" (Term.int a i)]
+      Term.Float' f ->
+        metaTm bound a t "TermF.Lit" [metaLit a "Literal.LitFloat" (Term.float a f)]
+      Term.Boolean' b ->
+        metaTm bound a t "TermF.Lit" [metaLit a "Literal.LitBoolean" (Term.boolean a b)]
+      Term.Text' s ->
+        metaTm bound a t "TermF.Lit" [metaLit a "Literal.LitText" (Term.text a s)]
+      Term.Char' c ->
+        metaTm bound a t "TermF.Lit" [metaLit a "Literal.LitChar" (Term.char a c)]
+      -- Anything else falls through as a free splice — keeps the
+      -- desugarer permissive while we extend coverage incrementally.
+      _ -> t
 
--- | @meta.Term.Term Set.empty (meta.ABT.Tm (ctor args))@ — the outer
--- wrapper around any quote-desugared TermF constructor. We can't say
--- @Set.empty@ directly because the builtin codebase doesn't ship one;
--- instead we construct @Set.Set Map.Tip@, which is the canonical
--- empty Set after @builtins.mergeio@.
-metaTm :: forall v. (Var v) => Ann -> String -> [Term v Ann] -> Term v Ann
-metaTm a ctor args =
+    -- Look up an unbound variable in the parser's Names environment.
+    -- Returns the single resolved Referent, or Nothing if the name
+    -- is unknown or ambiguous (treat both as "not a codebase ref,
+    -- leave it for the typechecker to splice or complain about").
+    resolveFreeVar :: v -> Maybe Referent
+    resolveFreeVar v = case Name.parseText (Var.name v) of
+      Nothing -> Nothing
+      Just name ->
+        let hits = Names.lookupHQTerm Names.IncludeSuffixes (HQ.NameOnly name) ns
+         in if Set.size hits == 1 then Just (Set.findMin hits) else Nothing
+
+-- | @meta.Name.Name "x"@ from a Unison name text.
+metaName :: forall v. (Var v) => Ann -> Text -> Term v Ann
+metaName a n =
+  Term.app a (Term.var a (Var.nameds "meta.Name.Name")) (Term.text a n)
+
+-- | Build a @meta.Reference@ value from a Haskell 'Reference'. Builtin
+-- references just carry the text; derived references encode the hash
+-- as a bytes literal plus the component index.
+metaReference :: forall v. (Var v) => Ann -> Reference -> Term v Ann
+metaReference a = \case
+  Reference.Builtin name ->
+    Term.app a (Term.var a (Var.nameds "meta.Reference.ReferenceBuiltin")) (Term.text a name)
+  Reference.DerivedId (Reference.Id h i) ->
+    let ws = Bytes.toWord8s (Bytes.fromByteString (Hash.toByteString h))
+        bytesLit =
+          Term.app
+            a
+            (Term.var a (Var.nameds "Bytes.fromList"))
+            (Term.list a (Term.nat a . fromIntegral <$> ws))
+        hashBytes = Term.app a (Term.var a (Var.nameds "meta.Hash.Hash")) bytesLit
+     in Term.apps'
+          (Term.var a (Var.nameds "meta.Reference.ReferenceDerived"))
+          [hashBytes, Term.nat a i]
+
+-- | Build a @meta.ConstructorReference@ from a Reference and ctor id.
+metaCtorRef :: forall v. (Var v) => Ann -> Reference -> Int -> Term v Ann
+metaCtorRef a r cid =
+  Term.apps'
+    (Term.var a (Var.nameds "meta.ConstructorReference.ConstructorReference"))
+    [metaReference a r, Term.nat a (fromIntegral cid)]
+
+-- | @meta.Term.Term <frees> (meta.ABT.Tm (ctor args))@ — the outer
+-- wrapper around any quote-desugared TermF constructor. The frees
+-- field is computed as @ABT.freeVars source ∩ bound@.
+metaTm ::
+  forall v.
+  (Var v) =>
+  Set v -> -- enclosing quote-bound vars
+  Ann ->
+  Term v Ann -> -- source subterm (for free-var computation)
+  String ->
+  [Term v Ann] ->
+  Term v Ann
+metaTm bound a source ctor args =
   let inner = Term.apps' (Term.var a (Var.nameds ("meta." <> ctor))) args
       abtTm = Term.app a (Term.var a (Var.nameds "meta.ABT.Tm")) inner
-   in Term.apps' (Term.var a (Var.nameds "meta.Term.Term")) [emptyNameSet a, abtTm]
+      frees = ABT.freeVars source `Set.intersection` bound
+   in wrapTermFrees a frees abtTm
 
--- | @Set.Set Map.Tip@ — the empty @Set Name@ value, used as the
--- placeholder freeVars cache for every quote-desugared meta.Term
--- node. (Real free-var computation is a follow-up; the typechecker
--- doesn't consult this cache for ordinary unification.)
-emptyNameSet :: forall v. (Var v) => Ann -> Term v Ann
-emptyNameSet a =
-  Term.app
-    a
-    (Term.var a (Var.nameds "Set.Set"))
-    (Term.var a (Var.nameds "Map.Tip"))
+-- | @meta.Term.Term <frees> payload@. The frees set is encoded as a
+-- @Set Name@ value using the @Set.Set@ + @Map.Bin@/@Map.Tip@
+-- constructors that ship with builtins.mergeio. The Map.Bin size
+-- field is filled in honestly so @Map.size@ on the result returns
+-- the right count, although Set Name's identity only depends on the
+-- key set.
+wrapTermFrees :: forall v. (Var v) => Ann -> Set v -> Term v Ann -> Term v Ann
+wrapTermFrees a frees payload =
+  Term.apps'
+    (Term.var a (Var.nameds "meta.Term.Term"))
+    [namesSet a (Var.name <$> Set.toAscList frees), payload]
+
+-- | Build a @Set Name@ value from an ordered list of name texts.
+-- Constructed as @Set.Set (Map.Bin n k1 () Map.Tip (Map.Bin (n-1) k2
+-- () Map.Tip (...)))@ — a right-leaning chain. The runtime's actual
+-- Set representation is a @Foreign WrapMap@, so this won't be
+-- byte-identical to a decompiled Set with the same elements; that
+-- matters for hash compatibility with @Meta.decompile@'d terms but
+-- not for typechecking or evaluation.
+namesSet :: forall v. (Var v) => Ann -> [Text] -> Term v Ann
+namesSet a names =
+  Term.app a (Term.var a (Var.nameds "Set.Set")) (mapChain a names)
+
+mapChain :: forall v. (Var v) => Ann -> [Text] -> Term v Ann
+mapChain a = go
+  where
+    tip = Term.var a (Var.nameds "Map.Tip")
+    go [] = tip
+    go xs@(n : ns) =
+      Term.apps'
+        (Term.var a (Var.nameds "Map.Bin"))
+        [ Term.nat a (fromIntegral (length xs)),
+          metaName a n,
+          unitVal,
+          tip,
+          go ns
+        ]
+    unitVal = Term.var a (Var.nameds "Unit.Unit")
 
 -- | @meta.Literal.<ctor> payload@.
 metaLit :: forall v. (Var v) => Ann -> String -> Term v Ann -> Term v Ann
