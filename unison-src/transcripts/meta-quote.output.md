@@ -29,9 +29,6 @@ fortyTwo = [| 42 |]
 ``` ucm
 scratch/main> add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 
 scratch/main> view fortyTwo
@@ -58,9 +55,6 @@ fortyTwoAgain = [| ${fortyTwo} |]
 
 ``` ucm
 scratch/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 ```
@@ -108,9 +102,6 @@ plusRef = [| (Nat.+) |]
 ``` ucm
 scratch/main> add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 
 scratch/main> view plusRef
@@ -138,9 +129,6 @@ idQuoted = [| x -> x |]
 
 ``` ucm
 scratch/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 

@@ -64,6 +64,7 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
 import Unison.Type qualified as Type
+import Unison.Hash qualified as Hash
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (foldMapM, intercalateMap, intercalateMapM)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
@@ -2451,6 +2452,10 @@ toQuotedSource ppe = unwrapTermNode
     a :: PrintAnnotation
     a = mempty
 
+    -- 'Term3' uses unit for pattern annotations; build patterns with ().
+    pa :: ()
+    pa = ()
+
     -- @meta.Term.Term <frees> <abt>@
     unwrapTermNode tm = case tm of
       App' (App' (Constructor' cr) _frees) abt
@@ -2493,6 +2498,157 @@ toQuotedSource ppe = unwrapTermNode
       App' (Constructor' cr) refVal
         | ctorNameEndsWith ppe "meta.TermF.Ref" cr CT.Data ->
             unwrapReferenceAsVar refVal
+      App' (Constructor' cr) ctorRefVal
+        | ctorNameEndsWith ppe "meta.TermF.Constructor" cr CT.Data -> do
+            (ref, cid) <- unwrapMetaCtorRef ctorRefVal
+            Just (constructor a (ConstructorReference ref cid))
+      App' (Constructor' cr) ctorRefVal
+        | ctorNameEndsWith ppe "meta.TermF.Request" cr CT.Data -> do
+            (ref, cid) <- unwrapMetaCtorRef ctorRefVal
+            Just (request a (ConstructorReference ref cid))
+      -- @meta.TermF.Match scrut [cases]@
+      App' (App' (Constructor' cr) scrut) casesTm
+        | ctorNameEndsWith ppe "meta.TermF.Match" cr CT.Data -> do
+            scrut' <- unwrapTermNode scrut
+            cases' <- unwrapList unwrapMatchCase casesTm
+            Just (ABT.tm' a (Match scrut' cases'))
+      _ -> Nothing
+
+    -- @[x, y, z]@ → @[x', y', z']@ when each @x@ decodes via @f@.
+    unwrapList ::
+      (Term3 v PrintAnnotation -> Maybe x) ->
+      Term3 v PrintAnnotation ->
+      Maybe [x]
+    unwrapList f tm = case tm of
+      List' xs -> traverse f (Foldable.toList xs)
+      _ -> Nothing
+
+    -- @meta.MatchCase.MatchCase pat (None | Some guardAbs) bodyAbs@.
+    -- The body and (optional) guard each carry an Abs chain over the
+    -- pattern's bound variables; we peel both and reattach the binders
+    -- as v1 'Abs' nodes so the existing Match' printer handles them.
+    unwrapMatchCase tm = case tm of
+      App' (App' (App' (Constructor' cr) patTm) guardTm) bodyTm
+        | ctorNameEndsWith ppe "meta.MatchCase.MatchCase" cr CT.Data -> do
+            pat <- unwrapPattern patTm
+            let (bodyBinders, bodyInner) = peelMetaAbs bodyTm
+            body' <- unwrapTermNode bodyInner
+            let bodyVs = (\n -> (a, Var.named n)) <$> bodyBinders
+                bodyWrapped = ABT.absChain' bodyVs body'
+            guard' <- unwrapGuard guardTm
+            Just (MatchCase pat guard' bodyWrapped)
+      _ -> Nothing
+
+    unwrapGuard tm = case tm of
+      Constructor' cr
+        | ctorNameEndsWith ppe "Optional.None" cr CT.Data ->
+            Just Nothing
+      App' (Constructor' cr) inner
+        | ctorNameEndsWith ppe "Optional.Some" cr CT.Data -> do
+            let (binders, gInner) = peelMetaAbs inner
+            g <- unwrapTermNode gInner
+            let vs = (\n -> (a, Var.named n)) <$> binders
+            Just (Just (ABT.absChain' vs g))
+      _ -> Nothing
+
+    -- Peel a chain of @meta.Term.Term <frees> (meta.ABT.Abs <name>
+    -- inner)@ wrappers, returning the binder name list and the
+    -- innermost non-Abs term.
+    peelMetaAbs tm = case tm of
+      App' (App' (Constructor' cr) _frees)
+        ( App'
+            (App' (Constructor' cr2) (App' (Constructor' nc) (Text' name)))
+            inner
+          )
+          | ctorNameEndsWith ppe "meta.Term.Term" cr CT.Data,
+            ctorNameEndsWith ppe "meta.ABT.Abs" cr2 CT.Data,
+            ctorNameEndsWith ppe "meta.Name.Name" nc CT.Data ->
+              let (rest, inner') = peelMetaAbs inner
+               in (name : rest, inner')
+      _ -> ([], tm)
+
+    unwrapPattern tm = case tm of
+      Constructor' cr
+        | ctorNameEndsWith ppe "meta.Pattern.PUnbound" cr CT.Data ->
+            Just (Pattern.Unbound pa)
+        | ctorNameEndsWith ppe "meta.Pattern.PVar" cr CT.Data ->
+            Just (Pattern.Var pa)
+      App' (Constructor' cr) (Boolean' b)
+        | ctorNameEndsWith ppe "meta.Pattern.PBoolean" cr CT.Data ->
+            Just (Pattern.Boolean pa b)
+      App' (Constructor' cr) (Int' i)
+        | ctorNameEndsWith ppe "meta.Pattern.PInt" cr CT.Data ->
+            Just (Pattern.Int pa i)
+      App' (Constructor' cr) (Nat' n)
+        | ctorNameEndsWith ppe "meta.Pattern.PNat" cr CT.Data ->
+            Just (Pattern.Nat pa n)
+      App' (Constructor' cr) (Float' f)
+        | ctorNameEndsWith ppe "meta.Pattern.PFloat" cr CT.Data ->
+            Just (Pattern.Float pa f)
+      App' (Constructor' cr) (Text' s)
+        | ctorNameEndsWith ppe "meta.Pattern.PText" cr CT.Data ->
+            Just (Pattern.Text pa s)
+      App' (Constructor' cr) (Char' c)
+        | ctorNameEndsWith ppe "meta.Pattern.PChar" cr CT.Data ->
+            Just (Pattern.Char pa c)
+      App' (App' (App' (Constructor' cr) refTm) (Nat' cid)) patList
+        | ctorNameEndsWith ppe "meta.Pattern.PConstructor" cr CT.Data -> do
+            ref <- unwrapMetaReference refTm
+            pats <- unwrapList unwrapPattern patList
+            Just (Pattern.Constructor pa (ConstructorReference ref (fromIntegral cid)) pats)
+      App' (Constructor' cr) inner
+        | ctorNameEndsWith ppe "meta.Pattern.PAs" cr CT.Data -> do
+            inner' <- unwrapPattern inner
+            Just (Pattern.As pa inner')
+      App' (Constructor' cr) patList
+        | ctorNameEndsWith ppe "meta.Pattern.PSequenceLiteral" cr CT.Data -> do
+            pats <- unwrapList unwrapPattern patList
+            Just (Pattern.SequenceLiteral pa pats)
+      App' (App' (App' (Constructor' cr) l) op) r
+        | ctorNameEndsWith ppe "meta.Pattern.PSequenceOp" cr CT.Data -> do
+            l' <- unwrapPattern l
+            op' <- unwrapSeqOp op
+            r' <- unwrapPattern r
+            Just (Pattern.SequenceOp pa l' op' r')
+      _ -> Nothing
+
+    unwrapSeqOp tm = case tm of
+      Constructor' cr
+        | ctorNameEndsWith ppe "meta.SeqOp.PCons" cr CT.Data -> Just Pattern.Cons
+        | ctorNameEndsWith ppe "meta.SeqOp.PSnoc" cr CT.Data -> Just Pattern.Snoc
+        | ctorNameEndsWith ppe "meta.SeqOp.PConcat" cr CT.Data -> Just Pattern.Concat
+      _ -> Nothing
+
+    unwrapMetaReference tm = case tm of
+      App' (Constructor' cr) (Text' name)
+        | ctorNameEndsWith ppe "meta.Reference.ReferenceBuiltin" cr CT.Data ->
+            Just (Reference.Builtin name)
+      App' (App' (Constructor' cr) (App' (Constructor' hc) bytesTm)) (Nat' i)
+        | ctorNameEndsWith ppe "meta.Reference.ReferenceDerived" cr CT.Data,
+          ctorNameEndsWith ppe "meta.Hash.Hash" hc CT.Data -> do
+            ws <- unwrapBytesList bytesTm
+            let bs = Bytes.toByteString (Bytes.fromWord8s ws)
+                h = Hash.fromByteString bs
+            Just (Reference.DerivedId (Reference.Id h (fromIntegral i)))
+      _ -> Nothing
+
+    unwrapBytesList tm = case tm of
+      App' f (List' xs)
+        | isBytesFromList f -> traverse asNat (Foldable.toList xs)
+      _ -> Nothing
+      where
+        asNat (Nat' n) = Just (fromIntegral n)
+        asNat _ = Nothing
+        isBytesFromList = \case
+          Var' v -> Var.name v == "Bytes.fromList"
+          Ref' (Reference.Builtin "Bytes.fromList") -> True
+          _ -> False
+
+    unwrapMetaCtorRef tm = case tm of
+      App' (App' (Constructor' cr) refTm) (Nat' cid)
+        | ctorNameEndsWith ppe "meta.ConstructorReference.ConstructorReference" cr CT.Data -> do
+            ref <- unwrapMetaReference refTm
+            Just (ref, fromIntegral cid)
       _ -> Nothing
 
     -- @meta.Literal.LitNat <Nat>@ etc.

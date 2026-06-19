@@ -33,9 +33,6 @@ unique type Functor f = Functor (forall a b. (a -> b) -> f a -> f b)
 ``` ucm
 scratch/main> add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -150,9 +147,6 @@ mkLetRec name body =
 ``` ucm
 scratch/main> add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -200,9 +194,6 @@ isRecursiveType selfRef ty = match ty with
 
 ``` ucm
 scratch/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 ```
@@ -279,9 +270,6 @@ deriveMap typeRef =
 ``` ucm
 scratch/main> add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -314,9 +302,6 @@ typeRefOf sample = headRef (Meta.decompile sample)
 ``` ucm
 scratch/main> add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -336,9 +321,6 @@ unique type Tree a = Leaf | Node a (Tree a) (Tree a)
 
 ``` ucm
 scratch/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 ```
@@ -364,9 +346,6 @@ storeFunctorTree _ = match typeRefOf (Tree.Leaf : Tree Nat) with
 
 ``` ucm
 scratch/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 
@@ -423,9 +402,6 @@ runTreeMap _ = match Functor.tree with
 
 ``` ucm
 scratch/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 

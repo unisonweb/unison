@@ -810,9 +810,56 @@ desugarQuote ns a = go Set.empty
         metaTm bound a t "TermF.Lit" [metaLit a "Literal.LitText" (Term.text a s)]
       Term.Char' c ->
         metaTm bound a t "TermF.Lit" [metaLit a "Literal.LitChar" (Term.char a c)]
+      -- Match. Each case's body and guard are wrapped in @Abs@ nodes
+      -- per pattern variable in left-to-right (AbsN') order. The meta
+      -- encoding mirrors this exactly: per-case Abs nodes wrap the
+      -- desugared body / guard around @meta.ABT.Abs (meta.Name.Name n)
+      -- inner@. The pattern itself is nameless.
+      Term.Match' scrut cases ->
+        let scrutDes = go bound scrut
+            caseExprs = lowerCase bound <$> cases
+            caseList = Term.list a caseExprs
+         in metaTm bound a t "TermF.Match" [scrutDes, caseList]
       -- Anything else falls through as a free splice — keeps the
       -- desugarer permissive while we extend coverage incrementally.
       _ -> t
+
+    -- Lower one v1 'MatchCase' to a 'meta.MatchCase.MatchCase'
+    -- expression. Pattern variables are peeled off the body via
+    -- 'unabsA' and re-introduced as @meta.ABT.Abs@ wrappers around
+    -- the recursively desugared body. The same is done for the
+    -- guard, when present.
+    lowerCase ::
+      Set v ->
+      Term.MatchCase Ann (Term v Ann) ->
+      Term v Ann
+    lowerCase bnd (Term.MatchCase pat guardOpt body) =
+      let patTm = metaPattern a pat
+          (bodyBinders, bodyInner) = ABT.unabsA body
+          bodyBound = bnd `Set.union` Set.fromList (snd <$> bodyBinders)
+          bodyInnerDes = go bodyBound bodyInner
+          bodyFrees = ABT.freeVars body `Set.intersection` bnd
+          bodyAbs =
+            foldr
+              (\v inner -> wrapMetaAbs a bodyFrees (Var.name v) inner)
+              bodyInnerDes
+              (snd <$> bodyBinders)
+          guardTm = case guardOpt of
+            Nothing -> Term.var a (Var.nameds "Optional.None")
+            Just g ->
+              let (gBinders, gInner) = ABT.unabsA g
+                  gBound = bnd `Set.union` Set.fromList (snd <$> gBinders)
+                  gInnerDes = go gBound gInner
+                  gFrees = ABT.freeVars g `Set.intersection` bnd
+                  gAbs =
+                    foldr
+                      (\v inner -> wrapMetaAbs a gFrees (Var.name v) inner)
+                      gInnerDes
+                      (snd <$> gBinders)
+               in Term.app a (Term.var a (Var.nameds "Optional.Some")) gAbs
+       in Term.apps'
+            (Term.var a (Var.nameds "meta.MatchCase.MatchCase"))
+            [patTm, guardTm, bodyAbs]
 
     -- Look up an unbound variable in the parser's Names environment.
     -- Returns the single resolved Referent, or Nothing if the name
@@ -885,6 +932,66 @@ wrapTermFrees a frees payload =
   Term.apps'
     (Term.var a (Var.nameds "meta.Term.Term"))
     [namesSet a (Var.name <$> Set.toAscList frees), payload]
+
+-- | @meta.Term.Term <frees> (meta.ABT.Abs <name> inner)@ — used to
+-- wrap pattern-bound variables around a desugared match case body or
+-- guard, mirroring the way 'LamNamed'' is handled.
+wrapMetaAbs :: forall v. (Var v) => Ann -> Set v -> Text -> Term v Ann -> Term v Ann
+wrapMetaAbs a frees name inner =
+  let absNode =
+        Term.apps'
+          (Term.var a (Var.nameds "meta.ABT.Abs"))
+          [metaName a name, inner]
+   in wrapTermFrees a frees absNode
+
+-- | Lower a v1 'Pattern' to a @meta.Pattern@ term value. Pattern
+-- variables are nameless in this encoding — the corresponding names
+-- live in the @meta.ABT.Abs@ wrappers around the case body, parallel
+-- to how v1 ABT itself stores them.
+metaPattern :: forall v. (Var v) => Ann -> Pattern.Pattern Ann -> Term v Ann
+metaPattern a = go
+  where
+    bare ctor = Term.var a (Var.nameds ("meta.Pattern." <> ctor))
+    con ctor args = Term.apps' (bare ctor) args
+    go = \case
+      Pattern.Unbound _ -> bare "PUnbound"
+      Pattern.Var _ -> bare "PVar"
+      Pattern.Boolean _ b -> con "PBoolean" [Term.boolean a b]
+      Pattern.Int _ i -> con "PInt" [Term.int a i]
+      Pattern.Nat _ n -> con "PNat" [Term.nat a n]
+      Pattern.Float _ f -> con "PFloat" [Term.float a f]
+      Pattern.Text _ s -> con "PText" [Term.text a s]
+      Pattern.Char _ c -> con "PChar" [Term.char a c]
+      Pattern.Bytes _ bs ->
+        let ws = Bytes.toWord8s bs
+            bytesLit =
+              Term.app
+                a
+                (Term.var a (Var.nameds "Bytes.fromList"))
+                (Term.list a (Term.nat a . fromIntegral <$> ws))
+         in con "PBytes" [bytesLit]
+      Pattern.Constructor _ (ConstructorReference r cid) pats ->
+        con
+          "PConstructor"
+          [ metaReference a r,
+            Term.nat a (fromIntegral cid),
+            Term.list a (go <$> pats)
+          ]
+      Pattern.As _ p -> con "PAs" [go p]
+      Pattern.SequenceLiteral _ pats ->
+        con "PSequenceLiteral" [Term.list a (go <$> pats)]
+      Pattern.SequenceOp _ l op r ->
+        con "PSequenceOp" [go l, metaSeqOp a op, go r]
+      Pattern.EffectPure {} ->
+        error "desugarQuote: effect patterns not yet supported in [| ... |]"
+      Pattern.EffectBind {} ->
+        error "desugarQuote: effect patterns not yet supported in [| ... |]"
+
+metaSeqOp :: forall v. (Var v) => Ann -> Pattern.SeqOp -> Term v Ann
+metaSeqOp a = \case
+  Pattern.Cons -> Term.var a (Var.nameds "meta.SeqOp.PCons")
+  Pattern.Snoc -> Term.var a (Var.nameds "meta.SeqOp.PSnoc")
+  Pattern.Concat -> Term.var a (Var.nameds "meta.SeqOp.PConcat")
 
 -- | Build a @Set Name@ value from an ordered list of name texts.
 -- Constructed as @Set.Set (Map.Bin n k1 () Map.Tip (Map.Bin (n-1) k2
