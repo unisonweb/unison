@@ -380,6 +380,7 @@ data Prim1
   | MLOD -- Meta.load
   | MSTR -- Meta.store
   | MDDS -- Meta.dataDeclShape
+  | MLNR -- Meta.linkRef
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Prim2
@@ -1470,6 +1471,7 @@ emitPOp ANF.MEVL = emitP1 MEVL
 emitPOp ANF.MLOD = emitP1 MLOD
 emitPOp ANF.MSTR = emitP1 MSTR
 emitPOp ANF.MDDS = emitP1 MDDS
+emitPOp ANF.MLNR = emitP1 MLNR
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 -- Bools

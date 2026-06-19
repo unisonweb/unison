@@ -197,6 +197,10 @@ data CCache prof = CCache
     -- ConstructorReference, Nat)) — one entry per constructor with
     -- its field arity. baseCCache supplies a stub.
     metaDataDeclShape :: Val -> IO Val,
+    -- | How Meta.linkRef (MLNR) extracts the underlying Reference
+    -- from a Link.Term and encodes it as a meta.Reference value.
+    -- This is a pure decode + re-encode; no codebase access.
+    metaLinkRef :: Val -> IO Val,
     profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
@@ -228,7 +232,7 @@ refNumTm cc r =
 
 baseCCache :: Bool -> IO (CCache ())
 baseCCache sandboxed = do
-  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck noMetaLoad noMetaStore noMetaDataDeclShape ()
+  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck noMetaLoad noMetaStore noMetaDataDeclShape noMetaLinkRef ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
@@ -252,6 +256,7 @@ baseCCache sandboxed = do
     noMetaLoad _v = error "Meta.load: no loader installed"
     noMetaStore _v = error "Meta.store: no storer installed"
     noMetaDataDeclShape _v = error "Meta.dataDeclShape: no inspector installed"
+    noMetaLinkRef _v = error "Meta.linkRef: no inspector installed"
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
 

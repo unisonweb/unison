@@ -691,6 +691,9 @@ builtinsSrc =
                   )
               )
           ),
+    B "Meta.linkRef" $
+      -- Link.Term -> meta.Reference (the underlying type/term reference)
+      termLink --> Type.metaReference (),
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),

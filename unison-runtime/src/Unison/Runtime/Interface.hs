@@ -919,12 +919,15 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
           case MetaC.typecheckTerm extraTL tm of
             Left err -> pure (metaLeftText err)
             Right ty -> do
-              -- Compile + register the term so a follow-up
-              -- Meta.eval call can resolve its Reference via refTm.
-              -- We return the main term's Reference as a Link.Term
-              -- rather than the raw Code value — Link.Term is the
-              -- natural input for apply0 in the eval primop.
-              (_ctx', _rcode, mainRef) <- prepareEvaluation ppe tm ctx
+              -- Load transitive code dependencies into the runtime
+              -- cache so prepareEvaluation has everything it needs to
+              -- compile the term. Otherwise a meta term that
+              -- references a user-defined function not yet brought
+              -- into the runtime trips a "cache is missing" panic.
+              (tyrs, tmrs) <- collectDeps cl tm
+              (ctxLoaded, _) <- loadDeps cl ppe ctx tyrs tmrs
+              (_ctx', _rcode, mainRef) <-
+                prepareEvaluation ppe tm ctxLoaded
               let linkVal =
                     BoxedVal (Foreign (WrapReferent (RF.Ref mainRef)))
               pure (metaRightPair (MetaDecomp.typeTermVal ty) linkVal)
@@ -969,6 +972,12 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                 let rid = Hashing.hashClosedTerm tm
                     codebaseRef = RF.DerivedId rid
                 put rid tm ty
+                -- Load transitive code dependencies before
+                -- prepareEvaluation (otherwise terms that reference
+                -- other user-defined definitions trip a
+                -- "cache is missing" panic during compilation).
+                (tyrs, tmrs) <- collectDeps cl tm
+                (ctxLoaded, _) <- loadDeps cl ppe ctx tyrs tmrs
                 -- Compile + register the term so a follow-up
                 -- Meta.eval can find it. prepareEvaluation gives us
                 -- the post-ANF intermediate reference; we then also
@@ -977,7 +986,8 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                 -- the canonical codebase hash — can be passed
                 -- straight to ucm commands like @alias.term@ and
                 -- @mark.given@, AND used directly by Meta.eval.
-                (ctx', _rcode, mainRef) <- prepareEvaluation ppe tm ctx
+                (ctx', _rcode, mainRef) <-
+                  prepareEvaluation ppe tm ctxLoaded
                 w <- refNumTm (ccache ctx') mainRef
                 atomically $
                   modifyTVar' (refTm (ccache ctx')) (Map.insert codebaseRef w)
@@ -1006,6 +1016,17 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                   listVal =
                     BoxedVal (Foreign (WrapSeq (USeq.fromList ctorVals)))
                in pure (metaSome listVal)
+      -- Extract the underlying Reference from a Link.Term Val and
+      -- encode it as a meta.Reference. Pure: no codebase access.
+      metaLinkRefF :: Val -> IO Val
+      metaLinkRefF = \case
+        BoxedVal (Foreign (WrapReferent (RF.Ref r))) ->
+          -- Backmap through the EvalCtx's float/intermediate remaps —
+          -- the Referent embedded in a runtime Link.Term may carry the
+          -- intermediate (post-ANF) hash, but downstream Meta.typecheck
+          -- / Meta.eval consumers need the codebase hash.
+          pure (encodeMetaReference (backmapRef ctx r))
+        _ -> pure (encodeMetaReference (RF.Builtin "Meta.linkRef: bad input"))
 
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
@@ -1018,7 +1039,8 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                 metaTypecheck = metaTC,
                 metaLoad = metaLoadF,
                 metaStore = metaStoreF,
-                metaDataDeclShape = metaDataDeclShapeF
+                metaDataDeclShape = metaDataDeclShapeF,
+                metaLinkRef = metaLinkRefF
               }
             activeThreads
             w
@@ -1033,6 +1055,7 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                   metaLoad = metaLoadF,
                   metaStore = metaStoreF,
                   metaDataDeclShape = metaDataDeclShapeF,
+                  metaLinkRef = metaLinkRefF,
                   profiler = pc
                 }
               activeThreads
@@ -1268,7 +1291,7 @@ debugTextFormat fancy =
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub metaStoreStub metaDDSStub ()
+    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub metaStoreStub metaDDSStub metaLinkRefStub ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -1319,6 +1342,11 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
       pure (metaLeftText "Meta.store: unavailable in restored-cache context")
     -- No CodeLookup in a restored-cache context.
     metaDDSStub _val = pure metaNone
+    -- Meta.linkRef is pure-decode, same in restored or live mode.
+    metaLinkRefStub = \case
+      BoxedVal (Foreign (WrapReferent (RF.Ref r))) ->
+        pure (encodeMetaReference r)
+      _ -> pure (encodeMetaReference (RF.Builtin "Meta.linkRef: bad input"))
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     srcCombs :: EnumMap Word64 Combs

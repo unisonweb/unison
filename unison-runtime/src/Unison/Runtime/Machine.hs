@@ -423,6 +423,11 @@ exec env henv !_activeThreads !stk !k _ (Prim1 MDDS i) = do
   -- Dispatch to metaDataDeclShape installed on the CCache.
   poke stk =<< metaDataDeclShape env v
   pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MLNR i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  poke stk =<< metaLinkRef env v
+  pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Prim1 MEVL i) = do
   -- Input is a Link.Term. Branch on the cached combinator's shape:
   --   * CachedVal: a pre-evaluated pure constant — push the stored
