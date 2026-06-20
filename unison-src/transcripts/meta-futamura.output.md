@@ -208,19 +208,33 @@ scratch/main> add
 ```
 
 Compile the sample expression with `["x", "y"]` as the parameter
-names, store the result, and view the stored function:
+names, store the result under the name `polyNat`, and view it. The
+`storeAt` helper calls `Meta.store` and, on success, binds the
+resulting `Link.Term` to a name via `Meta.aliasTerm` — all in one
+IO action, no UCM dance required.
 
 ``` unison
-storeNat : '{IO} Either Text Link.Term
-storeNat _ =
+storeAt : Text -> meta.Term meta.TermF ->{IO} Either Text Link.Term
+storeAt name tm =
+  match Meta.store tm with
+    Left e -> Left e
+    Right link ->
+      _ = Meta.aliasTerm link name
+      Right link
+
+makePolyNat : '{IO} Either Text Link.Term
+makePolyNat _ =
   body = stageNat sampleExpr
-  Meta.store (wrapLams ["x", "y"] body)
+  storeAt "polyNat" (wrapLams ["x", "y"] body)
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + storeNat : '{IO} Either Text Link.Term
+  + makePolyNat : '{IO} Either Text Link.Term
+  + storeAt     : Text
+                  -> meta.Term TermF
+                  ->{IO} Either Text Link.Term
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -230,12 +244,47 @@ scratch/main> add
 
   Done.
 
-scratch/main> run storeNat
+scratch/main> run makePolyNat
 
   Right (termLink #t6nbn09tsd)
+
+scratch/main> view polyNat
+
+  polyNat : Nat -> Nat -> Nat
+  polyNat x y =
+    use Nat * +
+    z = x + y
+    z * z
 ```
 
-(We'll alias and view it in the next stanza, once we have the hash.)
+The `Expr` AST is **erased**. What's left is ordinary Unison — the
+let binding survived, the operators are real `Nat.+` / `Nat.*`, the
+signature was inferred from the use sites. Call it directly:
+
+``` unison
+runPolyNat : '{IO, Exception} Nat
+runPolyNat _ = polyNat 3 4
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + runPolyNat : '{IO, Exception} Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+
+scratch/main> run runPolyNat
+
+  49
+```
+
+Same answer as the interpreter — `49` — but now it's just arithmetic.
 
 ## Projection 2 — specialize the specializer to an interpreter
 
@@ -330,25 +379,28 @@ specializer has been specialized to a language.
 
 ``` unison
 storeForCompiler :
-  Compiler
+  Text
+  -> Compiler
   -> '{IO} Either Text Link.Term
-storeForCompiler c _ =
+storeForCompiler name c _ =
   body = stageWith c sampleExpr
-  Meta.store (wrapLams ["x", "y"] body)
+  storeAt name (wrapLams ["x", "y"] body)
 
-storeBool : '{IO} Either Text Link.Term
-storeBool = storeForCompiler boolCompiler
+makePolyBool : '{IO} Either Text Link.Term
+makePolyBool = storeForCompiler "polyBool" boolCompiler
 
-storeText : '{IO} Either Text Link.Term
-storeText = storeForCompiler textCompiler
+makePolyText : '{IO} Either Text Link.Term
+makePolyText = storeForCompiler "polyText" textCompiler
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + storeBool        : '{IO} Either Text Link.Term
-  + storeForCompiler : Compiler -> '{IO} Either Text Link.Term
-  + storeText        : '{IO} Either Text Link.Term
+  + makePolyBool     : '{IO} Either Text Link.Term
+  + makePolyText     : '{IO} Either Text Link.Term
+  + storeForCompiler : Text
+                       -> Compiler
+                       -> '{IO} Either Text Link.Term
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -358,11 +410,11 @@ scratch/main> add
 
   Done.
 
-scratch/main> run storeBool
+scratch/main> run makePolyBool
 
   Right (termLink #r7hn0813kt)
 
-scratch/main> run storeText
+scratch/main> run makePolyText
 
   Right (termLink #fa5njj13rg)
 ```
@@ -370,18 +422,6 @@ scratch/main> run storeText
 ## The reveal — three compilers, one source, three target programs
 
 ``` ucm
-scratch/main> alias.term #t6nbn09tsd polyNat
-
-  Done.
-
-scratch/main> alias.term #r7hn0813kt polyBool
-
-  Done.
-
-scratch/main> alias.term #fa5njj13rg polyText
-
-  Done.
-
 scratch/main> view polyNat
 
   polyNat : Nat -> Nat -> Nat
