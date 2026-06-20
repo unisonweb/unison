@@ -598,6 +598,21 @@ meta'link'ref = unop0 0 $ \[x] -> TPrm MLNR [x]
 meta'alias'term :: SuperNormal ref Symbol
 meta'alias'term = binop0 0 $ \[x, y] -> TPrm MATM [x, y]
 
+meta'alias'type :: SuperNormal ref Symbol
+meta'alias'type = binop0 0 $ \[x, y] -> TPrm MATY [x, y]
+
+meta'delete'term :: SuperNormal ref Symbol
+meta'delete'term = unop0 0 $ \[x] -> TPrm MDTM [x]
+
+meta'move'term :: SuperNormal ref Symbol
+meta'move'term = binop0 0 $ \[x, y] -> TPrm MMTM [x, y]
+
+meta'lookup :: SuperNormal ref Symbol
+meta'lookup = unop0 0 $ \[x] -> TPrm MLKP [x]
+
+meta'dependents :: SuperNormal ref Symbol
+meta'dependents = unop0 0 $ \[x] -> TPrm MDPS [x]
+
 check'sandbox :: SuperNormal ref Symbol
 check'sandbox = binop SDBX
 
@@ -893,6 +908,11 @@ builtinLookup =
         ("Meta.dataDeclShape", (Tracked, meta'data'decl'shape)),
         ("Meta.linkRef", (Tracked, meta'link'ref)),
         ("Meta.aliasTerm", (Tracked, meta'alias'term)),
+        ("Meta.aliasType", (Tracked, meta'alias'type)),
+        ("Meta.deleteTerm", (Tracked, meta'delete'term)),
+        ("Meta.moveTerm", (Tracked, meta'move'term)),
+        ("Meta.lookup", (Tracked, meta'lookup)),
+        ("Meta.dependents", (Tracked, meta'dependents)),
         ("unsafe.coerceAbilities", (Untracked, poly'coerce)),
         ("Char.toNat", (Untracked, coerceType NatTag)),
         ("Char.fromNat", (Untracked, coerceType CharTag)),

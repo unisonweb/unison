@@ -34,6 +34,12 @@ the runtime.
 | `Meta.store`           | `meta.Term meta.TermF -> {IO} Either Text Link.Term`                           | Typechecks, hashes, writes, returns the codebase `Link.Term` (not the intermediate hash).             |
 | `Meta.dataDeclShape`   | `meta.Reference -> {IO} Optional [(meta.ConstructorReference, [meta.Term meta.TypeF])]` | Constructor list + per-ctor field type list. Drives the deriving demos.                              |
 | `Meta.linkRef`         | `Link.Term -> meta.Reference`                                                  | Extracts the `Reference` out of a `Link.Term`. Backmaps through the runtime's intermediate-hash remap. |
+| `Meta.aliasTerm`       | `Link.Term -> Text -> {IO} ()`                                                 | UCM's `alias.term` from inside Unison. Queued during eval, applied via `Cli.stepAt` after.            |
+| `Meta.aliasType`       | `Link.Type -> Text -> {IO} ()`                                                 | UCM's `alias.type` — also re-binds the type's constructors under the new name.                        |
+| `Meta.deleteTerm`      | `Text -> {IO} ()`                                                              | UCM's `delete.term` — annihilate every term binding at the given name.                                |
+| `Meta.moveTerm`        | `Text -> Text -> {IO} ()`                                                      | UCM's `move.term` — source must name exactly one term, no-op otherwise.                               |
+| `Meta.lookup`          | `Text -> {IO} Optional Link.Term`                                              | Resolve a path-style name to a term reference in the current namespace (or `None`).                   |
+| `Meta.dependents`      | `Link.Term -> {IO} [Link.Term]`                                                | References of terms that directly depend on the given term (`ExcludeOwnComponent`).                   |
 
 Helpers in `lib.meta`:
 

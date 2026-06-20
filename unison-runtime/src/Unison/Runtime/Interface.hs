@@ -1036,18 +1036,73 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
       -- Text to the metaAliasTerm callback wired up by the caller.
       -- Returns Unit. If no callback is installed (headless runtime),
       -- silently no-ops.
+      metaUnitV :: Val
+      metaUnitV = BoxedVal (Enum RF.unitRef TT.unitTag)
       metaAliasTermF :: Val -> Val -> IO Val
-      metaAliasTermF refVal nameVal =
-        let metaUnitVal = BoxedVal (Enum RF.unitRef TT.unitTag)
-         in case (refVal, nameVal) of
-              ( BoxedVal (Foreign (WrapReferent (RF.Ref r))),
-                BoxedVal (Foreign (WrapText name))
-                ) -> do
-                  case metaPut of
-                    Nothing -> pure ()
-                    Just cb -> CR.metaAliasTerm cb (backmapRef ctx r) (Util.Text.toText name)
-                  pure metaUnitVal
-              _ -> pure metaUnitVal
+      metaAliasTermF refVal nameVal = case (refVal, nameVal) of
+        ( BoxedVal (Foreign (WrapReferent (RF.Ref r))),
+          BoxedVal (Foreign (WrapText name))
+          ) -> do
+            case metaPut of
+              Nothing -> pure ()
+              Just cb -> CR.metaAliasTerm cb (backmapRef ctx r) (Util.Text.toText name)
+            pure metaUnitV
+        _ -> pure metaUnitV
+      -- Like metaAliasTermF but for Link.Type. The runtime
+      -- representation of a Link.Type is WrapReference (a TypeReference
+      -- isn't necessarily backed by a Referent).
+      metaAliasTypeF :: Val -> Val -> IO Val
+      metaAliasTypeF refVal nameVal = case (refVal, nameVal) of
+        ( BoxedVal (Foreign (WrapReference r)),
+          BoxedVal (Foreign (WrapText name))
+          ) -> do
+            case metaPut of
+              Nothing -> pure ()
+              Just cb -> CR.metaAliasType cb (backmapRef ctx r) (Util.Text.toText name)
+            pure metaUnitV
+        _ -> pure metaUnitV
+      metaDeleteTermF :: Val -> IO Val
+      metaDeleteTermF nameVal = case nameVal of
+        BoxedVal (Foreign (WrapText name)) -> do
+          case metaPut of
+            Nothing -> pure ()
+            Just cb -> CR.metaDeleteTerm cb (Util.Text.toText name)
+          pure metaUnitV
+        _ -> pure metaUnitV
+      metaMoveTermF :: Val -> Val -> IO Val
+      metaMoveTermF oldVal newVal = case (oldVal, newVal) of
+        ( BoxedVal (Foreign (WrapText oldName)),
+          BoxedVal (Foreign (WrapText newName))
+          ) -> do
+            case metaPut of
+              Nothing -> pure ()
+              Just cb -> CR.metaMoveTerm cb (Util.Text.toText oldName) (Util.Text.toText newName)
+            pure metaUnitV
+        _ -> pure metaUnitV
+      -- Read-only: resolve a Text name in the current namespace to a
+      -- single term reference. Returns @Optional Link.Term@.
+      metaLookupF :: Val -> IO Val
+      metaLookupF = \case
+        BoxedVal (Foreign (WrapText name)) -> case metaPut of
+          Nothing -> pure metaNone
+          Just cb -> do
+            mRef <- CR.metaLookupTerm cb (Util.Text.toText name)
+            case mRef of
+              Nothing -> pure metaNone
+              Just r -> pure (metaSome (BoxedVal (Foreign (WrapReferent (RF.Ref r)))))
+        _ -> pure metaNone
+      -- Read-only: list direct dependents of the given Link.Term as
+      -- a list of Link.Terms.
+      metaDependentsF :: Val -> IO Val
+      metaDependentsF = \case
+        BoxedVal (Foreign (WrapReferent (RF.Ref r))) -> case metaPut of
+          Nothing -> pure (BoxedVal (Foreign (WrapSeq mempty)))
+          Just cb -> do
+            deps <- CR.metaDependents cb (backmapRef ctx r)
+            let toLink ref =
+                  BoxedVal (Foreign (WrapReferent (RF.Ref ref)))
+            pure (BoxedVal (Foreign (WrapSeq (USeq.fromList (toLink <$> deps)))))
+        _ -> pure (BoxedVal (Foreign (WrapSeq mempty)))
 
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
@@ -1062,7 +1117,12 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                 metaStore = metaStoreF,
                 metaDataDeclShape = metaDataDeclShapeF,
                 metaLinkRef = metaLinkRefF,
-                metaAliasTerm = metaAliasTermF
+                metaAliasTerm = metaAliasTermF,
+                metaAliasType = metaAliasTypeF,
+                metaDeleteTerm = metaDeleteTermF,
+                metaMoveTerm = metaMoveTermF,
+                metaLookup = metaLookupF,
+                metaDependents = metaDependentsF
               }
             activeThreads
             w
@@ -1079,6 +1139,11 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                   metaDataDeclShape = metaDataDeclShapeF,
                   metaLinkRef = metaLinkRefF,
                   metaAliasTerm = metaAliasTermF,
+                  metaAliasType = metaAliasTypeF,
+                  metaDeleteTerm = metaDeleteTermF,
+                  metaMoveTerm = metaMoveTermF,
+                  metaLookup = metaLookupF,
+                  metaDependents = metaDependentsF,
                   profiler = pc
                 }
               activeThreads
@@ -1314,7 +1379,7 @@ debugTextFormat fancy =
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub metaStoreStub metaDDSStub metaLinkRefStub metaATMStub ()
+    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub metaStoreStub metaDDSStub metaLinkRefStub metaATMStub metaATYStub metaDTMStub metaMTMStub metaLKPStub metaDPSStub ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -1373,6 +1438,11 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
     -- Meta.alias.term has no effect in a restored-cache context (no
     -- enclosing CLI to apply the queued action). Return unit.
     metaATMStub _v _w = pure (BoxedVal (Enum RF.unitRef TT.unitTag))
+    metaATYStub _v _w = pure (BoxedVal (Enum RF.unitRef TT.unitTag))
+    metaDTMStub _v = pure (BoxedVal (Enum RF.unitRef TT.unitTag))
+    metaMTMStub _v _w = pure (BoxedVal (Enum RF.unitRef TT.unitTag))
+    metaLKPStub _v = pure metaNone
+    metaDPSStub _v = pure (BoxedVal (Foreign (WrapSeq mempty)))
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     srcCombs :: EnumMap Word64 Combs

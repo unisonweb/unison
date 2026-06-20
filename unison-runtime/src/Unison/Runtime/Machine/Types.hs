@@ -206,6 +206,22 @@ data CCache prof = CCache
     -- closes over an IORef-based action queue at evaluation start;
     -- baseCCache supplies a stub.
     metaAliasTerm :: Val -> Val -> IO Val,
+    -- | How Meta.alias.type (MATY) hands its (Link.Type, Text) pair
+    -- back to the driving CLI. Same queue-driven semantics as
+    -- metaAliasTerm.
+    metaAliasType :: Val -> Val -> IO Val,
+    -- | How Meta.delete.term (MDTM) hands its name Text back to the
+    -- driving CLI.
+    metaDeleteTerm :: Val -> IO Val,
+    -- | How Meta.move.term (MMTM) hands its (old, new) name pair
+    -- back to the driving CLI.
+    metaMoveTerm :: Val -> Val -> IO Val,
+    -- | How Meta.lookup (MLKP) resolves a Text name to an
+    -- @Optional Link.Term@.
+    metaLookup :: Val -> IO Val,
+    -- | How Meta.dependents (MDPS) returns the references that
+    -- directly depend on the given Link.Term.
+    metaDependents :: Val -> IO Val,
     profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
@@ -237,7 +253,7 @@ refNumTm cc r =
 
 baseCCache :: Bool -> IO (CCache ())
 baseCCache sandboxed = do
-  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck noMetaLoad noMetaStore noMetaDataDeclShape noMetaLinkRef noMetaAliasTerm ()
+  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck noMetaLoad noMetaStore noMetaDataDeclShape noMetaLinkRef noMetaAliasTerm noMetaAliasType noMetaDeleteTerm noMetaMoveTerm noMetaLookup noMetaDependents ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
@@ -262,7 +278,12 @@ baseCCache sandboxed = do
     noMetaStore _v = error "Meta.store: no storer installed"
     noMetaDataDeclShape _v = error "Meta.dataDeclShape: no inspector installed"
     noMetaLinkRef _v = error "Meta.linkRef: no inspector installed"
-    noMetaAliasTerm _v _w = error "Meta.alias.term: no UCM callback installed"
+    noMetaAliasTerm _v _w = error "Meta.aliasTerm: no UCM callback installed"
+    noMetaAliasType _v _w = error "Meta.aliasType: no UCM callback installed"
+    noMetaDeleteTerm _v = error "Meta.deleteTerm: no UCM callback installed"
+    noMetaMoveTerm _v _w = error "Meta.moveTerm: no UCM callback installed"
+    noMetaLookup _v = error "Meta.lookup: no codebase callback installed"
+    noMetaDependents _v = error "Meta.dependents: no codebase callback installed"
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
 

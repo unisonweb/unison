@@ -707,6 +707,28 @@ builtinsSrc =
       -- the given path-style name in the current namespace. Runs once
       -- per call when the enclosing IO action returns to the Cli.
       termLink --> text --> io unit,
+    B "Meta.aliasType" $
+      -- Link.Type -> Text -> {IO} ()
+      typeLink --> text --> io unit,
+    B "Meta.deleteTerm" $
+      -- Text -> {IO} ()
+      -- Remove every term binding at the given name in the current
+      -- namespace (a la @delete.term@).
+      text --> io unit,
+    B "Meta.moveTerm" $
+      -- Text -> Text -> {IO} ()
+      -- Rename a term binding (a la @move.term@). The source must
+      -- name exactly one term.
+      text --> text --> io unit,
+    B "Meta.lookup" $
+      -- Text -> {IO} Optional Link.Term
+      text --> io (optionalt termLink),
+    B "Meta.dependents" $
+      -- Link.Term -> {IO} [Link.Term]
+      -- References of terms that directly depend on the given ref.
+      -- (For *dependencies* in the other direction, use the existing
+      -- builtin @Code.dependencies@ on the cached Code.)
+      termLink --> io (list termLink),
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),
@@ -1411,7 +1433,7 @@ udpSocket, udpListenSocket, udpClientSockAddr :: Type
 tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type
 fmode, bmode, smode, stdhandle :: Type
 int, nat, bytes, text, boolean, float, char, integer, natural :: Type
-anyt, code, value, termLink :: Type
+anyt, code, value, termLink, typeLink :: Type
 stm, tvar, pat :: Type -> Type
 -- Smaller sized types for FFI API
 nat8, nat16, nat32, int8, int16, int32, float32 :: Type
@@ -1546,6 +1568,8 @@ code = Type.code ()
 value = Type.value ()
 
 termLink = Type.termLink ()
+
+typeLink = Type.typeLink ()
 
 stm = Type.effect1 () (Type.ref () Type.stmRef)
 

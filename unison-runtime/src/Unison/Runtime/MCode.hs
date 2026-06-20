@@ -381,6 +381,9 @@ data Prim1
   | MSTR -- Meta.store
   | MDDS -- Meta.dataDeclShape
   | MLNR -- Meta.linkRef
+  | MDTM -- Meta.deleteTerm
+  | MLKP -- Meta.lookup
+  | MDPS -- Meta.dependents
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Prim2
@@ -471,7 +474,9 @@ data Prim2
   -- Refs
   | REFW -- Ref.write
   -- meta
-  | MATM -- Meta.alias.term
+  | MATM -- Meta.aliasTerm
+  | MATY -- Meta.aliasType
+  | MMTM -- Meta.moveTerm
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data MLit
@@ -1475,6 +1480,11 @@ emitPOp ANF.MSTR = emitP1 MSTR
 emitPOp ANF.MDDS = emitP1 MDDS
 emitPOp ANF.MLNR = emitP1 MLNR
 emitPOp ANF.MATM = emitP2 MATM
+emitPOp ANF.MATY = emitP2 MATY
+emitPOp ANF.MDTM = emitP1 MDTM
+emitPOp ANF.MMTM = emitP2 MMTM
+emitPOp ANF.MLKP = emitP1 MLKP
+emitPOp ANF.MDPS = emitP1 MDPS
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 -- Bools

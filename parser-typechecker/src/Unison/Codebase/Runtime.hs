@@ -57,6 +57,9 @@ type MetaPutTerm v = Reference.Id -> Term.Term v () -> Type v () -> IO ()
 -- work the same as if the user had typed the command).
 data MetaAction
   = MAliasTerm Reference Text
+  | MAliasType Reference Text
+  | MDeleteTerm Text
+  | MMoveTerm Text Text
   deriving stock (Eq, Show)
 
 -- | Side-channel callbacks the runtime invokes for @Meta.*@ builtins
@@ -66,7 +69,16 @@ data MetaAction
 -- the codebase via @Codebase.runTransaction@.
 data MetaCallbacks v = MetaCallbacks
   { metaPutTerm :: MetaPutTerm v,
-    metaAliasTerm :: Reference -> Text -> IO ()
+    metaAliasTerm :: Reference -> Text -> IO (),
+    metaAliasType :: Reference -> Text -> IO (),
+    metaDeleteTerm :: Text -> IO (),
+    metaMoveTerm :: Text -> Text -> IO (),
+    -- | Resolve a path-style name in the current namespace to a
+    -- single term reference, or 'Nothing' if absent or ambiguous.
+    metaLookupTerm :: Text -> IO (Maybe Reference),
+    -- | The references of the terms that directly depend on the
+    -- given reference (i.e. would change hash if it changed).
+    metaDependents :: Reference -> IO [Reference]
   }
 
 data CompileOpts = COpts

@@ -428,6 +428,21 @@ exec env henv !_activeThreads !stk !k _ (Prim1 MLNR i) = do
   stk <- bump stk
   poke stk =<< metaLinkRef env v
   pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MDTM i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  poke stk =<< metaDeleteTerm env v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MLKP i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  poke stk =<< metaLookup env v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MDPS i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  poke stk =<< metaDependents env v
+  pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Prim1 MEVL i) = do
   -- Input is a Link.Term. Branch on the cached combinator's shape:
   --   * CachedVal: a pre-evaluated pure constant — push the stored
@@ -497,9 +512,20 @@ exec env henv !_activeThreads !stk !k _ (Prim2 MATM i j) = do
   v1 <- peekOff stk i
   v2 <- peekOff stk j
   stk <- bump stk
-  -- Dispatch to metaAliasTerm installed on the CCache. Always
-  -- returns unit on success.
+  -- Dispatch to metaAliasTerm installed on the CCache.
   poke stk =<< metaAliasTerm env v1 v2
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim2 MATY i j) = do
+  v1 <- peekOff stk i
+  v2 <- peekOff stk j
+  stk <- bump stk
+  poke stk =<< metaAliasType env v1 v2
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim2 MMTM i j) = do
+  v1 <- peekOff stk i
+  v2 <- peekOff stk j
+  stk <- bump stk
+  poke stk =<< metaMoveTerm env v1 v2
   pure (False, henv, stk, k)
 exec env henv !_trackThreads !stk !k _ (Prim2 op i j) = do
   stk <- primxx env stk op i j

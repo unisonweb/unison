@@ -511,12 +511,25 @@ evalUnisonFile mode ppe unisonFile args = do
     -- evaluation; the queue is drained and applied via Cli.stepAt
     -- after evaluation completes.
     pendingActions <- liftIO $ newIORef ([] :: [Runtime.MetaAction])
+    -- Snapshot of the current namespace's terms; the @Meta.lookup@
+    -- callback queries this. Aliases added during the same eval are
+    -- not visible.
+    pp <- Cli.getCurrentProjectPath
+    branch0 <- Cli.getBranch0FromProjectPath pp
     let metaCb :: Runtime.MetaCallbacks Symbol
         metaCb =
           Runtime.MetaCallbacks
             { Runtime.metaPutTerm = metaPut,
               Runtime.metaAliasTerm = \ref name ->
-                modifyIORef pendingActions (Runtime.MAliasTerm ref name :)
+                modifyIORef pendingActions (Runtime.MAliasTerm ref name :),
+              Runtime.metaAliasType = \ref name ->
+                modifyIORef pendingActions (Runtime.MAliasType ref name :),
+              Runtime.metaDeleteTerm = \name ->
+                modifyIORef pendingActions (Runtime.MDeleteTerm name :),
+              Runtime.metaMoveTerm = \old new ->
+                modifyIORef pendingActions (Runtime.MMoveTerm old new :),
+              Runtime.metaLookupTerm = RuntimeUtils.lookupTermInBranch branch0,
+              Runtime.metaDependents = RuntimeUtils.dependentsOfRef env.codebase
             }
     result <- liftIO (Runtime.evaluateWatches codeLookup (Just metaCb) ppe prof watchCache theRuntime unisonFile)
     queued <- liftIO $ readIORef pendingActions

@@ -114,6 +114,9 @@ prim1 _env !stk MLOD _ = pure stk
 prim1 _env !stk MSTR _ = pure stk
 prim1 _env !stk MDDS _ = pure stk
 prim1 _env !stk MLNR _ = pure stk
+prim1 _env !stk MDTM _ = pure stk
+prim1 _env !stk MLKP _ = pure stk
+prim1 _env !stk MDPS _ = pure stk
 {-# INLINE prim1 #-}
 
 -- Wrap an implementation to act on an index on two indices
@@ -212,6 +215,8 @@ primxx env stk SDBX i j = prim2wrap2 (sdbx env) stk i j
 primxx _env stk THRO _ _ = pure stk
 primxx _env stk TRCE _ _ = pure stk
 primxx _env stk MATM _ _ = pure stk
+primxx _env stk MATY _ _ = pure stk
+primxx _env stk MMTM _ _ = pure stk
 {-# INLINE primxx #-}
 
 termLinkVal :: Referent -> Val
