@@ -2476,10 +2476,48 @@ toQuotedSource ppe = unwrapTermNode
             Just (lam a (a, Var.named name) body')
       App' (Constructor' cr) inner
         | ctorNameEndsWith ppe "meta.ABT.Cycle" cr CT.Data ->
-            unwrapTermNode inner
+            -- A Cycle wrapping an Abs chain over a TermF.LetRec is a
+            -- recursive let; reconstruct it. Otherwise fall back to
+            -- treating the inner as a regular term.
+            case peelLetRec inner of
+              Just (binders, bindings, body) ->
+                let inner' = ABT.tm' a (LetRec False bindings body)
+                    wrap n acc = ABT.abs' a (Var.named n) acc
+                 in Just (ABT.cycle' a (foldr wrap inner' binders))
+              Nothing -> unwrapTermNode inner
       App' (Constructor' cr) tf
         | ctorNameEndsWith ppe "meta.ABT.Tm" cr CT.Data ->
             unwrapTermF tf
+      _ -> Nothing
+
+    -- Walk a Cycle's inner Abs chain to recover a LetRec. Returns
+    -- the binder names (outer-first), the desugared binding values,
+    -- and the desugared body — or Nothing if the shape doesn't end
+    -- in a TermF.LetRec.
+    peelLetRec tm = case tm of
+      App'
+        (App' (Constructor' cr) _frees)
+        ( App'
+            (App' (Constructor' cr2) (App' (Constructor' nc) (Text' name)))
+            inner
+          )
+          | ctorNameEndsWith ppe "meta.Term.Term" cr CT.Data,
+            ctorNameEndsWith ppe "meta.ABT.Abs" cr2 CT.Data,
+            ctorNameEndsWith ppe "meta.Name.Name" nc CT.Data -> do
+              (names, bindings, body) <- peelLetRec inner
+              Just (name : names, bindings, body)
+      App'
+        (App' (Constructor' cr) _frees)
+        ( App'
+            (Constructor' cr2)
+            (App' (App' (Constructor' cr3) bindingsTm) bodyTm)
+          )
+          | ctorNameEndsWith ppe "meta.Term.Term" cr CT.Data,
+            ctorNameEndsWith ppe "meta.ABT.Tm" cr2 CT.Data,
+            ctorNameEndsWith ppe "meta.TermF.LetRec" cr3 CT.Data -> do
+              bindings <- unwrapList unwrapTermNode bindingsTm
+              body <- unwrapTermNode bodyTm
+              Just ([], bindings, body)
       _ -> Nothing
 
     -- @meta.TermF.{App, Lam, Lit, Ref, ...}@
@@ -2506,6 +2544,30 @@ toQuotedSource ppe = unwrapTermNode
         | ctorNameEndsWith ppe "meta.TermF.Request" cr CT.Data -> do
             (ref, cid) <- unwrapMetaCtorRef ctorRefVal
             Just (request a (ConstructorReference ref cid))
+      -- @meta.TermF.Let binding (meta.ABT.Abs name body)@
+      App' (App' (Constructor' cr) bindingTm) absTm
+        | ctorNameEndsWith ppe "meta.TermF.Let" cr CT.Data -> do
+            binding <- unwrapTermNode bindingTm
+            let (binders, innerMeta) = peelMetaAbs absTm
+            body <- unwrapTermNode innerMeta
+            case binders of
+              [name] ->
+                Just
+                  (ABT.tm' a (Let False binding (ABT.abs' a (Var.named name) body)))
+              _ -> Nothing
+      -- @meta.TermF.If c t f@
+      App' (App' (App' (Constructor' cr) c) th) el
+        | ctorNameEndsWith ppe "meta.TermF.If" cr CT.Data -> do
+            c' <- unwrapTermNode c
+            t' <- unwrapTermNode th
+            f' <- unwrapTermNode el
+            Just (ABT.tm' a (If c' t' f'))
+      -- @meta.TermF.Handle h body@
+      App' (App' (Constructor' cr) h) body
+        | ctorNameEndsWith ppe "meta.TermF.Handle" cr CT.Data -> do
+            h' <- unwrapTermNode h
+            body' <- unwrapTermNode body
+            Just (ABT.tm' a (Handle h' body'))
       -- @meta.TermF.Match scrut [cases]@
       App' (App' (Constructor' cr) scrut) casesTm
         | ctorNameEndsWith ppe "meta.TermF.Match" cr CT.Data -> do

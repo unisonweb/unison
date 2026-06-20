@@ -810,6 +810,52 @@ desugarQuote ns a = go Set.empty
         metaTm bound a t "TermF.Lit" [metaLit a "Literal.LitText" (Term.text a s)]
       Term.Char' c ->
         metaTm bound a t "TermF.Lit" [metaLit a "Literal.LitChar" (Term.char a c)]
+      -- Non-recursive let — single binding wrapping a body that's
+      -- @Abs v inner@. Mirror the v1 shape directly: a meta.TermF.Let
+      -- around the binding plus an @meta.ABT.Abs@ over the body.
+      Term.Let1Named' v binding body ->
+        let bindingDes = go bound binding
+            bodyDes = go (Set.insert v bound) body
+            bodyFrees = ABT.freeVars body `Set.intersection` bound
+            absNode = wrapMetaAbs a bodyFrees (Var.name v) bodyDes
+         in metaTm bound a t "TermF.Let" [bindingDes, absNode]
+      -- Recursive lets — Cycle wraps an Abs chain over the bindings
+      -- and body. All binders are simultaneously in scope inside every
+      -- binding and the body.
+      Term.LetRecNamed' bs body ->
+        let vs = fst <$> bs
+            allBound = bound `Set.union` Set.fromList vs
+            bindingsDes = (\(_, b) -> go allBound b) <$> bs
+            bodyDes = go allBound body
+            letRecInner =
+              Term.apps'
+                (Term.var a (Var.nameds "meta.TermF.LetRec"))
+                [Term.list a bindingsDes, bodyDes]
+            innerFrees = ABT.freeVars t `Set.intersection` bound
+            tmWrapped =
+              wrapTermFrees a innerFrees $
+                Term.app a (Term.var a (Var.nameds "meta.ABT.Tm")) letRecInner
+            absChain =
+              foldr
+                (\v inner -> wrapMetaAbs a innerFrees (Var.name v) inner)
+                tmWrapped
+                vs
+            cycleInner =
+              Term.app a (Term.var a (Var.nameds "meta.ABT.Cycle")) absChain
+         in wrapTermFrees a innerFrees cycleInner
+      -- @if c then t else f@ — straight rewrite to @meta.TermF.If@.
+      Term.If' c thn els ->
+        metaTm bound a t "TermF.If" [go bound c, go bound thn, go bound els]
+      -- @x && y@ — desugar as @if x then y else False@. (meta.TermF
+      -- has no And/Or; this preserves semantics.)
+      Term.And' x y ->
+        metaTm bound a t "TermF.If" [go bound x, go bound y, go bound (Term.boolean a False)]
+      -- @x || y@ — dually, @if x then True else y@.
+      Term.Or' x y ->
+        metaTm bound a t "TermF.If" [go bound x, go bound (Term.boolean a True), go bound y]
+      -- @handle e with h@ — straightforward rewrite.
+      Term.Handle' h body ->
+        metaTm bound a t "TermF.Handle" [go bound h, go bound body]
       -- Match. Each case's body and guard are wrapped in @Abs@ nodes
       -- per pattern variable in left-to-right (AbsN') order. The meta
       -- encoding mirrors this exactly: per-case Abs nodes wrap the
