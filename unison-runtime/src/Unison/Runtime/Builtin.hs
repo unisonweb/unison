@@ -936,6 +936,7 @@ builtinLookup =
         ("Any.Any", (Untracked, any'construct)),
         ("Any.unsafeExtract", (Untracked, any'extract)),
         ("summon", (Untracked, summon'id)),
+        ("meta.splice", (Untracked, summon'id)),
         ("Link.Term.toText", (Untracked, term'link'to'text)),
         ("STM.atomically", (Tracked, stm'atomic)),
         ("validateSandboxed", (Untracked, check'sandbox)),

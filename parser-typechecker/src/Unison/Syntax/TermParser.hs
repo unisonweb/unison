@@ -722,6 +722,12 @@ splice = P.label "splice" do
 spliceMarkerName :: String
 spliceMarkerName = "$ meta splice $"
 
+-- | Reference to the @meta.splice@ builtin (identity function). The
+-- parser wraps every @${ ... }@ splice in @meta.splice@ so the
+-- printer's quote round-trip can recover the source form.
+metaSpliceRef :: Reference
+metaSpliceRef = Reference.Builtin "meta.splice"
+
 -- | Walk the AST of a quoted expression and produce a term that, at
 -- runtime, constructs the corresponding @meta.Term meta.TermF@ value.
 -- The 'Set v' parameter is the set of variables bound by enclosing
@@ -738,9 +744,13 @@ desugarQuote ns a = go Set.empty
     -- wrapper is (ABT.freeVars subterm) ∩ bound.
     go :: Set v -> Term v Ann -> Term v Ann
     go bound t = case t of
-      -- Splice sentinel — emit the spliced expression directly.
+      -- Splice sentinel — emit @meta.splice <inner>@. At runtime
+      -- @meta.splice@ is identity, so the wrapping is invisible; it
+      -- exists only so the printer can recover the @${ ... }@ source
+      -- form when round-tripping a quoted-with-splice term.
       Term.App' (Term.Var' v) inner
-        | Var.nameStr v == spliceMarkerName -> inner
+        | Var.nameStr v == spliceMarkerName ->
+            Term.app a (Term.ref a metaSpliceRef) inner
       -- Lambda with named binder — introduce the binder into 'bound'
       -- and emit @meta.TermF.Lam@ wrapping an @meta.ABT.Abs@ over the
       -- recursive desugaring.

@@ -64,19 +64,8 @@ scratch/main> view power
     else
       if Nat.mod n 2 == 0 then
         half = power (n / 2) x
-        Term
-          (Set Tip)
-          (Tm
-            (App
-              (Term (Set Tip) (Tm (App [| (Nat.*) |] half)))
-              half))
-      else
-        Term
-          (Set Tip)
-          (Tm
-            (App
-              (Term (Set Tip) (Tm (App [| (Nat.*) |] x)))
-              (power (Nat.drop n 1) x)))
+        [| ${half} Nat.* ${half} |]
+      else [| ${x} Nat.* ${power (Nat.drop n 1) x} |]
 ```
 
 Build the AST of `\y -> y^7`. The outer `[| y -> ... |]` introduces a
@@ -108,10 +97,7 @@ scratch/main> view power7
   power7 : meta.Term TermF
   power7 =
     use meta.Term Term
-    Term
-      (Set Tip)
-      (Tm
-        (Lam (Term (Set Tip) (Abs (Name "y") (power 7 [| y |])))))
+    [| y -> ${power 7 [| y |]} |]
 ```
 
 The pretty printer recovers the staged form via the `[| ... |]`

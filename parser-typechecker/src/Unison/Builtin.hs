@@ -418,6 +418,13 @@ builtinsSrc =
     -- context. Runtime behaviour is the identity function (defined in
     -- 'Unison.Runtime.Builtin').
     B "summon" $ forall1 "a" (\a -> a ==> a),
+    -- The @meta.splice@ builtin. Type @forall a. a -> a@ — runtime
+    -- identity. Inserted by the parser to wrap every @${ ... }@
+    -- splice inside a @[| ... |]@ quote so that the printer can
+    -- round-trip the splice marker back to @${ ... }@ source form.
+    -- (At runtime the wrapping is invisible: it just returns its
+    -- argument unchanged.)
+    B "meta.splice" $ forall1 "a" (\a -> a --> a),
     B "Int.+" $ int --> int --> int,
     B "Int.-" $ int --> int --> int,
     B "Int.*" $ int --> int --> int,

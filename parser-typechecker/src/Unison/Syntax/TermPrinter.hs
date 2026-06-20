@@ -458,6 +458,18 @@ pretty0
                     inner' <- pretty0 (ac (InfixOp Highest) Normal im doc) inner
                     args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
                     pure (fmt S.ControlKeyword "give " <> PP.hang inner' args')
+            -- @($ meta splice $) inner@ — the splice sentinel that
+            -- 'toQuotedSource' produces for @meta.splice@ wrappers
+            -- inside a quote. Rendered back as the @${ ... }@ source
+            -- form.
+            App' (Var' v) inner
+              | Var.name v == "$ meta splice $" -> do
+                  inner' <- pretty0 (ac Bottom Normal im doc) inner
+                  pure
+                    ( fmt S.ControlKeyword "${"
+                        <> inner'
+                        <> fmt S.ControlKeyword "}"
+                    )
             _ -> do
               env <- ask
               case toQuotedSource env.ppe term of
@@ -2456,11 +2468,17 @@ toQuotedSource ppe = unwrapTermNode
     pa :: ()
     pa = ()
 
-    -- @meta.Term.Term <frees> <abt>@
+    -- @meta.Term.Term <frees> <abt>@, or — for splices — a
+    -- @meta.splice <inner>@ marker emitted by the parser. The marker
+    -- is recovered by wrapping the inner term in the parser's splice
+    -- sentinel @($ meta splice $) inner@, which the standard printer
+    -- then formats as @${ ... }@.
     unwrapTermNode tm = case tm of
       App' (App' (Constructor' cr) _frees) abt
         | ctorNameEndsWith ppe "meta.Term.Term" cr CT.Data ->
             unwrapAbt abt
+      App' (Ref' (Reference.Builtin "meta.splice")) inner ->
+        Just (app a (var a (Var.named "$ meta splice $")) inner)
       _ -> Nothing
 
     -- @meta.ABT.{Var, Abs, Cycle, Tm}@
