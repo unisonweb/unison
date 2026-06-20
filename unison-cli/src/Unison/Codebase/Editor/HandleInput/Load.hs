@@ -8,6 +8,7 @@ where
 
 import Control.Lens ((.=))
 import Control.Monad.Reader (ask)
+import Data.IORef (modifyIORef, newIORef, readIORef)
 import Control.Monad.State.Strict qualified as State
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
@@ -506,7 +507,21 @@ evalUnisonFile mode ppe unisonFile args = do
               rid
               (Term.amap (const Ann.External) tmU)
               (Ann.External <$ tyU)
-    liftIO (Runtime.evaluateWatches codeLookup (Just metaPut) ppe prof watchCache theRuntime unisonFile) >>= \case
+    -- Mutating Meta.* builtins queue actions into this IORef during
+    -- evaluation; the queue is drained and applied via Cli.stepAt
+    -- after evaluation completes.
+    pendingActions <- liftIO $ newIORef ([] :: [Runtime.MetaAction])
+    let metaCb :: Runtime.MetaCallbacks Symbol
+        metaCb =
+          Runtime.MetaCallbacks
+            { Runtime.metaPutTerm = metaPut,
+              Runtime.metaAliasTerm = \ref name ->
+                modifyIORef pendingActions (Runtime.MAliasTerm ref name :)
+            }
+    result <- liftIO (Runtime.evaluateWatches codeLookup (Just metaCb) ppe prof watchCache theRuntime unisonFile)
+    queued <- liftIO $ readIORef pendingActions
+    for_ (reverse queued) RuntimeUtils.applyMetaAction
+    case result of
       Right (nts, resp, map) -> do
         cache <- case resp of
           Runtime.DecompErrs errs

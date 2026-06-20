@@ -56,7 +56,11 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
-import Unison.Codebase.Runtime (CompileOpts (..), MetaPutTerm, Response (..))
+import Unison.Codebase.Runtime
+  ( CompileOpts (..),
+    Response (..),
+  )
+import Unison.Codebase.Runtime qualified as CR
 import Unison.Codebase.Runtime.Profile (Profile (..), ProfileSpec (..), foldedProfile, fullProfile, miniProfile)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
@@ -575,7 +579,7 @@ interpEvalDirect ::
   IORef EvalCtx ->
   Maybe ProfileComm ->
   CodeLookup Symbol IO () ->
-  Maybe (MetaPutTerm Symbol) ->
+  Maybe (CR.MetaCallbacks Symbol) ->
   PrettyPrintEnv ->
   Term Symbol ->
   IO (Either Error (Response DecompError, Term Symbol))
@@ -595,7 +599,7 @@ profileEval ::
   IO () ->
   IORef EvalCtx ->
   CodeLookup Symbol IO () ->
-  Maybe (MetaPutTerm Symbol) ->
+  Maybe (CR.MetaCallbacks Symbol) ->
   PrettyPrintEnv ->
   Maybe String ->
   Term Symbol ->
@@ -641,7 +645,7 @@ interpEval ::
   IO () ->
   IORef EvalCtx ->
   CodeLookup Symbol IO () ->
-  Maybe (MetaPutTerm Symbol) ->
+  Maybe (CR.MetaCallbacks Symbol) ->
   PrettyPrintEnv ->
   ProfileSpec ->
   Term Symbol ->
@@ -863,7 +867,7 @@ backReference frs irs r = do
 evalInContext ::
   PrettyPrintEnv ->
   CodeLookup Symbol IO () ->
-  Maybe (MetaPutTerm Symbol) ->
+  Maybe (CR.MetaCallbacks Symbol) ->
   EvalCtx ->
   Maybe ProfileComm ->
   ActiveThreads ->
@@ -959,7 +963,7 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
       -- no codebase callback is installed (e.g. headless runtime),
       -- Right with the new hash's Link.Term on success.
       metaStoreF :: Val -> IO Val
-      metaStoreF val = case metaPut of
+      metaStoreF val = case CR.metaPutTerm <$> metaPut of
         Nothing ->
           pure (metaLeftText "Meta.store: no codebase write callback available")
         Just put -> case MetaC.compileTerm val of
@@ -1027,6 +1031,23 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
           -- / Meta.eval consumers need the codebase hash.
           pure (encodeMetaReference (backmapRef ctx r))
         _ -> pure (encodeMetaReference (RF.Builtin "Meta.linkRef: bad input"))
+      -- Queue a Meta.alias.term action by handing the Reference (after
+      -- backmap-through-intermediate-hash) and the destination name
+      -- Text to the metaAliasTerm callback wired up by the caller.
+      -- Returns Unit. If no callback is installed (headless runtime),
+      -- silently no-ops.
+      metaAliasTermF :: Val -> Val -> IO Val
+      metaAliasTermF refVal nameVal =
+        let metaUnitVal = BoxedVal (Enum RF.unitRef TT.unitTag)
+         in case (refVal, nameVal) of
+              ( BoxedVal (Foreign (WrapReferent (RF.Ref r))),
+                BoxedVal (Foreign (WrapText name))
+                ) -> do
+                  case metaPut of
+                    Nothing -> pure ()
+                    Just cb -> CR.metaAliasTerm cb (backmapRef ctx r) (Util.Text.toText name)
+                  pure metaUnitVal
+              _ -> pure metaUnitVal
 
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
@@ -1040,7 +1061,8 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                 metaLoad = metaLoadF,
                 metaStore = metaStoreF,
                 metaDataDeclShape = metaDataDeclShapeF,
-                metaLinkRef = metaLinkRefF
+                metaLinkRef = metaLinkRefF,
+                metaAliasTerm = metaAliasTermF
               }
             activeThreads
             w
@@ -1056,6 +1078,7 @@ evalInContext ppe cl metaPut ctx prof activeThreads w = do
                   metaStore = metaStoreF,
                   metaDataDeclShape = metaDataDeclShapeF,
                   metaLinkRef = metaLinkRefF,
+                  metaAliasTerm = metaAliasTermF,
                   profiler = pc
                 }
               activeThreads
@@ -1291,7 +1314,7 @@ debugTextFormat fancy =
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub metaStoreStub metaDDSStub metaLinkRefStub ()
+    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub metaStoreStub metaDDSStub metaLinkRefStub metaATMStub ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -1347,6 +1370,9 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
       BoxedVal (Foreign (WrapReferent (RF.Ref r))) ->
         pure (encodeMetaReference r)
       _ -> pure (encodeMetaReference (RF.Builtin "Meta.linkRef: bad input"))
+    -- Meta.alias.term has no effect in a restored-cache context (no
+    -- enclosing CLI to apply the queued action). Return unit.
+    metaATMStub _v _w = pure (BoxedVal (Enum RF.unitRef TT.unitTag))
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     srcCombs :: EnumMap Word64 Combs

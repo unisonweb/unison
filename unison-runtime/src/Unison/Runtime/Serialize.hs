@@ -694,6 +694,7 @@ instance Tag Prim2 where
   tag2word IXOB = 73
   tag2word SDBV = 74
   tag2word REFW = 75
+  tag2word MATM = 76
 
   word2tag 0 = pure ADDI
   word2tag 1 = pure ADDN
@@ -772,4 +773,5 @@ instance Tag Prim2 where
   word2tag 73 = pure IXOB
   word2tag 74 = pure SDBV
   word2tag 75 = pure REFW
+  word2tag 76 = pure MATM
   word2tag n = unknownTag "Prim2" n

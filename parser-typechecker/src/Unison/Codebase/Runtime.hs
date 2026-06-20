@@ -50,6 +50,25 @@ type Term v = Term.Term v ()
 -- SQLite transaction; the runtime computes the hash and types.
 type MetaPutTerm v = Reference.Id -> Term.Term v () -> Type v () -> IO ()
 
+-- | A mutating UCM-style action that the runtime queues during
+-- evaluation. The driving 'Cli' context drains the queue after
+-- evaluation completes and applies each action via the standard
+-- branch-mutation machinery (so SQLite + LSP + check-and-set all
+-- work the same as if the user had typed the command).
+data MetaAction
+  = MAliasTerm Reference Text
+  deriving stock (Eq, Show)
+
+-- | Side-channel callbacks the runtime invokes for @Meta.*@ builtins
+-- that need access to the surrounding codebase / branch state.
+-- Mutating callbacks queue a 'MetaAction' (applied after eval in
+-- proper 'Cli' context); read-only callbacks run directly against
+-- the codebase via @Codebase.runTransaction@.
+data MetaCallbacks v = MetaCallbacks
+  { metaPutTerm :: MetaPutTerm v,
+    metaAliasTerm :: Reference -> Text -> IO ()
+  }
+
 data CompileOpts = COpts
   { profile :: Bool
   }
@@ -61,7 +80,7 @@ data Runtime e e' v = Runtime
   { terminate :: IO (),
     evaluate ::
       CL.CodeLookup v IO () ->
-      Maybe (MetaPutTerm v) ->
+      Maybe (MetaCallbacks v) ->
       PPE.PrettyPrintEnv ->
       ProfileSpec ->
       Term v ->
@@ -104,7 +123,7 @@ evaluateWatches ::
   forall e e' v a.
   (Var v) =>
   CL.CodeLookup v IO a ->
-  Maybe (MetaPutTerm v) ->
+  Maybe (MetaCallbacks v) ->
   PPE.PrettyPrintEnv ->
   ProfileSpec ->
   (Reference.Id -> IO (Maybe (Term v))) ->
@@ -172,7 +191,7 @@ evaluateWatches code metaPut ppe prof evaluationCache rt tuf = do
 evaluateTerm' ::
   (Var v, Monoid a) =>
   CL.CodeLookup v IO a ->
-  Maybe (MetaPutTerm v) ->
+  Maybe (MetaCallbacks v) ->
   (Reference.Id -> IO (Maybe (Term v))) ->
   PPE.PrettyPrintEnv ->
   ProfileSpec ->

@@ -470,6 +470,8 @@ data Prim2
   | SDBV -- sandbox Value
   -- Refs
   | REFW -- Ref.write
+  -- meta
+  | MATM -- Meta.alias.term
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data MLit
@@ -1472,6 +1474,7 @@ emitPOp ANF.MLOD = emitP1 MLOD
 emitPOp ANF.MSTR = emitP1 MSTR
 emitPOp ANF.MDDS = emitP1 MDDS
 emitPOp ANF.MLNR = emitP1 MLNR
+emitPOp ANF.MATM = emitP2 MATM
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 -- Bools

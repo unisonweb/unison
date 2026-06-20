@@ -701,6 +701,12 @@ builtinsSrc =
     B "Meta.linkRef" $
       -- Link.Term -> meta.Reference (the underlying type/term reference)
       termLink --> Type.metaReference (),
+    B "Meta.aliasTerm" $
+      -- Link.Term -> Text -> {IO} ()
+      -- Schedule an @alias.term@ binding the existing reference under
+      -- the given path-style name in the current namespace. Runs once
+      -- per call when the enclosing IO action returns to the Cli.
+      termLink --> text --> io unit,
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),

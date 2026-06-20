@@ -183,6 +183,7 @@ data POp
   | MSTR -- Meta.store
   | MDDS -- Meta.dataDeclShape
   | MLNR -- Meta.linkRef
+  | MATM -- Meta.alias.term
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 pOpCode :: POp -> Word16
@@ -345,6 +346,7 @@ pOpCode op = case op of
   MSTR -> 155
   MDDS -> 156
   MLNR -> 157
+  MATM -> 158
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]

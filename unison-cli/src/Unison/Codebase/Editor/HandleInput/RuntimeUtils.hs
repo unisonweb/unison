@@ -5,17 +5,24 @@ module Unison.Codebase.Editor.HandleInput.RuntimeUtils
     displayDecompileErrors,
     displayResponse,
     selectRuntime,
+    applyMetaAction,
     EvalMode (..),
     modeProfSpec,
   )
 where
+
+import Data.IORef
+import Data.Text qualified as Text
 
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Unison.ABT qualified as ABT
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Path.Parse qualified as Path.Parse
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.Runtime qualified as Runtime
@@ -90,7 +97,23 @@ evalUnisonTermE mode ppe useCache tm = do
             rid
             (Term.amap (const Ann.External) tmU)
             (Ann.External <$ tyU)
-  r <- liftIO (Runtime.evaluateTerm' (Codebase.codebaseToCodeLookup codebase) (Just metaPut) cache ppe prof theRuntime tm)
+  -- Mutating Meta.* builtins queue actions into this IORef during
+  -- evaluation; the queue is drained and applied via Cli.stepAt
+  -- after evaluation completes.
+  pendingActions <- liftIO $ newIORef ([] :: [Runtime.MetaAction])
+  let metaCb :: Runtime.MetaCallbacks Symbol
+      metaCb =
+        Runtime.MetaCallbacks
+          { Runtime.metaPutTerm = metaPut,
+            Runtime.metaAliasTerm = \ref name ->
+              modifyIORef pendingActions (Runtime.MAliasTerm ref name :)
+          }
+  r <- liftIO (Runtime.evaluateTerm' (Codebase.codebaseToCodeLookup codebase) (Just metaCb) cache ppe prof theRuntime tm)
+  -- Drain queued UCM-style actions in FIFO order before returning to
+  -- the caller, so that e.g. @run (Meta.store … >>= alias "foo")@
+  -- shows the new name visible afterwards.
+  queued <- liftIO $ readIORef pendingActions
+  for_ (reverse queued) applyMetaAction
   when useCache do
     case r of
       Right (Runtime.DecompErrs errs, _)
@@ -147,3 +170,28 @@ evalPureUnison ppe useCache tm =
           Term.termLink a (Referent.Ref (Reference.Builtin "Value.value"))
         ]
     msg = "pure code can't perform I/O"
+
+-- | Apply one queued 'Runtime.MetaAction' to the current project
+-- branch via the normal 'Cli.stepAt' machinery, so SQLite + LSP +
+-- check-and-set behave exactly as if the user had typed the
+-- equivalent UCM command.
+applyMetaAction :: Runtime.MetaAction -> Cli ()
+applyMetaAction = \case
+  Runtime.MAliasTerm ref nameText ->
+    case Path.Parse.parseSplit' (Text.unpack nameText) of
+      Left err ->
+        Cli.respond
+          ( Literal
+              ( P.warnCallout
+                  ( "Meta.alias.term: couldn't parse destination name "
+                      <> P.shown nameText
+                      <> ": "
+                      <> P.text err
+                  )
+              )
+          )
+      Right dest' -> do
+        dest <- Cli.resolveSplit' dest'
+        Cli.stepAt
+          "Meta.alias.term"
+          (BranchUtil.makeAddTermName dest (Referent.Ref ref))

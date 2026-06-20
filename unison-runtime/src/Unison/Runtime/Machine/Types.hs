@@ -201,6 +201,11 @@ data CCache prof = CCache
     -- from a Link.Term and encodes it as a meta.Reference value.
     -- This is a pure decode + re-encode; no codebase access.
     metaLinkRef :: Val -> IO Val,
+    -- | How Meta.alias.term (MATM) hands its (Link.Term, Text) pair
+    -- back to the driving CLI. The installer in "Interface.hs"
+    -- closes over an IORef-based action queue at evaluation start;
+    -- baseCCache supplies a stub.
+    metaAliasTerm :: Val -> Val -> IO Val,
     profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
@@ -232,7 +237,7 @@ refNumTm cc r =
 
 baseCCache :: Bool -> IO (CCache ())
 baseCCache sandboxed = do
-  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck noMetaLoad noMetaStore noMetaDataDeclShape noMetaLinkRef ()
+  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck noMetaLoad noMetaStore noMetaDataDeclShape noMetaLinkRef noMetaAliasTerm ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
@@ -257,6 +262,7 @@ baseCCache sandboxed = do
     noMetaStore _v = error "Meta.store: no storer installed"
     noMetaDataDeclShape _v = error "Meta.dataDeclShape: no inspector installed"
     noMetaLinkRef _v = error "Meta.linkRef: no inspector installed"
+    noMetaAliasTerm _v _w = error "Meta.alias.term: no UCM callback installed"
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
 

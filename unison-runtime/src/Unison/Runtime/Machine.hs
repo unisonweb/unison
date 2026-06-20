@@ -493,6 +493,14 @@ exec env henv !_activeThreads !stk !k _ (Prim2 TRCE i j)
           putStrLn "partial decompilation:\n"
           putStrLn pre
       pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim2 MATM i j) = do
+  v1 <- peekOff stk i
+  v2 <- peekOff stk j
+  stk <- bump stk
+  -- Dispatch to metaAliasTerm installed on the CCache. Always
+  -- returns unit on success.
+  poke stk =<< metaAliasTerm env v1 v2
+  pure (False, henv, stk, k)
 exec env henv !_trackThreads !stk !k _ (Prim2 op i j) = do
   stk <- primxx env stk op i j
   pure (False, henv, stk, k)

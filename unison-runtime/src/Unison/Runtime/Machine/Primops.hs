@@ -211,6 +211,7 @@ primxx env stk SDBX i j = prim2wrap2 (sdbx env) stk i j
 -- handled elsewhere
 primxx _env stk THRO _ _ = pure stk
 primxx _env stk TRCE _ _ = pure stk
+primxx _env stk MATM _ _ = pure stk
 {-# INLINE primxx #-}
 
 termLinkVal :: Referent -> Val
