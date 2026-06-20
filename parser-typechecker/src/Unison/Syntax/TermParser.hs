@@ -722,11 +722,11 @@ splice = P.label "splice" do
 spliceMarkerName :: String
 spliceMarkerName = "$ meta splice $"
 
--- | Reference to the @meta.splice@ builtin (identity function). The
--- parser wraps every @${ ... }@ splice in @meta.splice@ so the
+-- | Reference to the @Meta.splice@ builtin (identity function). The
+-- parser wraps every @${ ... }@ splice in @Meta.splice@ so the
 -- printer's quote round-trip can recover the source form.
 metaSpliceRef :: Reference
-metaSpliceRef = Reference.Builtin "meta.splice"
+metaSpliceRef = Reference.Builtin "Meta.splice"
 
 -- | Walk the AST of a quoted expression and produce a term that, at
 -- runtime, constructs the corresponding @meta.Term meta.TermF@ value.
@@ -744,8 +744,8 @@ desugarQuote ns a = go Set.empty
     -- wrapper is (ABT.freeVars subterm) ∩ bound.
     go :: Set v -> Term v Ann -> Term v Ann
     go bound t = case t of
-      -- Splice sentinel — emit @meta.splice <inner>@. At runtime
-      -- @meta.splice@ is identity, so the wrapping is invisible; it
+      -- Splice sentinel — emit @Meta.splice <inner>@. At runtime
+      -- @Meta.splice@ is identity, so the wrapping is invisible; it
       -- exists only so the printer can recover the @${ ... }@ source
       -- form when round-tripping a quoted-with-splice term.
       Term.App' (Term.Var' v) inner
@@ -876,8 +876,9 @@ desugarQuote ns a = go Set.empty
             caseExprs = lowerCase bound <$> cases
             caseList = Term.list a caseExprs
          in metaTm bound a t "TermF.Match" [scrutDes, caseList]
-      -- Anything else falls through as a free splice — keeps the
-      -- desugarer permissive while we extend coverage incrementally.
+      -- Anything else falls through as a free splice — the typechecker
+      -- still rejects unsupported shapes since they won't have a valid
+      -- 'meta.Term' type, but the parse doesn't fail outright.
       _ -> t
 
     -- Lower one v1 'MatchCase' to a 'meta.MatchCase.MatchCase'

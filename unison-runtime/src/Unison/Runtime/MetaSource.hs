@@ -52,9 +52,6 @@ import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Var qualified as Var
 
-debug :: Bool
-debug = False
-
 parsingEnv :: Parser.ParsingEnv Identity
 parsingEnv =
   Parser.ParsingEnv

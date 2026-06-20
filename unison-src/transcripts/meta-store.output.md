@@ -29,9 +29,6 @@ helper n = n + 1
 ``` ucm
 scratch/main> add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 

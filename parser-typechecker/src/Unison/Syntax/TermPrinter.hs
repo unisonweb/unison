@@ -459,7 +459,7 @@ pretty0
                     args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
                     pure (fmt S.ControlKeyword "give " <> PP.hang inner' args')
             -- @($ meta splice $) inner@ — the splice sentinel that
-            -- 'toQuotedSource' produces for @meta.splice@ wrappers
+            -- 'toQuotedSource' produces for @Meta.splice@ wrappers
             -- inside a quote. Rendered back as the @${ ... }@ source
             -- form.
             App' (Var' v) inner
@@ -2469,7 +2469,7 @@ toQuotedSource ppe = unwrapTermNode
     pa = ()
 
     -- @meta.Term.Term <frees> <abt>@, or — for splices — a
-    -- @meta.splice <inner>@ marker emitted by the parser. The marker
+    -- @Meta.splice <inner>@ marker emitted by the parser. The marker
     -- is recovered by wrapping the inner term in the parser's splice
     -- sentinel @($ meta splice $) inner@, which the standard printer
     -- then formats as @${ ... }@.
@@ -2477,7 +2477,7 @@ toQuotedSource ppe = unwrapTermNode
       App' (App' (Constructor' cr) _frees) abt
         | ctorNameEndsWith ppe "meta.Term.Term" cr CT.Data ->
             unwrapAbt abt
-      App' (Ref' (Reference.Builtin "meta.splice")) inner ->
+      App' (Ref' (Reference.Builtin "Meta.splice")) inner ->
         Just (app a (var a (Var.named "$ meta splice $")) inner)
       _ -> Nothing
 

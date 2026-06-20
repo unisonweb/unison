@@ -90,8 +90,8 @@ scratch/main> run asTerm
 ## 5. Recursion via meta-let
 
 Quotes carry `let` and `let rec`, so generated code can include
-local recursion — which is the key ingredient for the deriving
-demos in `meta-derive-functor-recursive.md`.
+local recursion — which is the key ingredient for the recursive
+deriving demo in `meta-derive-functor-nested.md`.
 
 ```unison
 countdownAst : meta.Term meta.TermF
@@ -125,9 +125,8 @@ unique type Tree a = Leaf | Node a (Tree a) (Tree a)
 scratch/main> add
 ```
 
-See `meta-derive-functor-recursive.md` and
-`meta-derive-functor-nested.md` for the full deriver — it's around
-80 lines of Unison and produces a Functor instance like:
+See `meta-derive-functor-nested.md` for the full deriver — it's
+around 80 lines of Unison and produces a Functor instance like:
 
 ```
 myMap f = cases

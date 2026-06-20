@@ -5,16 +5,15 @@
 -- shaped as @meta.Term meta.TermF@ back into a source-level
 -- 'Term Symbol ()'.
 --
--- This is the substrate for the @Meta.typecheck@ builtin (Step 4 of
--- metaprogramming-design.md). The decoded term is what gets handed
--- to "Unison.Typechecker".
+-- This is the substrate for the @Meta.typecheck@ builtin. The
+-- decoded term is what gets handed to "Unison.Typechecker".
 --
--- For the MVP we handle the core shapes — variables, lambdas (with
--- their wrapping @Abs@), applications, references, constructors,
--- requests, literals, lists, term/type links, conditionals, lets,
--- handle, and ann. Match/Pattern/LetRec/Effects/Forall are flagged
--- with explicit @Left@ failures until the typecheck call surface
--- actually needs them.
+-- Covers every @TermF@/@TypeF@ shape currently in 'MetaSource':
+-- variables, lambdas, applications, references, constructors,
+-- requests, literals (including bytes), lists, term/type links,
+-- conditionals, lets, letrec, match (full pattern coverage),
+-- handle, and ann. Anything new added to @MetaSource.TermF@ needs
+-- a matching decoder branch here.
 module Unison.Runtime.MetaCompile
   ( compileTerm,
     decodeReference,
@@ -551,10 +550,11 @@ shapeError expected _v =
 -- IO-side dep walk over a 'CodeLookup'. Builtins are always merged
 -- in; pass 'mempty' if the term only references builtins.
 --
--- The MVP 'Env' still has no TDNR, no ambient abilities, and no
+-- The constructed 'Env' has no TDNR, no ambient abilities, and no
 -- namespace givens — sufficient for typechecking fully-elaborated
 -- terms that came back through 'Meta.decompile' or were constructed
--- programmatically.
+-- programmatically. Adding any of those is straightforward when a
+-- future meta surface needs them.
 typecheckTerm :: TL.TypeLookup Symbol () -> Term Symbol () -> Either Text (Type Symbol ())
 typecheckTerm extraTL tm =
   let env :: Env Symbol ()
