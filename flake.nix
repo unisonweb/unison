@@ -11,8 +11,8 @@
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-25.11-darwin";
-    stacklock2nix.url = "github:cdepillabout/stacklock2nix/v5.2.1";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
+    stacklock2nix.url = "github:cdepillabout/stacklock2nix/v5.2.3";
     systems.follows = "flake-utils/systems";
   };
 
