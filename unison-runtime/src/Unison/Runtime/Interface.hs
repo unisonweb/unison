@@ -46,6 +46,7 @@ import Data.Foldable
 import Data.IORef
 import Data.List qualified as L
 import Data.Map.Strict qualified as Map
+import Data.Sequence qualified as USeq
 import Data.Set as Set (filter, fromList, map, notMember, singleton, (\\))
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
@@ -66,17 +67,15 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
 import Unison.DataDeclaration qualified as DD
+import Unison.Hash qualified as UHash
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as RF
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
 import Unison.PrettyPrintEnv
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.Hash qualified as UHash
 import Unison.Reference (Reference)
 import Unison.Reference qualified as RF
-import Unison.Util.Bytes qualified as UBytes
-import Data.Sequence qualified as USeq
 import Unison.Referent qualified as RF (pattern Ref)
 import Unison.Runtime
 import Unison.Runtime.ANF as ANF
@@ -86,11 +85,6 @@ import Unison.Runtime.ANF.Serialize as ANF (getGroupCurrent, getOptInfos, putGro
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile (DecompError, DecompResult, decompile)
 import Unison.Runtime.Decompile qualified as Decomp
-import Unison.Runtime.MetaCompile qualified as MetaC
-import Unison.Runtime.MetaDecompile qualified as MetaDecomp
-import Unison.Runtime.MetaSource qualified as Meta
-import Unison.Typechecker.TypeLookup qualified as TL
-import Unison.Util.Text qualified as Util.Text
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
@@ -127,6 +121,9 @@ import Unison.Runtime.Machine
     refNumsTy,
     resolveSection,
   )
+import Unison.Runtime.MetaCompile qualified as MetaC
+import Unison.Runtime.MetaDecompile qualified as MetaDecomp
+import Unison.Runtime.MetaSource qualified as Meta
 import Unison.Runtime.Pattern
 import Unison.Runtime.Profiling
 import Unison.Runtime.Serialize as SER
@@ -139,10 +136,13 @@ import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Type
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Util.Bytes qualified as UBytes
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty as P
 import Unison.Util.Recursion qualified as Rec
+import Unison.Util.Text qualified as Util.Text
 import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
 

@@ -36,6 +36,7 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
+import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
@@ -49,7 +50,6 @@ import Unison.Parser.Ann (Ann (Ann))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Hash qualified as Hash
 import Unison.Reference (Reference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -766,12 +766,12 @@ desugarQuote ns a = go Set.empty
             lamInner = Term.app a (Term.var a (Var.nameds "meta.TermF.Lam")) absNode
          in wrapTermFrees a frees (Term.app a (Term.var a (Var.nameds "meta.ABT.Tm")) lamInner)
       -- Variables.
-      -- * Quote-bound (introduced by an enclosing [| x -> ... |]) →
+      -- \* Quote-bound (introduced by an enclosing [| x -> ... |]) →
       --   emit @meta.ABT.Var@ inside this quote.
-      -- * Resolves to a codebase term ref → @meta.TermF.Ref@.
-      -- * Resolves to a constructor → @meta.TermF.Constructor@ /
+      -- \* Resolves to a codebase term ref → @meta.TermF.Ref@.
+      -- \* Resolves to a constructor → @meta.TermF.Constructor@ /
       --   @meta.TermF.Request@.
-      -- * Otherwise (free in the quote, no codebase resolution) →
+      -- \* Otherwise (free in the quote, no codebase resolution) →
       --   still @meta.ABT.Var@. This lets nested quotes refer to
       --   binders from the enclosing quote by name, which is how the
       --   Oleg-style staged power example threads its variable

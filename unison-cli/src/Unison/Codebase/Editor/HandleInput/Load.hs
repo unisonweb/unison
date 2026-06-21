@@ -8,8 +8,8 @@ where
 
 import Control.Lens ((.=))
 import Control.Monad.Reader (ask)
-import Data.IORef (modifyIORef, newIORef, readIORef)
 import Control.Monad.State.Strict qualified as State
+import Data.IORef (modifyIORef, newIORef, readIORef)
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set

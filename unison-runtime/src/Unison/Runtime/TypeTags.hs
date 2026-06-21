@@ -685,21 +685,31 @@ metaHashHashTag
 metaReferenceBuiltinTag, metaReferenceDerivedTag :: PackedTag
 (metaReferenceBuiltinTag, metaReferenceDerivedTag)
   | [a, b] <-
-      mkTags "meta Reference tags" Meta.referenceRef
-        [Meta.referenceBuiltinId, Meta.referenceDerivedId] = (a, b)
+      mkTags
+        "meta Reference tags"
+        Meta.referenceRef
+        [Meta.referenceBuiltinId, Meta.referenceDerivedId] =
+      (a, b)
   | otherwise = internalBug [] "missing meta Reference tags"
 
 metaConstructorReferenceTag :: PackedTag
 metaConstructorReferenceTag
-  | [t] <- mkTags "meta ConstructorReference tags" Meta.constructorReferenceRef
-      [Meta.constructorReferenceCtorId] = t
+  | [t] <-
+      mkTags
+        "meta ConstructorReference tags"
+        Meta.constructorReferenceRef
+        [Meta.constructorReferenceCtorId] =
+      t
   | otherwise = internalBug [] "missing meta ConstructorReference tag"
 
 metaReferentRefRefTag, metaReferentRefConTag :: PackedTag
 (metaReferentRefRefTag, metaReferentRefConTag)
   | [a, b] <-
-      mkTags "meta Referent tags" Meta.referentRef
-        [Meta.referentRefRefId, Meta.referentRefConId] = (a, b)
+      mkTags
+        "meta Referent tags"
+        Meta.referentRef
+        [Meta.referentRefRefId, Meta.referentRefConId] =
+      (a, b)
   | otherwise = internalBug [] "missing meta Referent tags"
 
 metaLitNatTag,
@@ -719,7 +729,9 @@ metaLitNatTag,
   metaLitBytesTag
   )
     | [a, b, c, d, e, f, g] <-
-        mkTags "meta Literal tags" Meta.literalRef
+        mkTags
+          "meta Literal tags"
+          Meta.literalRef
           [ Meta.litNatId,
             Meta.litIntId,
             Meta.litTextId,
@@ -727,14 +739,18 @@ metaLitNatTag,
             Meta.litFloatId,
             Meta.litBooleanId,
             Meta.litBytesId
-          ] = (a, b, c, d, e, f, g)
+          ] =
+        (a, b, c, d, e, f, g)
     | otherwise = internalBug [] "missing meta Literal tags"
 
 metaSeqOpPConsTag, metaSeqOpPSnocTag, metaSeqOpPConcatTag :: PackedTag
 (metaSeqOpPConsTag, metaSeqOpPSnocTag, metaSeqOpPConcatTag)
   | [a, b, c] <-
-      mkTags "meta SeqOp tags" Meta.seqOpRef
-        [Meta.seqOpPConsId, Meta.seqOpPSnocId, Meta.seqOpPConcatId] = (a, b, c)
+      mkTags
+        "meta SeqOp tags"
+        Meta.seqOpRef
+        [Meta.seqOpPConsId, Meta.seqOpPSnocId, Meta.seqOpPConcatId] =
+      (a, b, c)
   | otherwise = internalBug [] "missing meta SeqOp tags"
 
 metaPatternPUnboundTag,
@@ -770,7 +786,9 @@ metaPatternPUnboundTag,
   metaPatternPSequenceOpTag
   )
     | [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o] <-
-        mkTags "meta Pattern tags" Meta.patternRef
+        mkTags
+          "meta Pattern tags"
+          Meta.patternRef
           [ Meta.patternPUnboundId,
             Meta.patternPVarId,
             Meta.patternPBooleanId,
@@ -786,26 +804,36 @@ metaPatternPUnboundTag,
             Meta.patternPEffectBindId,
             Meta.patternPSequenceLiteralId,
             Meta.patternPSequenceOpId
-          ] = (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
+          ] =
+        (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
     | otherwise = internalBug [] "missing meta Pattern tags"
 
 metaKindKStarTag, metaKindKArrowTag :: PackedTag
 (metaKindKStarTag, metaKindKArrowTag)
   | [a, b] <-
-      mkTags "meta Kind tags" Meta.kindRef
-        [Meta.kindKStarId, Meta.kindKArrowId] = (a, b)
+      mkTags
+        "meta Kind tags"
+        Meta.kindRef
+        [Meta.kindKStarId, Meta.kindKArrowId] =
+      (a, b)
   | otherwise = internalBug [] "missing meta Kind tags"
 
 metaMatchCaseTag :: PackedTag
 metaMatchCaseTag
-  | [t] <- mkTags "meta MatchCase tags" Meta.matchCaseRef
-      [Meta.matchCaseCtorId] = t
+  | [t] <-
+      mkTags
+        "meta MatchCase tags"
+        Meta.matchCaseRef
+        [Meta.matchCaseCtorId] =
+      t
   | otherwise = internalBug [] "missing meta MatchCase tag"
 
 metaAbtVarTag, metaAbtAbsTag, metaAbtCycleTag, metaAbtTmTag :: PackedTag
 (metaAbtVarTag, metaAbtAbsTag, metaAbtCycleTag, metaAbtTmTag)
   | [a, b, c, d] <-
-      mkTags "meta ABT tags" Meta.abtRef
+      mkTags
+        "meta ABT tags"
+        Meta.abtRef
         [Meta.abtVarId, Meta.abtAbsId, Meta.abtCycleId, Meta.abtTmId] =
       (a, b, c, d)
   | otherwise = internalBug [] "missing meta ABT tags"
@@ -848,7 +876,9 @@ metaTermFAppTag,
   metaTermFTypeLinkTag
   )
     | [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o] <-
-        mkTags "meta TermF tags" Meta.termFRef
+        mkTags
+          "meta TermF tags"
+          Meta.termFRef
           [ Meta.termFAppId,
             Meta.termFLamId,
             Meta.termFLetId,
@@ -864,7 +894,8 @@ metaTermFAppTag,
             Meta.termFListId,
             Meta.termFTermLinkId,
             Meta.termFTypeLinkId
-          ] = (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
+          ] =
+        (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
     | otherwise = internalBug [] "missing meta TermF tags"
 
 metaTypeFArrowTag,
@@ -888,7 +919,9 @@ metaTypeFArrowTag,
   metaTypeFAnnTag
   )
     | [a, b, c, d, e, f, g, h, i] <-
-        mkTags "meta TypeF tags" Meta.typeFRef
+        mkTags
+          "meta TypeF tags"
+          Meta.typeFRef
           [ Meta.typeFArrowId,
             Meta.typeFImplicitArrowId,
             Meta.typeFAppId,
@@ -898,5 +931,6 @@ metaTypeFArrowTag,
             Meta.typeFIntroOuterId,
             Meta.typeFRefId,
             Meta.typeFAnnId
-          ] = (a, b, c, d, e, f, g, h, i)
+          ] =
+        (a, b, c, d, e, f, g, h, i)
     | otherwise = internalBug [] "missing meta TypeF tags"

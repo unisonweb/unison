@@ -39,6 +39,7 @@ import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
+import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
@@ -64,7 +65,6 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
 import Unison.Type qualified as Type
-import Unison.Hash qualified as Hash
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (foldMapM, intercalateMap, intercalateMapM)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
@@ -2640,7 +2640,8 @@ toQuotedSource ppe = unwrapTermNode
     -- inner)@ wrappers, returning the binder name list and the
     -- innermost non-Abs term.
     peelMetaAbs tm = case tm of
-      App' (App' (Constructor' cr) _frees)
+      App'
+        (App' (Constructor' cr) _frees)
         ( App'
             (App' (Constructor' cr2) (App' (Constructor' nc) (Text' name)))
             inner

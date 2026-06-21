@@ -13,39 +13,37 @@ module Unison.Codebase.Editor.HandleInput.RuntimeUtils
   )
 where
 
-import Data.IORef
-import Data.Text qualified as Text
-
 import Control.Lens
 import Control.Monad.Reader (ask)
+import Data.IORef
+import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.ABT qualified as ABT
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Data.List qualified as List
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Set qualified as Set
-import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Name qualified as Name
-import Unison.Util.Relation qualified as Relation
 import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Editor.Output
+import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path.Parse
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.ConstructorReference (GConstructorReference (..))
-import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.Reference (Reference)
-import Unison.Codebase.Editor.Output
-import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
+import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.Name qualified as Name
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Runtime (Error)
@@ -55,6 +53,7 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Util.Pretty qualified as P
+import Unison.Util.Relation qualified as Relation
 import Unison.WatchKind qualified as WK
 
 data EvalMode = Sandboxed | Permissive ProfileSpec
@@ -278,11 +277,11 @@ applyMetaAction = \case
                 ),
                 ctorReferent
               )
-              | cid <- [0 .. fromIntegral numCtors - 1],
-                let ctorReferent = Referent.Con (ConstructorReference ref cid) declType,
-                name <-
-                  take 1 . List.sortOn Name.countSegments . Set.toList $
-                    Relation.lookupDom ctorReferent allTerms
+            | cid <- [0 .. fromIntegral numCtors - 1],
+              let ctorReferent = Referent.Con (ConstructorReference ref cid) declType,
+              name <-
+                take 1 . List.sortOn Name.countSegments . Set.toList $
+                  Relation.lookupDom ctorReferent allTerms
             ]
       pb <- Cli.getCurrentProjectBranch
       let destAbs :: Path.Split Path.Absolute

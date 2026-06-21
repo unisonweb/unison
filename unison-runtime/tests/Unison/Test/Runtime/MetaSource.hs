@@ -8,7 +8,7 @@
 -- error at first use.
 module Unison.Test.Runtime.MetaSource (test) where
 
-import Control.Exception (evaluate, try, SomeException)
+import Control.Exception (SomeException, evaluate, try)
 import EasyTest
 import Unison.Runtime.MetaSource qualified as M
 

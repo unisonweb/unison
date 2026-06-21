@@ -459,28 +459,33 @@ valueRef = Reference.Builtin "Value"
 metaTermRef, metaTermFRef, metaTypeFRef, metaReferenceRef, metaConstructorReferenceRef :: TypeReference
 metaTermRef =
   Reference.Derived
-    (unsafeMetaHash
-       "mk73ln9u11hd7uh2aqa6ep8ggn5h4kn71j23age6045cn05hak26jno6eb0e8oer8ap249pqsmortjhjm0e2ra3vukevq87b7eibcq8")
+    ( unsafeMetaHash
+        "mk73ln9u11hd7uh2aqa6ep8ggn5h4kn71j23age6045cn05hak26jno6eb0e8oer8ap249pqsmortjhjm0e2ra3vukevq87b7eibcq8"
+    )
     0
 metaTermFRef =
   Reference.Derived
-    (unsafeMetaHash
-       "93jvs66ff15gqavq1c3qaphgm3gl5bi60qarrodupiir52vkmvps5rqv03a6picmpdmvupvojn8q73lsl116patp4bmt7inticppaa8")
+    ( unsafeMetaHash
+        "93jvs66ff15gqavq1c3qaphgm3gl5bi60qarrodupiir52vkmvps5rqv03a6picmpdmvupvojn8q73lsl116patp4bmt7inticppaa8"
+    )
     0
 metaTypeFRef =
   Reference.Derived
-    (unsafeMetaHash
-       "oicrvedbi8k56rmhs1ojbt8a6umrnch37q6ckvs614138mbgkgmookerabnlm1bh225gd3jo5bib067j5ticm9qv4g1c3grdmu43fo8")
+    ( unsafeMetaHash
+        "oicrvedbi8k56rmhs1ojbt8a6umrnch37q6ckvs614138mbgkgmookerabnlm1bh225gd3jo5bib067j5ticm9qv4g1c3grdmu43fo8"
+    )
     0
 metaReferenceRef =
   Reference.Derived
-    (unsafeMetaHash
-       "gvpjsqnj5m6e2nm11gg8t9rk77m9marjn41etnlc7m3l9cm996tskui3n6jktovsflbblmeke0bjp0oulm0ch9bh2hgnto6akac30ug")
+    ( unsafeMetaHash
+        "gvpjsqnj5m6e2nm11gg8t9rk77m9marjn41etnlc7m3l9cm996tskui3n6jktovsflbblmeke0bjp0oulm0ch9bh2hgnto6akac30ug"
+    )
     0
 metaConstructorReferenceRef =
   Reference.Derived
-    (unsafeMetaHash
-       "vm23ecflceu98bgshtqcsg1fp95j04ptv8lmv61b6hqbqdc5q5tad8bp36rhlq7ulqs9q6gsich87d56j3297dhic30l3iupjfaiju0")
+    ( unsafeMetaHash
+        "vm23ecflceu98bgshtqcsg1fp95j04ptv8lmv61b6hqbqdc5q5tad8bp36rhlq7ulqs9q6gsich87d56j3297dhic30l3iupjfaiju0"
+    )
     0
 
 unsafeMetaHash :: Text -> Hash.Hash

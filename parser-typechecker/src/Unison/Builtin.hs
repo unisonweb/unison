@@ -677,7 +677,8 @@ builtinsSrc =
               )
           ),
     B "Meta.eval" $
-      forall1 "a" $ \a -> termLink --> io a,
+      forall1 "a" $
+        \a -> termLink --> io a,
     B "Meta.load" $
       termLink
         --> io

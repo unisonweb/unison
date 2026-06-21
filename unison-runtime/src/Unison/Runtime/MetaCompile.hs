@@ -32,26 +32,19 @@ import Data.Text qualified as Text
 import Data.Word (Word64)
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
-import Unison.Kind qualified as Kind
-import Unison.PrettyPrintEnv qualified as PPE
-import Unison.Result qualified as Result
-import Unison.Type (Type)
-import Unison.Type qualified as Type
-import Unison.Typechecker (Env (..))
-import Unison.Typechecker qualified as Typechecker
-import Unison.Typechecker.Context qualified as Context
-import Unison.Typechecker.GivenResolver qualified as GR
-import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Hash qualified as Hash
+import Unison.Kind qualified as Kind
+import Unison.Pattern (Pattern, SeqOp)
+import Unison.Pattern qualified as Pat
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
 import Unison.Runtime.MetaSource qualified as Meta
-import Unison.Pattern (Pattern, SeqOp)
-import Unison.Pattern qualified as Pat
 import Unison.Runtime.Stack
   ( Closure (..),
     Foreign (..),
@@ -67,6 +60,13 @@ import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
 import Unison.Term (MatchCase (..), Term)
 import Unison.Term qualified as Term
+import Unison.Type (Type)
+import Unison.Type qualified as Type
+import Unison.Typechecker (Env (..))
+import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.GivenResolver qualified as GR
+import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Text qualified as Util.Text
 import Unison.Var qualified as Var
@@ -337,16 +337,20 @@ decodePattern = \case
           | tag == TT.metaPatternPBooleanTag -> do
               b <- decodeBoolean inner
               pure (Pat.Boolean () b)
-          | tag == TT.metaPatternPIntTag, IntVal i <- inner ->
+          | tag == TT.metaPatternPIntTag,
+            IntVal i <- inner ->
               pure (Pat.Int () (fromIntegral i))
-          | tag == TT.metaPatternPNatTag, NatVal n <- inner ->
+          | tag == TT.metaPatternPNatTag,
+            NatVal n <- inner ->
               pure (Pat.Nat () n)
-          | tag == TT.metaPatternPFloatTag, DoubleVal f <- inner ->
+          | tag == TT.metaPatternPFloatTag,
+            DoubleVal f <- inner ->
               pure (Pat.Float () f)
           | tag == TT.metaPatternPTextTag -> do
               t <- decodeText inner
               pure (Pat.Text () t)
-          | tag == TT.metaPatternPCharTag, CharVal c <- inner ->
+          | tag == TT.metaPatternPCharTag,
+            CharVal c <- inner ->
               pure (Pat.Char () c)
           | tag == TT.metaPatternPBytesTag -> do
               b <- decodeBytes inner
