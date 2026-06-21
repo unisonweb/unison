@@ -39,6 +39,9 @@ opt = [| match Some 41 with
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> view opt
@@ -70,6 +73,9 @@ runOpt _ = Meta.store opt
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> run runOpt
@@ -97,6 +103,9 @@ classify = [| n -> match n with
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -137,6 +146,9 @@ reuseScrut = [| x -> match x with
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -180,6 +192,9 @@ firstOrZero = [| xs -> match xs with
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -233,6 +248,9 @@ storeDefault _ = Meta.store useDefault
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 

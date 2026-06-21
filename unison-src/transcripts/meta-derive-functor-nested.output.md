@@ -48,6 +48,9 @@ Functor.optional = Functor.Functor (f -> cases
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> mark.given Functor.optional
@@ -165,6 +168,9 @@ identityLam = mkLam "y" (mkVar "y")
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -204,6 +210,9 @@ findInstance r xs = match xs with
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
@@ -263,6 +272,9 @@ mapperFor selfRef fmapWithRef instances ty = match ty with
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
@@ -345,6 +357,9 @@ deriveMap fmapWithRef instances typeRef =
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -377,6 +392,9 @@ typeRefOf sample = headRef (Meta.decompile sample)
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -396,6 +414,9 @@ unique type Search a = Found a | Continue (Optional (Search a))
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
@@ -429,6 +450,9 @@ storeFunctorSearch _ =
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -496,6 +520,9 @@ incSearch _ =
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 

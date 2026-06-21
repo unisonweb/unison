@@ -51,6 +51,9 @@ power n x =
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> view power
@@ -89,6 +92,9 @@ power7 = [| y -> ${power 7 [| y |]} |]
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -160,6 +166,9 @@ agrees _ = match Meta.store power7 with
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 

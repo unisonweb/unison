@@ -54,6 +54,9 @@ quadrupled = doubled Nat.+ doubled
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -74,6 +77,9 @@ findSeed _ = Meta.lookup "seed"
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -105,6 +111,9 @@ deps _ =
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -145,6 +154,9 @@ makeGreeting _ = storeAt "greeting" [| "hello, world" |]
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> run makeGreeting
@@ -177,6 +189,9 @@ unique type Pair a b = Pair a b
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -195,6 +210,9 @@ makePairAlias _ = Meta.aliasType (typeLink Pair) "Couple"
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -227,6 +245,9 @@ shuffle _ =
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 

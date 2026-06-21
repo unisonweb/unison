@@ -40,6 +40,9 @@ storeLet _ = Meta.store qLet
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> view qLet
@@ -87,6 +90,9 @@ storeLetRec _ = Meta.store qLetRec
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -141,6 +147,9 @@ runIt _ = countDown3
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> run runIt
@@ -169,6 +178,9 @@ qBool = [| x y -> x && (y || false) |]
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 

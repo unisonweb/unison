@@ -73,6 +73,9 @@ mapTm.tf f tf = match tf with
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -99,6 +102,9 @@ scaleNatLits k tf = match tf with
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -120,6 +126,9 @@ helper n = n Nat.+ 1
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```

@@ -31,6 +31,9 @@ usesHelper n = helper n + helper n
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 

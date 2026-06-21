@@ -50,6 +50,9 @@ unique type Expr a
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -97,6 +100,9 @@ natOp = cases
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -123,6 +129,9 @@ evalExprDemo _ = evalExpr natOp [("x", 3), ("y", 4)] sampleExpr
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -204,6 +213,9 @@ wrapLams params body = match params with
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -242,6 +254,9 @@ makePolyNat _ =
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> run makePolyNat
@@ -276,6 +291,9 @@ runPolyNat _ = polyNat 3 4
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -331,6 +349,9 @@ stageWith spec = cases
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -370,6 +391,9 @@ textCompiler =
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -407,6 +431,9 @@ makePolyText = storeForCompiler "polyText" textCompiler
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -471,6 +498,9 @@ runAllThree _ =
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 

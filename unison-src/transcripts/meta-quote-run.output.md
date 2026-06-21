@@ -34,6 +34,9 @@ Meta.run mt = match Meta.typecheck mt with
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -76,6 +79,9 @@ runDirect _ = match Meta.run power7 with
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 

@@ -30,6 +30,9 @@ greeting = [| "hello, world" |]
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> view greeting
@@ -72,6 +75,9 @@ useDefault = withDefault [| 0 |] [| Some 42 |]
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> view useDefault
@@ -103,6 +109,9 @@ storeIt _ = Meta.store useDefault
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -148,6 +157,9 @@ asTerm _ = Meta.decompile (Some (Some 7))
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> run asTerm
@@ -185,6 +197,9 @@ storeCountdown _ = Meta.store countdownAst
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -224,6 +239,9 @@ unique type Tree a = Leaf | Node a (Tree a) (Tree a)
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
