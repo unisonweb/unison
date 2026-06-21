@@ -6,6 +6,7 @@ import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Decls qualified as DD
 import Unison.Codebase.Editor.DisplayObject qualified as DO
 import Unison.CommandLine.OutputMessages qualified as OutputMessages
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
@@ -162,7 +163,9 @@ displayPretty pped terms typeOf eval types tm = go tm
          in Map.fromList <$> traverse go tms
       -- in docs, we use suffixed names everywhere
       let pped' = pped {PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped}
-      pure . P.group . P.indentN 4 $ OutputMessages.displayDefinitions' pped' typeMap termMap
+      -- Doc-embedded definitions render in the standard syntax (matching the surrounding doc code rendered by
+      -- `prettyDoc2`); this `Monad m` context has no IO to resolve the active dialect.
+      pure . P.group . P.indentN 4 $ OutputMessages.displayDefinitions' Dialect.defaultPrintDialect pped' typeMap termMap
 
     goSpecial = \case
       DD.Doc2SpecialFormFoldedSource (Term.List' es) -> goSrc es

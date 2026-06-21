@@ -1,6 +1,7 @@
 module Unison.Syntax.TermPrinter
   ( emptyAc,
     pretty,
+    goPretty,
     prettyBlock,
     prettyBlock',
     pretty',

@@ -12,6 +12,7 @@ import Language.LSP.Protocol.Types qualified as LSP
 import Language.LSP.Server (sendRequest)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (renderToFile)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Codebase.Editor.Input (RelativeToFold (..))
 import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
@@ -59,5 +60,5 @@ editDefinitionByFQN fileURI fqn = do
         void $ sendRequest Msg.SMethod_WorkspaceApplyEdit params $ \case
           Left err -> Debug.debugM Debug.LSP "Error applying workspace edit" err
           Right _ -> pure ()
-  numRendered <- renderToFile codebase (const True) appendText mayUnisonFile fp WithinFold pped termResults typeResults
+  numRendered <- renderToFile Dialect.defaultPrintDialect codebase (const True) appendText mayUnisonFile fp WithinFold pped termResults typeResults
   pure (numRendered > 0)

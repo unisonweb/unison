@@ -60,6 +60,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.FilePrinter qualified as FilePrinter
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NamePrinter qualified as NamePrinter
@@ -490,6 +491,8 @@ renderUnisonFile declNameLookup namespace libdeps defns builtinDefns hydratedDef
       nonBuiltinDefns :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
       nonBuiltinDefns =
         FilePrinter.renderDefnsForUnisonFile
+          -- TODO(dialect): render diff/merge-conflict output in the active dialect (currently always default).
+          Dialect.defaultPrintDialect
           declNameLookup
           (Branch.toPrettyPrintEnvDecl 10 namespace)
           Set.empty

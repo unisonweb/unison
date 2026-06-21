@@ -43,7 +43,8 @@ import Unison.Hash (Hash)
 import Unison.Name (Name)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
-import Unison.Parsers qualified as Parsers
+import Unison.Syntax.Dialect (Dialect)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Prelude
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Reference qualified as Reference
@@ -215,10 +216,13 @@ makeUniqueTypeGuids types = do
 
 -- TODO: find a better module for this function, as it's used in a couple places
 parseAndTypecheck ::
+  -- | The active dialect. Must be the same dialect whose printers produced @prettyUf@, so that the print/re-parse
+  -- round-trip is faithful (see 'Unison.Cli.Dialect').
+  Dialect ->
   Pretty Pretty.ColorText ->
   Parser.ParsingEnv Transaction ->
   Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
-parseAndTypecheck prettyUf parsingEnv = do
+parseAndTypecheck dialect prettyUf parsingEnv = do
   env <- ask
   let stringUf = Text.unpack $ Pretty.toPlain 80 prettyUf
   Debug.whenDebug Debug.Update do
@@ -226,7 +230,7 @@ parseAndTypecheck prettyUf parsingEnv = do
       putStrLn "--- Scratch ---"
       putStrLn stringUf
   Cli.runTransaction do
-    Parsers.parseFile "<update>" stringUf parsingEnv >>= \case
+    Dialect.parseFile dialect "<update>" stringUf parsingEnv >>= \case
       Left _ -> pure Nothing
       Right uf -> do
         typecheckingEnv <-

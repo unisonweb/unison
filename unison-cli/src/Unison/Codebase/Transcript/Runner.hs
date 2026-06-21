@@ -56,7 +56,7 @@ import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPattern (aliases, patternName)
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
-import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, showIssueUrl)
+import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, pdActive, showIssueUrl)
 import Unison.CommandLine.Welcome (asciiartUnison)
 import Unison.MCP qualified as MCP
 import Unison.MCP.Server qualified as MCP
@@ -496,13 +496,15 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
       print o = do
         -- NB: We have a directory, but we don’t pass it to the notifier because it’s a temp dir, and if it ends up in
         --     transcript output, it makes transcripts non-reproducible.
-        msg <- notifyUser Nothing showIssueUrl o
+        pd <- pdActive
+        msg <- notifyUser Nothing showIssueUrl pd o
         outputUcmResult msg
         when (Output.isFailure o) $ maybeDieWithMsg msg
 
       printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
       printNumbered o = do
-        let (msg, numberedArgs) = notifyNumbered o
+        pd <- pdActive
+        let (msg, numberedArgs) = notifyNumbered pd o
         outputUcmResult msg
         when (Output.isNumberedFailure o) $ maybeDieWithMsg msg
         pure numberedArgs

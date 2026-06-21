@@ -153,8 +153,10 @@ import Unison.Syntax.NamePrinter
     prettyReferent,
     prettyShortHash,
   )
+import System.Environment (lookupEnv)
+import Unison.Syntax.Dialect (PrintDialect)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.TermPrinter qualified as TermPrinter
-import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -189,10 +191,10 @@ shortenDirectory dir = do
 renderFileName :: FilePath -> IO Pretty
 renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
-notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
-notifyNumbered = \case
+notifyNumbered :: PrintDialect -> NumberedOutput -> (Pretty, NumberedArgs)
+notifyNumbered pd = \case
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
-    showDiffNamespace ShowNumbers ppe (either BranchAtSCH BranchAtProjectPath oldPrefix) (either BranchAtSCH BranchAtProjectPath newPrefix) diffOutput
+    showDiffNamespace pd ShowNumbers ppe(either BranchAtSCH BranchAtProjectPath oldPrefix) (either BranchAtSCH BranchAtProjectPath newPrefix) diffOutput
   ShowDiffAfterDeleteBranch bAbs ppe diff ->
     first
       ( \p ->
@@ -202,7 +204,7 @@ notifyNumbered = \case
               undoTip
             ]
       )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
+      (showDiffNamespace pd ShowNumbers ppe(absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   ShowDiffAfterModifyBranch b' _ _ (OBD.isEmpty -> True) ->
     (P.wrap $ "Nothing changed in" <> prettyPath b' <> ".", mempty)
   ShowDiffAfterModifyBranch b' bAbs ppe diff ->
@@ -216,11 +218,11 @@ notifyNumbered = \case
               undoTip
             ]
       )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
+      (showDiffNamespace pd ShowNumbers ppe(absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   ShowDiffAfterUndo ppe diffOutput ->
     first
       (\p -> P.lines ["Here are the changes I undid", "", p])
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diffOutput)
+      (showDiffNamespace pd ShowNumbers ppe(absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diffOutput)
   ShowDiffAfterPull dest' destAbs ppe diff ->
     if OBD.isEmpty diff
       then ("✅  Looks like " <> prettyPath dest' <> " is up to date.", mempty)
@@ -235,7 +237,7 @@ notifyNumbered = \case
                   undoTip
                 ]
           )
-          (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diff)
+          (showDiffNamespace pd ShowNumbers ppe(absPathToBranchId destAbs) (absPathToBranchId destAbs) diff)
   -- todo: these numbers aren't going to work,
   --  since the content isn't necessarily here.
   -- Should we have a mode with no numbers? :P
@@ -255,7 +257,7 @@ notifyNumbered = \case
                   <> P.group (prettyPath authorPath' <> ".")
             ]
       )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
+      (showDiffNamespace pd ShowNumbers ppe(absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   TestResults stats ppe _showSuccess _showFailures oksUnsorted failsUnsorted ->
     let oks = Name.sortByText (HQ.toText . fst) [(name r, msgs) | (r, msgs) <- Map.toList oksUnsorted]
         fails = Name.sortByText (HQ.toText . fst) [(name r, msgs) | (r, msgs) <- Map.toList failsUnsorted]
@@ -588,7 +590,7 @@ notifyNumbered = \case
           ( P.numberedList
               ( map
                   ( \(name, ty) ->
-                      P.syntaxToColor (prettyHashQualified name) <> " : " <> TypePrinter.pretty ppe ty
+                      P.syntaxToColor (prettyHashQualified name) <> " : " <> dType pd ppe ty
                   )
                   terms
               )
@@ -639,6 +641,25 @@ fetchIssueFromGitHub :: Word -> IO Pretty
 fetchIssueFromGitHub i =
   either (const $ issueUrl i) (\title -> P.wrap $ P.text title <> " " <> issueUrl i) <$> githubTitleForIssue i
 
+-- | Resolve the active print dialect for auxiliary (display-only) output from the @UNISON_SYNTAX@ env var, defaulting
+-- to the standard syntax. The core view\/edit\/round-trip path resolves the dialect (including the @syntax.dialect@
+-- config setting) in the @Cli@ monad; these IO display sites honor the quick env-var toggle.
+pdActive :: IO PrintDialect
+pdActive = do
+  mv <- lookupEnv "UNISON_SYNTAX"
+  pure case mv >>= (Dialect.dialectByName . Text.pack) of
+    Just d -> Dialect.printDialect d
+    Nothing -> Dialect.defaultPrintDialect
+
+-- Dialect-aware wrappers around the standard printers used by the auxiliary output sites. For the default dialect these
+-- are byte-identical to 'TypePrinter.pretty' \/ 'TermPrinter.pretty' (the default 'PrintDialect' wraps those very
+-- functions), so existing output is unchanged.
+dType :: (Var v) => PrintDialect -> PPE.PrettyPrintEnv -> Type v a -> Pretty
+dType pd ppe = P.syntaxToColor . Dialect.pdPrettyType pd ppe
+
+dTerm :: (Var v) => PrintDialect -> PPE.PrettyPrintEnv -> Term v a -> Pretty
+dTerm pd ppe = P.syntaxToColor . Dialect.pdPrettyTerm pd ppe
+
 notifyUser ::
   -- | The directory being watched for .u files. If a `FilePath` isn’t provided, it uses a constant string. This is
   --   useful in contexts like transcripts, where we need the output to be consistent, and not vary because of a temp
@@ -646,9 +667,11 @@ notifyUser ::
   Maybe FilePath ->
   -- | How to present any GitHub issues associated with an error. For example, `showIssueUrl` or `fetchIssueFromGitHub`.
   (Word -> IO (P.Pretty P.ColorText)) ->
+  -- | The active print dialect, for rendering definitions\/types in the user's chosen surface syntax.
+  PrintDialect ->
   Output ->
   IO Pretty
-notifyUser dir issueFn = \case
+notifyUser dir issueFn pd = \case
   SaveTermNameConflict name ->
     pure
       . P.warnCallout
@@ -816,18 +839,18 @@ notifyUser dir issueFn = \case
               <> P.backticked (P.text $ HQ.toText main)
               <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
           "",
-          P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+          P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> dType pd ppe t | t <- ts]
         ]
   BadMainFunction what terms ppe ts ->
     let f (main, ty) =
           P.lines
             [ P.string "I found this function:",
               "",
-              P.indentN 2 $ P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe ty,
+              P.indentN 2 $ P.text (HQ.toText main) <> " : " <> dType pd ppe ty,
               "",
               P.wrap $ P.string "but in order for me to" <> P.backticked (P.text what) <> "it needs to be a subtype of:",
               "",
-              P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+              P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> dType pd ppe t | t <- ts]
             ]
      in pure . P.callout "😶" $
           intercalateMap "\n\n" f terms
@@ -928,9 +951,9 @@ notifyUser dir issueFn = \case
         undoTip
       ]
   ListOfDefinitions fscope ppe detailed results ->
-    listOfDefinitions fscope ppe detailed results
+    listOfDefinitions pd fscope ppe detailed results
   GlobalFindBranchResults projBranchName ppe detailed results -> do
-    output <- listOfDefinitions Input.FindGlobal ppe detailed results
+    output <- listOfDefinitions pd Input.FindGlobal ppe detailed results
     pure $
       P.lines
         [ P.wrap $ "Found results in " <> P.text (into @Text projBranchName),
@@ -972,7 +995,7 @@ notifyUser dir issueFn = \case
       formatEntry ppe = \case
         ShallowTermEntry termEntry ->
           ( P.syntaxToColor . prettyHashQualified' . Backend.termEntryHQName $ termEntry,
-            P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) (Backend.termEntryType termEntry) <> P.lit ")"
+            P.lit "(" <> maybe "type missing" (dType pd ppe) (Backend.termEntryType termEntry) <> P.lit ")"
           )
         ShallowTypeEntry typeEntry ->
           ( P.syntaxToColor . prettyHashQualified' . Backend.typeEntryHQName $ typeEntry,
@@ -1000,7 +1023,7 @@ notifyUser dir issueFn = \case
           Input.Update2I {} -> True
           Input.SaveExecuteResultI {} -> True
           _ -> False
-     in pure $ SlurpResult.pretty isPast ppe s
+     in pure $ SlurpResult.pretty pd isPast ppe s
   FindNoLocalMatches ->
     pure . P.callout "☝️" $ P.wrap "I couldn't find matches in this namespace, searching in 'lib'..."
   NoExactTypeMatches ->
@@ -1044,13 +1067,13 @@ notifyUser dir issueFn = \case
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
                   : ""
-                  : [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
+                  : [ P.syntaxToColor $ Dialect.pdPrettyBinding pd ppe (HQ.unsafeFromVar v) b
                     | (v, b) <- bindings
                     ]
             prettyWatches =
               P.sep
                 "\n\n"
-                [ watchPrinter fileContents ppe ann kind evald isCacheHit
+                [ watchPrinter pd fileContents ppe ann kind evald isCacheHit
                 | (ann, kind, evald, isCacheHit) <-
                     sortOn (\(a, _, _, _) -> a) . toList $ watches
                 ]
@@ -1059,7 +1082,7 @@ notifyUser dir issueFn = \case
               if null bindings
                 then prettyWatches
                 else prettyBindings <> "\n" <> prettyWatches
-  RunResult ppe term -> pure (TermPrinter.pretty ppe term)
+  RunResult ppe term -> pure (dTerm pd ppe term)
   DisplayConflicts termNamespace typeNamespace ->
     pure $
       P.sepNonEmpty
@@ -1145,7 +1168,7 @@ notifyUser dir issueFn = \case
 
     let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
         renderTerm ppe colored name ty =
-          (colored (prettyNameParens name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+          (colored (prettyNameParens name), ": " <> P.indentNAfterNewline 2 (dType pd ppe ty))
 
     let renderedNewTypes :: Pretty
         renderedNewTypes =
@@ -2634,7 +2657,7 @@ notifyUser dir issueFn = \case
                   & map
                     ( \(name, ty) ->
                         ( colored (prettyNameParens name),
-                          ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty)
+                          ": " <> P.indentNAfterNewline 2 (dType pd ppe ty)
                         )
                     )
                   & P.align
@@ -2719,7 +2742,7 @@ notifyUser dir issueFn = \case
                       typeText =
                         P.toPlain 80 $
                           P.syntaxToColor $
-                            DeclPrinter.prettyDecl ppedNew DeclPrinter.RenderUniqueTypeGuids'No ref (HQ.fromName name) decl
+                            Dialect.pdPrettyDecl pd ppedNew DeclPrinter.RenderUniqueTypeGuids'No ref (HQ.fromName name) decl
                       typeLines = Text.lines typeText
                    in P.lines $ map (\line -> P.green $ P.text $ "+ " <> line) typeLines
               )
@@ -2783,11 +2806,11 @@ notifyUser dir issueFn = \case
                       oldText =
                         P.toPlain 80 $
                           P.syntaxToColor $
-                            DeclPrinter.prettyDecl ppedOld DeclPrinter.RenderUniqueTypeGuids'No oldRef (HQ.fromName name) oldDecl
+                            Dialect.pdPrettyDecl pd ppedOld DeclPrinter.RenderUniqueTypeGuids'No oldRef (HQ.fromName name) oldDecl
                       newText =
                         P.toPlain 80 $
                           P.syntaxToColor $
-                            DeclPrinter.prettyDecl ppedNew DeclPrinter.RenderUniqueTypeGuids'No newRef (HQ.fromName name) newDecl
+                            Dialect.pdPrettyDecl pd ppedNew DeclPrinter.RenderUniqueTypeGuids'No newRef (HQ.fromName name) newDecl
                       oldLines = Text.lines oldText
                       newLines = Text.lines newText
                       diffLines = Diff.getDiff oldLines newLines
@@ -3331,11 +3354,12 @@ displayOutputRewrittenFile fp vs = do
 displayDefinitions' ::
   (Var v) =>
   (Ord a1) =>
+  PrintDialect ->
   PPED.PrettyPrintEnvDecl ->
   Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
   Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
   Pretty
-displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
+displayDefinitions' pd ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
     ppeBody r = PPE.declarationPPE ppe0 r
     ppeDecl = PPED.unsuffixifiedPPE ppe0
@@ -3353,13 +3377,13 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
         BuiltinObject typ ->
           P.hang
             ("builtin " <> prettyHashQualified n <> " :")
-            (TypePrinter.prettySyntax (ppeBody r) typ)
-        UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
+            (Dialect.pdPrettyType pd (ppeBody r) typ)
+        UserObject tm -> Dialect.pdPrettyBinding pd (ppeBody r) n tm
     go2 ((n, r), dt) =
       case dt of
         MissingObject r -> missing n r
         BuiltinObject _ -> builtin n
-        UserObject decl -> DeclPrinter.prettyDecl ppe0 DeclPrinter.RenderUniqueTypeGuids'No r n decl
+        UserObject decl -> Dialect.pdPrettyDecl pd ppe0 DeclPrinter.RenderUniqueTypeGuids'No r n decl
     builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
     missing n r =
       P.wrap
@@ -3430,12 +3454,13 @@ displayTestResults showTip oks fails =
 
 unsafePrettyTermResultSig' ::
   (Var v) =>
+  PrintDialect ->
   PPE.PrettyPrintEnv ->
   SR'.TermResult' v a ->
   Pretty
-unsafePrettyTermResultSig' ppe = \case
+unsafePrettyTermResultSig' pd ppe = \case
   SR'.TermResult' name (Just typ) r _aliases ->
-    head (TypePrinter.prettySignaturesCT ppe [(r, name, typ)])
+    head (map P.syntaxToColor (Dialect.pdPrettySignatures pd ppe [(r, name, typ)]))
   _ -> error "Don't pass Nothing"
 
 renderNameConflicts :: Int -> Names -> Numbered Pretty
@@ -3721,9 +3746,9 @@ handleTodoOutput todo
         ]
 
 listOfDefinitions ::
-  (Var v) => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
-listOfDefinitions fscope ppe detailed results =
-  pure $ listOfDefinitions' fscope ppe detailed results
+  (Var v) => PrintDialect -> Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
+listOfDefinitions pd fscope ppe detailed results =
+  pure $ listOfDefinitions' pd fscope ppe detailed results
 
 listOfNames :: String -> Int -> [(Reference, [HQ'.HashQualified Name])] -> [(Referent, [HQ'.HashQualified Name])] -> IO Pretty
 listOfNames namesQuery len types terms = do
@@ -3791,16 +3816,17 @@ data ShowNumbers = ShowNumbers | HideNumbers
 showDiffNamespace ::
   forall v.
   (Var v) =>
+  PrintDialect ->
   ShowNumbers ->
   PPE.PrettyPrintEnv ->
   Input.AbsBranchId ->
   Input.AbsBranchId ->
   OBD.BranchDiffOutput v Ann ->
   (Pretty, NumberedArgs)
-showDiffNamespace _ _ _ _ diffOutput
+showDiffNamespace _ _ _ _ _ diffOutput
   | OBD.isEmpty diffOutput =
       ("The namespaces are identical.", mempty)
-showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
+showDiffNamespace pd sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
     (p, (menuSize, args)) =
@@ -4119,7 +4145,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
               <> fmap (P.Width . HQ'.nameLength Name.toText . view _1) olds
 
     prettyType :: Maybe (Type v a) -> Pretty
-    prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
+    prettyType = maybe (P.red "type not found") (dType pd ppe)
     prettyDecl hq =
       maybe
         (P.red "type not found")
@@ -4162,12 +4188,13 @@ noResults fscope =
 
 listOfDefinitions' ::
   (Var v) =>
+  PrintDialect ->
   Input.FindScope ->
   PPE.PrettyPrintEnv -> -- for printing types of terms :-\
   E.ListDetailed ->
   [SR'.SearchResult' v a] ->
   Pretty
-listOfDefinitions' fscope ppe detailed results =
+listOfDefinitions' pd fscope ppe detailed results =
   if null results
     then noResults fscope
     else
@@ -4201,7 +4228,7 @@ listOfDefinitions' fscope ppe detailed results =
         (renderTerm, renderType) =
           if detailed
             then (unsafePrettyTermResultSigFull' ppe, prettyTypeResultHeaderFull')
-            else (unsafePrettyTermResultSig' ppe, prettyTypeResultHeader')
+            else (unsafePrettyTermResultSig' pd ppe, prettyTypeResultHeader')
     missingType (SR'.Tm _ Nothing _ _) = True
     missingType (SR'.Tp _ (MissingObject _) _ _) = True
     missingType _ = False
@@ -4225,6 +4252,7 @@ listOfDefinitions' fscope ppe detailed results =
 
 watchPrinter ::
   (Var v) =>
+  PrintDialect ->
   Text ->
   PPE.PrettyPrintEnv ->
   Ann ->
@@ -4232,7 +4260,7 @@ watchPrinter ::
   Term v () ->
   Runtime.IsCacheHit ->
   Pretty
-watchPrinter src ppe ann kind term isHit =
+watchPrinter pd src ppe ann kind term isHit =
   P.bracket $
     let lines = Text.lines src
         lineNum = fromMaybe 1 $ startingLine ann
@@ -4251,7 +4279,7 @@ watchPrinter src ppe ann kind term isHit =
                   then
                     addCache
                       (P.red "🚫 " <> P.bold "FAILED" <> P.red (P.text msg'))
-                  else P.red "❓ " <> TermPrinter.pretty ppe term
+                  else P.red "❓ " <> dTerm pd ppe term
           where
             msg' =
               if Text.take 1 msg == " "
@@ -4270,7 +4298,7 @@ watchPrinter src ppe ann kind term isHit =
                       <> (if isHit then id else P.purple) "⧩",
                     P.indentN (P.Width (lineNumWidth + length extra))
                       . (if isHit then id else P.bold)
-                      $ TermPrinter.pretty ppe term
+                      $ dTerm pd ppe term
                   ]
           ]
 

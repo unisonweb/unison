@@ -52,6 +52,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.HashQualifiedPrime qualified as HQ'
 import Unison.Term (Term)
@@ -228,6 +229,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
               dependents :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
               dependents =
                 renderDefnsForUnisonFile
+                  Dialect.defaultPrintDialect
                   declNameLookup
                   (Branch.toPrettyPrintEnvDecl 10 currentNamespace0)
                   Set.empty

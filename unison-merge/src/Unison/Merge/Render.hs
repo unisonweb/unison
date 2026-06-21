@@ -32,6 +32,7 @@ import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
 import Unison.Term (Term)
@@ -130,7 +131,7 @@ renderConflictsAndDependents ::
 renderConflictsAndDependents declNameLookups hydratedDefns conflicts dependents ppe =
   unzip $
     ( \declNameLookup (conflicts, dependents) ->
-        let render needsGuid = renderDefnsForUnisonFile declNameLookup ppe needsGuid . over (#terms . mapped) snd
+        let render needsGuid = renderDefnsForUnisonFile Dialect.defaultPrintDialect declNameLookup ppe needsGuid . over (#terms . mapped) snd
          in (render uniqueTypeConflictsWithDifferentGuids conflicts, render Set.empty dependents)
     )
       <$> declNameLookups
@@ -183,6 +184,7 @@ renderLcaConflicts ::
 renderLcaConflicts partialDeclNameLookup hydratedDefns conflicts ppe =
   let hydratedConflicts = zipDefnsWith Map.restrictKeys Map.restrictKeys hydratedDefns (fold conflicts)
    in renderDefnsForUnisonFile
+        Dialect.defaultPrintDialect
         (PartialDeclNameLookup.toDeclNameLookup Name.unsafeParseText partialDeclNameLookup)
         ppe
         Set.empty

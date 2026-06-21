@@ -42,7 +42,7 @@ import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
-import Unison.CommandLine.OutputMessages (fetchIssueFromGitHub, notifyNumbered, notifyUser)
+import Unison.CommandLine.OutputMessages (fetchIssueFromGitHub, notifyNumbered, notifyUser, pdActive)
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Parser.Ann (Ann)
@@ -273,7 +273,8 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
               (loopState ^. #numberedArgs)
       let notify :: Output -> IO ()
           notify o = do
-            rendered <- notifyUser (pure dir) fetchIssueFromGitHub o
+            pd <- pdActive
+            rendered <- notifyUser (pure dir) fetchIssueFromGitHub pd o
             if outputShouldUsePager o
               then putPrettyNonempty rendered
               else putPrettyLnUnpaged rendered
@@ -311,9 +312,10 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                 writeSource = defaultWriteSourceFile,
                 generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
                 notify,
-                notifyNumbered = \o ->
-                  let (p, args) = notifyNumbered o
-                   in putPrettyNonempty p $> args,
+                notifyNumbered = \o -> do
+                  pd <- pdActive
+                  let (p, args) = notifyNumbered pd o
+                  putPrettyNonempty p $> args,
                 runtime,
                 sandboxedRuntime = sbRuntime,
                 serverBaseUrl,

@@ -27,6 +27,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.Dialect (getActiveDialect)
 import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
@@ -62,6 +63,7 @@ import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
@@ -198,11 +200,13 @@ handleUpdate2 = do
             False -> do
               respondRegion (Output.Literal (Pretty.wrap "That's done. Now I'm making sure everything typechecks..."))
 
+              dialect <- getActiveDialect
               let prettyUnisonFile =
                     let ppe = makePPE 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents
                      in makePrettyUnisonFile
-                          (Pretty.prettyUnisonFile ppe (UF.discardTypes tuf))
+                          (Pretty.prettyUnisonFile (Dialect.printDialect dialect) ppe (UF.discardTypes tuf))
                           ( renderDefnsForUnisonFile
+                              (Dialect.printDialect dialect)
                               declNameLookup
                               ppe
                               Set.empty
@@ -213,7 +217,7 @@ handleUpdate2 = do
                 Cli.makeParsingEnv pp namesIncludingLibdeps
 
               secondTuf <-
-                parseAndTypecheck prettyUnisonFile parsingEnv & onNothingM do
+                parseAndTypecheck dialect prettyUnisonFile parsingEnv & onNothingM do
                   if useUpdateV2
                     then do
                       let nextNamespace :: Branch IO

@@ -107,11 +107,11 @@ import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.Dialect (PrintDialect (..))
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified, styleHashQualified')
 import Unison.Syntax.NameSegment qualified as NameSegment
-import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -390,8 +390,8 @@ prettyLibdepName :: NameSegment -> Pretty
 prettyLibdepName =
   P.blue . P.text . NameSegment.toEscapedText
 
-prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> P.Pretty P.ColorText
-prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
+prettyUnisonFile :: forall v a. (Var v, Ord a) => PrintDialect -> PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> P.Pretty P.ColorText
+prettyUnisonFile pd ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
   P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
   where
     prettyEffects = map prettyEffectDecl (Map.toList effects)
@@ -403,7 +403,8 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
     prettyEffectDecl (n, (r, et)) =
       ( DD.annotation . DD.toDataDecl $ et,
         st $
-          DeclPrinter.prettyDecl
+          pdPrettyDecl
+            pd
             ppe'
             DeclPrinter.RenderUniqueTypeGuids'No
             (rd r)
@@ -413,7 +414,8 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
     prettyDataDecl :: (v, (TypeReferenceId, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, P.Pretty P.ColorText)
     prettyDataDecl (n, (r, dt)) =
       (DD.annotation dt,) . st
-        <$> DeclPrinter.prettyDeclW
+        <$> pdPrettyDeclW
+          pd
           ppe'
           DeclPrinter.RenderUniqueTypeGuids'No
           (rd r)
@@ -435,36 +437,37 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
         go wk v tm = case wk of
           WK.RegularWatch
             | Var.UnnamedWatch _ _ <- Var.typeOf v ->
-                "> " <> P.indentNAfterNewline 2 (TermPrinter.pretty sppe tm)
+                "> " <> P.indentNAfterNewline 2 (st (pdPrettyTerm pd sppe tm))
           WK.RegularWatch -> "> " <> pb (hqv v) tm
-          WK.TestWatch -> "test> " <> st (TermPrinter.prettyBindingWithoutTypeSignature sppe (hqv v) tm)
+          WK.TestWatch -> "test> " <> st (pdPrettyBindingWithoutTypeSignature pd sppe (hqv v) tm)
           w -> P.string w <> "> " <> pb (hqv v) tm
     st = P.syntaxToColor
     sppe = PPED.suffixifiedPPE ppe'
-    pb v tm = st $ TermPrinter.prettyBinding sppe v tm
+    pb v tm = st $ pdPrettyBinding pd sppe v tm
     ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
     dppe = PPE.makePPE (PPE.namer (UF.toNames uf)) PPE.dontSuffixify
     rd = Reference.DerivedId
     hqv v = HQ.unsafeFromVar v
 
 prettyTerm ::
+  PrintDialect ->
   PPED.PrettyPrintEnvDecl ->
   Bool {- whether we're printing to a source-file or not. -} ->
   Bool {- Whether the term is a test -} ->
   (HQ.HashQualified Name, TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   P.Pretty SyntaxText
-prettyTerm pped isSourceFile isTest (n, r, dt) =
+prettyTerm pd pped isSourceFile isTest (n, r, dt) =
   case dt of
     MissingObject r -> missingDefinitionMsg n r
     BuiltinObject typ ->
       commentBuiltin $
         P.hang
           ("builtin " <> prettyHashQualified n <> " :")
-          (TypePrinter.prettySyntax (ppeBody n r) typ)
+          (pdPrettyType pd (ppeBody n r) typ)
     UserObject tm ->
       if isTest
-        then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm
-        else TermPrinter.prettyBinding (ppeBody n r) n tm
+        then WK.TestWatch <> "> " <> pdPrettyBindingWithoutTypeSignature pd (ppeBody n r) n tm
+        else pdPrettyBinding pd (ppeBody n r) n tm
   where
     commentBuiltin txt =
       if isSourceFile
@@ -472,13 +475,14 @@ prettyTerm pped isSourceFile isTest (n, r, dt) =
         else txt
     ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE pped r
 
-prettyType :: PPED.PrettyPrintEnvDecl -> (HQ.HashQualified Name, TypeReference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText
-prettyType pped (n, r, dt) =
+prettyType :: PrintDialect -> PPED.PrettyPrintEnvDecl -> (HQ.HashQualified Name, TypeReference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText
+prettyType pd pped (n, r, dt) =
   case dt of
     MissingObject r -> missingDefinitionMsg n r
     BuiltinObject _ -> builtin n
     UserObject decl ->
-      DeclPrinter.prettyDecl
+      pdPrettyDecl
+        pd
         (PPED.biasTo (maybeToList $ HQ.toName n) $ pped)
         DeclPrinter.RenderUniqueTypeGuids'No
         r

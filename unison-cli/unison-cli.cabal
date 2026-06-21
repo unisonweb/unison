@@ -27,6 +27,7 @@ library
       Unison.Auth.HTTPClient
       Unison.Auth.Tokens
       Unison.Auth.UserInfo
+      Unison.Cli.Dialect
       Unison.Cli.DirectoryUtils
       Unison.Cli.DownloadUtils
       Unison.Cli.MergeTypes
