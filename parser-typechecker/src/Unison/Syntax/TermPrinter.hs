@@ -2592,6 +2592,11 @@ toQuotedSource ppe = unwrapTermNode
             scrut' <- unwrapTermNode scrut
             cases' <- unwrapList unwrapMatchCase casesTm
             Just (ABT.tm' a (Match scrut' cases'))
+      -- @meta.TermF.List [elems]@
+      App' (Constructor' cr) elemsTm
+        | ctorNameEndsWith ppe "meta.TermF.List" cr CT.Data -> do
+            elems <- unwrapList unwrapTermNode elemsTm
+            Just (list a elems)
       _ -> Nothing
 
     -- @[x, y, z]@ → @[x', y', z']@ when each @x@ decodes via @f@.

@@ -155,8 +155,6 @@ A reading order, easiest to most demanding:
 
 - **Effect patterns inside quotes** — `{ Foo.bar x -> … }` raises a
   clear parser error.
-- **List literals inside quotes** — `[| [1, 2, 3] |]` falls through
-  as a free splice instead of desugaring to `meta.TermF.Sequence`.
 - **Typed `Code a` wrapper.** Everything is `meta.Term meta.TermF`;
   a typed quotation layer (à la Scala 3 / MetaOCaml) is future work
   that could be built on top.

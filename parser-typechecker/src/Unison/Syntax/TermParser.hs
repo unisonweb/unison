@@ -20,6 +20,7 @@ import Control.Monad.Trans.Writer
 import Data.Bitraversable (bitraverse)
 import Data.Char qualified as Char
 import Data.Foldable (foldrM)
+import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra qualified as List.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -866,6 +867,10 @@ desugarQuote ns a = go Set.empty
       -- @handle e with h@ — straightforward rewrite.
       Term.Handle' h body ->
         metaTm bound a t "TermF.Handle" [go bound h, go bound body]
+      -- List literal — desugar each element and emit @meta.TermF.List@.
+      Term.List' xs ->
+        let elemList = Term.list a (go bound <$> Foldable.toList xs)
+         in metaTm bound a t "TermF.List" [elemList]
       -- Match. Each case's body and guard are wrapped in @Abs@ nodes
       -- per pattern variable in left-to-right (AbsN') order. The meta
       -- encoding mirrors this exactly: per-case Abs nodes wrap the
