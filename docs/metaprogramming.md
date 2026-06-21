@@ -34,8 +34,8 @@ in scope inside the quote); application; references and
 constructors (codebase definitions resolve to `meta.TermF.Ref` /
 `Constructor` / `Request`); `if`/`then`/`else`, `&&`, `||`;
 `handle … with …`; `let` and `let rec` blocks; `match … with …`
-including the `cases` shorthand. All pattern forms except effect
-patterns are supported.
+including the `cases` shorthand and effect patterns (`{ op args ->
+k }` / `{ x }`).
 
 A free variable inside a quote that doesn't resolve to a codebase
 reference is emitted as `meta.ABT.Var` carrying the bare name. This
@@ -153,8 +153,6 @@ A reading order, easiest to most demanding:
 
 ## What's not built
 
-- **Effect patterns inside quotes** — `{ Foo.bar x -> … }` raises a
-  clear parser error.
 - **Typed `Code a` wrapper.** Everything is `meta.Term meta.TermF`;
   a typed quotation layer (à la Scala 3 / MetaOCaml) is future work
   that could be built on top.

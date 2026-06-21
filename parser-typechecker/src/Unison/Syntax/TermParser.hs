@@ -1044,10 +1044,15 @@ metaPattern a = go
         con "PSequenceLiteral" [Term.list a (go <$> pats)]
       Pattern.SequenceOp _ l op r ->
         con "PSequenceOp" [go l, metaSeqOp a op, go r]
-      Pattern.EffectPure {} ->
-        error "desugarQuote: effect patterns not yet supported in [| ... |]"
-      Pattern.EffectBind {} ->
-        error "desugarQuote: effect patterns not yet supported in [| ... |]"
+      Pattern.EffectPure _ p -> con "PEffectPure" [go p]
+      Pattern.EffectBind _ (ConstructorReference r cid) pats cont ->
+        con
+          "PEffectBind"
+          [ metaReference a r,
+            Term.nat a (fromIntegral cid),
+            Term.list a (go <$> pats),
+            go cont
+          ]
 
 metaSeqOp :: forall v. (Var v) => Ann -> Pattern.SeqOp -> Term v Ann
 metaSeqOp a = \case

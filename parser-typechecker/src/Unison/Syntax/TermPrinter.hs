@@ -2696,6 +2696,22 @@ toQuotedSource ppe = unwrapTermNode
             op' <- unwrapSeqOp op
             r' <- unwrapPattern r
             Just (Pattern.SequenceOp pa l' op' r')
+      App' (Constructor' cr) inner
+        | ctorNameEndsWith ppe "meta.Pattern.PEffectPure" cr CT.Data -> do
+            inner' <- unwrapPattern inner
+            Just (Pattern.EffectPure pa inner')
+      App' (App' (App' (App' (Constructor' cr) refTm) (Nat' cid)) patList) cont
+        | ctorNameEndsWith ppe "meta.Pattern.PEffectBind" cr CT.Data -> do
+            ref <- unwrapMetaReference refTm
+            pats <- unwrapList unwrapPattern patList
+            cont' <- unwrapPattern cont
+            Just
+              ( Pattern.EffectBind
+                  pa
+                  (ConstructorReference ref (fromIntegral cid))
+                  pats
+                  cont'
+              )
       _ -> Nothing
 
     unwrapSeqOp tm = case tm of
