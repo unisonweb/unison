@@ -110,7 +110,7 @@ Table
 
   ```unison
   term : '{g} a -> Doc2.Term
-  term a = Term.Term (Any a)
+  term a = Doc2.Term.Term (Any a)
   ```
 
 

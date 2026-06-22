@@ -162,6 +162,66 @@ instance RuntimeProfiler ProfileComm where
 data CCache prof = CCache
   { sandboxed :: Bool,
     tracer :: Bool -> Val -> Tracer,
+    -- | How Meta.decompile (MDCM) renders a runtime value into a
+    -- meta.Term meta.TermF closure. Overridden at evaluation start
+    -- in "Unison.Runtime.Interface" with an EvalCtx-aware version
+    -- that re-reads combRefs/decompTm so freshly-compiled lambdas
+    -- in the watched expression also expand correctly. Lives in IO
+    -- specifically so the lookup tables can be re-read on each call;
+    -- baseCCache supplies a stub that errors if no installer ran.
+    metaDecompile :: Val -> IO Val,
+    -- | How Meta.typecheck (MTYC) processes a meta.Term meta.TermF
+    -- closure into an Either Text (Term TypeF, Code) closure.
+    -- Overridden at evaluation start so the implementation can use
+    -- the EvalCtx-level data spec and float remap state when
+    -- compiling the typechecked Term into runnable Code. baseCCache
+    -- supplies a stub.
+    metaTypecheck :: Val -> IO Val,
+    -- | How Meta.load (MLOD) resolves a Link.Term closure into
+    -- Optional (meta.Term meta.TermF) by looking up the term's
+    -- source in the codebase via the runtime's CodeLookup. The
+    -- installer in "Unison.Runtime.Interface" closes over the live
+    -- CodeLookup at evaluation start; baseCCache supplies a stub.
+    metaLoad :: Val -> IO Val,
+    -- | How Meta.store (MSTR) decodes a meta.Term meta.TermF
+    -- closure into a source-level Term, typechecks it, hashes it,
+    -- and persists the resulting (Reference.Id, Term, Type) triple
+    -- to the codebase via a 'MetaPutTerm' callback closed over by
+    -- the installer. Returns Either Text Link.Term: Left if decode/
+    -- typecheck fails or no codebase is wired up, Right with the
+    -- hash-addressed Link.Term on success.
+    metaStore :: Val -> IO Val,
+    -- | How Meta.dataDeclShape (MDDS) decodes a meta.Reference Val
+    -- (the type reference), looks up the type declaration via the
+    -- runtime's CodeLookup, and returns Optional (List (meta.
+    -- ConstructorReference, Nat)) — one entry per constructor with
+    -- its field arity. baseCCache supplies a stub.
+    metaDataDeclShape :: Val -> IO Val,
+    -- | How Meta.linkRef (MLNR) extracts the underlying Reference
+    -- from a Link.Term and encodes it as a meta.Reference value.
+    -- This is a pure decode + re-encode; no codebase access.
+    metaLinkRef :: Val -> IO Val,
+    -- | How Meta.alias.term (MATM) hands its (Link.Term, Text) pair
+    -- back to the driving CLI. The installer in "Interface.hs"
+    -- closes over an IORef-based action queue at evaluation start;
+    -- baseCCache supplies a stub.
+    metaAliasTerm :: Val -> Val -> IO Val,
+    -- | How Meta.alias.type (MATY) hands its (Link.Type, Text) pair
+    -- back to the driving CLI. Same queue-driven semantics as
+    -- metaAliasTerm.
+    metaAliasType :: Val -> Val -> IO Val,
+    -- | How Meta.delete.term (MDTM) hands its name Text back to the
+    -- driving CLI.
+    metaDeleteTerm :: Val -> IO Val,
+    -- | How Meta.move.term (MMTM) hands its (old, new) name pair
+    -- back to the driving CLI.
+    metaMoveTerm :: Val -> Val -> IO Val,
+    -- | How Meta.lookup (MLKP) resolves a Text name to an
+    -- @Optional Link.Term@.
+    metaLookup :: Val -> IO Val,
+    -- | How Meta.dependents (MDPS) returns the references that
+    -- directly depend on the given Link.Term.
+    metaDependents :: Val -> IO Val,
     profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
@@ -193,7 +253,7 @@ refNumTm cc r =
 
 baseCCache :: Bool -> IO (CCache ())
 baseCCache sandboxed = do
-  CCache sandboxed noTrace ()
+  CCache sandboxed noTrace noMetaDecompile noMetaTypecheck noMetaLoad noMetaStore noMetaDataDeclShape noMetaLinkRef noMetaAliasTerm noMetaAliasType noMetaDeleteTerm noMetaMoveTerm noMetaLookup noMetaDependents ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
@@ -209,6 +269,21 @@ baseCCache sandboxed = do
   where
     cacheableCombs = mempty
     noTrace _ _ = NoTrace
+    -- Default: the runtime doesn't have an EvalCtx-aware decompile
+    -- registered yet. 'Interface.hs' overrides this at evaluation
+    -- start; until then, callers fall back to the bare value.
+    noMetaDecompile _v = error "Meta.decompile: no decompiler installed"
+    noMetaTypecheck _v = error "Meta.typecheck: no typechecker installed"
+    noMetaLoad _v = error "Meta.load: no loader installed"
+    noMetaStore _v = error "Meta.store: no storer installed"
+    noMetaDataDeclShape _v = error "Meta.dataDeclShape: no inspector installed"
+    noMetaLinkRef _v = error "Meta.linkRef: no inspector installed"
+    noMetaAliasTerm _v _w = error "Meta.aliasTerm: no UCM callback installed"
+    noMetaAliasType _v _w = error "Meta.aliasType: no UCM callback installed"
+    noMetaDeleteTerm _v = error "Meta.deleteTerm: no UCM callback installed"
+    noMetaMoveTerm _v _w = error "Meta.moveTerm: no UCM callback installed"
+    noMetaLookup _v = error "Meta.lookup: no codebase callback installed"
+    noMetaDependents _v = error "Meta.dependents: no codebase callback installed"
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
 

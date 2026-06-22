@@ -373,6 +373,17 @@ data Prim1
   | REFR -- Ref.read
   | RRFC
   | TIKR
+  | -- meta
+    MDCM -- Meta.decompile
+  | MTYC -- Meta.typecheck
+  | MEVL -- Meta.eval
+  | MLOD -- Meta.load
+  | MSTR -- Meta.store
+  | MDDS -- Meta.dataDeclShape
+  | MLNR -- Meta.linkRef
+  | MDTM -- Meta.deleteTerm
+  | MLKP -- Meta.lookup
+  | MDPS -- Meta.dependents
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Prim2
@@ -462,6 +473,10 @@ data Prim2
   | SDBV -- sandbox Value
   -- Refs
   | REFW -- Ref.write
+  -- meta
+  | MATM -- Meta.aliasTerm
+  | MATY -- Meta.aliasType
+  | MMTM -- Meta.moveTerm
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data MLit
@@ -1457,6 +1472,19 @@ emitPOp ANF.REFW = emitP2 REFW
 emitPOp ANF.RCAS = refCAS
 emitPOp ANF.RRFC = emitP1 RRFC
 emitPOp ANF.TIKR = emitP1 TIKR
+emitPOp ANF.MDCM = emitP1 MDCM
+emitPOp ANF.MTYC = emitP1 MTYC
+emitPOp ANF.MEVL = emitP1 MEVL
+emitPOp ANF.MLOD = emitP1 MLOD
+emitPOp ANF.MSTR = emitP1 MSTR
+emitPOp ANF.MDDS = emitP1 MDDS
+emitPOp ANF.MLNR = emitP1 MLNR
+emitPOp ANF.MATM = emitP2 MATM
+emitPOp ANF.MATY = emitP2 MATY
+emitPOp ANF.MDTM = emitP1 MDTM
+emitPOp ANF.MMTM = emitP2 MMTM
+emitPOp ANF.MLKP = emitP1 MLKP
+emitPOp ANF.MDPS = emitP1 MDPS
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 -- Bools

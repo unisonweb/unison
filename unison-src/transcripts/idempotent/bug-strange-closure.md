@@ -861,35 +861,35 @@ rendered = Pretty.get (docFormatConsole doc.guide)
               ()
               [ Indent
                   ()
-                  (Lit () (Right (Plain "# ")))
-                  (Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "# ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
                   (Annotated.Group
                     ()
                     (Wrap
                       ()
                       (Annotated.Append
                         ()
-                        [ Lit
+                        [ Annotated.Lit
                             ()
                             (Right
                               (ConsoleText.Bold (Plain "Unison")))
-                        , Lit
+                        , Annotated.Lit
                             ()
                             (Right
                               (ConsoleText.Bold
                                 (Plain "computable")))
-                        , Lit
+                        , Annotated.Lit
                             ()
                             (Right
                               (ConsoleText.Bold
                                 (Plain "documentation")))
                         ])))
-              , Lit () (Right (Plain "\n"))
-              , Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
               , Indent
                   ()
-                  (Lit () (Right (Plain "  ")))
-                  (Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
                   (Annotated.Group
                     ()
                     (Wrap
@@ -900,114 +900,126 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                           ()
                           [ Indent
                               ()
-                              (Lit () (Right (Plain "# ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "# ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
                                             (Plain "Basic")))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
                                             (Plain "formatting")))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "Paragraphs"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "are"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "separated"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "by"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "one"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "or"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "more"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "blanklines."))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "Sections"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "have"))
-                                    , Lit () (Right (Plain "a"))
-                                    , Lit
+                                    , Annotated.Lit
+                                        () (Right (Plain "a"))
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "title"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "and"))
-                                    , Lit () (Right (Plain "0"))
-                                    , Lit
+                                    , Annotated.Lit
+                                        () (Right (Plain "0"))
+                                    , Annotated.Lit
                                         () (Right (Plain "or"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "more"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "paragraphs"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "or"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "other"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "section"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "elements."))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right (Plain "Text"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "can"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "be"))
                                     , Annotated.Group
                                         ()
@@ -1015,13 +1027,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           ()
                                           [ Wrap
                                               ()
-                                              (Lit
+                                              (Annotated.Lit
                                                 ()
                                                 (Right
                                                   (ConsoleText.Bold
                                                     (Plain
                                                       "bold"))))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right (Plain ","))
                                           ])
@@ -1033,23 +1045,23 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ()
                                               (Annotated.Append
                                                 ()
-                                                [ Lit
+                                                [ Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain "*"))
                                                 , Wrap
                                                     ()
-                                                    (Lit
+                                                    (Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "italicized")))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain "*"))
                                                 ])
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right (Plain ","))
                                           ])
@@ -1061,47 +1073,47 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ()
                                               (Annotated.Append
                                                 ()
-                                                [ Lit
+                                                [ Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "~~"))
                                                 , Wrap
                                                     ()
-                                                    (Lit
+                                                    (Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "strikethrough")))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "~~"))
                                                 ])
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right (Plain ","))
                                           ])
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "or"))
                                     , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
-                                          [ Lit
+                                          [ Annotated.Lit
                                               ()
                                               (Right (Plain "`"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain
                                                   "monospaced"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right (Plain "`"))
                                           ])
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "(or"))
                                     , Annotated.Group
                                         ()
@@ -1111,72 +1123,80 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ()
                                               (Annotated.Append
                                                 ()
-                                                [ Lit
+                                                [ Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain "`"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "monospaced"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain "`"))
                                                 ])
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain ")."))
                                           ])
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         () (Right (Plain "You"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "can"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "link"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "to"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "Unison"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "terms,"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "types,"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "and"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "external"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "URLs:"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Annotated.Group
@@ -1185,10 +1205,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "* ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Wrap
@@ -1197,95 +1217,95 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             ()
                                             (Annotated.Append
                                               ()
-                                              [ Lit
+                                              [ Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Underline
                                                       (Plain
                                                         "An")))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Underline
                                                       (Plain
                                                         "external")))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Underline
                                                       (Plain
                                                         "url")))
                                               ])))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "* ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Wrap
                                           ()
                                           (Annotated.Append
                                             ()
-                                            [ Lit
+                                            [ Annotated.Lit
                                                 ()
                                                 (Left
                                                   (SpecialForm.Link
                                                     (Right
-                                                      (Term.Term
+                                                      (Doc2.Term.Term
                                                         (Any
                                                           (do
                                                             Some))))))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "is"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "a"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "term"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "link;"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Left
                                                   (SpecialForm.Link
                                                     (Left
                                                       (typeLink Optional))))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "is"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "a"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "type"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "link"))
                                             ]))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "* ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Wrap
@@ -1296,32 +1316,32 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                 ()
                                                 (Annotated.Append
                                                   ()
-                                                  [ Lit
+                                                  [ Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Underline
                                                           (Plain
                                                             "A")))
-                                                  , Lit
+                                                  , Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Underline
                                                           (Plain
                                                             "named")))
-                                                  , Lit
+                                                  , Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Underline
                                                           (Plain
                                                             "type")))
-                                                  , Lit
+                                                  , Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Underline
                                                           (Plain
                                                             "link")))
                                                   ])
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "and"))
@@ -1333,132 +1353,136 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       ()
                                                       (Annotated.Append
                                                         ()
-                                                        [ Lit
+                                                        [ Annotated.Lit
                                                             ()
                                                             (Right
                                                               (Underline
                                                                 (Plain
                                                                   "a")))
-                                                        , Lit
+                                                        , Annotated.Lit
                                                             ()
                                                             (Right
                                                               (Underline
                                                                 (Plain
                                                                   "named")))
-                                                        , Lit
+                                                        , Annotated.Lit
                                                             ()
                                                             (Right
                                                               (Underline
                                                                 (Plain
                                                                   "term")))
-                                                        , Lit
+                                                        , Annotated.Lit
                                                             ()
                                                             (Right
                                                               (Underline
                                                                 (Plain
                                                                   "link")))
                                                         ])
-                                                  , Lit
+                                                  , Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "."))
                                                   ])
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "Term"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "links"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "are"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "handy"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "for"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain
                                                     "linking"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "to"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "other"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain
                                                     "documents!"))
                                             ]))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         () (Right (Plain "You"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "can"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "use"))
                                     , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
-                                          [ Lit
+                                          [ Annotated.Lit
                                               ()
                                               (Right (Plain "`"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain
                                                   "{{ .. }}"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right (Plain "`"))
                                           ])
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "to"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "escape"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "out"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "to"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "regular"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "Unison"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "syntax,"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "for"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "instance"))
@@ -1466,61 +1490,65 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         ()
                                         (Annotated.Append
                                           ()
-                                          [ Lit
+                                          [ Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain
                                                   "__not bold__"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right (Plain "."))
                                           ])
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "This"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "is"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "useful"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "for"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "creating"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "documents"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain
                                             "programmatically"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "or"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "just"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "including"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "other"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "documents."))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
@@ -1531,10 +1559,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         ()
                                         (Annotated.Append
                                           ()
-                                          [ Lit
+                                          [ Annotated.Lit
                                               ()
                                               (Right (Plain "*"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "Next"))
@@ -1543,29 +1571,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         ()
                                         (Annotated.Append
                                           ()
-                                          [ Lit
+                                          [ Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "up:"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right (Plain "*"))
                                           ])
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Left
                                           (SpecialForm.Link
                                             (Right
-                                              (Term.Term
+                                              (Doc2.Term.Term
                                                 (Any (do lists))))))
                                     ])))
                           ]))))
-              , Lit () (Right (Plain "\n"))
-              , Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
               , Indent
                   ()
-                  (Lit () (Right (Plain "  ")))
-                  (Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
                   (Annotated.Group
                     ()
                     (Wrap
@@ -1576,23 +1604,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                           ()
                           [ Indent
                               ()
-                              (Lit () (Right (Plain "# ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "# ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
-                                  (Lit
+                                  (Annotated.Lit
                                     ()
                                     (Right
                                       (ConsoleText.Bold
                                         (Plain "Lists"))))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Annotated.Group
@@ -1601,10 +1635,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "# ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -1613,29 +1647,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             ()
                                             (Annotated.Append
                                               ()
-                                              [ Lit
+                                              [ Annotated.Lit
                                                   ()
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
                                                         "Bulleted")))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
                                                         "lists")))
                                               ])))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -1644,21 +1678,21 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             ()
                                             (Annotated.Append
                                               ()
-                                              [ Lit
+                                              [ Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "Bulleted"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "lists"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "can"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "use"))
@@ -1670,23 +1704,23 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                         ()
                                                         (Annotated.Append
                                                           ()
-                                                          [ Lit
+                                                          [ Annotated.Lit
                                                               ()
                                                               (Right
                                                                 (Plain
                                                                   "`"))
-                                                          , Lit
+                                                          , Annotated.Lit
                                                               ()
                                                               (Right
                                                                 (Plain
                                                                   "+"))
-                                                          , Lit
+                                                          , Annotated.Lit
                                                               ()
                                                               (Right
                                                                 (Plain
                                                                   "`"))
                                                           ])
-                                                    , Lit
+                                                    , Annotated.Lit
                                                         ()
                                                         (Right
                                                           (Plain
@@ -1700,29 +1734,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                         ()
                                                         (Annotated.Append
                                                           ()
-                                                          [ Lit
+                                                          [ Annotated.Lit
                                                               ()
                                                               (Right
                                                                 (Plain
                                                                   "`"))
-                                                          , Lit
+                                                          , Annotated.Lit
                                                               ()
                                                               (Right
                                                                 (Plain
                                                                   "-"))
-                                                          , Lit
+                                                          , Annotated.Lit
                                                               ()
                                                               (Right
                                                                 (Plain
                                                                   "`"))
                                                           ])
-                                                    , Lit
+                                                    , Annotated.Lit
                                                         ()
                                                         (Right
                                                           (Plain
                                                             ","))
                                                     ])
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "or"))
@@ -1730,123 +1764,123 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                   ()
                                                   (Annotated.Append
                                                     ()
-                                                    [ Lit
+                                                    [ Annotated.Lit
                                                         ()
                                                         (Right
                                                           (Plain
                                                             "`"))
-                                                    , Lit
+                                                    , Annotated.Lit
                                                         ()
                                                         (Right
                                                           (Plain
                                                             "*"))
-                                                    , Lit
+                                                    , Annotated.Lit
                                                         ()
                                                         (Right
                                                           (Plain
                                                             "`"))
                                                     ])
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "for"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "the"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "bullets"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "(though"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "the"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "choice"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "will"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "be"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "normalized"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "away"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "by"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "the"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "pretty-printer)."))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "They"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "can"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "be"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "nested,"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "to"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "any"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "depth:"))
                                               ])))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -1857,58 +1891,58 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ()
                                               [ Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "* ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "  ")))
                                                   (Wrap
                                                     ()
-                                                    (Lit
+                                                    (Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "A"))))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "\n"))
                                               , Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "* ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "  ")))
                                                   (Wrap
                                                     ()
-                                                    (Lit
+                                                    (Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "B"))))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "\n"))
                                               , Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "* ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
@@ -1917,12 +1951,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     ()
                                                     [ Wrap
                                                         ()
-                                                        (Lit
+                                                        (Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "C")))
-                                                    , Lit
+                                                    , Annotated.Lit
                                                         ()
                                                         (Right
                                                           (Plain
@@ -1933,13 +1967,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           [ Indent
                                                               ()
-                                                              (Lit
+                                                              (Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "* ")))
-                                                              (Lit
+                                                              (Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
@@ -1948,26 +1982,26 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                               (Wrap
                                                                 ( 
                                                                 )
-                                                                (Lit
+                                                                (Annotated.Lit
                                                                   ( 
                                                                   )
                                                                   (Right
                                                                     (Plain
                                                                       "C1"))))
-                                                          , Lit
+                                                          , Annotated.Lit
                                                               ()
                                                               (Right
                                                                 (Plain
                                                                   "\n"))
                                                           , Indent
                                                               ()
-                                                              (Lit
+                                                              (Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "* ")))
-                                                              (Lit
+                                                              (Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
@@ -1976,7 +2010,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                               (Wrap
                                                                 ( 
                                                                 )
-                                                                (Lit
+                                                                (Annotated.Lit
                                                                   ( 
                                                                   )
                                                                   (Right
@@ -1986,12 +2020,16 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     ])
                                               ])))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Annotated.Group
@@ -2000,10 +2038,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "# ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -2012,29 +2050,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             ()
                                             (Annotated.Append
                                               ()
-                                              [ Lit
+                                              [ Annotated.Lit
                                                   ()
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
                                                         "Numbered")))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
                                                         "lists")))
                                               ])))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -2045,80 +2083,80 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ()
                                               [ Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "1. ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "   ")))
                                                   (Wrap
                                                     ()
-                                                    (Lit
+                                                    (Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "A"))))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "\n"))
                                               , Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "2. ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "   ")))
                                                   (Wrap
                                                     ()
-                                                    (Lit
+                                                    (Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "B"))))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "\n"))
                                               , Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "3. ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "   ")))
                                                   (Wrap
                                                     ()
-                                                    (Lit
+                                                    (Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "C"))))
                                               ])))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -2127,104 +2165,104 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             ()
                                             (Annotated.Append
                                               ()
-                                              [ Lit
+                                              [ Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "The"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "first"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "number"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "of"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "the"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "list"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "determines"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "the"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "starting"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "number"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "in"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "the"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "rendered"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "output."))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "The"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "other"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "numbers"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "are"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "ignored:"))
                                               ])))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -2235,80 +2273,80 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ()
                                               [ Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "10. ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "    ")))
                                                   (Wrap
                                                     ()
-                                                    (Lit
+                                                    (Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "A"))))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "\n"))
                                               , Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "11. ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "    ")))
                                                   (Wrap
                                                     ()
-                                                    (Lit
+                                                    (Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "B"))))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "\n"))
                                               , Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "12. ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "    ")))
                                                   (Wrap
                                                     ()
-                                                    (Lit
+                                                    (Annotated.Lit
                                                       ()
                                                       (Right
                                                         (Plain
                                                           "C"))))
                                               ])))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -2317,73 +2355,73 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             ()
                                             (Annotated.Append
                                               ()
-                                              [ Lit
+                                              [ Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "Numbered"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "lists"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "can"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "be"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "nested"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "as"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "well,"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "and"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "combined"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "with"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "bulleted"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "lists:"))
                                               ])))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -2394,12 +2432,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ()
                                               [ Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "1. ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
@@ -2410,18 +2448,18 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                         ()
                                                         (Annotated.Append
                                                           ()
-                                                          [ Lit
+                                                          [ Annotated.Lit
                                                               ()
                                                               (Right
                                                                 (Plain
                                                                   "Wake"))
-                                                          , Lit
+                                                          , Annotated.Lit
                                                               ()
                                                               (Right
                                                                 (Plain
                                                                   "up."))
                                                           ])
-                                                    , Lit
+                                                    , Annotated.Lit
                                                         ()
                                                         (Right
                                                           (Plain
@@ -2432,13 +2470,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           [ Indent
                                                               ()
-                                                              (Lit
+                                                              (Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "* ")))
-                                                              (Lit
+                                                              (Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
@@ -2450,51 +2488,51 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                                 (Annotated.Append
                                                                   ( 
                                                                   )
-                                                                  [ Lit
+                                                                  [ Annotated.Lit
                                                                       ( 
                                                                       )
                                                                       (Right
                                                                         (Plain
                                                                           "What"))
-                                                                  , Lit
+                                                                  , Annotated.Lit
                                                                       ( 
                                                                       )
                                                                       (Right
                                                                         (Plain
                                                                           "am"))
-                                                                  , Lit
+                                                                  , Annotated.Lit
                                                                       ( 
                                                                       )
                                                                       (Right
                                                                         (Plain
                                                                           "I"))
-                                                                  , Lit
+                                                                  , Annotated.Lit
                                                                       ( 
                                                                       )
                                                                       (Right
                                                                         (Plain
                                                                           "doing"))
-                                                                  , Lit
+                                                                  , Annotated.Lit
                                                                       ( 
                                                                       )
                                                                       (Right
                                                                         (Plain
                                                                           "here?"))
                                                                   ]))
-                                                          , Lit
+                                                          , Annotated.Lit
                                                               ()
                                                               (Right
                                                                 (Plain
                                                                   "\n"))
                                                           , Indent
                                                               ()
-                                                              (Lit
+                                                              (Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "* ")))
-                                                              (Lit
+                                                              (Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
@@ -2506,25 +2544,25 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                                 (Annotated.Append
                                                                   ( 
                                                                   )
-                                                                  [ Lit
+                                                                  [ Annotated.Lit
                                                                       ( 
                                                                       )
                                                                       (Right
                                                                         (Plain
                                                                           "In"))
-                                                                  , Lit
+                                                                  , Annotated.Lit
                                                                       ( 
                                                                       )
                                                                       (Right
                                                                         (Plain
                                                                           "this"))
-                                                                  , Lit
+                                                                  , Annotated.Lit
                                                                       ( 
                                                                       )
                                                                       (Right
                                                                         (Plain
                                                                           "nested"))
-                                                                  , Lit
+                                                                  , Annotated.Lit
                                                                       ( 
                                                                       )
                                                                       (Right
@@ -2533,18 +2571,18 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                                   ]))
                                                           ])
                                                     ])
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "\n"))
                                               , Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "2. ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
@@ -2553,29 +2591,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     ()
                                                     (Annotated.Append
                                                       ()
-                                                      [ Lit
+                                                      [ Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "Take"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "shower."))
                                                       ]))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "\n"))
                                               , Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "3. ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
@@ -2584,12 +2622,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     ()
                                                     (Annotated.Append
                                                       ()
-                                                      [ Lit
+                                                      [ Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "Get"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
@@ -2598,12 +2636,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ])))
                                     ])))
                           ]))))
-              , Lit () (Right (Plain "\n"))
-              , Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
               , Indent
                   ()
-                  (Lit () (Right (Plain "  ")))
-                  (Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
                   (Annotated.Group
                     ()
                     (Wrap
@@ -2614,47 +2652,53 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                           ()
                           [ Indent
                               ()
-                              (Lit () (Right (Plain "# ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "# ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
-                                  (Lit
+                                  (Annotated.Lit
                                     ()
                                     (Right
                                       (ConsoleText.Bold
                                         (Plain "Evaluation"))))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "Expressions"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "can"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "be"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "evaluated"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "inline,"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "for"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "instance"))
@@ -2662,159 +2706,184 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         ()
                                         (Annotated.Append
                                           ()
-                                          [ Lit
+                                          [ Annotated.Lit
                                               ()
                                               (Left
                                                 (EvalInline
-                                                  (Term.Term
+                                                  (Doc2.Term.Term
                                                     (Any
                                                       (do
                                                         1
                                                           Nat.+ 1)))))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right (Plain "."))
                                           ])
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right (Plain "Blocks"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "of"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "code"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "can"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "be"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "evaluated"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "as"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "well,"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "for"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "instance:"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
-                                () (Lit
+                                () (Annotated.Lit
                                   () (Left
                                     (Eval
-                                      (Term.Term
+                                      (Doc2.Term.Term
                                         (Any
                                           (do
                                             id x = x
                                             id (sqr 10))))))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
-                                  (Lit
+                                  (Annotated.Lit
                                     () (Right (Plain "also:")))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
-                                () (Lit
+                                () (Annotated.Lit
                                   () (Left
                                     (Eval
-                                      (Term.Term
+                                      (Doc2.Term.Term
                                         (Any
                                           (do match 1 with
                                             1 -> "hi"
                                             _ -> "goodbye")))))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         () (Right (Plain "To"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "include"))
-                                    , Lit () (Right (Plain "a"))
-                                    , Lit
+                                    , Annotated.Lit
+                                        () (Right (Plain "a"))
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "typechecked"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "snippet"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "of"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "code"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "without"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "evaluating"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "it,"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "you"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "can"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "do:"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
-                                () (Lit
+                                () (Annotated.Lit
                                   () (Left
                                     (ExampleBlock
-                                      0 (Term.Term
+                                      0 (Doc2.Term.Term
                                         (Any
                                           (do
                                             use Nat *
@@ -2822,12 +2891,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             cube x = x * x * x
                                             ())))))))
                           ]))))
-              , Lit () (Right (Plain "\n"))
-              , Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
               , Indent
                   ()
-                  (Lit () (Right (Plain "  ")))
-                  (Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
                   (Annotated.Group
                     ()
                     (Wrap
@@ -2838,85 +2907,95 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                           ()
                           [ Indent
                               ()
-                              (Lit () (Right (Plain "# ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "# ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
                                             (Plain "Including")))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
                                             (Plain "Unison")))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
                                             (Plain "source")))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
                                             (Plain "code")))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right (Plain "Unison"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "definitions"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "can"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "be"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "included"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "in"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "docs."))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "For"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "instance:"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
-                                  (Lit
+                                  (Annotated.Lit
                                     ()
                                     (Left
                                       (SpecialForm.Source
@@ -2925,57 +3004,65 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           , []
                                           )
                                         , ( Right
-                                              (Term.Term
+                                              (Doc2.Term.Term
                                                 (Any (do sqr)))
                                           , []
                                           )
                                         ])))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right (Plain "Some"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "rendering"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "targets"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "also"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "support"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "folded"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "source:"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
-                                  (Lit
+                                  (Annotated.Lit
                                     ()
                                     (Left
                                       (FoldedSource
@@ -2984,150 +3071,172 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           , []
                                           )
                                         , ( Right
-                                              (Term.Term
+                                              (Doc2.Term.Term
                                                 (Any (do sqr)))
                                           , []
                                           )
                                         ])))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         () (Right (Plain "You"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "can"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "also"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "include"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "just"))
-                                    , Lit () (Right (Plain "a"))
-                                    , Lit
+                                    , Annotated.Lit
+                                        () (Right (Plain "a"))
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "signature,"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "inline,"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "with"))
                                     , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
-                                          [ Lit
+                                          [ Annotated.Lit
                                               ()
                                               (Left
                                                 (SignatureInline
-                                                  (Term.Term
+                                                  (Doc2.Term.Term
                                                     (Any
                                                       (do sqr)))))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right (Plain ","))
                                           ])
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "or"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "you"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "can"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "include"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "one"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "or"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "more"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "signatures"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "as"))
-                                    , Lit () (Right (Plain "a"))
-                                    , Lit
+                                    , Annotated.Lit
+                                        () (Right (Plain "a"))
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "block:"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
-                                  (Lit
+                                  (Annotated.Lit
                                     ()
                                     (Left
                                       (SpecialForm.Signature
-                                        [ Term.Term
+                                        [ Doc2.Term.Term
                                             (Any (do sqr))
-                                        , Term.Term
+                                        , Doc2.Term.Term
                                             (Any (do (Nat.+)))
                                         ])))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         () (Right (Plain "Or"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "alternately:"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
-                                  (Lit
+                                  (Annotated.Lit
                                     ()
                                     (Left
                                       (SpecialForm.Signature
-                                        [ Term.Term
+                                        [ Doc2.Term.Term
                                             (Any (do List.map))
                                         ])))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Annotated.Group
@@ -3136,10 +3245,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "# ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -3148,29 +3257,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             ()
                                             (Annotated.Append
                                               ()
-                                              [ Lit
+                                              [ Annotated.Lit
                                                   ()
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
                                                         "Inline")))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
                                                         "snippets")))
                                               ])))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -3179,59 +3288,59 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             ()
                                             (Annotated.Append
                                               ()
-                                              [ Lit
+                                              [ Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "You"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "can"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "include"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "typechecked"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "code"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "snippets"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "inline,"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "for"))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain
                                                       "instance:"))
                                               ])))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
                                     , Indent
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "  ")))
                                         (Annotated.Group
@@ -3242,12 +3351,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ()
                                               [ Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "* ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
@@ -3256,12 +3365,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     ()
                                                     (Annotated.Append
                                                       ()
-                                                      [ Lit
+                                                      [ Annotated.Lit
                                                           ()
                                                           (Left
                                                             (Example
                                                               2
-                                                              (Term.Term
+                                                              (Doc2.Term.Term
                                                                 (Any
                                                                   (do
                                                                     f
@@ -3270,12 +3379,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                                         x
                                                                         Nat.+ sqr
                                                                           1)))))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "-"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
@@ -3284,86 +3393,86 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           (Annotated.Append
                                                             ()
-                                                            [ Lit
+                                                            [ Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "`"))
-                                                            , Lit
+                                                            , Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "2"))
-                                                            , Lit
+                                                            , Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "`"))
                                                             ])
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "says"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "to"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "ignore"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "the"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "first"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "two"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "arguments"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "when"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "rendering."))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "In"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "richer"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "renderers,"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
@@ -3372,58 +3481,58 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           (Annotated.Append
                                                             ()
-                                                            [ Lit
+                                                            [ Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "`"))
-                                                            , Lit
+                                                            , Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "sqr"))
-                                                            , Lit
+                                                            , Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "`"))
                                                             ])
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "link"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "will"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "be"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "clickable."))
                                                       ]))
-                                              , Lit
+                                              , Annotated.Lit
                                                   ()
                                                   (Right
                                                     (Plain "\n"))
                                               , Indent
                                                   ()
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "* ")))
-                                                  (Lit
+                                                  (Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
@@ -3432,97 +3541,97 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     ()
                                                     (Annotated.Append
                                                       ()
-                                                      [ Lit
+                                                      [ Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "If"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "your"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "snippet"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "expression"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "is"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "just"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "a"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "single"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "function"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "application,"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "you"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "can"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "put"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "it"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "in"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "double"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "backticks,"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "like"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
@@ -3531,41 +3640,41 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           (Annotated.Append
                                                             ()
-                                                            [ Lit
+                                                            [ Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Left
                                                                   (Example
                                                                     1
-                                                                    (Term.Term
+                                                                    (Doc2.Term.Term
                                                                       (Any
                                                                         (do
                                                                           x ->
                                                                             sqr
                                                                               x)))))
-                                                            , Lit
+                                                            , Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
                                                                   (Plain
                                                                     "."))
                                                             ])
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "This"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "is"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "equivalent"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
@@ -3574,19 +3683,19 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           (Annotated.Append
                                                             ()
-                                                            [ Lit
+                                                            [ Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Left
                                                                   (Example
                                                                     1
-                                                                    (Term.Term
+                                                                    (Doc2.Term.Term
                                                                       (Any
                                                                         (do
                                                                           x ->
                                                                             sqr
                                                                               x)))))
-                                                            , Lit
+                                                            , Annotated.Lit
                                                                 ( 
                                                                 )
                                                                 (Right
@@ -3597,12 +3706,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ])))
                                     ])))
                           ]))))
-              , Lit () (Right (Plain "\n"))
-              , Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
               , Indent
                   ()
-                  (Lit () (Right (Plain "  ")))
-                  (Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
                   (Annotated.Group
                     ()
                     (Wrap
@@ -3613,86 +3722,97 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                           ()
                           [ Indent
                               ()
-                              (Lit () (Right (Plain "# ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "# ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
                                             (Plain "Non-Unison")))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
                                             (Plain "code")))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
                                             (Plain "blocks")))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         () (Right (Plain "Use"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "three"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "or"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "more"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "single"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "quotes"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "to"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "start"))
-                                    , Lit () (Right (Plain "a"))
-                                    , Lit
+                                    , Annotated.Lit
+                                        () (Right (Plain "a"))
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "block"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "with"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "no"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "syntax"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "highlighting:"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
@@ -3701,158 +3821,171 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     (Annotated.Append
                                       ()
-                                      [ Lit
+                                      [ Annotated.Lit
                                           ()
                                           (Right (Plain "``` "))
                                       , Annotated.Group
                                           ()
-                                          (Lit
+                                          (Annotated.Lit
                                             ()
                                             (Right (Plain "raw")))
-                                      , Lit
+                                      , Annotated.Lit
                                           ()
                                           (Right (Plain "\n"))
-                                      , Lit
+                                      , Annotated.Lit
                                           ()
                                           (Right
                                             (Plain
                                               "   _____     _             \n  |  |  |___|_|___ ___ ___ \n  |  |  |   | |_ -| . |   |\n  |_____|_|_|_|___|___|_|_|\n  "))
-                                      , Lit
+                                      , Annotated.Lit
                                           ()
                                           (Right (Plain "\n"))
-                                      , Lit
+                                      , Annotated.Lit
                                           ()
                                           (Right (Plain "```"))
                                       ]))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Wrap
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         () (Right (Plain "You"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "can"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "use"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "three"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "or"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "more"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "backticks"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "plus"))
-                                    , Lit () (Right (Plain "a"))
-                                    , Lit
+                                    , Annotated.Lit
+                                        () (Right (Plain "a"))
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "language"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "name"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "for"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "blocks"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "with"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "syntax"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain "highlighting:"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Annotated.Group
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right (Plain "``` "))
                                     , Annotated.Group
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right
                                             (Plain "Haskell")))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain
                                             "-- A fenced code block which isn't parsed by Unison\nreverse = foldl (flip (:)) []"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "```"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Indent
                               ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
+                              (Annotated.Lit
+                                () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Annotated.Group
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right (Plain "``` "))
                                     , Annotated.Group
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right (Plain "Scala")))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right
                                           (Plain
                                             "// A fenced code block which isn't parsed by Unison\ndef reverse[A](xs: List[A]) = \n  xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "\n"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "```"))
                                     ])))
                           ]))))
-              , Lit () (Right (Plain "\n"))
-              , Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
+              , Annotated.Lit () (Right (Plain "\n"))
               , Indent
                   ()
-                  (Lit () (Right (Plain "  ")))
-                  (Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
+                  (Annotated.Lit () (Right (Plain "  ")))
                   (Annotated.Group
                     ()
                     (Wrap
@@ -3867,113 +4000,124 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                 ()
                                 (Annotated.Append
                                   ()
-                                  [ Lit
+                                  [ Annotated.Lit
                                       () (Right (Plain "There"))
-                                  , Lit () (Right (Plain "are"))
-                                  , Lit
+                                  , Annotated.Lit
+                                      () (Right (Plain "are"))
+                                  , Annotated.Lit
                                       () (Right (Plain "also"))
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "asides,"))
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "callouts,"))
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "tables,"))
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "tooltips,"))
-                                  , Lit () (Right (Plain "and"))
-                                  , Lit
+                                  , Annotated.Lit
+                                      () (Right (Plain "and"))
+                                  , Annotated.Lit
                                       () (Right (Plain "more."))
-                                  , Lit
+                                  , Annotated.Lit
                                       () (Right (Plain "These"))
-                                  , Lit
+                                  , Annotated.Lit
                                       () (Right (Plain "don't"))
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "currently"))
-                                  , Lit
+                                  , Annotated.Lit
                                       () (Right (Plain "have"))
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "special"))
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "syntax;"))
-                                  , Lit
+                                  , Annotated.Lit
                                       () (Right (Plain "just"))
-                                  , Lit () (Right (Plain "use"))
-                                  , Lit () (Right (Plain "the"))
+                                  , Annotated.Lit
+                                      () (Right (Plain "use"))
+                                  , Annotated.Lit
+                                      () (Right (Plain "the"))
                                   , Annotated.Group
                                       ()
                                       (Annotated.Append
                                         ()
-                                        [ Lit
+                                        [ Annotated.Lit
                                             ()
                                             (Right (Plain "`"))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Plain "{{ }}"))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right (Plain "`"))
                                         ])
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "syntax"))
-                                  , Lit () (Right (Plain "to"))
-                                  , Lit
+                                  , Annotated.Lit
+                                      () (Right (Plain "to"))
+                                  , Annotated.Lit
                                       () (Right (Plain "call"))
-                                  , Lit
+                                  , Annotated.Lit
                                       () (Right (Plain "these"))
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "functions"))
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "directly."))
                                   ]))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Annotated.Group
                               ()
                               (Wrap
                                 ()
-                                (Lit
+                                (Annotated.Lit
                                   ()
                                   (Left
                                     (SpecialForm.Signature
-                                      [ Term.Term
+                                      [ Doc2.Term.Term
                                           (Any (do docAside))
-                                      , Term.Term
+                                      , Doc2.Term.Term
                                           (Any (do docCallout))
-                                      , Term.Term
+                                      , Doc2.Term.Term
                                           (Any
                                             (do docBlockquote))
-                                      , Term.Term
+                                      , Doc2.Term.Term
                                           (Any (do docTooltip))
-                                      , Term.Term
+                                      , Doc2.Term.Term
                                           (Any (do docTable))
                                       ]))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Annotated.Group
                               ()
                               (Wrap
                                 ()
                                 (Annotated.Append
                                   ()
-                                  [ Lit
+                                  [ Annotated.Lit
                                       () (Right (Plain "This"))
-                                  , Lit () (Right (Plain "is"))
-                                  , Lit () (Right (Plain "an"))
-                                  , Lit
+                                  , Annotated.Lit
+                                      () (Right (Plain "is"))
+                                  , Annotated.Lit
+                                      () (Right (Plain "an"))
+                                  , Annotated.Lit
                                       ()
                                       (Right (Plain "aside."))
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right
                                         (Foreground
@@ -3983,70 +4127,72 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                       ()
                                       (Annotated.Append
                                         ()
-                                        [ Lit
+                                        [ Annotated.Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
                                                 (Plain "Some")))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
                                                 (Plain "extra")))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
                                                 (Plain "detail")))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
                                                 (Plain "that")))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
                                                 (Plain "doesn't")))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
                                                 (Plain "belong")))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
                                                 (Plain "in")))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
                                                 (Plain "main")))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
                                                 (Plain "text.")))
                                         ])
-                                  , Lit
+                                  , Annotated.Lit
                                       ()
                                       (Right
                                         (Foreground
                                           BrightBlack
                                           (Plain ")")))
                                   ]))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Annotated.Group
                               ()
                               (Wrap
@@ -4055,46 +4201,48 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   ()
                                   (Indent
                                     ()
-                                    (Lit
+                                    (Annotated.Lit
                                       () (Right (Plain "  | ")))
-                                    (Lit
+                                    (Annotated.Lit
                                       () (Right (Plain "  | ")))
                                     (Wrap
                                       ()
                                       (Annotated.Append
                                         ()
-                                        [ Lit
+                                        [ Annotated.Lit
                                             ()
                                             (Right
                                               (Plain "This"))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right (Plain "is"))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right (Plain "an"))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Plain "important"))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Plain "callout,"))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Plain "with"))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right (Plain "no"))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right
                                               (Plain "icon."))
                                         ])))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Annotated.Group
                               ()
                               (Wrap
@@ -4103,95 +4251,97 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   ()
                                   (Indent
                                     ()
-                                    (Lit
+                                    (Annotated.Lit
                                       () (Right (Plain "  | ")))
-                                    (Lit
+                                    (Annotated.Lit
                                       () (Right (Plain "  | ")))
                                     (Annotated.Append
                                       ()
                                       [ Wrap
                                           ()
-                                          (Lit
+                                          (Annotated.Lit
                                             ()
                                             (Right
                                               (ConsoleText.Bold
                                                 (Plain "🌻"))))
-                                      , Lit
+                                      , Annotated.Lit
                                           ()
                                           (Right (Plain "\n"))
-                                      , Lit
+                                      , Annotated.Lit
                                           () (Right (Plain ""))
-                                      , Lit
+                                      , Annotated.Lit
                                           ()
                                           (Right (Plain "\n"))
                                       , Wrap
                                           ()
                                           (Annotated.Append
                                             ()
-                                            [ Lit
+                                            [ Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "This"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "is"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "an"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain
                                                     "important"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain
                                                     "callout,"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "with"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "an"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "icon."))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "The"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "text"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "wraps"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain "onto"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain
                                                     "multiple"))
-                                            , Lit
+                                            , Annotated.Lit
                                                 ()
                                                 (Right
                                                   (Plain
                                                     "lines."))
                                             ])
                                       ]))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Annotated.Group
                               ()
                               (Wrap
@@ -4200,8 +4350,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   ()
                                   (Indent
                                     ()
-                                    (Lit () (Right (Plain "> ")))
-                                    (Lit () (Right (Plain "> ")))
+                                    (Annotated.Lit
+                                      () (Right (Plain "> ")))
+                                    (Annotated.Lit
+                                      () (Right (Plain "> ")))
                                     (Annotated.Group
                                       ()
                                       (Annotated.Append
@@ -4212,80 +4364,80 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ()
                                               (Annotated.Append
                                                 ()
-                                                [ Lit
+                                                [ Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "\"And"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "what"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "is"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "the"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "use"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "of"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain "a"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "book,\""))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "thought"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "Alice,"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "\"without"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "pictures"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "or"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "conversation?\""))
                                                 ]))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right (Plain "\n"))
-                                        , Lit
+                                        , Annotated.Lit
                                             ()
                                             (Right (Plain "\n"))
                                         , Annotated.Group
@@ -4298,33 +4450,33 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     ()
                                                     (Annotated.Append
                                                       ()
-                                                      [ Lit
+                                                      [ Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "*"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "Lewis"))
                                                       ])
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "Carroll,"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "Alice's"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
                                                         "Adventures"))
-                                                , Lit
+                                                , Annotated.Lit
                                                     ()
                                                     (Right
                                                       (Plain
@@ -4333,12 +4485,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     ()
                                                     (Annotated.Append
                                                       ()
-                                                      [ Lit
+                                                      [ Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
                                                               "Wonderland"))
-                                                      , Lit
+                                                      , Annotated.Lit
                                                           ()
                                                           (Right
                                                             (Plain
@@ -4346,8 +4498,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       ])
                                                 ]))
                                         ])))))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Annotated.Group
                               ()
                               (Wrap
@@ -4356,17 +4510,19 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   ()
                                   (Annotated.Append
                                     ()
-                                    [ Lit
+                                    [ Annotated.Lit
                                         ()
                                         (Right (Plain "Hover"))
-                                    , Lit
+                                    , Annotated.Lit
                                         ()
                                         (Right (Plain "over"))
-                                    , Lit
+                                    , Annotated.Lit
                                         () (Right (Plain "me"))
                                     ])))
-                          , Lit () (Right (Plain "\n"))
-                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
+                          , Annotated.Lit
+                              () (Right (Plain "\n"))
                           , Annotated.Group
                               ()
                               (Wrap
@@ -4375,97 +4531,97 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   ()
                                   [ [ Wrap
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           () (Right (Plain "a")))
                                     , Wrap
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           () (Right (Plain "b")))
                                     , Wrap
                                         ()
                                         (Annotated.Append
                                           ()
-                                          [ Lit
+                                          [ Annotated.Lit
                                               ()
                                               (Right (Plain "A"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "longer"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain
                                                   "paragraph"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "that"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "will"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "split"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "onto"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain
                                                   "multiple"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "lines,"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "such"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "that"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "this"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "row"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain
                                                   "occupies"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain
                                                   "multiple"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "lines"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "in"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "the"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain
                                                   "rendered"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "table."))
@@ -4475,11 +4631,11 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         ()
                                         (Annotated.Append
                                           ()
-                                          [ Lit
+                                          [ Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "Some"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "text"))
@@ -4488,18 +4644,18 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         ()
                                         (Annotated.Append
                                           ()
-                                          [ Lit
+                                          [ Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "More"))
-                                          , Lit
+                                          , Annotated.Lit
                                               ()
                                               (Right
                                                 (Plain "text"))
                                           ])
                                     , Wrap
                                         ()
-                                        (Lit
+                                        (Annotated.Lit
                                           ()
                                           (Right
                                             (Plain "Zounds!")))

@@ -812,7 +812,7 @@ evalDocRef rt codebase r = do
       let evalPPE = PPE.empty
       let codeLookup = Codebase.codebaseToCodeLookup codebase
       let cache r = fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase r)
-      r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache evalPPE NoProf rt tm
+      r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup Nothing cache evalPPE NoProf rt tm
       -- Only cache watches when we're not in readonly mode
       Env.lookupEnv "UNISON_READONLY" >>= \case
         Just (_ : _) -> pure ()

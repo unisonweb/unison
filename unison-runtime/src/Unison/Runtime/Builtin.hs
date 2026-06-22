@@ -574,6 +574,45 @@ value'load =
 value'create :: SuperNormal ref Symbol
 value'create = unop0 0 $ \[x] -> TPrm VALU [x]
 
+meta'decompile :: SuperNormal ref Symbol
+meta'decompile = unop0 0 $ \[x] -> TPrm MDCM [x]
+
+meta'typecheck :: SuperNormal ref Symbol
+meta'typecheck = unop0 0 $ \[x] -> TPrm MTYC [x]
+
+meta'eval :: SuperNormal ref Symbol
+meta'eval = unop0 0 $ \[x] -> TPrm MEVL [x]
+
+meta'load :: SuperNormal ref Symbol
+meta'load = unop0 0 $ \[x] -> TPrm MLOD [x]
+
+meta'store :: SuperNormal ref Symbol
+meta'store = unop0 0 $ \[x] -> TPrm MSTR [x]
+
+meta'data'decl'shape :: SuperNormal ref Symbol
+meta'data'decl'shape = unop0 0 $ \[x] -> TPrm MDDS [x]
+
+meta'link'ref :: SuperNormal ref Symbol
+meta'link'ref = unop0 0 $ \[x] -> TPrm MLNR [x]
+
+meta'alias'term :: SuperNormal ref Symbol
+meta'alias'term = binop0 0 $ \[x, y] -> TPrm MATM [x, y]
+
+meta'alias'type :: SuperNormal ref Symbol
+meta'alias'type = binop0 0 $ \[x, y] -> TPrm MATY [x, y]
+
+meta'delete'term :: SuperNormal ref Symbol
+meta'delete'term = unop0 0 $ \[x] -> TPrm MDTM [x]
+
+meta'move'term :: SuperNormal ref Symbol
+meta'move'term = binop0 0 $ \[x, y] -> TPrm MMTM [x, y]
+
+meta'lookup :: SuperNormal ref Symbol
+meta'lookup = unop0 0 $ \[x] -> TPrm MLKP [x]
+
+meta'dependents :: SuperNormal ref Symbol
+meta'dependents = unop0 0 $ \[x] -> TPrm MDPS [x]
+
 check'sandbox :: SuperNormal ref Symbol
 check'sandbox = binop SDBX
 
@@ -861,6 +900,19 @@ builtinLookup =
         ("Debug.watch", (Tracked, watch)),
         ("Debug.trace", (Tracked, gen'trace)),
         ("Debug.toText", (Tracked, debug'text)),
+        ("Meta.decompile", (Tracked, meta'decompile)),
+        ("Meta.typecheck", (Tracked, meta'typecheck)),
+        ("Meta.eval", (Tracked, meta'eval)),
+        ("Meta.load", (Tracked, meta'load)),
+        ("Meta.store", (Tracked, meta'store)),
+        ("Meta.dataDeclShape", (Tracked, meta'data'decl'shape)),
+        ("Meta.linkRef", (Tracked, meta'link'ref)),
+        ("Meta.aliasTerm", (Tracked, meta'alias'term)),
+        ("Meta.aliasType", (Tracked, meta'alias'type)),
+        ("Meta.deleteTerm", (Tracked, meta'delete'term)),
+        ("Meta.moveTerm", (Tracked, meta'move'term)),
+        ("Meta.lookup", (Tracked, meta'lookup)),
+        ("Meta.dependents", (Tracked, meta'dependents)),
         ("unsafe.coerceAbilities", (Untracked, poly'coerce)),
         ("Char.toNat", (Untracked, coerceType NatTag)),
         ("Char.fromNat", (Untracked, coerceType CharTag)),
@@ -908,6 +960,7 @@ builtinLookup =
         ("Any.Any", (Untracked, any'construct)),
         ("Any.unsafeExtract", (Untracked, any'extract)),
         ("summon", (Untracked, summon'id)),
+        ("Meta.splice", (Untracked, summon'id)),
         ("Link.Term.toText", (Untracked, term'link'to'text)),
         ("STM.atomically", (Tracked, stm'atomic)),
         ("validateSandboxed", (Untracked, check'sandbox)),

@@ -175,6 +175,20 @@ data POp
   | KEEP -- keepAlive
   | FGNN -- foreign pointer new
   | FGNF -- foreign pointer add finalizer
+  -- meta
+  | MDCM -- Meta.decompile
+  | MTYC -- Meta.typecheck
+  | MEVL -- Meta.eval
+  | MLOD -- Meta.load
+  | MSTR -- Meta.store
+  | MDDS -- Meta.dataDeclShape
+  | MLNR -- Meta.linkRef
+  | MATM -- Meta.aliasTerm
+  | MATY -- Meta.aliasType
+  | MDTM -- Meta.deleteTerm
+  | MMTM -- Meta.moveTerm
+  | MLKP -- Meta.lookup
+  | MDPS -- Meta.dependents
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 pOpCode :: POp -> Word16
@@ -330,6 +344,19 @@ pOpCode op = case op of
   KEEP -> 148
   FGNN -> 149
   FGNF -> 150
+  MDCM -> 151
+  MTYC -> 152
+  MEVL -> 153
+  MLOD -> 154
+  MSTR -> 155
+  MDDS -> 156
+  MLNR -> 157
+  MATM -> 158
+  MATY -> 159
+  MDTM -> 160
+  MMTM -> 161
+  MLKP -> 162
+  MDPS -> 163
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]

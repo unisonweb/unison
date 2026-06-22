@@ -533,6 +533,16 @@ instance Tag Prim1 where
   tag2word REFR = 63
   tag2word RRFC = 64
   tag2word TIKR = 65
+  tag2word MDCM = 66
+  tag2word MTYC = 67
+  tag2word MEVL = 68
+  tag2word MLOD = 69
+  tag2word MSTR = 70
+  tag2word MDDS = 71
+  tag2word MLNR = 72
+  tag2word MDTM = 73
+  tag2word MLKP = 74
+  tag2word MDPS = 75
 
   word2tag 0 = pure DECI
   word2tag 1 = pure DECN
@@ -601,6 +611,16 @@ instance Tag Prim1 where
   word2tag 63 = pure REFR
   word2tag 64 = pure RRFC
   word2tag 65 = pure TIKR
+  word2tag 66 = pure MDCM
+  word2tag 67 = pure MTYC
+  word2tag 68 = pure MEVL
+  word2tag 69 = pure MLOD
+  word2tag 70 = pure MSTR
+  word2tag 71 = pure MDDS
+  word2tag 72 = pure MLNR
+  word2tag 73 = pure MDTM
+  word2tag 74 = pure MLKP
+  word2tag 75 = pure MDPS
   word2tag n = unknownTag "Prim1" n
 
 instance Tag Prim2 where
@@ -680,6 +700,9 @@ instance Tag Prim2 where
   tag2word IXOB = 73
   tag2word SDBV = 74
   tag2word REFW = 75
+  tag2word MATM = 76
+  tag2word MATY = 77
+  tag2word MMTM = 78
 
   word2tag 0 = pure ADDI
   word2tag 1 = pure ADDN
@@ -758,4 +781,7 @@ instance Tag Prim2 where
   word2tag 73 = pure IXOB
   word2tag 74 = pure SDBV
   word2tag 75 = pure REFW
+  word2tag 76 = pure MATM
+  word2tag 77 = pure MATY
+  word2tag 78 = pure MMTM
   word2tag n = unknownTag "Prim2" n

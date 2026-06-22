@@ -74,7 +74,9 @@ x = a.#abc
   * let
   * newline or semicolon
   * or
+  * quasiquote
   * quote
+  * splice
   * termLink
   * true
   * tuple

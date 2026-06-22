@@ -11,6 +11,7 @@ import Data.Monoid (Any (..))
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
+import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.Kind qualified as K
 import Unison.LabeledDependency qualified as LD
@@ -451,6 +452,45 @@ codeRef, valueRef :: TypeReference
 codeRef = Reference.Builtin "Code"
 valueRef = Reference.Builtin "Value"
 
+-- ⚠️ Hash literals pinned to the @meta/main@ project's @Term@,
+-- @TermF@, and @TypeF@ types. Update these in lockstep with
+-- 'Unison.Runtime.MetaSource' if those declarations change. See
+-- 'Unison.Runtime.MetaSource' for the warning header and rationale.
+metaTermRef, metaTermFRef, metaTypeFRef, metaReferenceRef, metaConstructorReferenceRef :: TypeReference
+metaTermRef =
+  Reference.Derived
+    ( unsafeMetaHash
+        "mk73ln9u11hd7uh2aqa6ep8ggn5h4kn71j23age6045cn05hak26jno6eb0e8oer8ap249pqsmortjhjm0e2ra3vukevq87b7eibcq8"
+    )
+    0
+metaTermFRef =
+  Reference.Derived
+    ( unsafeMetaHash
+        "93jvs66ff15gqavq1c3qaphgm3gl5bi60qarrodupiir52vkmvps5rqv03a6picmpdmvupvojn8q73lsl116patp4bmt7inticppaa8"
+    )
+    0
+metaTypeFRef =
+  Reference.Derived
+    ( unsafeMetaHash
+        "oicrvedbi8k56rmhs1ojbt8a6umrnch37q6ckvs614138mbgkgmookerabnlm1bh225gd3jo5bib067j5ticm9qv4g1c3grdmu43fo8"
+    )
+    0
+metaReferenceRef =
+  Reference.Derived
+    ( unsafeMetaHash
+        "gvpjsqnj5m6e2nm11gg8t9rk77m9marjn41etnlc7m3l9cm996tskui3n6jktovsflbblmeke0bjp0oulm0ch9bh2hgnto6akac30ug"
+    )
+    0
+metaConstructorReferenceRef =
+  Reference.Derived
+    ( unsafeMetaHash
+        "vm23ecflceu98bgshtqcsg1fp95j04ptv8lmv61b6hqbqdc5q5tad8bp36rhlq7ulqs9q6gsich87d56j3297dhic30l3iupjfaiju0"
+    )
+    0
+
+unsafeMetaHash :: Text -> Hash.Hash
+unsafeMetaHash = Hash.unsafeFromBase32HexText
+
 anyRef :: TypeReference
 anyRef = Reference.Builtin "Any"
 
@@ -561,6 +601,13 @@ effectType a = ref a $ effectRef
 code, value :: (Ord v) => a -> Type v a
 code a = ref a codeRef
 value a = ref a valueRef
+
+metaTerm, metaTermF, metaTypeF, metaReference, metaConstructorReference :: (Ord v) => a -> Type v a
+metaTerm a = ref a metaTermRef
+metaTermF a = ref a metaTermFRef
+metaTypeF a = ref a metaTypeFRef
+metaReference a = ref a metaReferenceRef
+metaConstructorReference a = ref a metaConstructorReferenceRef
 
 app :: (Ord v) => a -> Type v a -> Type v a -> Type v a
 app a f arg = ABT.tm' a (App f arg)
@@ -800,12 +847,29 @@ existentializeArrows newVar t = ABT.visit go t
         a <- existentializeArrows newVar a
         b <- existentializeArrows newVar b
         pure $ implicitArrow (ABT.annotation t) a b
+      -- A rank-N codomain (the right-hand side is itself a
+      -- 'Forall') is a user-written polymorphic type that should be
+      -- kept as-written; wrapping it in a fresh effect row breaks
+      -- unification at use sites (the inner skolems escape).
+      ForallNamed' _ _ -> Just $ do
+        a <- existentializeArrows newVar a
+        pure $ implicitArrow (ABT.annotation t) a b
       _ -> Just $ do
         e <- newVar
         a <- existentializeArrows newVar a
         b <- existentializeArrows newVar b
         let ann = ABT.annotation t
         pure $ implicitArrow ann a (effect ann [var ann e] b)
+    -- Do not descend into a nested 'Forall': its body is a rank-N
+    -- annotation written by the user, and inserting fresh ability
+    -- variables into its arrows would conflict with the inner
+    -- 'forall's at unification time (existentials pinned to the
+    -- inner skolems can't escape their scope). The caller
+    -- ('addAbilities') has already stripped the top-level 'Forall'
+    -- before invoking 'existentializeArrows', so any 'Forall' we
+    -- encounter here is genuinely rank-N and should be left
+    -- as-written.
+    go t@(ForallNamed' _ _) = Just (pure t)
     go _ = Nothing
 
 purifyArrows :: (Ord v) => Type v a -> Type v a

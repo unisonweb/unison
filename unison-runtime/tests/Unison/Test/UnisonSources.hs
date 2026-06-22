@@ -126,7 +126,7 @@ resultTest rt uf filepath = do
       values <- io $ unpack <$> readUtf8 valueFile
       let report = throwIO . userError . Text.unpack . Pretty.toPlain 0 <=< RTI.prettyError (pure . Pretty.shown)
       (bindings, _, watches) <-
-        io $ either report pure =<< evaluateWatches Builtin.codeLookup PPE.empty NoProf (const $ pure Nothing) rt uf
+        io $ either report pure =<< evaluateWatches Builtin.codeLookup Nothing PPE.empty NoProf (const $ pure Nothing) rt uf
       either
         (crash . Text.unpack . PrintError.renderParseErrorAsANSI 80 values)
         ( \tm -> do

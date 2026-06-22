@@ -150,6 +150,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
+import Unison.Runtime.MetaSource qualified as MetaSource
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Server.Doc.Markdown.Render qualified as Md
@@ -582,9 +583,21 @@ loop e = do
             Codebase.addDefsToCodebase env.codebase uf
             -- these have not necessarily been added yet
             Codebase.addDefsToCodebase env.codebase IOSource.typecheckedFile'
+            -- Bring the meta-program tree types (Term/TermF/TypeF/…) into
+            -- the codebase under their pinned hashes so user code can
+            -- reference them as the return types of Meta.decompile etc.
+            -- Names are prefixed with `meta.` so generic identifiers like
+            -- `Name`/`Reference`/`Pattern` don't clash with existing
+            -- builtins.
+            Codebase.addDefsToCodebase env.codebase MetaSource.typecheckedFile
           -- add the names; note, there are more names than definitions
           -- due to builtin terms; so we don't just reuse `uf` above.
-          let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
+          let names0 =
+                Builtin.names
+                  <> UF.typecheckedToNames IOSource.typecheckedFile'
+                  <> Names.prefix0
+                    (Name.fromSegment (NameSegment.unsafeParseText "meta"))
+                    (UF.typecheckedToNames MetaSource.typecheckedFile)
           let srcb = BranchUtil.fromNames names0
           currentPath <- Cli.getCurrentPath
           let destPath = case opath of

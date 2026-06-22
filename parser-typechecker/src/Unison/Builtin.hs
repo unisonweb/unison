@@ -418,6 +418,13 @@ builtinsSrc =
     -- context. Runtime behaviour is the identity function (defined in
     -- 'Unison.Runtime.Builtin').
     B "summon" $ forall1 "a" (\a -> a ==> a),
+    -- The @Meta.splice@ builtin. Type @forall a. a -> a@ — runtime
+    -- identity. Inserted by the parser to wrap every @${ ... }@
+    -- splice inside a @[| ... |]@ quote so that the printer can
+    -- round-trip the splice marker back to @${ ... }@ source form.
+    -- (At runtime the wrapping is invisible: it just returns its
+    -- argument unchanged.)
+    B "Meta.splice" $ forall1 "a" (\a -> a --> a),
     B "Int.+" $ int --> int --> int,
     B "Int.-" $ int --> int --> int,
     B "Int.*" $ int --> int --> int,
@@ -656,6 +663,73 @@ builtinsSrc =
     B "Debug.trace" $ forall1 "a" (\a -> text --> a --> unit),
     B "Debug.toText" $
       forall1 "a" (\a -> a --> optionalt (eithert text text)),
+    B "Meta.decompile" $
+      forall1 "a" (\a -> a --> io (Type.app () (Type.metaTerm ()) (Type.metaTermF ()))),
+    B "Meta.typecheck" $
+      Type.app () (Type.metaTerm ()) (Type.metaTermF ())
+        --> io
+          ( eithert
+              text
+              ( tuple
+                  [ Type.app () (Type.metaTerm ()) (Type.metaTypeF ()),
+                    termLink
+                  ]
+              )
+          ),
+    B "Meta.eval" $
+      forall1 "a" $
+        \a -> termLink --> io a,
+    B "Meta.load" $
+      termLink
+        --> io
+          (optionalt (Type.app () (Type.metaTerm ()) (Type.metaTermF ()))),
+    B "Meta.store" $
+      Type.app () (Type.metaTerm ()) (Type.metaTermF ())
+        --> io (eithert text termLink),
+    B "Meta.dataDeclShape" $
+      -- Reference -> Optional (List (ConstructorReference, [meta.Term meta.TypeF]))
+      Type.metaReference ()
+        --> io
+          ( optionalt
+              ( list
+                  ( tuple
+                      [ Type.metaConstructorReference (),
+                        list (Type.app () (Type.metaTerm ()) (Type.metaTypeF ()))
+                      ]
+                  )
+              )
+          ),
+    B "Meta.linkRef" $
+      -- Link.Term -> meta.Reference (the underlying type/term reference)
+      termLink --> Type.metaReference (),
+    B "Meta.aliasTerm" $
+      -- Link.Term -> Text -> {IO} ()
+      -- Schedule an @alias.term@ binding the existing reference under
+      -- the given path-style name in the current namespace. Runs once
+      -- per call when the enclosing IO action returns to the Cli.
+      termLink --> text --> io unit,
+    B "Meta.aliasType" $
+      -- Link.Type -> Text -> {IO} ()
+      typeLink --> text --> io unit,
+    B "Meta.deleteTerm" $
+      -- Text -> {IO} ()
+      -- Remove every term binding at the given name in the current
+      -- namespace (a la @delete.term@).
+      text --> io unit,
+    B "Meta.moveTerm" $
+      -- Text -> Text -> {IO} ()
+      -- Rename a term binding (a la @move.term@). The source must
+      -- name exactly one term.
+      text --> text --> io unit,
+    B "Meta.lookup" $
+      -- Text -> {IO} Optional Link.Term
+      text --> io (optionalt termLink),
+    B "Meta.dependents" $
+      -- Link.Term -> {IO} [Link.Term]
+      -- References of terms that directly depend on the given ref.
+      -- (For *dependencies* in the other direction, use the existing
+      -- builtin @Code.dependencies@ on the cached Code.)
+      termLink --> io (list termLink),
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),
@@ -1360,7 +1434,7 @@ udpSocket, udpListenSocket, udpClientSockAddr :: Type
 tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type
 fmode, bmode, smode, stdhandle :: Type
 int, nat, bytes, text, boolean, float, char, integer, natural :: Type
-anyt, code, value, termLink :: Type
+anyt, code, value, termLink, typeLink :: Type
 stm, tvar, pat :: Type -> Type
 -- Smaller sized types for FFI API
 nat8, nat16, nat32, int8, int16, int32, float32 :: Type
@@ -1495,6 +1569,8 @@ code = Type.code ()
 value = Type.value ()
 
 termLink = Type.termLink ()
+
+typeLink = Type.typeLink ()
 
 stm = Type.effect1 () (Type.ref () Type.stmRef)
 

@@ -146,6 +146,71 @@ module Unison.Runtime.TypeTags
     avroFixedTypeTag,
     avroRecordTypeTag,
     avroEnumTypeTag,
+    -- meta tree
+    metaNameNameTag,
+    metaHashHashTag,
+    metaReferenceBuiltinTag,
+    metaReferenceDerivedTag,
+    metaConstructorReferenceTag,
+    metaReferentRefRefTag,
+    metaReferentRefConTag,
+    metaLitNatTag,
+    metaLitIntTag,
+    metaLitTextTag,
+    metaLitCharTag,
+    metaLitFloatTag,
+    metaLitBooleanTag,
+    metaLitBytesTag,
+    metaSeqOpPConsTag,
+    metaSeqOpPSnocTag,
+    metaSeqOpPConcatTag,
+    metaPatternPUnboundTag,
+    metaPatternPVarTag,
+    metaPatternPBooleanTag,
+    metaPatternPIntTag,
+    metaPatternPNatTag,
+    metaPatternPFloatTag,
+    metaPatternPTextTag,
+    metaPatternPCharTag,
+    metaPatternPBytesTag,
+    metaPatternPConstructorTag,
+    metaPatternPAsTag,
+    metaPatternPEffectPureTag,
+    metaPatternPEffectBindTag,
+    metaPatternPSequenceLiteralTag,
+    metaPatternPSequenceOpTag,
+    metaKindKStarTag,
+    metaKindKArrowTag,
+    metaMatchCaseTag,
+    metaAbtVarTag,
+    metaAbtAbsTag,
+    metaAbtCycleTag,
+    metaAbtTmTag,
+    metaTermTermTag,
+    metaTermFAppTag,
+    metaTermFLamTag,
+    metaTermFLetTag,
+    metaTermFLetRecTag,
+    metaTermFIfTag,
+    metaTermFMatchTag,
+    metaTermFHandleTag,
+    metaTermFAnnTag,
+    metaTermFRefTag,
+    metaTermFConstructorTag,
+    metaTermFRequestTag,
+    metaTermFLitTag,
+    metaTermFListTag,
+    metaTermFTermLinkTag,
+    metaTermFTypeLinkTag,
+    metaTypeFArrowTag,
+    metaTypeFImplicitArrowTag,
+    metaTypeFAppTag,
+    metaTypeFEffectTag,
+    metaTypeFEffectsTag,
+    metaTypeFForallTag,
+    metaTypeFIntroOuterTag,
+    metaTypeFRefTag,
+    metaTypeFAnnTag,
   )
 where
 
@@ -157,6 +222,7 @@ import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude
 import Unison.Runtime.Builtin.Types (builtinTypeNumbering)
 import Unison.Runtime.InternalError (internalBug)
+import Unison.Runtime.MetaSource qualified as Meta
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Prelude hiding (abs, and, or, seq)
@@ -596,3 +662,275 @@ mkTags msg r cs
     tt <- toEnum $ fromIntegral n =
       packTags tt . toEnum . fromIntegral <$> cs
   | otherwise = internalBug [] $ "missing tag: " ++ msg
+
+-- =============================================================
+-- Meta-tree type tags
+--
+-- Packed-tag handles for every constructor we construct from the
+-- runtime when implementing the @decompile@ builtin and friends.
+-- Looked up by name via 'MetaSource.constructorNamed' so they're
+-- immune to canonical-order reshuffling of constructors.
+-- =============================================================
+
+metaNameNameTag :: PackedTag
+metaNameNameTag
+  | [t] <- mkTags "meta Name tags" Meta.nameRef [Meta.nameNameId] = t
+  | otherwise = internalBug [] "missing meta Name.Name tag"
+
+metaHashHashTag :: PackedTag
+metaHashHashTag
+  | [t] <- mkTags "meta Hash tags" Meta.hashRef [Meta.hashHashId] = t
+  | otherwise = internalBug [] "missing meta Hash.Hash tag"
+
+metaReferenceBuiltinTag, metaReferenceDerivedTag :: PackedTag
+(metaReferenceBuiltinTag, metaReferenceDerivedTag)
+  | [a, b] <-
+      mkTags
+        "meta Reference tags"
+        Meta.referenceRef
+        [Meta.referenceBuiltinId, Meta.referenceDerivedId] =
+      (a, b)
+  | otherwise = internalBug [] "missing meta Reference tags"
+
+metaConstructorReferenceTag :: PackedTag
+metaConstructorReferenceTag
+  | [t] <-
+      mkTags
+        "meta ConstructorReference tags"
+        Meta.constructorReferenceRef
+        [Meta.constructorReferenceCtorId] =
+      t
+  | otherwise = internalBug [] "missing meta ConstructorReference tag"
+
+metaReferentRefRefTag, metaReferentRefConTag :: PackedTag
+(metaReferentRefRefTag, metaReferentRefConTag)
+  | [a, b] <-
+      mkTags
+        "meta Referent tags"
+        Meta.referentRef
+        [Meta.referentRefRefId, Meta.referentRefConId] =
+      (a, b)
+  | otherwise = internalBug [] "missing meta Referent tags"
+
+metaLitNatTag,
+  metaLitIntTag,
+  metaLitTextTag,
+  metaLitCharTag,
+  metaLitFloatTag,
+  metaLitBooleanTag,
+  metaLitBytesTag ::
+    PackedTag
+( metaLitNatTag,
+  metaLitIntTag,
+  metaLitTextTag,
+  metaLitCharTag,
+  metaLitFloatTag,
+  metaLitBooleanTag,
+  metaLitBytesTag
+  )
+    | [a, b, c, d, e, f, g] <-
+        mkTags
+          "meta Literal tags"
+          Meta.literalRef
+          [ Meta.litNatId,
+            Meta.litIntId,
+            Meta.litTextId,
+            Meta.litCharId,
+            Meta.litFloatId,
+            Meta.litBooleanId,
+            Meta.litBytesId
+          ] =
+        (a, b, c, d, e, f, g)
+    | otherwise = internalBug [] "missing meta Literal tags"
+
+metaSeqOpPConsTag, metaSeqOpPSnocTag, metaSeqOpPConcatTag :: PackedTag
+(metaSeqOpPConsTag, metaSeqOpPSnocTag, metaSeqOpPConcatTag)
+  | [a, b, c] <-
+      mkTags
+        "meta SeqOp tags"
+        Meta.seqOpRef
+        [Meta.seqOpPConsId, Meta.seqOpPSnocId, Meta.seqOpPConcatId] =
+      (a, b, c)
+  | otherwise = internalBug [] "missing meta SeqOp tags"
+
+metaPatternPUnboundTag,
+  metaPatternPVarTag,
+  metaPatternPBooleanTag,
+  metaPatternPIntTag,
+  metaPatternPNatTag,
+  metaPatternPFloatTag,
+  metaPatternPTextTag,
+  metaPatternPCharTag,
+  metaPatternPBytesTag,
+  metaPatternPConstructorTag,
+  metaPatternPAsTag,
+  metaPatternPEffectPureTag,
+  metaPatternPEffectBindTag,
+  metaPatternPSequenceLiteralTag,
+  metaPatternPSequenceOpTag ::
+    PackedTag
+( metaPatternPUnboundTag,
+  metaPatternPVarTag,
+  metaPatternPBooleanTag,
+  metaPatternPIntTag,
+  metaPatternPNatTag,
+  metaPatternPFloatTag,
+  metaPatternPTextTag,
+  metaPatternPCharTag,
+  metaPatternPBytesTag,
+  metaPatternPConstructorTag,
+  metaPatternPAsTag,
+  metaPatternPEffectPureTag,
+  metaPatternPEffectBindTag,
+  metaPatternPSequenceLiteralTag,
+  metaPatternPSequenceOpTag
+  )
+    | [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o] <-
+        mkTags
+          "meta Pattern tags"
+          Meta.patternRef
+          [ Meta.patternPUnboundId,
+            Meta.patternPVarId,
+            Meta.patternPBooleanId,
+            Meta.patternPIntId,
+            Meta.patternPNatId,
+            Meta.patternPFloatId,
+            Meta.patternPTextId,
+            Meta.patternPCharId,
+            Meta.patternPBytesId,
+            Meta.patternPConstructorId,
+            Meta.patternPAsId,
+            Meta.patternPEffectPureId,
+            Meta.patternPEffectBindId,
+            Meta.patternPSequenceLiteralId,
+            Meta.patternPSequenceOpId
+          ] =
+        (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
+    | otherwise = internalBug [] "missing meta Pattern tags"
+
+metaKindKStarTag, metaKindKArrowTag :: PackedTag
+(metaKindKStarTag, metaKindKArrowTag)
+  | [a, b] <-
+      mkTags
+        "meta Kind tags"
+        Meta.kindRef
+        [Meta.kindKStarId, Meta.kindKArrowId] =
+      (a, b)
+  | otherwise = internalBug [] "missing meta Kind tags"
+
+metaMatchCaseTag :: PackedTag
+metaMatchCaseTag
+  | [t] <-
+      mkTags
+        "meta MatchCase tags"
+        Meta.matchCaseRef
+        [Meta.matchCaseCtorId] =
+      t
+  | otherwise = internalBug [] "missing meta MatchCase tag"
+
+metaAbtVarTag, metaAbtAbsTag, metaAbtCycleTag, metaAbtTmTag :: PackedTag
+(metaAbtVarTag, metaAbtAbsTag, metaAbtCycleTag, metaAbtTmTag)
+  | [a, b, c, d] <-
+      mkTags
+        "meta ABT tags"
+        Meta.abtRef
+        [Meta.abtVarId, Meta.abtAbsId, Meta.abtCycleId, Meta.abtTmId] =
+      (a, b, c, d)
+  | otherwise = internalBug [] "missing meta ABT tags"
+
+metaTermTermTag :: PackedTag
+metaTermTermTag
+  | [t] <- mkTags "meta Term tags" Meta.termRef [Meta.termTermId] = t
+  | otherwise = internalBug [] "missing meta Term.Term tag"
+
+metaTermFAppTag,
+  metaTermFLamTag,
+  metaTermFLetTag,
+  metaTermFLetRecTag,
+  metaTermFIfTag,
+  metaTermFMatchTag,
+  metaTermFHandleTag,
+  metaTermFAnnTag,
+  metaTermFRefTag,
+  metaTermFConstructorTag,
+  metaTermFRequestTag,
+  metaTermFLitTag,
+  metaTermFListTag,
+  metaTermFTermLinkTag,
+  metaTermFTypeLinkTag ::
+    PackedTag
+( metaTermFAppTag,
+  metaTermFLamTag,
+  metaTermFLetTag,
+  metaTermFLetRecTag,
+  metaTermFIfTag,
+  metaTermFMatchTag,
+  metaTermFHandleTag,
+  metaTermFAnnTag,
+  metaTermFRefTag,
+  metaTermFConstructorTag,
+  metaTermFRequestTag,
+  metaTermFLitTag,
+  metaTermFListTag,
+  metaTermFTermLinkTag,
+  metaTermFTypeLinkTag
+  )
+    | [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o] <-
+        mkTags
+          "meta TermF tags"
+          Meta.termFRef
+          [ Meta.termFAppId,
+            Meta.termFLamId,
+            Meta.termFLetId,
+            Meta.termFLetRecId,
+            Meta.termFIfId,
+            Meta.termFMatchId,
+            Meta.termFHandleId,
+            Meta.termFAnnId,
+            Meta.termFRefId,
+            Meta.termFConstructorId,
+            Meta.termFRequestId,
+            Meta.termFLitId,
+            Meta.termFListId,
+            Meta.termFTermLinkId,
+            Meta.termFTypeLinkId
+          ] =
+        (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
+    | otherwise = internalBug [] "missing meta TermF tags"
+
+metaTypeFArrowTag,
+  metaTypeFImplicitArrowTag,
+  metaTypeFAppTag,
+  metaTypeFEffectTag,
+  metaTypeFEffectsTag,
+  metaTypeFForallTag,
+  metaTypeFIntroOuterTag,
+  metaTypeFRefTag,
+  metaTypeFAnnTag ::
+    PackedTag
+( metaTypeFArrowTag,
+  metaTypeFImplicitArrowTag,
+  metaTypeFAppTag,
+  metaTypeFEffectTag,
+  metaTypeFEffectsTag,
+  metaTypeFForallTag,
+  metaTypeFIntroOuterTag,
+  metaTypeFRefTag,
+  metaTypeFAnnTag
+  )
+    | [a, b, c, d, e, f, g, h, i] <-
+        mkTags
+          "meta TypeF tags"
+          Meta.typeFRef
+          [ Meta.typeFArrowId,
+            Meta.typeFImplicitArrowId,
+            Meta.typeFAppId,
+            Meta.typeFEffectId,
+            Meta.typeFEffectsId,
+            Meta.typeFForallId,
+            Meta.typeFIntroOuterId,
+            Meta.typeFRefId,
+            Meta.typeFAnnId
+          ] =
+        (a, b, c, d, e, f, g, h, i)
+    | otherwise = internalBug [] "missing meta TypeF tags"

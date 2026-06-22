@@ -9,6 +9,7 @@ where
 import Control.Lens ((.=))
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict qualified as State
+import Data.IORef (modifyIORef, newIORef, readIORef)
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -498,7 +499,42 @@ evalUnisonFile mode ppe unisonFile args = do
 
   Cli.with_ (withArgs args) do
     let codeLookup = Codebase.codebaseToCodeLookup env.codebase
-    liftIO (Runtime.evaluateWatches codeLookup ppe prof watchCache theRuntime unisonFile) >>= \case
+        metaPut :: Runtime.MetaPutTerm Symbol
+        metaPut rid tmU tyU =
+          Codebase.runTransaction env.codebase $
+            Codebase.putTerm
+              env.codebase
+              rid
+              (Term.amap (const Ann.External) tmU)
+              (Ann.External <$ tyU)
+    -- Mutating Meta.* builtins queue actions into this IORef during
+    -- evaluation; the queue is drained and applied via Cli.stepAt
+    -- after evaluation completes.
+    pendingActions <- liftIO $ newIORef ([] :: [Runtime.MetaAction])
+    -- Snapshot of the current namespace's terms; the @Meta.lookup@
+    -- callback queries this. Aliases added during the same eval are
+    -- not visible.
+    pp <- Cli.getCurrentProjectPath
+    branch0 <- Cli.getBranch0FromProjectPath pp
+    let metaCb :: Runtime.MetaCallbacks Symbol
+        metaCb =
+          Runtime.MetaCallbacks
+            { Runtime.metaPutTerm = metaPut,
+              Runtime.metaAliasTerm = \ref name ->
+                modifyIORef pendingActions (Runtime.MAliasTerm ref name :),
+              Runtime.metaAliasType = \ref name ->
+                modifyIORef pendingActions (Runtime.MAliasType ref name :),
+              Runtime.metaDeleteTerm = \name ->
+                modifyIORef pendingActions (Runtime.MDeleteTerm name :),
+              Runtime.metaMoveTerm = \old new ->
+                modifyIORef pendingActions (Runtime.MMoveTerm old new :),
+              Runtime.metaLookupTerm = RuntimeUtils.lookupTermInBranch branch0,
+              Runtime.metaDependents = RuntimeUtils.dependentsOfRef env.codebase
+            }
+    result <- liftIO (Runtime.evaluateWatches codeLookup (Just metaCb) ppe prof watchCache theRuntime unisonFile)
+    queued <- liftIO $ readIORef pendingActions
+    for_ (reverse queued) RuntimeUtils.applyMetaAction
+    case result of
       Right (nts, resp, map) -> do
         cache <- case resp of
           Runtime.DecompErrs errs

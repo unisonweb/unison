@@ -376,6 +376,109 @@ exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
   stk <- bump stk
   pokeBi stk =<< reflectValue env c
   pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MDCM i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  -- Dispatch to the metaDecompile function installed on the
+  -- 'CCache'. At evaluation time, 'Unison.Runtime.Interface'
+  -- overrides this with an EvalCtx-aware version that re-reads
+  -- combRefs + decompTm on each call (so closures freshly compiled
+  -- by the watched expression itself also expand correctly);
+  -- 'baseCCache' supplies a stub that errors if no installer ran.
+  poke stk =<< metaDecompile env v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MTYC i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  -- Dispatch to the metaTypecheck function installed on the CCache.
+  -- At evaluation time, 'Unison.Runtime.Interface' overrides this
+  -- with an EvalCtx-aware version that compiles the typechecked
+  -- term into runnable Code via prepareEvaluation; baseCCache
+  -- supplies a stub that errors if no installer ran.
+  poke stk =<< metaTypecheck env v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MLOD i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  -- Dispatch to the metaLoad function installed on the CCache.
+  -- 'Unison.Runtime.Interface' installs an implementation that
+  -- looks up the referenced term in the runtime's CodeLookup and
+  -- packages the source-level Term as a meta.Term meta.TermF Val
+  -- via 'MetaDecompile.convertTerm'.
+  poke stk =<< metaLoad env v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MSTR i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  -- Dispatch to the metaStore function installed on the CCache.
+  -- 'Unison.Runtime.Interface' installs an implementation that
+  -- decodes the meta.Term, typechecks it, hashes it, and persists
+  -- it via the MetaPutTerm callback the caller wired up; baseCCache
+  -- supplies a stub that errors.
+  poke stk =<< metaStore env v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MDDS i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  -- Dispatch to metaDataDeclShape installed on the CCache.
+  poke stk =<< metaDataDeclShape env v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MLNR i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  poke stk =<< metaLinkRef env v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MDTM i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  poke stk =<< metaDeleteTerm env v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MLKP i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  poke stk =<< metaLookup env v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 MDPS i) = do
+  v <- peekOff stk i
+  stk <- bump stk
+  poke stk =<< metaDependents env v
+  pure (False, henv, stk, k)
+exec env henv !activeThreads !stk !k _ (Prim1 MEVL i) = do
+  -- Input is a Link.Term. Branch on the cached combinator's shape:
+  --   * CachedVal: a pre-evaluated pure constant — push the stored
+  --     Val directly.
+  --   * Comb with arity 0: a unit-thunk wrapper (the common case
+  --     for bare-constant terms after lambda-lift) — invoke it via
+  --     apply0 + hook so we capture the unwrapped value.
+  --   * Comb with arity ≥ 1: a function/lambda — push the PAp
+  --     closure with no args so callers can apply it themselves.
+  --     We deliberately don't invoke (apply0 with True ck reads
+  --     garbage off the stack for under-saturated calls).
+  referent <- peekOffBi @Referent stk i
+  case referent of
+    Ref' ref -> do
+      rtm <- readTVarIO (refTm env)
+      case M.lookup ref rtm of
+        Just w -> do
+          cmbs <- readTVarIO (combs env)
+          let entryCix = CIx ref w 0
+          stk <- bump stk
+          case unRComb $ rCombSection cmbs entryCix of
+            CachedVal _ val ->
+              poke stk val
+            Comb (LamI 0 _ _) -> do
+              -- 0-arity: invoke and capture the body's result.
+              captured <- newIORef (boxedVal BlackHole)
+              let hook xstk = peek (packXStack xstk) >>= writeIORef captured
+              apply0 (Just hook) env activeThreads w
+              result <- readIORef captured
+              poke stk result
+            Comb entryComb ->
+              -- ≥1 arity: hand back the lambda closure intact.
+              poke stk (BoxedVal $ PAp entryCix entryComb nullSeg)
+          pure (False, henv, stk, k)
+        Nothing -> die [] ("Meta.eval: reference not registered in cache: " <> show ref)
+    Con' {} -> die [] "Meta.eval: expected Ref referent, got constructor"
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
   pure (False, henv, stk, k)
@@ -405,6 +508,25 @@ exec env henv !_activeThreads !stk !k _ (Prim2 TRCE i j)
           putStrLn "partial decompilation:\n"
           putStrLn pre
       pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim2 MATM i j) = do
+  v1 <- peekOff stk i
+  v2 <- peekOff stk j
+  stk <- bump stk
+  -- Dispatch to metaAliasTerm installed on the CCache.
+  poke stk =<< metaAliasTerm env v1 v2
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim2 MATY i j) = do
+  v1 <- peekOff stk i
+  v2 <- peekOff stk j
+  stk <- bump stk
+  poke stk =<< metaAliasType env v1 v2
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim2 MMTM i j) = do
+  v1 <- peekOff stk i
+  v2 <- peekOff stk j
+  stk <- bump stk
+  poke stk =<< metaMoveTerm env v1 v2
+  pure (False, henv, stk, k)
 exec env henv !_trackThreads !stk !k _ (Prim2 op i j) = do
   stk <- primxx env stk op i j
   pure (False, henv, stk, k)

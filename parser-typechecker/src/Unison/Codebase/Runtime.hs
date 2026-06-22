@@ -44,6 +44,43 @@ instance Monoid (Response e) where
 
 type Term v = Term.Term v ()
 
+-- | Side-channel write-back used by @Meta.store@: hand the runtime a
+-- callback that can persist a typechecked @(Reference.Id, Term, Type)@
+-- triple to the current codebase. The callback is responsible for the
+-- SQLite transaction; the runtime computes the hash and types.
+type MetaPutTerm v = Reference.Id -> Term.Term v () -> Type v () -> IO ()
+
+-- | A mutating UCM-style action that the runtime queues during
+-- evaluation. The driving 'Cli' context drains the queue after
+-- evaluation completes and applies each action via the standard
+-- branch-mutation machinery (so SQLite + LSP + check-and-set all
+-- work the same as if the user had typed the command).
+data MetaAction
+  = MAliasTerm Reference Text
+  | MAliasType Reference Text
+  | MDeleteTerm Text
+  | MMoveTerm Text Text
+  deriving stock (Eq, Show)
+
+-- | Side-channel callbacks the runtime invokes for @Meta.*@ builtins
+-- that need access to the surrounding codebase / branch state.
+-- Mutating callbacks queue a 'MetaAction' (applied after eval in
+-- proper 'Cli' context); read-only callbacks run directly against
+-- the codebase via @Codebase.runTransaction@.
+data MetaCallbacks v = MetaCallbacks
+  { metaPutTerm :: MetaPutTerm v,
+    metaAliasTerm :: Reference -> Text -> IO (),
+    metaAliasType :: Reference -> Text -> IO (),
+    metaDeleteTerm :: Text -> IO (),
+    metaMoveTerm :: Text -> Text -> IO (),
+    -- | Resolve a path-style name in the current namespace to a
+    -- single term reference, or 'Nothing' if absent or ambiguous.
+    metaLookupTerm :: Text -> IO (Maybe Reference),
+    -- | The references of the terms that directly depend on the
+    -- given reference (i.e. would change hash if it changed).
+    metaDependents :: Reference -> IO [Reference]
+  }
+
 data CompileOpts = COpts
   { profile :: Bool
   }
@@ -55,6 +92,7 @@ data Runtime e e' v = Runtime
   { terminate :: IO (),
     evaluate ::
       CL.CodeLookup v IO () ->
+      Maybe (MetaCallbacks v) ->
       PPE.PrettyPrintEnv ->
       ProfileSpec ->
       Term v ->
@@ -97,13 +135,14 @@ evaluateWatches ::
   forall e e' v a.
   (Var v) =>
   CL.CodeLookup v IO a ->
+  Maybe (MetaCallbacks v) ->
   PPE.PrettyPrintEnv ->
   ProfileSpec ->
   (Reference.Id -> IO (Maybe (Term v))) ->
   Runtime e e' v ->
   TypecheckedUnisonFile v a ->
   IO (WatchResults e e' v a)
-evaluateWatches code ppe prof evaluationCache rt tuf = do
+evaluateWatches code metaPut ppe prof evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference.Id, Term.Term v a)
       m = fmap (\(_a, id, _wk, tm, _tp) -> (id, tm)) (UF.hashTermsId tuf)
@@ -129,7 +168,7 @@ evaluateWatches code ppe prof evaluationCache rt tuf = do
       cl = void (CL.fromTypecheckedUnisonFile tuf) <> void code
   -- 4. evaluate it and get all the results out of the tuple, then
   -- create the result Map
-  out <- evaluate rt cl ppe prof bigOl'LetRec
+  out <- evaluate rt cl metaPut ppe prof bigOl'LetRec
   case out of
     Right (errs, out) -> do
       let (bindings, results) = case out of
@@ -164,13 +203,14 @@ evaluateWatches code ppe prof evaluationCache rt tuf = do
 evaluateTerm' ::
   (Var v, Monoid a) =>
   CL.CodeLookup v IO a ->
+  Maybe (MetaCallbacks v) ->
   (Reference.Id -> IO (Maybe (Term v))) ->
   PPE.PrettyPrintEnv ->
   ProfileSpec ->
   Runtime e e' v ->
   Term.Term v a ->
   IO (Either e (Response e', Term v))
-evaluateTerm' codeLookup cache ppe prof rt tm = do
+evaluateTerm' codeLookup metaPut cache ppe prof rt tm = do
   result <- cache (Hashing.hashClosedTerm tm)
   case result of
     Just r -> pure (Right (EmptyResponse, r))
@@ -183,7 +223,7 @@ evaluateTerm' codeLookup cache ppe prof rt tm = do
               [(WK.RegularWatch, [(Var.nameds "result", mempty, tm, mempty <$> mainType rt)])]
               mempty
               mempty
-      r <- evaluateWatches (void codeLookup) ppe prof cache rt (void tuf)
+      r <- evaluateWatches (void codeLookup) metaPut ppe prof cache rt (void tuf)
       pure $
         r <&> \(_, errs, map) ->
           case Map.elems map of
@@ -198,4 +238,4 @@ evaluateTerm ::
   Runtime e e' v ->
   Term.Term v a ->
   IO (Either e (Response e', Term v))
-evaluateTerm codeLookup = evaluateTerm' codeLookup noCache
+evaluateTerm codeLookup = evaluateTerm' codeLookup Nothing noCache

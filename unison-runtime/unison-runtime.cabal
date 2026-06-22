@@ -70,6 +70,9 @@ library
       Unison.Runtime.Machine.Types
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
+      Unison.Runtime.MetaCompile
+      Unison.Runtime.MetaDecompile
+      Unison.Runtime.MetaSource
       Unison.Runtime.Pattern
       Unison.Runtime.Profiling
       Unison.Runtime.Referenced
@@ -201,6 +204,7 @@ test-suite runtime-tests
       Unison.Test.Runtime.Crypto.Rsa
       Unison.Test.Runtime.MCode
       Unison.Test.Runtime.MCode.Serialization
+      Unison.Test.Runtime.MetaSource
       Unison.Test.Runtime.Process
       Unison.Test.UnisonSources
       Paths_unison_runtime

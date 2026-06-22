@@ -46,6 +46,7 @@ import Data.Foldable
 import Data.IORef
 import Data.List qualified as L
 import Data.Map.Strict qualified as Map
+import Data.Sequence qualified as USeq
 import Data.Set as Set (filter, fromList, map, notMember, singleton, (\\))
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
@@ -56,11 +57,17 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
-import Unison.Codebase.Runtime (CompileOpts (..), Response (..))
+import Unison.Codebase.Runtime
+  ( CompileOpts (..),
+    Response (..),
+  )
+import Unison.Codebase.Runtime qualified as CR
 import Unison.Codebase.Runtime.Profile (Profile (..), ProfileSpec (..), foldedProfile, fullProfile, miniProfile)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
+import Unison.DataDeclaration qualified as DD
+import Unison.Hash qualified as UHash
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as RF
 import Unison.Parser.Ann (Ann (External))
@@ -114,6 +121,9 @@ import Unison.Runtime.Machine
     refNumsTy,
     resolveSection,
   )
+import Unison.Runtime.MetaCompile qualified as MetaC
+import Unison.Runtime.MetaDecompile qualified as MetaDecomp
+import Unison.Runtime.MetaSource qualified as Meta
 import Unison.Runtime.Pattern
 import Unison.Runtime.Profiling
 import Unison.Runtime.Serialize as SER
@@ -126,10 +136,13 @@ import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Type
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Util.Bytes qualified as UBytes
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty as P
 import Unison.Util.Recursion qualified as Rec
+import Unison.Util.Text qualified as Util.Text
 import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
 
@@ -322,6 +335,61 @@ collectRefDeps cl r = do
   (tyrs, tmrs) <- collectDeps cl tm
   pure (tyrs, r : tmrs)
 
+-- | Walk the transitive type/decl dependencies of a meta-decoded
+-- 'Term' using a 'CodeLookup' and produce a 'TypeLookup' that
+-- 'Meta.typecheck' can hand to 'MetaC.typecheckTerm'. Mirrors
+-- 'Unison.Codebase.typeLookupForDependencies' but reads from the
+-- runtime's 'CodeLookup' instead of an SQLite-bound 'Codebase'.
+--
+-- The walk starts from the labeled dependencies of @tm@, then
+-- transitively pulls in: (a) the type of every term reference
+-- encountered, (b) the decl of every type/constructor reference
+-- encountered, and (c) the type-dependencies of each retrieved
+-- type and decl. Builtins are skipped — 'MetaC.typecheckTerm'
+-- merges 'Builtin.typeLookup' in separately.
+typeLookupForMetaTerm ::
+  CodeLookup Symbol IO () ->
+  Term Symbol ->
+  IO (TL.TypeLookup Symbol ())
+typeLookupForMetaTerm cl tm =
+  let (initTys, initTms) = foldMap categorize (toList (Tm.labeledDependencies tm))
+   in depthFirstAccum initTms initTys mempty
+  where
+    depthFirstAccum ::
+      Set Reference ->
+      Set Reference ->
+      TL.TypeLookup Symbol () ->
+      IO (TL.TypeLookup Symbol ())
+    depthFirstAccum tmRefs tyRefs tl0 = do
+      tl1 <- foldM goType tl0 (Set.filter (unseenType tl0) tyRefs)
+      foldM goTerm tl1 (Set.filter (unseenTerm tl1) tmRefs)
+
+    goTerm tl ref = case ref of
+      RF.Builtin _ -> pure tl
+      RF.DerivedId i ->
+        getTypeOfTerm cl i >>= \case
+          Nothing -> pure tl
+          Just typ ->
+            let z = tl <> TL.TypeLookup (Map.singleton ref typ) mempty mempty
+             in depthFirstAccum mempty (Type.dependencies typ) z
+
+    goType tl ref = case ref of
+      RF.Builtin _ -> pure tl
+      RF.DerivedId i ->
+        getTypeDeclaration cl i >>= \case
+          Nothing -> pure tl
+          Just (Left ed) ->
+            let z = tl <> TL.TypeLookup mempty mempty (Map.singleton ref ed)
+             in depthFirstAccum mempty (DD.typeDependencies (DD.toDataDecl ed)) z
+          Just (Right dd) ->
+            let z = tl <> TL.TypeLookup mempty (Map.singleton ref dd) mempty
+             in depthFirstAccum mempty (DD.typeDependencies dd) z
+
+    unseenTerm tl r = isNothing (Map.lookup r (TL.typeOfTerms tl))
+    unseenType tl r =
+      isNothing (Map.lookup r (TL.dataDecls tl))
+        && isNothing (Map.lookup r (TL.effectDecls tl))
+
 backrefAdd ::
   Map.Map Reference (Map.Map Word64 (Term Symbol)) ->
   EvalCtx ->
@@ -511,10 +579,11 @@ interpEvalDirect ::
   IORef EvalCtx ->
   Maybe ProfileComm ->
   CodeLookup Symbol IO () ->
+  Maybe (CR.MetaCallbacks Symbol) ->
   PrettyPrintEnv ->
   Term Symbol ->
   IO (Either Error (Response DecompError, Term Symbol))
-interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
+interpEvalDirect activeThreads cleanupThreads ctxVar prof cl metaPut ppe tm =
   catchErrors $ do
     ctx <- readIORef ctxVar
     (tyrs, tmrs) <- collectDeps cl tm
@@ -522,7 +591,7 @@ interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
     (ctx, _, init) <- prepareEvaluation ppe tm ctx
     initw <- refNumTm (ccache ctx) init
     writeIORef ctxVar ctx
-    evalInContext ppe ctx prof activeThreads initw
+    evalInContext ppe cl metaPut ctx prof activeThreads initw
       `UnliftIO.finally` cleanupThreads
 
 profileEval ::
@@ -530,14 +599,15 @@ profileEval ::
   IO () ->
   IORef EvalCtx ->
   CodeLookup Symbol IO () ->
+  Maybe (CR.MetaCallbacks Symbol) ->
   PrettyPrintEnv ->
   Maybe String ->
   Term Symbol ->
   IO (Either Error (Response DecompError, Term Symbol))
-profileEval actThr cleanThr ctxVar cl ppe mout tm = do
+profileEval actThr cleanThr ctxVar cl metaPut ppe mout tm = do
   prof <- spawnProfiler
   result <-
-    interpEvalDirect actThr cleanThr ctxVar (Just prof) cl ppe tm
+    interpEvalDirect actThr cleanThr ctxVar (Just prof) cl metaPut ppe tm
   case result of
     Left err -> pure $ Left err
     Right (errs, tmr) -> case prof of
@@ -575,15 +645,16 @@ interpEval ::
   IO () ->
   IORef EvalCtx ->
   CodeLookup Symbol IO () ->
+  Maybe (CR.MetaCallbacks Symbol) ->
   PrettyPrintEnv ->
   ProfileSpec ->
   Term Symbol ->
   IO (Either Error (Response DecompError, Term Symbol))
-interpEval actThr cleanThr ctxVar cl ppe = \case
+interpEval actThr cleanThr ctxVar cl metaPut ppe = \case
   NoProf ->
-    interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
-  MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
-  FullProf file -> profileEval actThr cleanThr ctxVar cl ppe $ Just file
+    interpEvalDirect actThr cleanThr ctxVar Nothing cl metaPut ppe
+  MiniProf -> profileEval actThr cleanThr ctxVar cl metaPut ppe Nothing
+  FullProf file -> profileEval actThr cleanThr ctxVar cl metaPut ppe $ Just file
 
 -- Slightly inefficient method of encoding text. Matches the old way of
 -- encoding e.g. the compiled version below. Compiled code is not
@@ -795,12 +866,14 @@ backReference frs irs r = do
 
 evalInContext ::
   PrettyPrintEnv ->
+  CodeLookup Symbol IO () ->
+  Maybe (CR.MetaCallbacks Symbol) ->
   EvalCtx ->
   Maybe ProfileComm ->
   ActiveThreads ->
   Word64 ->
   IO (Either Error (Response DecompError, Term Symbol))
-evalInContext ppe ctx prof activeThreads w = do
+evalInContext ppe cl metaPut ctx prof activeThreads w = do
   r <- newIORef (boxedVal BlackHole)
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
@@ -825,14 +898,354 @@ evalInContext ppe ctx prof activeThreads w = do
                 (show val)
                 (debugTextFormat fancy $ pretty ppe dv)
 
+      -- Use the same EvalCtx-aware decompile machinery as the
+      -- display path (debugText / exception reporting / Debug.toText)
+      -- and then re-shape the result into a runtime closure of
+      -- meta.Term meta.TermF for our user code to pattern-match on.
+      metaDecom :: Val -> IO Val
+      metaDecom val =
+        pure . MetaDecomp.convertTerm . snd $ decom val
+      -- Decode meta.Term meta.TermF → source-level Term, build a
+      -- TypeLookup covering every codebase dependency the term
+      -- references (via 'typeLookupForMetaTerm' over the live
+      -- 'CodeLookup'), run the typechecker against that, then
+      -- compile the typechecked Term into Code and return
+      -- Either Text (Term TypeF, Code) as a runtime closure. The
+      -- Code is constructed via the existing prepareEvaluation
+      -- pipeline (which floats lambdas, performs ANF normalization,
+      -- and registers the resulting combinators in the runtime
+      -- cache so the returned Code is immediately evaluable).
+      metaTC :: Val -> IO Val
+      metaTC val = case MetaC.compileTerm val of
+        Left err -> pure (metaLeftText err)
+        Right tm -> do
+          extraTL <- typeLookupForMetaTerm cl tm
+          case MetaC.typecheckTerm extraTL tm of
+            Left err -> pure (metaLeftText err)
+            Right ty -> do
+              -- Load transitive code dependencies into the runtime
+              -- cache so prepareEvaluation has everything it needs to
+              -- compile the term. Otherwise a meta term that
+              -- references a user-defined function not yet brought
+              -- into the runtime trips a "cache is missing" panic.
+              (tyrs, tmrs) <- collectDeps cl tm
+              (ctxLoaded, _) <- loadDeps cl ppe ctx tyrs tmrs
+              (_ctx', _rcode, mainRef) <-
+                prepareEvaluation ppe tm ctxLoaded
+              let linkVal =
+                    BoxedVal (Foreign (WrapReferent (RF.Ref mainRef)))
+              pure (metaRightPair (MetaDecomp.typeTermVal ty) linkVal)
+      -- Decode a Link.Term Val into a Referent, look up the term's
+      -- source via the runtime's CodeLookup, and return
+      -- Optional (meta.Term meta.TermF). Builtin references and
+      -- constructor referents return None — neither has a source
+      -- term to hand back.
+      metaLoadF :: Val -> IO Val
+      metaLoadF = \case
+        BoxedVal (Foreign (WrapReferent (RF.Ref r))) ->
+          -- The Referent embedded in a Link.Term at runtime may be an
+          -- intermediate (rehashed) reference produced by
+          -- prepareEvaluation. Backmap through the EvalCtx's float +
+          -- intermediate remaps to recover the codebase Reference.Id
+          -- before consulting the CodeLookup.
+          case backmapRef ctx r of
+            RF.DerivedId i ->
+              getTerm cl i >>= \case
+                Nothing -> pure metaNone
+                Just tm -> pure (metaSome (MetaDecomp.convertTerm tm))
+            RF.Builtin _ -> pure metaNone
+        _ -> pure metaNone
+      -- Decode a meta.Term meta.TermF Val, typecheck it against the
+      -- codebase via 'typeLookupForMetaTerm', hash the source term,
+      -- and persist (Reference.Id, Term, Type) through the
+      -- 'MetaPutTerm' callback wired up by the caller. Return
+      -- Either Text Link.Term: Left if decode or typecheck fail or
+      -- no codebase callback is installed (e.g. headless runtime),
+      -- Right with the new hash's Link.Term on success.
+      metaStoreF :: Val -> IO Val
+      metaStoreF val = case CR.metaPutTerm <$> metaPut of
+        Nothing ->
+          pure (metaLeftText "Meta.store: no codebase write callback available")
+        Just put -> case MetaC.compileTerm val of
+          Left err -> pure (metaLeftText err)
+          Right tm -> do
+            extraTL <- typeLookupForMetaTerm cl tm
+            case MetaC.typecheckTerm extraTL tm of
+              Left err -> pure (metaLeftText err)
+              Right ty -> do
+                let rid = Hashing.hashClosedTerm tm
+                    codebaseRef = RF.DerivedId rid
+                put rid tm ty
+                -- Load transitive code dependencies before
+                -- prepareEvaluation (otherwise terms that reference
+                -- other user-defined definitions trip a
+                -- "cache is missing" panic during compilation).
+                (tyrs, tmrs) <- collectDeps cl tm
+                (ctxLoaded, _) <- loadDeps cl ppe ctx tyrs tmrs
+                -- Compile + register the term so a follow-up
+                -- Meta.eval can find it. prepareEvaluation gives us
+                -- the post-ANF intermediate reference; we then also
+                -- alias the codebase Reference.Id to the same cache
+                -- entry so the returned Link.Term — which now uses
+                -- the canonical codebase hash — can be passed
+                -- straight to ucm commands like @alias.term@ and
+                -- @mark.given@, AND used directly by Meta.eval.
+                (ctx', _rcode, mainRef) <-
+                  prepareEvaluation ppe tm ctxLoaded
+                w <- refNumTm (ccache ctx') mainRef
+                atomically $
+                  modifyTVar' (refTm (ccache ctx')) (Map.insert codebaseRef w)
+                let linkVal =
+                      BoxedVal (Foreign (WrapReferent (RF.Ref codebaseRef)))
+                pure (metaRight linkVal)
+      -- Decode a meta.Reference Val, look up the type declaration in
+      -- the codebase via CodeLookup, and return Optional (List
+      -- (meta.ConstructorReference, Nat)). The Nat is the field
+      -- arity of the corresponding constructor.
+      metaDataDeclShapeF :: Val -> IO Val
+      metaDataDeclShapeF val = case MetaC.decodeReference val of
+        Left _ -> pure metaNone
+        Right (RF.Builtin _) -> pure metaNone
+        Right r@(RF.DerivedId i) ->
+          getTypeDeclaration cl i >>= \case
+            Nothing -> pure metaNone
+            Just decl ->
+              let dataDecl = DD.asDataDecl decl
+                  ctorTypes = DD.constructorTypes dataDecl
+                  ctorVals =
+                    zipWith
+                      (\cid ty -> ctorRefShape r (fromIntegral cid) ty)
+                      [0 :: Int ..]
+                      ctorTypes
+                  listVal =
+                    BoxedVal (Foreign (WrapSeq (USeq.fromList ctorVals)))
+               in pure (metaSome listVal)
+      -- Extract the underlying Reference from a Link.Term Val and
+      -- encode it as a meta.Reference. Pure: no codebase access.
+      metaLinkRefF :: Val -> IO Val
+      metaLinkRefF = \case
+        BoxedVal (Foreign (WrapReferent (RF.Ref r))) ->
+          -- Backmap through the EvalCtx's float/intermediate remaps —
+          -- the Referent embedded in a runtime Link.Term may carry the
+          -- intermediate (post-ANF) hash, but downstream Meta.typecheck
+          -- / Meta.eval consumers need the codebase hash.
+          pure (encodeMetaReference (backmapRef ctx r))
+        _ -> pure (encodeMetaReference (RF.Builtin "Meta.linkRef: bad input"))
+      -- Queue a Meta.alias.term action by handing the Reference (after
+      -- backmap-through-intermediate-hash) and the destination name
+      -- Text to the metaAliasTerm callback wired up by the caller.
+      -- Returns Unit. If no callback is installed (headless runtime),
+      -- silently no-ops.
+      metaUnitV :: Val
+      metaUnitV = BoxedVal (Enum RF.unitRef TT.unitTag)
+      metaAliasTermF :: Val -> Val -> IO Val
+      metaAliasTermF refVal nameVal = case (refVal, nameVal) of
+        ( BoxedVal (Foreign (WrapReferent (RF.Ref r))),
+          BoxedVal (Foreign (WrapText name))
+          ) -> do
+            case metaPut of
+              Nothing -> pure ()
+              Just cb -> CR.metaAliasTerm cb (backmapRef ctx r) (Util.Text.toText name)
+            pure metaUnitV
+        _ -> pure metaUnitV
+      -- Like metaAliasTermF but for Link.Type. The runtime
+      -- representation of a Link.Type is WrapReference (a TypeReference
+      -- isn't necessarily backed by a Referent).
+      metaAliasTypeF :: Val -> Val -> IO Val
+      metaAliasTypeF refVal nameVal = case (refVal, nameVal) of
+        ( BoxedVal (Foreign (WrapReference r)),
+          BoxedVal (Foreign (WrapText name))
+          ) -> do
+            case metaPut of
+              Nothing -> pure ()
+              Just cb -> CR.metaAliasType cb (backmapRef ctx r) (Util.Text.toText name)
+            pure metaUnitV
+        _ -> pure metaUnitV
+      metaDeleteTermF :: Val -> IO Val
+      metaDeleteTermF nameVal = case nameVal of
+        BoxedVal (Foreign (WrapText name)) -> do
+          case metaPut of
+            Nothing -> pure ()
+            Just cb -> CR.metaDeleteTerm cb (Util.Text.toText name)
+          pure metaUnitV
+        _ -> pure metaUnitV
+      metaMoveTermF :: Val -> Val -> IO Val
+      metaMoveTermF oldVal newVal = case (oldVal, newVal) of
+        ( BoxedVal (Foreign (WrapText oldName)),
+          BoxedVal (Foreign (WrapText newName))
+          ) -> do
+            case metaPut of
+              Nothing -> pure ()
+              Just cb -> CR.metaMoveTerm cb (Util.Text.toText oldName) (Util.Text.toText newName)
+            pure metaUnitV
+        _ -> pure metaUnitV
+      -- Read-only: resolve a Text name in the current namespace to a
+      -- single term reference. Returns @Optional Link.Term@.
+      metaLookupF :: Val -> IO Val
+      metaLookupF = \case
+        BoxedVal (Foreign (WrapText name)) -> case metaPut of
+          Nothing -> pure metaNone
+          Just cb -> do
+            mRef <- CR.metaLookupTerm cb (Util.Text.toText name)
+            case mRef of
+              Nothing -> pure metaNone
+              Just r -> pure (metaSome (BoxedVal (Foreign (WrapReferent (RF.Ref r)))))
+        _ -> pure metaNone
+      -- Read-only: list direct dependents of the given Link.Term as
+      -- a list of Link.Terms.
+      metaDependentsF :: Val -> IO Val
+      metaDependentsF = \case
+        BoxedVal (Foreign (WrapReferent (RF.Ref r))) -> case metaPut of
+          Nothing -> pure (BoxedVal (Foreign (WrapSeq mempty)))
+          Just cb -> do
+            deps <- CR.metaDependents cb (backmapRef ctx r)
+            let toLink ref =
+                  BoxedVal (Foreign (WrapReferent (RF.Ref ref)))
+            pure (BoxedVal (Foreign (WrapSeq (USeq.fromList (toLink <$> deps)))))
+        _ -> pure (BoxedVal (Foreign (WrapSeq mempty)))
+
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
       maybe
-        (apply0 (Just hook) (ccache ctx) {tracer = debugText} activeThreads w)
-        (\pc -> apply0 (Just hook) (ccache ctx) {tracer = debugText, profiler = pc} activeThreads w)
+        ( apply0
+            (Just hook)
+            (ccache ctx)
+              { tracer = debugText,
+                metaDecompile = metaDecom,
+                metaTypecheck = metaTC,
+                metaLoad = metaLoadF,
+                metaStore = metaStoreF,
+                metaDataDeclShape = metaDataDeclShapeF,
+                metaLinkRef = metaLinkRefF,
+                metaAliasTerm = metaAliasTermF,
+                metaAliasType = metaAliasTypeF,
+                metaDeleteTerm = metaDeleteTermF,
+                metaMoveTerm = metaMoveTermF,
+                metaLookup = metaLookupF,
+                metaDependents = metaDependentsF
+              }
+            activeThreads
+            w
+        )
+        ( \pc ->
+            apply0
+              (Just hook)
+              (ccache ctx)
+                { tracer = debugText,
+                  metaDecompile = metaDecom,
+                  metaTypecheck = metaTC,
+                  metaLoad = metaLoadF,
+                  metaStore = metaStoreF,
+                  metaDataDeclShape = metaDataDeclShapeF,
+                  metaLinkRef = metaLinkRefF,
+                  metaAliasTerm = metaAliasTermF,
+                  metaAliasType = metaAliasTypeF,
+                  metaDeleteTerm = metaDeleteTermF,
+                  metaMoveTerm = metaMoveTermF,
+                  metaLookup = metaLookupF,
+                  metaDependents = metaDependentsF,
+                  profiler = pc
+                }
+              activeThreads
+              w
+        )
         prof
 
   pure $ finish result
+
+-- | @Left t@ as a runtime @Either Text x@ closure.
+metaLeftText :: Text -> Val
+metaLeftText t =
+  BoxedVal (Data1 RF.eitherRef TT.leftTag (BoxedVal (Foreign (WrapText (Util.Text.fromText t)))))
+
+-- | @Right (a, b)@ as a runtime @Either Text (a, b)@ closure.
+metaRightPair :: Val -> Val -> Val
+metaRightPair a b =
+  let unitVal = BoxedVal (Enum RF.unitRef TT.unitTag)
+      inner = BoxedVal (Data2 RF.pairRef TT.pairTag b unitVal)
+      pair = BoxedVal (Data2 RF.pairRef TT.pairTag a inner)
+   in BoxedVal (Data1 RF.eitherRef TT.rightTag pair)
+
+-- | @None@ as a runtime @Optional x@ closure.
+metaNone :: Val
+metaNone = BoxedVal (Enum RF.optionalRef TT.noneTag)
+
+-- | @Some x@ as a runtime @Optional x@ closure.
+metaSome :: Val -> Val
+metaSome v = BoxedVal (Data1 RF.optionalRef TT.someTag v)
+
+-- | @Right x@ as a runtime @Either Text x@ closure (single payload).
+metaRight :: Val -> Val
+metaRight v = BoxedVal (Data1 RF.eitherRef TT.rightTag v)
+
+-- | Build a runtime @(meta.ConstructorReference, [meta.Term meta.TypeF])@
+-- tuple Val. The first component is the constructor ref; the second
+-- is the list of its field types (encoded as meta.Term meta.TypeF
+-- via MetaDecomp.typeTermVal). Tuples in Unison are encoded as
+-- nested pairs terminated by Unit.
+ctorRefShape :: Reference -> Word64 -> Type.Type Symbol () -> Val
+ctorRefShape tyRef cid ctorTy =
+  let unitVal = BoxedVal (Enum RF.unitRef TT.unitTag)
+      tyRefVal = encodeMetaReference tyRef
+      ctorRefVal =
+        BoxedVal
+          ( Data2
+              Meta.constructorReferenceRef
+              TT.metaConstructorReferenceTag
+              tyRefVal
+              (NatVal cid)
+          )
+      fieldTypes = constructorFieldTypes ctorTy
+      fieldTypeVals = MetaDecomp.typeTermVal <$> fieldTypes
+      fieldListVal =
+        BoxedVal (Foreign (WrapSeq (USeq.fromList fieldTypeVals)))
+      inner = BoxedVal (Data2 RF.pairRef TT.pairTag fieldListVal unitVal)
+   in BoxedVal (Data2 RF.pairRef TT.pairTag ctorRefVal inner)
+
+-- | Strip outer foralls from a constructor type and return its field
+-- types (everything to the left of the final arrow).
+constructorFieldTypes :: Type.Type Symbol () -> [Type.Type Symbol ()]
+constructorFieldTypes = init' . extractArrows . stripForalls
+  where
+    stripForalls = \case
+      Type.ForallsNamed' _ ty -> stripForalls ty
+      ty -> ty
+    extractArrows = \case
+      Type.Arrows' spine -> spine
+      ty -> [ty]
+    init' [] = []
+    init' [_] = []
+    init' xs = init xs
+
+-- | Build a runtime @meta.Reference@ Val.
+encodeMetaReference :: Reference -> Val
+encodeMetaReference = \case
+  RF.Builtin t ->
+    BoxedVal
+      ( Data1
+          Meta.referenceRef
+          TT.metaReferenceBuiltinTag
+          (BoxedVal (Foreign (WrapText (Util.Text.fromText t))))
+      )
+  RF.DerivedId (RF.Id h i) ->
+    let hashVal =
+          BoxedVal
+            ( Data1
+                Meta.hashRef
+                TT.metaHashHashTag
+                ( BoxedVal
+                    ( Foreign
+                        (WrapBytes (UBytes.fromByteString (UHash.toByteString h)))
+                    )
+                )
+            )
+     in BoxedVal
+          ( Data2
+              Meta.referenceRef
+              TT.metaReferenceDerivedTag
+              hashVal
+              (NatVal (fromIntegral i))
+          )
 
 executeMainComb ::
   CombIx ->
@@ -966,7 +1379,7 @@ debugTextFormat fancy =
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText ()
+    CCache sandboxed debugText metaDecom metaTCStub metaLoadStub metaStoreStub metaDDSStub metaLinkRefStub metaATMStub metaATYStub metaDTMStub metaMTMStub metaLKPStub metaDPSStub ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -1006,6 +1419,30 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
               (debugTextFormat fancy $ tabulateErrors errs)
               (show c)
               (debugTextFormat fancy $ pretty PPE.empty dv)
+    metaDecom val = pure $ MetaDecomp.convertTerm . snd $ decom val
+    metaTCStub _val =
+      pure (metaLeftText "Meta.typecheck: unavailable in restored-cache context")
+    -- No CodeLookup is available in a restored-cache context, so
+    -- Meta.load can't resolve anything; return None.
+    metaLoadStub _val = pure metaNone
+    -- No codebase write callback in a restored-cache context.
+    metaStoreStub _val =
+      pure (metaLeftText "Meta.store: unavailable in restored-cache context")
+    -- No CodeLookup in a restored-cache context.
+    metaDDSStub _val = pure metaNone
+    -- Meta.linkRef is pure-decode, same in restored or live mode.
+    metaLinkRefStub = \case
+      BoxedVal (Foreign (WrapReferent (RF.Ref r))) ->
+        pure (encodeMetaReference r)
+      _ -> pure (encodeMetaReference (RF.Builtin "Meta.linkRef: bad input"))
+    -- Meta.alias.term has no effect in a restored-cache context (no
+    -- enclosing CLI to apply the queued action). Return unit.
+    metaATMStub _v _w = pure (BoxedVal (Enum RF.unitRef TT.unitTag))
+    metaATYStub _v _w = pure (BoxedVal (Enum RF.unitRef TT.unitTag))
+    metaDTMStub _v = pure (BoxedVal (Enum RF.unitRef TT.unitTag))
+    metaMTMStub _v _w = pure (BoxedVal (Enum RF.unitRef TT.unitTag))
+    metaLKPStub _v = pure metaNone
+    metaDPSStub _v = pure (BoxedVal (Foreign (WrapSeq mempty)))
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     srcCombs :: EnumMap Word64 Combs

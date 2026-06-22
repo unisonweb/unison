@@ -553,7 +553,10 @@ lexemes eof =
     reserved :: P [Token Lexeme]
     reserved =
       token' (\ts _ _ -> ts) $
-        braces
+        quoteOpen
+          <|> quoteClose
+          <|> spliceOpen
+          <|> braces
           <|> parens
           <|> brackets
           <|> commaSeparator
@@ -694,7 +697,7 @@ lexemes eof =
                 _ -> pure [Token (Reserved "->") start end]
 
         -- a bit of lookahead here to reserve }} for closing a documentation block
-        braces = open "{" <|> close ["{"] p
+        braces = open "{" <|> close ["{", "${"] p
           where
             p = do
               l <- lit "}"
@@ -703,6 +706,14 @@ lexemes eof =
               inLayout <- S.gets inLayout
               when (not inLayout) $ void $ P.lookAhead (P.satisfy (/= '}'))
               pure l
+
+        -- Meta-program quasiquote ([| e |]) and unquote (${ e }).
+        -- Quote uses [| / |] to avoid colliding with thunk-with-effects
+        -- type syntax '{Ability} A; splice uses ${ } closed by the
+        -- regular braces rule (close-list above).
+        quoteOpen = P.try (open "[|")
+        quoteClose = P.try (close ["[|"] (lit "|]"))
+        spliceOpen = P.try (open "${")
         matchWithBlocks = ["match-with", "cases"]
         parens = open "(" <|> close ["("] (lit ")")
         brackets = open "[" <|> close ["["] (lit "]")
