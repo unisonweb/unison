@@ -119,6 +119,8 @@ lowerTermD docRender ppe = go
       Text' t -> SLit (SText t)
       Char' c -> SLit (SChar c)
       Ref' r -> SName (PPE.termNameOrHashOnly ppe (Referent.Ref r))
+      -- The unit value prints as `()` (an empty tuple), matching the default printer.
+      Constructor' (ConstructorReference r _) | r == unitRef -> STuple []
       Constructor' (ConstructorReference r i) -> SName (PPE.termNameOrHashOnly ppe (Referent.Con (ConstructorReference r i) CT.Data))
       Request' (ConstructorReference r i) -> SName (PPE.termNameOrHashOnly ppe (Referent.Con (ConstructorReference r i) CT.Effect))
       TermLink' rt -> STermLink (PPE.termNameOrHashOnly ppe rt)

@@ -86,6 +86,7 @@ renderTermP ctx (STerm _ f) = case f of
   SLit l -> renderLit l
   SName n -> renderName n
   SBinOp n p a b -> (if p < ctx then parens else id) (renderTermP p a <> " " <> renderName n <> " " <> renderTermP (increment p) b)
+  SApp h [STerm _ (STuple [])] -> renderTermP Application h <> parens mempty
   SApp h args -> renderTermP Application h <> parens (commas (map renderTerm args))
   SLam ps body -> ctrl "lambda" <> " " <> commas [renderPlain p | SParam _ p <- ps] <> fmt S.DelimiterChar ":" <> " " <> renderTerm body
   SLet bs body -> suite (ctrl "let") (map renderLetBinding bs ++ [renderTerm body])

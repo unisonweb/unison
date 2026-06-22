@@ -313,7 +313,9 @@ pApp :: CP STerm
 pApp = do
   (a, h) <- withAnn pAtom
   calls <- P.many (parens (commaSep pTerm))
-  pure (foldl (\f args -> STerm a (SApp f args)) h calls)
+  -- An empty argument list `f()` is forcing a delayed computation, i.e. applying to unit: `f ()`.
+  let force args = if null args then [STerm a (STuple [])] else args
+  pure (foldl (\f args -> STerm a (SApp f (force args))) h calls)
 
 pAtom :: CP STerm
 pAtom = P.choice [pDoc, pStringTerm, pCharTerm, pList, pBlock, pMatch, pParen, pNameAtom]
@@ -392,7 +394,7 @@ pCase = do
 
 pParen :: CP STerm
 pParen = do
-  (a, f) <- withAnn (parens pParenBody)
+  (a, f) <- withAnn (parens (P.option (STuple []) pParenBody))
   pure (STerm a f)
   where
     pParenBody = do

@@ -336,7 +336,9 @@ pApp :: PP STerm
 pApp = do
   (a, h) <- withAnn pAtom
   calls <- P.many (parens (commaSep pTermArg))
-  pure (foldl (\f args -> STerm a (SApp f args)) h calls)
+  -- An empty argument list `f()` forces a delayed computation, i.e. applies to unit: `f ()`.
+  let force args = if null args then [STerm a (STuple [])] else args
+  pure (foldl (\f args -> STerm a (SApp f (force args))) h calls)
   where
     pTermArg = pInlineExpr
 
@@ -386,7 +388,7 @@ pList = do
 
 pParen :: PP STerm
 pParen = do
-  (a, f) <- withAnn (parens pParenBody)
+  (a, f) <- withAnn (parens (P.option (STuple []) pParenBody))
   pure (STerm a f)
   where
     pParenBody = do

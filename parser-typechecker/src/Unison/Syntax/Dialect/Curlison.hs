@@ -94,6 +94,8 @@ renderTermP ctx (STerm _ f) = case f of
   SBinOp n p a b -> wrapIf (p < ctx) (infixOp p (renderName n) a b)
   SAnd a b -> wrapIf (andPrec < ctx) (infixOp andPrec "&&" a b)
   SOr a b -> wrapIf (orPrec < ctx) (infixOp orPrec "||" a b)
+  -- Forcing a delayed computation `f ()` prints as `f()` (an empty argument list).
+  SApp h [STerm _ (STuple [])] -> renderTermP Application h <> parens mempty
   SApp h args -> renderTermP Application h <> parens (commas (map renderTerm args))
   SLam ps body -> parens (commas [renderPlain p | SParam _ p <- ps]) <> " " <> fmt S.ControlKeyword "=>" <> " " <> renderTerm body
   SLet bs body -> block bs body
