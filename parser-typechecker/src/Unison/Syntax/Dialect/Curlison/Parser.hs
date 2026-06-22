@@ -97,7 +97,7 @@ nameRaw = lexeme do
   rest <- P.many (P.try (C.char '.' *> seg))
   pure (intercalate "." (first : rest))
   where
-    seg = P.takeWhile1P (Just "wordy") isWordyChar P.<|> P.takeWhile1P (Just "operator") (\c -> isSymChar c && c /= ':')
+    seg = P.takeWhile1P (Just "wordy") isWordyChar P.<|> P.takeWhile1P (Just "operator") isSymChar
 
 pname :: String -> Name
 pname = Name.unsafeParseText . Text.pack
@@ -189,11 +189,18 @@ pStmt = do
 -- prints.
 pCFunction :: CP RawForm
 pCFunction = do
+  tvs <- P.option [] (angles (commaSep nameRaw))
   retTy <- pType
   (a, nm) <- withAnn nameRaw
   ps <- parens (commaSep pCParam)
+  effs <- P.optional (symbol "throws" *> braces (commaSep pType))
   body <- braces pFuncBody
-  let fullTy = foldr (\(t, _) acc -> SType a (STyArrow t Nothing acc)) retTy ps
+  let arrows = case reverse ps of
+        [] -> retTy
+        ((lt, _) : restRev) ->
+          let lastArrow = SType a (STyArrow lt effs retTy)
+           in foldl (\acc (t, _) -> SType a (STyArrow t Nothing acc)) lastArrow restRev
+      fullTy = if null tvs then arrows else SType a (STyForall (map pname tvs) arrows)
       lam = STerm a (SLam [SParam a p | (_, p) <- ps] body)
   pure (RBind (SBinding a (pname nm) (Just fullTy) lam))
 
@@ -394,7 +401,49 @@ pParen = do
 -- Patterns -----------------------------------------------------------------------------------------------------------
 
 pPattern :: CP SPattern
-pPattern = P.choice [P.try pCtorPattern, pStringPat, pCharPat, pAtomPat]
+pPattern = P.choice [pListPat, pParenPat, pEffectPat, P.try pAsPat, P.try pCtorPattern, pStringPat, pCharPat, pAtomPat]
+
+-- | A list pattern: @[]@, @[a, b]@.
+pListPat :: CP SPattern
+pListPat = do
+  (a, subs) <- withAnn (brackets (commaSep pPattern))
+  pure (SPattern a (SPList subs))
+
+-- | A parenthesized pattern, optionally an infix sequence op: @(p)@, @(l +: r)@, @(l :+ r)@, @(l ++ r)@.
+pParenPat :: CP SPattern
+pParenPat = parens pSeqPat
+
+pSeqPat :: CP SPattern
+pSeqPat = do
+  l <- pPattern
+  P.optional pSeqOp >>= \case
+    Nothing -> pure l
+    Just op -> do
+      r <- pPattern
+      pure (SPattern (patAnn l) (SPSeqOp l op r))
+
+pSeqOp :: CP SSeqOp
+pSeqOp = P.choice [SCons <$ P.try (symbol "+:"), SSnoc <$ P.try (symbol ":+"), SConcat <$ P.try (symbol "++")]
+
+-- | An as-pattern: @name\@pat@.
+pAsPat :: CP SPattern
+pAsPat = do
+  (a, nm) <- withAnn nameRaw
+  _ <- symbol "@"
+  SPattern a . SPAs (pname nm) <$> pPattern
+
+-- | An ability pattern: @{ E.op(a, …) -> k }@ (a request) or @{ p }@ (a pure result).
+pEffectPat :: CP SPattern
+pEffectPat = braces (P.choice [P.try pRequest, pPure])
+  where
+    pRequest = do
+      (a, nm) <- withAnn nameRaw
+      subs <- parens (commaSep pPattern)
+      _ <- symbol "->"
+      SPattern a . SPEffect (sname nm) subs <$> pPattern
+    pPure = do
+      p <- pPattern
+      pure (SPattern (patAnn p) (SPEffectPure p))
 
 pStringPat :: CP SPattern
 pStringPat = do
@@ -460,16 +509,21 @@ pEffectsTy = do
   pure (SType a (STyEffects es))
 
 pParenTy :: CP SType
-pParenTy = do
-  (a, ts) <- withAnn (parens (P.sepBy1 pAppTy (symbol "->")))
-  pure case ts of
-    [t] -> t
-    _ -> SType a (arrows ts)
+pParenTy = parens pArrow
+
+-- | A right-associative arrow chain, each arrow optionally carrying an ability set: @a ->{e} b -> c@.
+pArrow :: CP SType
+pArrow = do
+  i <- pAppTy
+  P.optional pArrowTail >>= \case
+    Nothing -> pure i
+    Just (es, o) -> pure (SType (tyAnn i) (STyArrow i es o))
   where
-    arrows = \case
-      [t] -> tyOut t
-      (i : rest@(_ : _)) -> STyArrow i Nothing (SType (tyAnn i) (arrows rest))
-      [] -> STyVar (pname "_")
+    pArrowTail = do
+      _ <- symbol "->"
+      es <- P.optional (braces (commaSep pType))
+      o <- pArrow
+      pure (es, o)
 
 -- Literal classification ---------------------------------------------------------------------------------------------
 

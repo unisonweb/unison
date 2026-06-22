@@ -151,11 +151,12 @@ renderType st@(SType _ t) = case t of
   STyForall vs body -> ctrl "forall" <> fmt S.DelimiterChar "<" <> commas (map renderPlain vs) <> fmt S.DelimiterChar ">" <> " " <> renderType body
   STyApp f args -> renderType f <> fmt S.DelimiterChar "<" <> commas (map renderType args) <> fmt S.DelimiterChar ">"
   STyEffects es -> renderEffects es
-  STyArrow {} -> parens (PP.sep (" " <> fmt S.TypeOperator "->" <> " ") (arrowComponents st))
+  STyArrow {} -> parens (arrowSpine st)
   where
-    arrowComponents (SType _ (STyArrow i Nothing o)) = renderType i : arrowComponents o
-    arrowComponents (SType _ (STyArrow i (Just es) o)) = (renderType i <> renderEffects es) : arrowComponents o
-    arrowComponents other = [renderType other]
+    -- Effects sit on the arrow: `a ->{e} b`, not `a{e} -> b`.
+    arrowSpine (SType _ (STyArrow i mes o)) =
+      renderType i <> " " <> fmt S.TypeOperator "->" <> maybe mempty renderEffects mes <> " " <> arrowSpine o
+    arrowSpine other = renderType other
 
 renderEffects :: [SType] -> Pretty SyntaxText
 renderEffects es = fmt S.AbilityBraces "{" <> commas (map renderType es) <> fmt S.AbilityBraces "}"
@@ -223,25 +224,32 @@ prettyDeclW pped guid r hq decl = pure (prettyDecl pped guid r hq decl)
 
 -- | A Curlison (curly-brace) binding:
 --
---   * a typed function (a typed lambda) becomes @RetType name(ArgType a, …) { …; return body; }@,
+--   * a typed function (a typed lambda) becomes @\<tyvars\> RetType name(ArgType a, …) { …; return body; }@ (the
+--     @\<tyvars\>@ generics are omitted when the type is monomorphic),
 --   * a typed value becomes @Type name = value;@, and
 --   * an untyped value (rare; the type is normally known) becomes @name = value;@.
 prettyBinding :: (Var v) => PrettyPrintEnv -> HQ.HashQualified Name -> Term2 v at ap v a -> Pretty SyntaxText
 prettyBinding ppe hq term =
   case Lower.lowerTerm ppe term of
     STerm _ (SAnn (STerm _ (SLam params body)) ty)
-      | Just (argTys, retTy) <- splitArrowPure (length params) ty ->
-          cFunction retTy params argTys body
+      | Just (tvs, argTys, effs, retTy) <- splitFunctionType (length params) ty ->
+          cFunction tvs retTy effs params argTys body
     STerm _ (SAnn e ty) -> renderType ty <> " " <> defAssign hq e <> semi
     s -> defAssign hq s <> semi
   where
-    cFunction retTy params argTys body =
-      renderType retTy
+    cFunction tvs retTy effs params argTys body =
+      generics tvs
+        <> renderType retTy
         <> " "
         <> prettyHashQualified hq
         <> parens (commas [renderType t <> " " <> renderPlain p | (SParam _ p, t) <- zip params argTys])
+        <> throwsClause effs
         <> " "
         <> braceBlock (funcStmts body)
+    generics [] = mempty
+    generics vs = fmt S.DelimiterChar "<" <> commas (map renderPlain vs) <> fmt S.DelimiterChar "> "
+    throwsClause Nothing = mempty
+    throwsClause (Just es) = " " <> ctrl "throws" <> " " <> renderEffects es
     funcStmts body = case body of
       STerm _ (SLet bs e) -> map stmtBinding bs ++ [ret e]
       STerm _ (SLetRec bs e) -> map stmtBinding bs ++ [ret e]
@@ -250,15 +258,30 @@ prettyBinding ppe hq term =
     stmtBinding b = renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm (bValue b)
     semi = fmt S.DelimiterChar ";"
 
--- | Peel exactly @n@ pure (effect-free) argument arrows off a type, returning the argument types and the result type.
--- 'Nothing' if the type doesn't have @n@ such arrows (e.g. an effectful function) — those fall back to a value binding.
-splitArrowPure :: Int -> SType -> Maybe ([SType], SType)
-splitArrowPure 0 ty = Just ([], ty)
-splitArrowPure n (SType _ (STyArrow i Nothing o))
-  | n > 0 = do
-      (args, ret) <- splitArrowPure (n - 1) o
-      pure (i : args, ret)
-splitArrowPure _ _ = Nothing
+-- | For a typed @n@-parameter lambda, peel any leading @forall@ (returning the type variables) and then exactly @n@
+-- argument arrows, returning the argument types, the function's overall effect (the abilities on the final arrow —
+-- a multi-arg lambda always carries its body's effect there, with pure intermediate arrows), and the result type.
+-- 'Nothing' if the type doesn't have @n@ arrows with pure leading ones — those fall back to a value binding.
+splitFunctionType :: Int -> SType -> Maybe ([Name], [SType], Maybe [SType], SType)
+splitFunctionType n ty =
+  let (tvs, body) = peelForalls ty
+   in (\(args, effs, ret) -> (tvs, args, effs, ret)) <$> splitArrows n body
+
+peelForalls :: SType -> ([Name], SType)
+peelForalls (SType _ (STyForall vs b)) = let (vs', b') = peelForalls b in (vs ++ vs', b')
+peelForalls t = ([], t)
+
+-- | Peel exactly @n@ argument arrows. The final (innermost) arrow may carry an effect (the function's effect);
+-- the leading arrows must be pure. Returns (arg types, final-arrow effect, result type).
+splitArrows :: Int -> SType -> Maybe ([SType], Maybe [SType], SType)
+splitArrows n (SType _ (STyArrow i effs o))
+  | n == 1 = Just ([i], effs, o)
+  | n > 1 = case effs of
+      Nothing -> do
+        (args, es, ret) <- splitArrows (n - 1) o
+        pure (i : args, es, ret)
+      Just _ -> Nothing
+splitArrows _ _ = Nothing
 
 prettyBindingWithoutTypeSignature :: (Var v) => PrettyPrintEnv -> HQ.HashQualified Name -> Term2 v at ap v a -> Pretty SyntaxText
 prettyBindingWithoutTypeSignature ppe hq term = defAssign hq (peelAnn (Lower.lowerTerm ppe term))

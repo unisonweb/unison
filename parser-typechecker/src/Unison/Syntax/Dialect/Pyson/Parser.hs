@@ -101,7 +101,7 @@ nameRaw = lexeme do
   rest <- P.many (P.try (C.char '.' *> seg))
   pure (intercalate "." (first : rest))
   where
-    seg = P.takeWhile1P (Just "wordy") isWordyChar P.<|> P.takeWhile1P (Just "operator") (\c -> isSymChar c && c /= ':')
+    seg = P.takeWhile1P (Just "wordy") isWordyChar P.<|> P.takeWhile1P (Just "operator") isSymChar
 
 pname :: String -> Name
 pname = Name.unsafeParseText . Text.pack
@@ -280,11 +280,12 @@ pLetLike kw mk = L.indentBlock scn do
       [] -> STerm a SHole
       ts -> last ts
 
--- | A block item is either a @name = term@ binding (Left) or the body term (Right).
+-- | A block item is a nested @def@ function binding (Left), a @name = term@ binding (Left), or the body term (Right).
 pBlockItem :: PP (Either SBinding STerm)
 pBlockItem =
   P.choice
-    [ Left <$> P.try pBindingItem,
+    [ Left <$> pDefBinding,
+      Left <$> P.try pBindingItem,
       Right <$> pTerm
     ]
   where
@@ -292,6 +293,15 @@ pBlockItem =
       (a, nm) <- withAnn nameRaw
       _ <- symbol "="
       SBinding a (pname nm) Nothing <$> pTerm
+
+-- | A nested function binding: @def name(params): <indented body>@. The inverse of 'renderLetBinding'.
+pDefBinding :: PP SBinding
+pDefBinding = L.indentBlock scn do
+  (a, _) <- withAnn (P.try (symbol "def"))
+  nm <- nameRaw
+  ps <- parens (commaSep nameRaw)
+  _ <- symbol ":"
+  pure (L.IndentSome Nothing (\items -> pure (SBinding a (pname nm) Nothing (STerm a (SLam [SParam a (pname p) | p <- ps] (lastItem a items))))) pTerm)
 
 pMatch :: PP STerm
 pMatch = L.indentBlock scn do
@@ -392,7 +402,49 @@ pParen = do
 -- Patterns -----------------------------------------------------------------------------------------------------------
 
 pPattern :: PP SPattern
-pPattern = P.choice [P.try pCtorPattern, pStringPat, pCharPat, pAtomPat]
+pPattern = P.choice [pListPat, pParenPat, pEffectPat, P.try pAsPat, P.try pCtorPattern, pStringPat, pCharPat, pAtomPat]
+
+-- | A list pattern: @[]@, @[a, b]@.
+pListPat :: PP SPattern
+pListPat = do
+  (a, subs) <- withAnn (brackets (commaSep pPattern))
+  pure (SPattern a (SPList subs))
+
+-- | A parenthesized pattern, optionally an infix sequence op: @(p)@, @(l +: r)@, @(l :+ r)@, @(l ++ r)@.
+pParenPat :: PP SPattern
+pParenPat = parens pSeqPat
+
+pSeqPat :: PP SPattern
+pSeqPat = do
+  l <- pPattern
+  P.optional pSeqOp >>= \case
+    Nothing -> pure l
+    Just op -> do
+      r <- pPattern
+      pure (SPattern (patAnn l) (SPSeqOp l op r))
+
+pSeqOp :: PP SSeqOp
+pSeqOp = P.choice [SCons <$ P.try (symbol "+:"), SSnoc <$ P.try (symbol ":+"), SConcat <$ P.try (symbol "++")]
+
+-- | An as-pattern: @name\@pat@.
+pAsPat :: PP SPattern
+pAsPat = do
+  (a, nm) <- withAnn nameRaw
+  _ <- symbol "@"
+  SPattern a . SPAs (pname nm) <$> pPattern
+
+-- | An ability pattern: @{ E.op(a, …) -> k }@ (a request) or @{ p }@ (a pure result).
+pEffectPat :: PP SPattern
+pEffectPat = braces (P.choice [P.try pRequest, pPure])
+  where
+    pRequest = do
+      (a, nm) <- withAnn nameRaw
+      subs <- parens (commaSep pPattern)
+      _ <- symbol "->"
+      SPattern a . SPEffect (sname nm) subs <$> pPattern
+    pPure = do
+      p <- pPattern
+      pure (SPattern (patAnn p) (SPEffectPure p))
 
 pStringPat :: PP SPattern
 pStringPat = do
@@ -437,17 +489,19 @@ pForallTy = do
     pure (vs, body)
   pure (SType a (STyForall (map pname vs) body))
 
+-- | A right-associative arrow chain, each arrow optionally carrying an ability set: @a ->{e} b -> c@.
 pArrowTy :: PP SType
 pArrowTy = do
-  (a, ts) <- withAnn (P.sepBy1 pAppTy (symbol "->"))
-  pure case ts of
-    [t] -> t
-    _ -> SType a (arrows ts)
+  i <- pAppTy
+  P.optional pArrowTail >>= \case
+    Nothing -> pure i
+    Just (es, o) -> pure (SType (tyAnn i) (STyArrow i es o))
   where
-    arrows = \case
-      [t] -> tyOut t
-      (i : rest@(_ : _)) -> STyArrow i Nothing (SType (tyAnn i) (arrows rest))
-      [] -> STyVar (pname "_")
+    pArrowTail = do
+      _ <- symbol "->"
+      es <- P.optional (braces (commaSep pType))
+      o <- pArrowTy
+      pure (es, o)
 
 pAppTy :: PP SType
 pAppTy = do

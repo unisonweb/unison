@@ -119,7 +119,7 @@ scratch/main> view inc combine demo Shape Point isCircle
   (: isCircle (-> Shape Boolean))
   (defn isCircle (s)
     (match s
-      (case (Circle) true)
+      (case Circle true)
       (case _ false)))
 ```
 

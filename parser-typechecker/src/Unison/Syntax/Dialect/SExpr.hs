@@ -109,6 +109,7 @@ renderSPattern (SPattern _ p) = case p of
   SPWild -> fmt S.DelimiterChar "_"
   SPVar n -> renderPlain n
   SPLit l -> renderLit l
+  SPCtor n [] -> renderName n
   SPCtor n subs -> parenize (PP.sep " " (renderName n : map renderSPattern subs))
   SPAs n sub -> parenize (ctrl "as" <> " " <> renderPlain n <> " " <> renderSPattern sub)
   SPList subs -> fmt S.DelimiterChar "[" <> PP.sep " " (map renderSPattern subs) <> fmt S.DelimiterChar "]"

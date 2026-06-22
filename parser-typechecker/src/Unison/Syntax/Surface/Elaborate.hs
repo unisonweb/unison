@@ -45,6 +45,7 @@ import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Syntax.Surface
 import Unison.Term (Term)
 import Unison.Term qualified as Term
+import Unison.Typechecker.Components qualified as Components
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.UnisonFile (UnisonFile (..))
@@ -180,8 +181,8 @@ elaborateTerm names docMap = go
       SApp h args -> Term.apps' <$> go h <*> traverse go args
       SBinOp n _ x y -> (\x' y' -> Term.apps' (Term.var a (sNameVar n)) [x', y']) <$> go x <*> go y
       SLam ps body -> Term.lam' a [(pAnn p, Name.toVar (pName p)) | p <- ps] <$> go body
-      SLet bs body -> Term.let1 False <$> traverse letB bs <*> go body
-      SLetRec bs body -> Term.letRec' False <$> traverse letRecB bs <*> go body
+      SLet bs body -> elabBlock a bs body
+      SLetRec bs body -> elabBlock a bs body
       SIf c t e -> (\c' t' e' -> Term.iff a c' t' e') <$> go c <*> go t <*> go e
       SAnd x y -> Term.and a <$> go x <*> go y
       SOr x y -> Term.or a <$> go x <*> go y
@@ -196,8 +197,18 @@ elaborateTerm names docMap = go
       STypeLink n -> pure (Term.var a (sNameVar n)) -- TODO: real typeLink
       SDocLit txt -> maybe (Left (errFail "internal error: unparsed doc literal")) Right (Map.lookup txt docMap)
 
-    letB b = (\v' -> ((bAnn b, Name.toVar (bName b)), v')) <$> go (bValue b)
-    letRecB b = (\v' -> (Name.toVar (bName b), bAnn b, v')) <$> go (bValue b)
+    -- Elaborate a block of bindings + result the same way Unison's own block parser does: build one nested letRec
+    -- over all bindings, then run SCC minimization to split it into the canonical mix of non-recursive @let@s and
+    -- recursive @let rec@ groups. This means a surface block need not declare whether it is recursive (Curlison and
+    -- Pyson @let@ don't) — recursion is recovered structurally, matching the hash the default syntax would produce.
+    elabBlock :: Ann -> [SBinding] -> STerm -> E v (Term v Ann)
+    elabBlock a bs body = do
+      bs' <- traverse (\b -> (\v' -> (bAnn b, Name.toVar (bName b), v')) <$> go (bValue b)) bs
+      body' <- go body
+      let tm = foldr (\(ba, v, t) acc -> Term.consLetRec False a (ba, v, t) acc) body' bs'
+      case Components.minimize' tm of
+        Left _ -> Left (errFail "duplicate names in let block")
+        Right tm' -> Right tm'
 
     elabCase (SCase pat guard body) = do
       (spat, bvs) <- elaboratePattern names pat

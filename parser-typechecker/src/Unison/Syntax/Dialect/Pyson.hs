@@ -85,8 +85,8 @@ renderTermP ctx (STerm _ f) = case f of
   SBinOp n p a b -> (if p < ctx then parens else id) (renderTermP p a <> " " <> renderName n <> " " <> renderTermP (increment p) b)
   SApp h args -> renderTermP Application h <> parens (commas (map renderTerm args))
   SLam ps body -> ctrl "lambda" <> " " <> commas [renderPlain p | SParam _ p <- ps] <> fmt S.DelimiterChar ":" <> " " <> renderTerm body
-  SLet bs body -> suite (ctrl "let") ([renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm (bValue b) | b <- bs] ++ [renderTerm body])
-  SLetRec bs body -> suite (ctrl "letrec") ([renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm (bValue b) | b <- bs] ++ [renderTerm body])
+  SLet bs body -> suite (ctrl "let") (map renderLetBinding bs ++ [renderTerm body])
+  SLetRec bs body -> suite (ctrl "letrec") (map renderLetBinding bs ++ [renderTerm body])
   SIf c t e -> parens (renderTerm t <> " " <> ctrl "if" <> " " <> renderTerm c <> " " <> ctrl "else" <> " " <> renderTerm e)
   SAnd a b -> parens (renderTerm a <> " " <> ctrl "and" <> " " <> renderTerm b)
   SOr a b -> parens (renderTerm a <> " " <> ctrl "or" <> " " <> renderTerm b)
@@ -100,6 +100,16 @@ renderTermP ctx (STerm _ f) = case f of
   STermLink n -> ctrl "termLink" <> parens (renderName n)
   STypeLink n -> ctrl "typeLink" <> parens (renderName n)
   SDocLit t -> fmt S.DocDelimiter (PP.text t)
+
+-- | A binding inside a @let@\/@letrec@ block. A function-valued binding becomes a nested @def@ (Python's @lambda@ is
+-- expression-only, so a multi-statement function body can't be a @lambda@); a plain value becomes @name = value@.
+renderLetBinding :: SBinding -> Pretty SyntaxText
+renderLetBinding b = case bValue b of
+  STerm _ (SLam ps body) ->
+    suite
+      (ctrl "def" <> " " <> renderPlain (bName b) <> parens (commas [renderPlain p | SParam _ p <- ps]))
+      [renderTerm body]
+  v -> renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm v
 
 renderCase :: SCase -> Pretty SyntaxText
 renderCase (SCase pat guard body) =
@@ -128,11 +138,15 @@ renderType st@(SType _ t) = case t of
   STyForall vs body -> ctrl "forall" <> " " <> commas (map renderPlain vs) <> fmt S.DelimiterChar "." <> " " <> renderType body
   STyApp f args -> renderType f <> fmt S.DelimiterChar "[" <> commas (map renderType args) <> fmt S.DelimiterChar "]"
   STyEffects es -> renderEffects es
-  STyArrow {} -> PP.sep (" " <> fmt S.TypeOperator "->" <> " ") (arrowComponents st)
+  STyArrow {} -> arrowSpine st
   where
-    arrowComponents (SType _ (STyArrow i Nothing o)) = renderType i : arrowComponents o
-    arrowComponents (SType _ (STyArrow i (Just es) o)) = (renderType i <> renderEffects es) : arrowComponents o
-    arrowComponents other = [renderType other]
+    -- Effects sit on the arrow: `a ->{e} b`, not `a{e} -> b`.
+    arrowSpine (SType _ (STyArrow i mes o)) =
+      arrowInput i <> " " <> fmt S.TypeOperator "->" <> maybe mempty renderEffects mes <> " " <> arrowSpine o
+    arrowSpine other = renderType other
+    -- A function-typed argument needs parens so it doesn't reassociate: `(a -> b) -> c`, not `a -> b -> c`.
+    arrowInput t@(SType _ (STyArrow {})) = parens (renderType t)
+    arrowInput t = renderType t
 
 renderEffects :: [SType] -> Pretty SyntaxText
 renderEffects es = fmt S.AbilityBraces "{" <> commas (map renderType es) <> fmt S.AbilityBraces "}"
