@@ -89,8 +89,13 @@ withAnn p = do
   where
     toPos sp = Pos.Pos (P.unPos (P.sourceLine sp)) (P.unPos (P.sourceColumn sp))
 
+-- | Characters allowed to start a wordy identifier segment (matches Unison's @wordyIdStartChar@).
+isWordyStart :: Char -> Bool
+isWordyStart c = isAlphaNum c || c == '_'
+
+-- | Characters allowed within a wordy identifier segment (matches Unison's @wordyIdChar@): includes @!@ and @'@.
 isWordyChar :: Char -> Bool
-isWordyChar c = isAlphaNum c || c == '_'
+isWordyChar c = isAlphaNum c || c == '_' || c == '!' || c == '\''
 
 isSymChar :: Char -> Bool
 isSymChar c = c `elem` ("+-*/<>=!&|^%~$:" :: String)
@@ -101,7 +106,8 @@ nameRaw = lexeme do
   rest <- P.many (P.try (C.char '.' *> seg))
   pure (intercalate "." (first : rest))
   where
-    seg = P.takeWhile1P (Just "wordy") isWordyChar P.<|> P.takeWhile1P (Just "operator") isSymChar
+    seg = wordy P.<|> P.takeWhile1P (Just "operator") isSymChar
+    wordy = (:) <$> P.satisfy isWordyStart <*> P.takeWhileP (Just "wordy") isWordyChar
 
 pname :: String -> Name
 pname = Name.unsafeParseText . Text.pack
