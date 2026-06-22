@@ -26,6 +26,7 @@ import Data.Set (Set)
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.Syntax.Name qualified as Name (toText)
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Reference (Reference, TypeReference)
@@ -114,8 +115,14 @@ renderTermP ctx (STerm _ f) = case f of
 
 -- | A @{ name = e; … ; body }@ block.
 block :: [SBinding] -> STerm -> Pretty SyntaxText
-block bs body =
-  braceBlock ([renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm (bValue b) | b <- bs] ++ [renderTerm body])
+block bs body = braceBlock (map stmtLine bs ++ [renderTerm body])
+
+-- | A statement line in a block: a discarded statement (bound to @_@) prints as a bare expression; anything else as
+-- @name = e@.
+stmtLine :: SBinding -> Pretty SyntaxText
+stmtLine b
+  | Name.toText (bName b) == "_" = renderTerm (bValue b)
+  | otherwise = renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm (bValue b)
 
 braceBlock :: [Pretty SyntaxText] -> Pretty SyntaxText
 braceBlock items =
@@ -266,11 +273,10 @@ prettyBinding ppe hq term =
     throwsClause Nothing = mempty
     throwsClause (Just es) = " " <> ctrl "throws" <> " " <> renderEffects es
     funcStmts body = case body of
-      STerm _ (SLet bs e) -> map stmtBinding bs ++ [ret e]
-      STerm _ (SLetRec bs e) -> map stmtBinding bs ++ [ret e]
+      STerm _ (SLet bs e) -> map stmtLine bs ++ [ret e]
+      STerm _ (SLetRec bs e) -> map stmtLine bs ++ [ret e]
       e -> [ret e]
     ret e = ctrl "return" <> " " <> renderTerm e
-    stmtBinding b = renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm (bValue b)
     semi = fmt S.DelimiterChar ";"
 
 -- | For a typed @n@-parameter lambda, peel any leading @forall@ (returning the type variables) and then exactly @n@

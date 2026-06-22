@@ -220,13 +220,19 @@ pFuncBody = do
   _ <- P.optional (symbol ";")
   pure (if null stmts then e else STerm (tAnn e) (SLet stmts e))
 
+-- | A statement before @return@: a @name = e;@ binding or a bare @e;@ expression (a discarded statement, bound to @_@).
 pFuncStmt :: CP SBinding
 pFuncStmt = do
-  (a, nm) <- withAnn nameRaw
-  _ <- symbol "="
-  v <- pTerm
-  _ <- symbol ";"
-  pure (SBinding a (pname nm) Nothing v)
+  P.notFollowedBy (symbol "return")
+  (P.try pNamed P.<|> pBare) <* symbol ";"
+  where
+    pNamed = do
+      (a, nm) <- withAnn nameRaw
+      _ <- symbol "="
+      SBinding a (pname nm) Nothing <$> pTerm
+    pBare = do
+      (a, v) <- withAnn pTerm
+      pure (SBinding a (pname "_") Nothing v)
 
 -- | A C-style typed value definition: @Type name = e;@.
 pCValue :: CP RawForm
@@ -356,17 +362,17 @@ pBlock = do
   (a, (bs, body)) <- withAnn (braces blockBody)
   pure (STerm a (SLet bs body))
   where
+    -- Items are @;@-separated (the printer also puts a @;@ on the last one). Each is a @name = e@ binding or a bare
+    -- expression; the final item is the block result, earlier bare expressions are discarded statements (bound to @_@).
     blockBody = do
-      bs <- P.many (P.try pBlockBinding)
-      body <- pTerm
-      _ <- P.optional (symbol ";")
-      pure (bs, body)
+      items <- P.sepEndBy1 pItem (symbol ";")
+      pure (map toBinding (init items), case last items of Right (_, e) -> e; Left b -> bValue b)
+    toBinding = \case Right (a, e) -> SBinding a (pname "_") Nothing e; Left b -> b
+    pItem = (Left <$> P.try pBlockBinding) P.<|> (Right <$> withAnn pTerm)
     pBlockBinding = do
       (a, nm) <- withAnn nameRaw
       _ <- symbol "="
-      v <- pTerm
-      _ <- symbol ";"
-      pure (SBinding a (pname nm) Nothing v)
+      SBinding a (pname nm) Nothing <$> pTerm
 
 pMatch :: CP STerm
 pMatch = do

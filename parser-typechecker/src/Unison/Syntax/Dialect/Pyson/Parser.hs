@@ -272,13 +272,14 @@ pLetLike kw mk = L.indentBlock scn do
   (a, _) <- withAnn (P.try (symbol kw <* symbol ":"))
   pure (L.IndentSome Nothing (\items -> pure (assemble a items)) pBlockItem)
   where
+    -- The final item is the block result; earlier bare expressions are discarded statements (bound to @_@). Order is
+    -- preserved so a statement can sit between two bindings.
     assemble a items =
-      let bs = [b | Left b <- items]
-          body = lastBody a items
-       in STerm a (mk bs body)
-    lastBody a items = case [t | Right t <- items] of
-      [] -> STerm a SHole
-      ts -> last ts
+      let stmts = map (toBinding a) (init items)
+          body = case last items of Right t -> t; Left b -> bValue b
+       in STerm a (mk stmts body)
+    toBinding _ (Left b) = b
+    toBinding a (Right t) = SBinding a (pname "_") Nothing t
 
 -- | A block item is a nested @def@ function binding (Left), a @name = term@ binding (Left), or the body term (Right).
 pBlockItem :: PP (Either SBinding STerm)

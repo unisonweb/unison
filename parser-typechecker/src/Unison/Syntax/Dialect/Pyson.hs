@@ -22,6 +22,7 @@ import Data.Set (Set)
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.Syntax.Name qualified as Name (toText)
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Reference (Reference, TypeReference)
@@ -106,12 +107,15 @@ renderTermP ctx (STerm _ f) = case f of
 -- | A binding inside a @let@\/@letrec@ block. A function-valued binding becomes a nested @def@ (Python's @lambda@ is
 -- expression-only, so a multi-statement function body can't be a @lambda@); a plain value becomes @name = value@.
 renderLetBinding :: SBinding -> Pretty SyntaxText
-renderLetBinding b = case bValue b of
-  STerm _ (SLam ps body) ->
-    suite
-      (ctrl "def" <> " " <> renderPlain (bName b) <> parens (commas [renderPlain p | SParam _ p <- ps]))
-      [renderTerm body]
-  v -> renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm v
+renderLetBinding b
+  -- A discarded statement (bound to @_@) prints as a bare expression.
+  | Name.toText (bName b) == "_" = renderTerm (bValue b)
+  | otherwise = case bValue b of
+      STerm _ (SLam ps body) ->
+        suite
+          (ctrl "def" <> " " <> renderPlain (bName b) <> parens (commas [renderPlain p | SParam _ p <- ps]))
+          [renderTerm body]
+      v -> renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm v
 
 renderCase :: SCase -> Pretty SyntaxText
 renderCase (SCase pat guard body) =
