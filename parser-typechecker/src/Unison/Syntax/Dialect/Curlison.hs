@@ -101,7 +101,7 @@ renderTermP ctx (STerm _ f) = case f of
   SLet bs body -> block bs body
   SLetRec bs body -> block bs body
   SIf c t e -> parens (renderTerm c <> " ? " <> renderTerm t <> " : " <> renderTerm e)
-  SMatch s cs -> ctrl "match" <> " " <> parens (renderTerm s) <> " " <> braceBlock (map renderCase cs)
+  SMatch s cs -> ctrl "match" <> " " <> matchScrutinee s <> " " <> braceBlock (map renderCase cs)
   SHandle h e -> ctrl "handle" <> " " <> parens (renderTerm e) <> " " <> ctrl "with" <> " " <> parens (renderTerm h)
   SDelay e -> ctrl "delay" <> parens (renderTerm e)
   SList xs -> fmt S.DelimiterChar "[" <> commas (map renderTerm xs) <> fmt S.DelimiterChar "]"
@@ -114,6 +114,10 @@ renderTermP ctx (STerm _ f) = case f of
   where
     wrapIf cond p = if cond then parens p else p
     infixOp p opName a b = renderTermP p a <> " " <> opName <> " " <> renderTermP (increment p) b
+    -- The match scrutinee is parenthesized (`match (s)`); a tuple scrutinee reuses its own parens (`match (a, b)`,
+    -- not `match ((a, b))`).
+    matchScrutinee (STerm _ (STuple xs)) = parens (commas (map renderTerm xs))
+    matchScrutinee s = parens (renderTerm s)
 
 -- | A @{ name = e; … ; body }@ block.
 block :: [SBinding] -> STerm -> Pretty SyntaxText

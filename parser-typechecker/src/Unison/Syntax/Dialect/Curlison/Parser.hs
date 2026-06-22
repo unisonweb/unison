@@ -385,11 +385,11 @@ pBlock = do
 
 pMatch :: CP STerm
 pMatch = do
-  (a, (s, cs)) <- withAnn do
-    _ <- symbol "match"
-    s <- parens pTerm
-    cs <- braces (P.sepEndBy pCase (symbol ";"))
-    pure (s, cs)
+  _ <- symbol "match"
+  -- The scrutinee is parenthesized; a comma-separated list is a tuple scrutinee (`match (a, b)`).
+  (a, items) <- withAnn (parens (commaSep pTerm))
+  let s = case items of [t] -> t; _ -> STerm a (STuple items)
+  cs <- braces (P.sepEndBy pCase (symbol ";"))
   pure (STerm a (SMatch s cs))
 
 pCase :: CP SCase
