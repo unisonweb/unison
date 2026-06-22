@@ -180,6 +180,7 @@ renderCtor isAbility (SConstructor _ name ty)
 
 -- | The argument types of a constructor (its full type minus the result).
 ctorArgTypes :: SType -> [SType]
+ctorArgTypes (SType _ (STyForall _ b)) = ctorArgTypes b
 ctorArgTypes (SType _ (STyArrow i _ o)) = i : ctorArgTypes o
 ctorArgTypes _ = []
 

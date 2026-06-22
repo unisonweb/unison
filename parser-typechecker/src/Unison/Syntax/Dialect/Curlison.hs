@@ -209,6 +209,7 @@ renderCtor isAbility (SConstructor _ name ty)
       args -> renderPlain name <> parens (commas (map renderType args))
 
 ctorArgTypes :: SType -> [SType]
+ctorArgTypes (SType _ (STyForall _ b)) = ctorArgTypes b
 ctorArgTypes (SType _ (STyArrow i _ o)) = i : ctorArgTypes o
 ctorArgTypes _ = []
 

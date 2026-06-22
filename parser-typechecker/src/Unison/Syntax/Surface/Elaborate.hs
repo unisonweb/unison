@@ -163,7 +163,10 @@ resolveDeclGuids env sfile = do
 elabDecl :: (Var v) => SDecl -> (v, Either (EffectDeclaration v Ann) (DataDeclaration v Ann))
 elabDecl sd =
   let tyvars = map Name.toVar (dTypeParams sd)
-      ctors = [(cAnn c, Name.toVar (cName c), elaborateType (cType c)) | c <- dConstructors sd]
+      -- Each constructor type is universally quantified over the declaration's type parameters, so the params are bound
+      -- (not free type references that 'environmentFor' would reject). The dialect parsers produce the bare
+      -- @arg -> … -> Self@ type; wrap it here, matching how the stored declaration looks.
+      ctors = [(cAnn c, Name.toVar (cName c), Type.foralls (cAnn c) tyvars (elaborateType (cType c))) | c <- dConstructors sd]
       modifier = case dModifier sd of SStructural -> DD.Structural; SUnique t -> DD.Unique t
       dd = DataDeclaration modifier (dAnn sd) tyvars ctors
    in ( Name.toVar (dName sd),
