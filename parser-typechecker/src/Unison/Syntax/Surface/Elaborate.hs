@@ -213,7 +213,10 @@ elaborateTerm names docMap = go
     -- Pyson @let@ don't) — recursion is recovered structurally, matching the hash the default syntax would produce.
     elabBlock :: Ann -> [SBinding] -> STerm -> E v (Term v Ann)
     elabBlock a bs body = do
-      bs' <- traverse (\b -> (\v' -> (bAnn b, Name.toVar (bName b), v')) <$> go (bValue b)) bs
+      -- Each discarded statement renders as @_ = e@; give each a distinct fresh var so multiple @_@ in one block
+      -- don't collide (they're unreferenced, so the names don't affect the hash).
+      let blockVar i b = let v = Name.toVar (bName b) in if Var.name v == "_" then Var.named ("_" <> tShow (i :: Int)) else v
+      bs' <- traverse (\(i, b) -> (\v' -> (bAnn b, blockVar i b, v')) <$> go (bValue b)) (zip [0 ..] bs)
       body' <- go body
       let tm = foldr (\(ba, v, t) acc -> Term.consLetRec False a (ba, v, t) acc) body' bs'
       case Components.minimize' tm of

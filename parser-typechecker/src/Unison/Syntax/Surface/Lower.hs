@@ -133,7 +133,17 @@ lowerTermD docRender ppe = go
       Ann' e t -> SAnn (go e) (lowerType ppe t)
       LamsNamed' vs body -> let (vs', body') = cleanCasesVars vs body in SLam [SParam External (varName v) | v <- vs'] (go body')
       LetRecNamed' bs body -> SLetRec [binding v b | (v, b) <- bs] (go body)
-      Lets' bs body -> SLet [binding v b | (_, v, b) <- bs] (go body)
+      Lets' bs body -> SLet (zipWith letBinding [0 ..] bs) (go body)
+        where
+          -- A discarded statement (a desugar-generated @_<n>@ var that is never referenced downstream — e.g. from a
+          -- @do@\/sequencing block) renders as @_ = e@ rather than leaking the raw generated name. Elaborate gives each
+          -- @_@ binding a fresh distinct var, so they don't collide.
+          tailFree i = foldMap (\(_, _, b') -> ABT.freeVars b') (drop (i + 1) bs) <> ABT.freeVars body
+          letBinding i (_, v, b)
+            | isDiscardName (Var.name v), v `Set.notMember` tailFree i = SBinding External discardName Nothing (go b)
+            | otherwise = binding v b
+          discardName = Name.unsafeParseText "_"
+          isDiscardName n = Text.length n > 1 && Text.head n == '_' && Text.all Char.isDigit (Text.drop 1 n)
       Match' scrutinee cases -> SMatch (go scrutinee) (map (lowerCase ppe) cases)
       Apps' f args -> case (go f, map go args) of
         -- A two-argument application of a symbolic operator is recovered to 'SBinOp', carrying the operator's
