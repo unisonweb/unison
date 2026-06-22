@@ -514,10 +514,13 @@ pNameTy = do
   (a, nm) <- withAnn nameRaw
   pure (SType a (STyVar (pname nm)))
 
+-- | An ability row @{e1, e2}@, optionally annotating a following type as @{e} t@ (e.g. the @{Abort} a@ request type).
 pEffectsTy :: CP SType
 pEffectsTy = do
   (a, es) <- withAnn (braces (commaSep pType))
-  pure (SType a (STyEffects es))
+  P.optional pAppTy >>= \case
+    Nothing -> pure (SType a (STyEffects es))
+    Just t -> pure (SType a (STyEffectful es t))
 
 -- | A parenthesized type: a single type @(t)@, a tuple @(a, b, …)@, or the unit type @()@.
 pParenTy :: CP SType

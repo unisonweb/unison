@@ -198,6 +198,8 @@ data STypeF
   | -- | A tuple type @(a, b, …)@ (2+ elements) or the unit type @()@ (zero elements). Sugar for the underlying
     -- @Tuple@\/@Unit@ encoding.
     STyTuple [SType]
+  | -- | A type carrying a (non-arrow) ability requirement, @{e1, e2} t@ — e.g. an ability request type @{Abort} a@.
+    STyEffectful [SType] SType
   deriving stock (Show)
 
 -- | A data\/ability type modifier.

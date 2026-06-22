@@ -132,6 +132,7 @@ renderSType st@(SType _ t) = case t of
   STyApp f args -> callP (renderSType f : map renderSType args)
   STyEffects es -> renderEffects es
   STyTuple xs -> callP (ctrl "tuple" : map renderSType xs)
+  STyEffectful es t -> parenize (renderEffects es <> " " <> renderSType t)
   STyArrow {} -> callP (fmt S.TypeOperator "->" : arrowComponents st)
   where
     -- Flatten the arrow spine into rendered components, inserting an ability row (e.g. @{e}@) just before the

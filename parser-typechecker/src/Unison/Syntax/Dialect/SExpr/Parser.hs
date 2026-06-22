@@ -348,8 +348,15 @@ pEffectsType = do
 
 pParenType :: SP SType
 pParenType = do
-  (a, mk) <- withAnn (parens (P.choice [pArrow, pForall, pTupleType, pTypeApp]))
+  (a, mk) <- withAnn (parens (P.choice [pArrow, pForall, pTupleType, P.try pEffectfulType, pTypeApp]))
   pure (SType a (mk a))
+
+-- | An ability-annotated (non-arrow) type @({e} t)@, e.g. an ability request type @({Abort} a)@.
+pEffectfulType :: SP (Ann -> STypeF)
+pEffectfulType = do
+  es <- braces (P.many pType)
+  t <- pType
+  pure \_ -> STyEffectful es t
 
 pTupleType :: SP (Ann -> STypeF)
 pTupleType = do

@@ -19,7 +19,7 @@ import Data.Char qualified as Char
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
-import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm', pattern TupleType')
+import Unison.Builtin.Decls (unitRef, pattern TuplePattern, pattern TupleTerm', pattern TupleType')
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
@@ -256,6 +256,8 @@ lowerType ppe = go . Type.removeEmptyEffects . Type.cleanup
     go :: Type v a -> SType
     go typ = extTy case typ of
       Type.Var' v -> STyVar (varName v)
+      -- The unit type prints as `()` (an empty tuple), matching the default printer.
+      Type.Ref' r | r == unitRef -> STyTuple []
       Type.Ref' r -> STyRef (PPE.typeNameOrHashOnly ppe r)
       Type.ForallsNamed' vs body | not (null vs) -> STyForall (map varName vs) (go body)
       Type.Arrow'' i es o -> STyArrow (go i) (if null es then Nothing else Just (map go es)) (go o)
@@ -264,4 +266,7 @@ lowerType ppe = go . Type.removeEmptyEffects . Type.cleanup
       TupleType' xs | length xs /= 1 -> STyTuple (map go xs)
       Type.Apps' f args -> STyApp (go f) (map go args)
       Type.Effects' es -> STyEffects (map go es)
+      -- A non-arrow type carrying an ability requirement, e.g. an ability request type `{Abort} a`. (Arrows already
+      -- carry their abilities above; this catches the bare `{e} t` form.)
+      Type.Effect' es t | not (null es) -> STyEffectful (map go es) (go t)
       _ -> STyVar (Name.unsafeParseText "_")

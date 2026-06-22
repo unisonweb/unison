@@ -162,6 +162,7 @@ renderType st@(SType _ t) = case t of
   STyApp f args -> renderType f <> fmt S.DelimiterChar "<" <> commas (map renderType args) <> fmt S.DelimiterChar ">"
   STyEffects es -> renderEffects es
   STyTuple xs -> parens (commas (map renderType xs))
+  STyEffectful es t -> renderEffects es <> " " <> renderType t
   STyArrow {} -> parens (arrowSpine st)
   where
     -- Effects sit on the arrow: `a ->{e} b`, not `a{e} -> b`.

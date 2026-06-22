@@ -332,6 +332,7 @@ elaborateType = go
         let unit = Type.ref a BuiltinDecls.unitRef
             pair x rest = Type.apps' (Type.ref a BuiltinDecls.pairRef) [go x, rest]
          in foldr pair unit xs
+      STyEffectful es t -> Type.effect a (map go es) (go t)
 
 -- | Parse every doc literal in the file with the real Unison parser, mapping each doc's @{{ … }}@ source text to its
 -- term. This is the only monadic step; it lets 'elaborateFile' remain pure.
