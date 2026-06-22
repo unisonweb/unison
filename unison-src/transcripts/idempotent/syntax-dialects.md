@@ -160,31 +160,31 @@ scratch/main> syntax.set curlison
 
 scratch/main> view inc combine demo Shape Point isCircle
 
-  record Point {  
+  record Point {
     x : Nat;
     y : Nat;
   }
 
-  type Shape {  
+  type Shape {
     Circle;
     Square;
     Triangle;
   }
 
-  Nat combine(Nat a, Nat b, Nat c) {  
+  Nat combine(Nat a, Nat b, Nat c) {
     return a Nat.+ b Nat.* c;
   }
 
-  Nat demo(Nat n) {  
+  Nat demo(Nat n) {
     return combine(inc(n), n, 2);
   }
 
-  Nat inc(Nat x) {  
+  Nat inc(Nat x) {
     return x Nat.+ 1;
   }
 
-  Boolean isCircle(Shape s) {  
-    return match (s) {  
+  Boolean isCircle(Shape s) {
+    return match (s) {
       Circle => true;
       _ => false;
     };
@@ -198,33 +198,33 @@ scratch/main> syntax.set pyson
 
 scratch/main> view inc combine demo Shape Point isCircle
 
-  record Point:  
+  record Point:
     x : Nat
     y : Nat
 
-  type Shape:  
+  type Shape:
     Circle
     Square
     Triangle
 
   combine : Nat -> Nat -> Nat -> Nat
-  def combine(a, b, c):  
+  def combine(a, b, c):
     a Nat.+ b Nat.* c
 
   demo : Nat -> Nat
-  def demo(n):  
+  def demo(n):
     combine(inc(n), n, 2)
 
   inc : Nat -> Nat
-  def inc(x):  
+  def inc(x):
     x Nat.+ 1
 
   isCircle : Shape -> Boolean
-  def isCircle(s):  
-    match s:  
-      case Circle:  
+  def isCircle(s):
+    match s:
+      case Circle:
         True
-      case _:  
+      case _:
         False
 ```
 

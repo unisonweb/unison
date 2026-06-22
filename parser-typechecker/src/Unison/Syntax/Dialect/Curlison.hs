@@ -136,7 +136,7 @@ stmtLine b
 braceBlock :: [Pretty SyntaxText] -> Pretty SyntaxText
 braceBlock items =
   fmt S.DelimiterChar "{"
-    <> PP.indentN 2 (PP.newline <> PP.lines (map (<> fmt S.DelimiterChar ";") items))
+    <> PP.indentNAfterNewline 2 (PP.newline <> PP.lines (map (<> fmt S.DelimiterChar ";") items))
     <> PP.newline
     <> fmt S.DelimiterChar "}"
 

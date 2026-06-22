@@ -201,7 +201,7 @@ pDefStmt = L.indentBlock scn do
   nm <- nameRaw
   ps <- parens (commaSep nameRaw)
   _ <- symbol ":"
-  pure (L.IndentSome Nothing (\items -> pure (RBind (SBinding a (pname nm) Nothing (STerm a (SLam [SParam a (pname p) | p <- ps] (lastItem a items)))))) pTerm)
+  pure (L.IndentSome Nothing (\items -> pure (RBind (SBinding a (pname nm) Nothing (STerm a (SLam [SParam a (pname p) | p <- ps] (assembleBody a items)))))) pBlockItem)
 
 lastItem :: Ann -> [STerm] -> STerm
 lastItem a = \case
@@ -319,6 +319,29 @@ pBlockItem =
       _ <- symbol "="
       SBinding a (pname nm) Nothing <$> pTerm
 
+-- | Assemble the indented body of a @def@ — a sequence of statements followed by a result expression — into a single
+-- term. Leading bindings become a @let@ block (elaboration re-derives let-vs-letrec by recursion analysis), pairing in
+-- any signature lines; a body with no bindings is just its result expression. The inverse of 'Pyson.funcBody'.
+assembleBody :: Ann -> [BlockItem] -> STerm
+assembleBody a items =
+  let sigs = [(n, t) | BISig n t <- items]
+      withSig b = case lookup (bName b) sigs of
+        Just t -> b {bValue = STerm (bAnn b) (SAnn (bValue b) t)}
+        Nothing -> b
+      toBind (BIBind b) = withSig b
+      toBind (BITerm t) = SBinding a (pname "_") Nothing t
+      toBind (BISig _ _) = SBinding a (pname "_") Nothing (STerm a SHole)
+      bodyOf (BITerm t) = t
+      bodyOf (BIBind b) = bValue (withSig b)
+      bodyOf (BISig _ _) = STerm a SHole
+      notSig = \case BISig _ _ -> False; _ -> True
+   in case filter notSig items of
+        [] -> STerm a SHole
+        real ->
+          let binds = map toBind (init real)
+              result = bodyOf (last real)
+           in if null binds then result else STerm a (SLet binds result)
+
 -- | A nested function binding: @def name(params): <indented body>@. The inverse of 'renderLetBinding'.
 pDefBinding :: PP SBinding
 pDefBinding = L.indentBlock scn do
@@ -326,7 +349,7 @@ pDefBinding = L.indentBlock scn do
   nm <- nameRaw
   ps <- parens (commaSep nameRaw)
   _ <- symbol ":"
-  pure (L.IndentSome Nothing (\items -> pure (SBinding a (pname nm) Nothing (STerm a (SLam [SParam a (pname p) | p <- ps] (lastItem a items))))) pTerm)
+  pure (L.IndentSome Nothing (\items -> pure (SBinding a (pname nm) Nothing (STerm a (SLam [SParam a (pname p) | p <- ps] (assembleBody a items))))) pBlockItem)
 
 pMatch :: PP STerm
 pMatch = L.indentBlock scn do

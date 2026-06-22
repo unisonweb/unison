@@ -71,7 +71,7 @@ renderLit = \case
 
 -- | An indented block: a colon-introduced suite of lines.
 suite :: Pretty SyntaxText -> [Pretty SyntaxText] -> Pretty SyntaxText
-suite header items = header <> fmt S.DelimiterChar ":" <> PP.indentN 2 (PP.newline <> PP.lines items)
+suite header items = header <> fmt S.DelimiterChar ":" <> PP.indentNAfterNewline 2 (PP.newline <> PP.lines items)
 
 -- | Render a term at the top level (loosest ambient precedence).
 renderTerm :: STerm -> Pretty SyntaxText
@@ -124,7 +124,7 @@ renderLetBinding b
     defLine ps body =
       suite
         (ctrl "def" <> " " <> renderPlain (bName b) <> parens (commas [renderPlain p | SParam _ p <- ps]))
-        [renderTerm body]
+        (funcBody body)
 
 renderCase :: SCase -> Pretty SyntaxText
 renderCase (SCase pat guard body) =
@@ -258,5 +258,14 @@ prettyBindingWithoutTypeSignature ppe hq term = defForm hq (peelAnn (lowerT ppe 
 defForm :: HQ.HashQualified Name -> STerm -> Pretty SyntaxText
 defForm hq s = case s of
   STerm _ (SLam ps body) ->
-    suite (ctrl "def" <> " " <> prettyHashQualified hq <> parens (commas [renderPlain p | SParam _ p <- ps])) [renderTerm body]
+    suite (ctrl "def" <> " " <> prettyHashQualified hq <> parens (commas [renderPlain p | SParam _ p <- ps])) (funcBody body)
   _ -> prettyHashQualified hq <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm s
+
+-- | The body lines of a @def@: when the body is a leading @let@\/@letrec@, its bindings become statements directly in
+-- the suite (Python defines nested functions inline, with no wrapper keyword), then the result expression. Any other
+-- body is a single result line.
+funcBody :: STerm -> [Pretty SyntaxText]
+funcBody body = case body of
+  STerm _ (SLet bs e) -> map renderLetBinding bs ++ [renderTerm e]
+  STerm _ (SLetRec bs e) -> map renderLetBinding bs ++ [renderTerm e]
+  e -> [renderTerm e]
