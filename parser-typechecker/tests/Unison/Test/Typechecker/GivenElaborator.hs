@@ -170,7 +170,8 @@ ambientShowNat :: Elab.AmbientGiven Symbol ()
 ambientShowNat =
   Elab.AmbientGiven
     { Elab.ambientName = ambientShowNatRef,
-      Elab.ambientType = constraintTy
+      Elab.ambientType = constraintTy,
+      Elab.ambientUserName = Nothing
     }
 
 -- An ambient given for OtherC. Used in 'testLexicalShadowsAmbient'.
@@ -181,7 +182,8 @@ ambientOtherC :: Elab.AmbientGiven Symbol ()
 ambientOtherC =
   Elab.AmbientGiven
     { Elab.ambientName = ambientOtherCRef,
-      Elab.ambientType = otherConstraintTy
+      Elab.ambientType = otherConstraintTy,
+      Elab.ambientUserName = Nothing
     }
 
 ------------------------------------------------------------------------------
@@ -557,14 +559,16 @@ ambientShowNatA :: Elab.AmbientGiven Symbol ()
 ambientShowNatA =
   Elab.AmbientGiven
     { Elab.ambientName = Reference.Builtin "AmbientShowNat.A",
-      Elab.ambientType = constraintTy
+      Elab.ambientType = constraintTy,
+      Elab.ambientUserName = Nothing
     }
 
 ambientShowNatB :: Elab.AmbientGiven Symbol ()
 ambientShowNatB =
   Elab.AmbientGiven
     { Elab.ambientName = Reference.Builtin "AmbientShowNat.B",
-      Elab.ambientType = constraintTy
+      Elab.ambientType = constraintTy,
+      Elab.ambientUserName = Nothing
     }
 
 testAmbiguousGiven :: Test ()
@@ -607,7 +611,8 @@ selfFromSelf =
   Elab.AmbientGiven
     { Elab.ambientName = selfRef,
       Elab.ambientType =
-        Type.implicitArrow () selfConstraintTy selfConstraintTy
+        Type.implicitArrow () selfConstraintTy selfConstraintTy,
+      Elab.ambientUserName = Nothing
     }
 
 -- A function whose only implicit is SelfC.

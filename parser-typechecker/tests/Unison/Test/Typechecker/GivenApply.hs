@@ -126,7 +126,11 @@ ambientGivenRef = Reference.Builtin "AmbientTestC"
 
 ambientGiven :: Elab.AmbientGiven Symbol Ann
 ambientGiven =
-  Elab.AmbientGiven {Elab.ambientName = ambientGivenRef, Elab.ambientType = constraintTy}
+  Elab.AmbientGiven
+    { Elab.ambientName = ambientGivenRef,
+      Elab.ambientType = constraintTy,
+      Elab.ambientUserName = Nothing
+    }
 
 typeLookup :: TL.TypeLookup Symbol Ann
 typeLookup =
@@ -229,7 +233,8 @@ showNatGiven :: Elab.AmbientGiven Symbol Ann
 showNatGiven =
   Elab.AmbientGiven
     { Elab.ambientName = showNatRef,
-      Elab.ambientType = showOf (Type.nat External)
+      Elab.ambientType = showOf (Type.nat External),
+      Elab.ambientUserName = Nothing
     }
 
 -- forall a. Show a => Show (List a)
@@ -243,7 +248,8 @@ showListGiven =
           (Type.implicitArrow External (showOf a) (showOf (Type.app External (Type.ref External listRef) a)))
    in Elab.AmbientGiven
         { Elab.ambientName = showListRef,
-          Elab.ambientType = sig
+          Elab.ambientType = sig,
+          Elab.ambientUserName = Nothing
         }
 
 testEndToEndChained :: Test ()
@@ -469,7 +475,8 @@ testSourceLevelEndToEnd =
         natGiven =
           Elab.AmbientGiven
             { Elab.ambientName = natGivenRef,
-              Elab.ambientType = Type.nat External
+              Elab.ambientType = Type.nat External,
+              Elab.ambientUserName = Nothing
             }
         Result.Result notes _ =
           Common.parseAndSynthesizeAsFileWithGivens
@@ -565,14 +572,16 @@ testSourceLevelLetGivenShadowsAmbient =
         ambientNat =
           Elab.AmbientGiven
             { Elab.ambientName = ambientNatRef,
-              Elab.ambientType = Type.nat External
+              Elab.ambientType = Type.nat External,
+              Elab.ambientUserName = Nothing
             }
         ambientBoolRef :: Reference.Reference
         ambientBoolRef = Reference.Builtin "Test.ambientBool"
         ambientBool =
           Elab.AmbientGiven
             { Elab.ambientName = ambientBoolRef,
-              Elab.ambientType = Type.boolean External
+              Elab.ambientType = Type.boolean External,
+              Elab.ambientUserName = Nothing
             }
         Result.Result notes _ =
           Common.parseAndSynthesizeAsFileWithGivens
@@ -658,7 +667,8 @@ testSourceLevelFileInternalGiven =
         ambientBool =
           Elab.AmbientGiven
             { Elab.ambientName = ambientBoolRef,
-              Elab.ambientType = Type.boolean External
+              Elab.ambientType = Type.boolean External,
+              Elab.ambientUserName = Nothing
             }
         Result.Result notes _ =
           Common.parseAndSynthesizeAsFileWithGivens
@@ -789,7 +799,8 @@ testSourceLevelLetGivenPremiseFree =
         ambientNat =
           Elab.AmbientGiven
             { Elab.ambientName = ambientNatRef,
-              Elab.ambientType = Type.nat External
+              Elab.ambientType = Type.nat External,
+              Elab.ambientUserName = Nothing
             }
         Result.Result notes _ =
           Common.parseAndSynthesizeAsFileWithGivens

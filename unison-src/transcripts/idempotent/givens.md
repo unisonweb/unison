@@ -131,8 +131,7 @@ tag.
 
 > view foo
 
-  given foo : Nat
-  foo = 42
+  given foo : Nat = 42
 ```
 
 ``` ucm
