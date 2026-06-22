@@ -132,6 +132,7 @@ renderPattern (SPattern _ p) = case p of
   SPAs n sub -> renderPlain n <> fmt S.DelimiterChar "@" <> renderPattern sub
   SPList subs -> fmt S.DelimiterChar "[" <> commas (map renderPattern subs) <> fmt S.DelimiterChar "]"
   SPSeqOp l op r -> parens (renderPattern l <> " " <> seqOp op <> " " <> renderPattern r)
+  SPTuple subs -> parens (commas (map renderPattern subs))
   SPEffect n subs k -> fmt S.DelimiterChar "{" <> renderName n <> parens (commas (map renderPattern subs)) <> " -> " <> renderPattern k <> fmt S.DelimiterChar "}"
   SPEffectPure sub -> fmt S.DelimiterChar "{" <> renderPattern sub <> fmt S.DelimiterChar "}"
   where
@@ -144,6 +145,7 @@ renderType st@(SType _ t) = case t of
   STyForall vs body -> ctrl "forall" <> " " <> commas (map renderPlain vs) <> fmt S.DelimiterChar "." <> " " <> renderType body
   STyApp f args -> renderType f <> fmt S.DelimiterChar "[" <> commas (map renderType args) <> fmt S.DelimiterChar "]"
   STyEffects es -> renderEffects es
+  STyTuple xs -> parens (commas (map renderType xs))
   STyArrow {} -> arrowSpine st
   where
     -- Effects sit on the arrow: `a ->{e} b`, not `a{e} -> b`.

@@ -19,7 +19,7 @@ import Data.Char qualified as Char
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
-import Unison.Builtin.Decls (pattern TupleTerm')
+import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm', pattern TupleType')
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
@@ -185,6 +185,10 @@ lowerPattern ppe = go
       Pattern.Float _ f -> (sp (SPLit (SFloat f)), vs)
       Pattern.Text _ t -> (sp (SPLit (SText t)), vs)
       Pattern.Char _ c -> (sp (SPLit (SChar c)), vs)
+      -- Tuple patterns `(p, q, …)` are sugar for the `Tuple` constructor pattern. (A 1-element tuple pattern is just
+      -- the element, so it isn't sugared.)
+      TuplePattern ps | length ps /= 1 ->
+        let (sps, vs') = goList vs ps in (sp (SPTuple sps), vs')
       Pattern.Constructor _ cref ps ->
         let (sps, vs') = goList vs ps
          in (sp (SPCtor (conName cref CT.Data) sps), vs')
@@ -255,6 +259,9 @@ lowerType ppe = go . Type.removeEmptyEffects . Type.cleanup
       Type.Ref' r -> STyRef (PPE.typeNameOrHashOnly ppe r)
       Type.ForallsNamed' vs body | not (null vs) -> STyForall (map varName vs) (go body)
       Type.Arrow'' i es o -> STyArrow (go i) (if null es then Nothing else Just (map go es)) (go o)
+      -- Tuple types `(a, b, …)` and the unit type `()` are sugar for the `Tuple`/`Unit` encoding. (A 1-element
+      -- `TupleType'` is just the element type, so it isn't sugared.)
+      TupleType' xs | length xs /= 1 -> STyTuple (map go xs)
       Type.Apps' f args -> STyApp (go f) (map go args)
       Type.Effects' es -> STyEffects (map go es)
       _ -> STyVar (Name.unsafeParseText "_")

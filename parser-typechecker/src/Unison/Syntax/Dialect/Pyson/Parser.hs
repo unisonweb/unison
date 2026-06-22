@@ -413,7 +413,11 @@ pListPat = do
 
 -- | A parenthesized pattern, optionally an infix sequence op: @(p)@, @(l +: r)@, @(l :+ r)@, @(l ++ r)@.
 pParenPat :: PP SPattern
-pParenPat = parens pSeqPat
+pParenPat = do
+  (a, items) <- withAnn (parens (commaSep pSeqPat))
+  pure case items of
+    [p] -> p
+    _ -> SPattern a (SPTuple items)
 
 pSeqPat :: PP SPattern
 pSeqPat = do
@@ -513,7 +517,15 @@ pAppTy = do
     Just args -> SType a (STyApp t args)
 
 pTypeAtom :: PP SType
-pTypeAtom = P.choice [pEffectsTy, parens pType, pNameTy]
+pTypeAtom = P.choice [pEffectsTy, pParenOrTupleTy, pNameTy]
+
+-- | A parenthesized type @(t)@, a tuple @(a, b, …)@, or the unit type @()@.
+pParenOrTupleTy :: PP SType
+pParenOrTupleTy = do
+  (a, items) <- withAnn (parens (commaSep pType))
+  pure case items of
+    [t] -> t
+    _ -> SType a (STyTuple items)
 
 pNameTy :: PP SType
 pNameTy = do

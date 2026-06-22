@@ -116,6 +116,7 @@ renderSPattern (SPattern _ p) = case p of
   SPAs n sub -> parenize (ctrl "as" <> " " <> renderPlain n <> " " <> renderSPattern sub)
   SPList subs -> fmt S.DelimiterChar "[" <> PP.sep " " (map renderSPattern subs) <> fmt S.DelimiterChar "]"
   SPSeqOp l op r -> callP [ctrl (seqOpName op), renderSPattern l, renderSPattern r]
+  SPTuple subs -> callP (ctrl "tuple" : map renderSPattern subs)
   SPEffect n subs k -> parenize (ctrl "request" <> " " <> PP.sep " " (renderName n : map renderSPattern subs) <> " " <> renderSPattern k)
   SPEffectPure sub -> callP [ctrl "pure", renderSPattern sub]
   where
@@ -130,6 +131,7 @@ renderSType st@(SType _ t) = case t of
   STyForall vs body -> hangForm (fmt S.TypeOperator "forall" <> " " <> parenize (PP.sep " " (map renderPlain vs))) (renderSType body)
   STyApp f args -> callP (renderSType f : map renderSType args)
   STyEffects es -> renderEffects es
+  STyTuple xs -> callP (ctrl "tuple" : map renderSType xs)
   STyArrow {} -> callP (fmt S.TypeOperator "->" : arrowComponents st)
   where
     -- Flatten the arrow spine into rendered components, inserting an ability row (e.g. @{e}@) just before the

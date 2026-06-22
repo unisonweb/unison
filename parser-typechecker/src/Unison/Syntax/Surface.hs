@@ -167,6 +167,8 @@ data SPatternF
     SPList [SPattern]
   | -- | A sequence cons\/snoc\/concat pattern.
     SPSeqOp SPattern SSeqOp SPattern
+  | -- | A tuple pattern @(p, q, …)@ (2+ elements). Sugar for the underlying @Tuple@ constructor pattern.
+    SPTuple [SPattern]
   | -- | An ability-request pattern: @{ Op args -> k }@ (the final pattern is the continuation).
     SPEffect SName [SPattern] SPattern
   | -- | The pure case of an ability pattern: @{ pat }@.
@@ -193,6 +195,9 @@ data STypeF
     STyApp SType [SType]
   | -- | An ability row, @{e1, e2}@.
     STyEffects [SType]
+  | -- | A tuple type @(a, b, …)@ (2+ elements) or the unit type @()@ (zero elements). Sugar for the underlying
+    -- @Tuple@\/@Unit@ encoding.
+    STyTuple [SType]
   deriving stock (Show)
 
 -- | A data\/ability type modifier.

@@ -329,7 +329,7 @@ pAtomPattern = do
 pCtorPattern :: SP SPattern
 pCtorPattern = do
   (a, (name, subs)) <- withAnn (parens ((,) <$> atom <*> P.many pPattern))
-  pure (SPattern a (SPCtor (sname (snd name)) subs))
+  pure (SPattern a (if snd name == "tuple" then SPTuple subs else SPCtor (sname (snd name)) subs))
 
 -- Types --------------------------------------------------------------------------------------------------------------
 
@@ -348,8 +348,14 @@ pEffectsType = do
 
 pParenType :: SP SType
 pParenType = do
-  (a, mk) <- withAnn (parens (P.choice [pArrow, pForall, pTypeApp]))
+  (a, mk) <- withAnn (parens (P.choice [pArrow, pForall, pTupleType, pTypeApp]))
   pure (SType a (mk a))
+
+pTupleType :: SP (Ann -> STypeF)
+pTupleType = do
+  keyword "tuple"
+  ts <- P.many pType
+  pure \_ -> STyTuple ts
 
 pArrow, pForall, pTypeApp :: SP (Ann -> STypeF)
 pArrow = do

@@ -416,8 +416,13 @@ pListPat = do
   pure (SPattern a (SPList subs))
 
 -- | A parenthesized pattern, optionally an infix sequence op: @(p)@, @(l +: r)@, @(l :+ r)@, @(l ++ r)@.
+-- | A parenthesized pattern: a single\/seq pattern @(p)@\/@(l +: r)@, a tuple @(p, q, …)@, or unit @()@.
 pParenPat :: CP SPattern
-pParenPat = parens pSeqPat
+pParenPat = do
+  (a, items) <- withAnn (parens (commaSep pSeqPat))
+  pure case items of
+    [p] -> p
+    _ -> SPattern a (SPTuple items)
 
 pSeqPat :: CP SPattern
 pSeqPat = do
@@ -514,8 +519,13 @@ pEffectsTy = do
   (a, es) <- withAnn (braces (commaSep pType))
   pure (SType a (STyEffects es))
 
+-- | A parenthesized type: a single type @(t)@, a tuple @(a, b, …)@, or the unit type @()@.
 pParenTy :: CP SType
-pParenTy = parens pArrow
+pParenTy = do
+  (a, items) <- withAnn (parens (commaSep pArrow))
+  pure case items of
+    [t] -> t
+    _ -> SType a (STyTuple items)
 
 -- | A right-associative arrow chain, each arrow optionally carrying an ability set: @a ->{e} b -> c@.
 pArrow :: CP SType

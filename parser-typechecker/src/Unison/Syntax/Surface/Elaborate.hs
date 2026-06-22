@@ -26,7 +26,7 @@ import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as CP
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as BuiltinDecls
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (DataDeclaration (..), EffectDeclaration)
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Records (generateRecordAccessors)
@@ -276,6 +276,12 @@ elaboratePattern names = go
         (l', lv) <- go l
         (r', rv) <- go r
         pure (Pattern.SequenceOp a l' (seqOp op) r', lv <> rv)
+      -- A tuple pattern is sugar for the nested `Tuple` constructor pattern ending in the `Unit` pattern.
+      SPTuple subs -> do
+        (subs', bvs) <- goList subs
+        let unit = Pattern.Constructor a (ConstructorReference BuiltinDecls.unitRef 0) []
+            pair x rest = Pattern.Constructor a (ConstructorReference BuiltinDecls.pairRef 0) [x, rest]
+        pure (foldr pair unit subs', bvs)
       SPEffectPure sub -> do
         (sub', bvs) <- go sub
         pure (Pattern.EffectPure a sub', bvs)
@@ -321,6 +327,11 @@ elaborateType = go
         Just es -> Type.arrow a (go i) (Type.effect a (map go es) (go o))
       STyApp f args -> Type.apps' (go f) (map go args)
       STyEffects es -> Type.effects a (map go es)
+      -- A tuple type is sugar for the nested `Tuple` application ending in `Unit`.
+      STyTuple xs ->
+        let unit = Type.ref a BuiltinDecls.unitRef
+            pair x rest = Type.apps' (Type.ref a BuiltinDecls.pairRef) [go x, rest]
+         in foldr pair unit xs
 
 -- | Parse every doc literal in the file with the real Unison parser, mapping each doc's @{{ … }}@ source text to its
 -- term. This is the only monadic step; it lets 'elaborateFile' remain pure.
