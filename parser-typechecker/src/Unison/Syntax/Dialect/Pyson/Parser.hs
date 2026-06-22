@@ -30,6 +30,8 @@ import Text.Read qualified as Read
 import Unison.HashQualified qualified as HQ
 import Unison.Lexer.Pos qualified as Pos
 import Unison.Name (Name)
+import Unison.Name qualified as Name (snoc)
+import Unison.NameSegment qualified as NameSegment (docSegment)
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
@@ -126,13 +128,42 @@ reserved = ["if", "else", "and", "or", "lambda", "match", "case", "let", "letrec
 pSFile :: PP SFile
 pSFile = do
   scn
-  forms <- P.many (L.nonIndented scn (P.choice [P.try pWatch, P.try pDecl, pStmt]) <* scn)
+  forms <- concat <$> P.many (L.nonIndented scn pTopForm <* scn)
   P.eof
   let sigs = [(n, t) | RSig n t <- forms]
       binds = [b {bType = lookup (bName b) sigs} | RBind b <- forms]
       decls = [d | RDecl d <- forms]
       watches = [w | RWatch w <- forms]
   pure (SFile Nothing decls binds watches)
+
+-- | A top-level form: a watch, or a declaration\/definition optionally preceded by a @{{ }}@ doc block. A leading doc
+-- becomes a separate @<name>.doc@ binding (the same desugaring Unison's own file parser does), so a documented
+-- definition round-trips.
+pTopForm :: PP [RawForm]
+pTopForm =
+  P.choice
+    [ P.try ((: []) <$> pWatch),
+      pDocumented
+    ]
+  where
+    pDocumented = do
+      mdoc <- P.optional (withAnn (pDocRaw <* scn))
+      form <- P.choice [P.try pDecl, pStmt]
+      pure case mdoc of
+        Just (a, txt) | Just nm <- formName form -> [docBinding a nm txt, form]
+        _ -> [form]
+
+-- | The name a form defines, if any (for attaching a preceding doc).
+formName :: RawForm -> Maybe Name
+formName = \case
+  RBind b -> Just (bName b)
+  RSig n _ -> Just n
+  RDecl d -> Just (dName d)
+  RWatch _ -> Nothing
+
+-- | A @<name>.doc = {{ … }}@ binding synthesized from a doc block preceding a definition.
+docBinding :: Ann -> Name -> String -> RawForm
+docBinding a nm txt = RBind (SBinding a (Name.snoc nm NameSegment.docSegment) Nothing (STerm a (SDocLit (Text.pack txt))))
 
 pWatch :: PP RawForm
 pWatch = do
@@ -390,12 +421,24 @@ pApp = do
     pTermArg = pInlineExpr
 
 pAtom :: PP STerm
-pAtom = P.choice [pDoc, pStringTerm, pCharTerm, pList, pParen, pNameAtom]
+pAtom = P.choice [pDoc, pStringTerm, pCharTerm, pList, pDelay, pParen, pNameAtom]
+
+-- | A delayed computation @delay(e)@ — Unison's @'e@ \/ @do e@, the dual of the @f()@ force. @delay@ is only a keyword
+-- here when immediately applied; a bare or qualified @delay@ elsewhere stays an ordinary name.
+pDelay :: PP STerm
+pDelay = P.try do
+  (a, nm) <- withAnn nameRaw
+  guard (nm == "delay")
+  STerm a . SDelay <$> parens pInlineExpr
 
 pDoc :: PP STerm
 pDoc = do
-  (a, txt) <- withAnn (lexeme (C.string "{{" *> scanDoc (1 :: Int) "{{"))
+  (a, txt) <- withAnn pDocRaw
   pure (STerm a (SDocLit (Text.pack txt)))
+
+-- | The raw text of a @{{ … }}@ doc block (delimiters included, nested @{{ }}@ balanced), as 'SDocLit' stores it.
+pDocRaw :: PP String
+pDocRaw = lexeme (C.string "{{" *> scanDoc (1 :: Int) "{{")
   where
     scanDoc depth acc =
       P.choice

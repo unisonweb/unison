@@ -24,6 +24,8 @@ import Text.Read qualified as Read
 import Unison.HashQualified qualified as HQ
 import Unison.Lexer.Pos qualified as Pos
 import Unison.Name (Name)
+import Unison.Name qualified as Name (snoc)
+import Unison.NameSegment qualified as NameSegment (docSegment)
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
@@ -110,7 +112,7 @@ pname = Name.unsafeParseText . Text.pack
 pSFile :: SP SFile
 pSFile = do
   sc
-  forms <- P.many pForm
+  forms <- concat <$> P.many pTopForm
   P.eof
   let sigs = [(n, t) | RSig n t <- forms]
       lookupSig n = lookup n sigs
@@ -118,6 +120,28 @@ pSFile = do
       decls = [d | RDecl d <- forms]
       watches = [w | RWatch w <- forms]
   pure (SFile Nothing decls binds watches)
+
+-- | A top-level form, optionally preceded by a @{{ }}@ doc block. A leading doc becomes a separate @<name>.doc@
+-- binding (the same desugaring Unison's own file parser does), so a documented definition round-trips.
+pTopForm :: SP [RawForm]
+pTopForm = do
+  mdoc <- P.optional (withAnn pDocRaw)
+  form <- pForm
+  pure case mdoc of
+    Just (a, txt) | Just nm <- formName form -> [docBinding a nm txt, form]
+    _ -> [form]
+
+-- | The name a form defines, if any (for attaching a preceding doc).
+formName :: RawForm -> Maybe Name
+formName = \case
+  RBind b -> Just (bName b)
+  RSig n _ -> Just n
+  RDecl d -> Just (dName d)
+  RWatch _ -> Nothing
+
+-- | A @<name>.doc = {{ … }}@ binding synthesized from a doc block preceding a definition.
+docBinding :: Ann -> Name -> String -> RawForm
+docBinding a nm txt = RBind (SBinding a (Name.snoc nm NameSegment.docSegment) Nothing (STerm a (SDocLit (Text.pack txt))))
 
 pForm :: SP RawForm
 pForm = P.choice [pWatch, parens (P.choice [pSig, pDefn, pDef, pRecord, pDecl])]
@@ -205,8 +229,12 @@ pTerm = P.choice [pDoc, pListTerm, pParenTerm, pAtomTerm]
 -- | Capture a @{{ … }}@ doc literal verbatim (balanced), to be re-parsed by the real doc parser in Elaborate.
 pDoc :: SP STerm
 pDoc = do
-  (a, txt) <- withAnn (lexeme (C.string "{{" *> scanDoc (1 :: Int) "{{"))
+  (a, txt) <- withAnn pDocRaw
   pure (STerm a (SDocLit (Text.pack txt)))
+
+-- | The raw text of a @{{ … }}@ doc block (delimiters included, nested @{{ }}@ balanced), as 'SDocLit' stores it.
+pDocRaw :: SP String
+pDocRaw = lexeme (C.string "{{" *> scanDoc (1 :: Int) "{{")
   where
     scanDoc depth acc =
       P.choice
