@@ -10,6 +10,8 @@ module Unison.Syntax.TermPrinter
     prettyBindingForDiff,
     prettyBindingWithoutTypeSignature,
     prettyDoc2,
+    prettyDoc2With,
+    DialectTermRenderer (..),
     pretty0,
     runPretty,
     prettyPattern,
@@ -428,7 +430,7 @@ pretty0
     where
       goNormal prec tm = pretty0 (ac prec Normal im doc) tm
       specialCases term go = do
-        prettyDoc2_ a term >>= \case
+        prettyDoc2_ Nothing a term >>= \case
           Just d -> pure d
           Nothing -> notDoc go
         where
@@ -1942,11 +1944,21 @@ toBytes (App' (Builtin' "Bytes.fromList") (List' bs)) =
     go _ = Nothing
 toBytes _ = Nothing
 
+-- | How an alternate dialect renders the terms embedded in a doc (the @@eval@, @@typecheck@, and example code blocks).
+-- The function is fully polymorphic in the term type so it can be applied to the doc's internal 'Term3' nodes; an
+-- alt dialect supplies @DialectTermRenderer (renderTerm . lowerTerm ppe)@.
+newtype DialectTermRenderer = DialectTermRenderer (forall v at ap a. (Var v) => Term2 v at ap v a -> Pretty SyntaxText)
+
 -- | Pretty-print a Doc2 (if the term is a Doc2). As a convenience, strips type annotation (if any).
 prettyDoc2 :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Maybe (Pretty SyntaxText)
-prettyDoc2 ppe =
+prettyDoc2 = prettyDoc2With Nothing
+
+-- | Like 'prettyDoc2', but with an optional dialect renderer for embedded code (so doc code blocks render in the
+-- active surface dialect rather than the default Unison syntax).
+prettyDoc2With :: (Var v) => Maybe DialectTermRenderer -> PrettyPrintEnv -> Term2 v at ap v a -> Maybe (Pretty SyntaxText)
+prettyDoc2With mr ppe =
   \(stripAnn -> doc) ->
-    runPretty (avoidShadowing doc ppe) (prettyDoc2_ emptyAc (printAnnotate ppe doc))
+    runPretty (avoidShadowing doc ppe) (prettyDoc2_ mr emptyAc (printAnnotate ppe doc))
   where
     stripAnn = \case
       Ann' t _ -> t
@@ -1955,16 +1967,22 @@ prettyDoc2 ppe =
 prettyDoc2_ ::
   forall v m.
   (MonadPretty v m) =>
+  Maybe DialectTermRenderer ->
   AmbientContext ->
   Term3 v PrintAnnotation ->
   m (Maybe (Pretty SyntaxText))
-prettyDoc2_ ac tm = do
+prettyDoc2_ mr ac tm = do
   env <- ask
   let brace p =
         if PP.isMultiLine p
           then fmt S.DocDelimiter "{{" <> PP.newline <> p <> PP.newline <> fmt S.DocDelimiter "}}"
           else fmt S.DocDelimiter "{{" <> PP.softbreak <> p <> PP.softbreak <> fmt S.DocDelimiter "}}"
-      bail tm = brace <$> pretty0 ac tm
+      bail tm = brace <$> renderCode ac tm
+      -- Render an embedded code term: in the active dialect if one was supplied, else the default Unison printer.
+      renderCode :: AmbientContext -> Term3 v PrintAnnotation -> m (Pretty SyntaxText)
+      renderCode ac0 t = case mr of
+        Just (DialectTermRenderer r) -> pure (r t)
+        Nothing -> pretty0 ac0 t
       contains :: Char -> Pretty SyntaxText -> Bool
       contains c p =
         PP.toPlain 0 (PP.syntaxToColor p)
@@ -2040,20 +2058,20 @@ prettyDoc2_ ac tm = do
           Right r -> "{" <> tmName r <> "}"
         (toDocEval env.ppe -> Just tm) ->
           do
-            inner <- pretty0 ac tm
+            inner <- renderCode ac tm
             let fence = makeFence inner
             pure $ PP.lines [fence, inner, fence]
         (toDocEvalInline env.ppe -> Just tm) ->
           do
-            inner <- pretty0 ac tm
+            inner <- renderCode ac tm
             pure $ "@eval{" <> inner <> "}"
         (toDocExample env.ppe -> Just tm) ->
           do
-            inner <- pretty0 ac tm
+            inner <- renderCode ac tm
             pure $ "``" <> inner <> "``"
         (toDocExampleBlock env.ppe -> Just tm) ->
           do
-            inner <- pretty0 ac' tm
+            inner <- renderCode ac' tm
             let fence = makeFence inner
             pure $ PP.lines ["@typecheck " <> fence, inner, fence]
           where

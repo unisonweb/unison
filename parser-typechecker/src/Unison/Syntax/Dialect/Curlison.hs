@@ -34,6 +34,7 @@ import Unison.Syntax.NamePrinter (prettyHashQualified, prettyName)
 import Unison.Syntax.Precedence (InfixPrecedence (Level), Precedence (Application, Bottom, InfixOp), increment, operatorPrecedence)
 import Unison.Syntax.Surface
 import Unison.Syntax.Surface.Lower qualified as Lower
+import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term2)
 import Unison.Type (Type)
 import Unison.Util.Pretty (Pretty)
@@ -205,8 +206,16 @@ ctorArgTypes _ = []
 
 -- Dialect-facing entry points -----------------------------------------------------------------------------------------
 
+-- | Render terms embedded in docs (code blocks) in this dialect, recursively (so nested docs stay in-dialect too).
+docRender :: PrettyPrintEnv -> TermPrinter.DialectTermRenderer
+docRender ppe = TermPrinter.DialectTermRenderer (\t -> renderTerm (Lower.lowerTermD (Just (docRender ppe)) ppe t))
+
+-- | Lower a term with this dialect's doc-code renderer in effect.
+lowerT :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> STerm
+lowerT ppe = Lower.lowerTermD (Just (docRender ppe)) ppe
+
 prettyTerm :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Pretty SyntaxText
-prettyTerm ppe = renderTerm . Lower.lowerTerm ppe
+prettyTerm ppe = renderTerm . lowerT ppe
 
 prettyType :: (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
 prettyType ppe = renderType . Lower.lowerType ppe
@@ -230,7 +239,7 @@ prettyDeclW pped guid r hq decl = pure (prettyDecl pped guid r hq decl)
 --   * an untyped value (rare; the type is normally known) becomes @name = value;@.
 prettyBinding :: (Var v) => PrettyPrintEnv -> HQ.HashQualified Name -> Term2 v at ap v a -> Pretty SyntaxText
 prettyBinding ppe hq term =
-  case Lower.lowerTerm ppe term of
+  case lowerT ppe term of
     STerm _ (SAnn (STerm _ (SLam params body)) ty)
       | Just (tvs, argTys, effs, retTy) <- splitFunctionType (length params) ty ->
           cFunction tvs retTy effs params argTys body
@@ -284,7 +293,7 @@ splitArrows n (SType _ (STyArrow i effs o))
 splitArrows _ _ = Nothing
 
 prettyBindingWithoutTypeSignature :: (Var v) => PrettyPrintEnv -> HQ.HashQualified Name -> Term2 v at ap v a -> Pretty SyntaxText
-prettyBindingWithoutTypeSignature ppe hq term = defAssign hq (peelAnn (Lower.lowerTerm ppe term))
+prettyBindingWithoutTypeSignature ppe hq term = defAssign hq (peelAnn (lowerT ppe term))
   where
     peelAnn = \case STerm _ (SAnn e _) -> e; s -> s
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Elaborating the 'Surface' IR to the content-addressed AST (the read\/parse direction).
 --
@@ -16,10 +17,13 @@ module Unison.Syntax.Surface.Elaborate
   )
 where
 
+import Control.Monad.Writer (Writer, runWriter, tell)
+import Data.Char (isSpace)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Text.Megaparsec qualified as P
+import Text.Megaparsec.Char qualified as CP
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as BuiltinDecls
 import Unison.ConstructorReference (ConstructorReference)
@@ -38,13 +42,19 @@ import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parsers qualified as Parsers
+import Unison.PrettyPrintEnv.Names qualified as PPEN
 import Unison.ShortHash qualified as ShortHash
+import Unison.Symbol (Symbol)
+import Unison.Syntax.Lexer.Unison (Err, Token, typeOrTerm)
 import Unison.Syntax.Name qualified as Name (toVar, unsafeParseVar)
 import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.Parser.Doc qualified as Doc
+import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Syntax.Surface
 import Unison.Term (Term)
 import Unison.Term qualified as Term
+import Unison.Util.Pretty qualified as PP
 import Unison.Typechecker.Components qualified as Components
 import Unison.Type (Type)
 import Unison.Type qualified as Type
@@ -308,13 +318,65 @@ elaborateType = go
 
 -- | Parse every doc literal in the file with the real Unison parser, mapping each doc's @{{ … }}@ source text to its
 -- term. This is the only monadic step; it lets 'elaborateFile' remain pure.
-parseDocs :: (Monad m, Var v) => Parser.ParsingEnv m -> SFile -> m (Either (Parser.Err v) (Map Text (Term v Ann)))
-parseDocs env sfile = do
+--
+-- A dialect renders the code embedded in docs (the @@eval@\/@@typecheck@\/example blocks) in its own surface syntax,
+-- so before handing the doc text to the (Unison) doc parser we transcode those code spans back to Unison with
+-- 'transcodeDocToUnison', driving the shared Doc grammar with @pTerm@ to locate them. The markup itself is
+-- dialect-independent and passes through untouched.
+parseDocs :: forall m v. (Monad m, Var v) => Parser.ParsingEnv m -> P.Parsec Void String STerm -> SFile -> m (Either (Parser.Err v) (Map Text (Term v Ann)))
+parseDocs env pTerm sfile = do
   let texts = Set.toList (Set.fromList (collectDocTexts sfile))
   pairs <- for texts \t -> do
-    r <- Parsers.parseTerm (Text.unpack t) env
+    r <- Parsers.parseTerm (Text.unpack (transcodeDocToUnison (Parser.names env) pTerm t)) env
     pure (((,) t) <$> r)
   pure (Map.fromList <$> sequence pairs)
+
+-- | Rewrite a dialect doc literal's source into equivalent Unison-syntax doc source by re-rendering each embedded code
+-- span (parsed with the dialect's @pTerm@, elaborated, then printed by the default Unison printer). Only the code spans
+-- change; the surrounding markup is left byte-for-byte. Falls back to the original text if the doc doesn't parse (the
+-- subsequent 'Parsers.parseTerm' then surfaces a normal error).
+transcodeDocToUnison :: Names -> P.Parsec Void String STerm -> Text -> Text
+transcodeDocToUnison names pTerm full =
+  case Text.stripPrefix "{{" full of
+    Nothing -> full
+    Just afterOpen ->
+      let s0 = Text.unpack afterOpen
+          (res, spans) = runWriter (P.runParserT docP "" s0)
+       in case res of
+            Left _ -> full
+            Right _ -> Text.pack ("{{" <> spliceAll s0 spans)
+  where
+    docP :: P.ParsecT (Token Err) String (Writer [(Int, Int, Text)]) ()
+    -- Skip the whitespace after `{{` before the Doc grammar starts (the Unison lexer does this too); otherwise the
+    -- grammar sees leading whitespace and parses an empty doc.
+    docP = void (CP.space *> Doc.doc typeOrTerm codeP (P.lookAhead (void (P.chunk "}}"))))
+    -- Locate one embedded code span: parse it with the dialect's term parser, record its (offset range, Unison text),
+    -- then consume the delimiter the Doc grammar handed us. The Doc grammar invokes this only at code positions.
+    codeP ::
+      P.ParsecT (Token Err) String (Writer [(Int, Int, Text)]) () ->
+      P.ParsecT (Token Err) String (Writer [(Int, Int, Text)]) ()
+    codeP close = do
+      -- @typecheck fenced blocks (unlike @eval) don't consume the newline after the fence before invoking us, and the
+      -- dialect term parsers don't skip leading whitespace, so do it here. The recorded span starts after it.
+      _ <- P.takeWhileP Nothing isSpace
+      s <- P.getOffset
+      rest <- P.getInput
+      case P.parse (P.match pTerm) "" rest of
+        Left _ -> fail "embedded dialect code did not parse"
+        Right (consumed, sterm) -> do
+          _ <- P.takeP Nothing (length consumed)
+          e <- P.getOffset
+          let uni = fromMaybe (Text.pack consumed) (renderTermUnison sterm)
+          lift (tell [(s, e, uni)])
+          _ <- P.takeWhileP Nothing isSpace
+          close
+    renderTermUnison :: STerm -> Maybe Text
+    renderTermUnison sterm = case elaborateTerm names Map.empty sterm :: E Symbol (Term Symbol Ann) of
+      Left _ -> Nothing
+      Right tm -> Just (PP.toPlain 80 (TermPrinter.pretty ppe tm))
+    ppe = PPEN.makePPE (PPEN.namer names) PPEN.dontSuffixify
+    spliceAll s spans =
+      foldl' (\acc (st, en, txt) -> take st acc <> Text.unpack txt <> drop en acc) s (sortOn (\(st, _, _) -> negate st) spans)
 
 collectDocTexts :: SFile -> [Text]
 collectDocTexts sfile =

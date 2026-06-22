@@ -29,6 +29,7 @@ import Unison.Syntax.DeclPrinter (AccessorName, RenderUniqueTypeGuids)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyName)
 import Unison.Syntax.Surface
 import Unison.Syntax.Surface.Lower qualified as Lower
+import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term2)
 import Unison.Type (Type)
 import Unison.Util.Pretty (Pretty)
@@ -183,8 +184,16 @@ ctorArgTypes _ = []
 
 -- Dialect-facing entry points (render . lower) -----------------------------------------------------------------------
 
+-- | Render terms embedded in docs (code blocks) in this dialect, recursively (so nested docs stay in-dialect too).
+docRender :: PrettyPrintEnv -> TermPrinter.DialectTermRenderer
+docRender ppe = TermPrinter.DialectTermRenderer (\t -> renderSTerm (Lower.lowerTermD (Just (docRender ppe)) ppe t))
+
+-- | Lower a term with this dialect's doc-code renderer in effect.
+lowerT :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> STerm
+lowerT ppe = Lower.lowerTermD (Just (docRender ppe)) ppe
+
 prettyTerm :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Pretty SyntaxText
-prettyTerm ppe = renderSTerm . Lower.lowerTerm ppe
+prettyTerm ppe = renderSTerm . lowerT ppe
 
 prettyType :: (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
 prettyType ppe = renderSType . Lower.lowerType ppe
@@ -201,7 +210,7 @@ prettyDeclW pped guid r hq decl = pure (prettyDecl pped guid r hq decl)
 
 prettyBinding :: (Var v) => PrettyPrintEnv -> HQ.HashQualified Name -> Term2 v at ap v a -> Pretty SyntaxText
 prettyBinding ppe hq term =
-  case Lower.lowerTerm ppe term of
+  case lowerT ppe term of
     STerm _ (SAnn e ty) ->
       callP [ctrl ":", prettyHashQualified hq, renderSType ty] <> PP.newline <> defForm e
     s -> defForm s
@@ -213,7 +222,7 @@ prettyBinding ppe hq term =
 
 prettyBindingWithoutTypeSignature :: (Var v) => PrettyPrintEnv -> HQ.HashQualified Name -> Term2 v at ap v a -> Pretty SyntaxText
 prettyBindingWithoutTypeSignature ppe hq term =
-  case peelAnn (Lower.lowerTerm ppe term) of
+  case peelAnn (lowerT ppe term) of
     STerm _ (SLam ps body) ->
       hangForm (ctrl "defn" <> " " <> prettyHashQualified hq <> " " <> paramList ps) (renderSTerm body)
     s -> hangForm (ctrl "def" <> " " <> prettyHashQualified hq) (renderSTerm s)

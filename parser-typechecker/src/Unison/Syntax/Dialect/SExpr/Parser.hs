@@ -52,7 +52,7 @@ parseFile fp src env =
     Left bundle -> pure (Left (errFail (P.errorBundlePretty bundle)))
     Right sfile0 -> do
       sfile <- resolveDeclGuids env sfile0
-      edocs <- parseDocs env sfile
+      edocs <- parseDocs env pTerm sfile
       pure (edocs >>= \docMap -> elaborateFile (Parser.names env) docMap sfile)
 
 errFail :: String -> Parser.Err v

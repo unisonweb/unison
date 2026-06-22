@@ -9,6 +9,7 @@
 -- them). The parse direction fills in real spans.
 module Unison.Syntax.Surface.Lower
   ( lowerTerm,
+    lowerTermD,
     lowerType,
     lowerDecl,
   )
@@ -97,12 +98,18 @@ opPrecedence n = do
 
 -- | Lower a term to the Surface IR, resolving names against the given 'PrettyPrintEnv'.
 lowerTerm :: forall v at ap a. (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> STerm
-lowerTerm ppe = go
+lowerTerm = lowerTermD Nothing
+
+-- | Like 'lowerTerm', but with an optional dialect renderer for code embedded in docs (so doc code blocks captured in
+-- 'SDocLit' are written in the active dialect rather than the default Unison syntax).
+lowerTermD :: forall v at ap a. (Var v) => Maybe TermPrinter.DialectTermRenderer -> PrettyPrintEnv -> Term2 v at ap v a -> STerm
+lowerTermD docRender ppe = go
   where
     go :: Term2 v at ap v a -> STerm
     go term
-      -- Docs render to their `{{ … }}` source text (re-parsed by Elaborate); doc markup is dialect-independent.
-      | Just p <- TermPrinter.prettyDoc2 ppe term = ext (SDocLit (PP.toPlain 80 (PP.syntaxToColor p)))
+      -- Docs render to their `{{ … }}` source text (re-parsed by Elaborate). The doc markup itself is
+      -- dialect-independent; only embedded code blocks differ, rendered via `docRender` when supplied.
+      | Just p <- TermPrinter.prettyDoc2With docRender ppe term = ext (SDocLit (PP.toPlain 80 (PP.syntaxToColor p)))
     go term = ext case term of
       Var' v -> SName (localName v)
       Int' i -> SLit (SInt i)

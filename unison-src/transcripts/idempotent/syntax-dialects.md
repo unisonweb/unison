@@ -228,6 +228,57 @@ scratch/main> view inc combine demo Shape Point isCircle
         False
 ```
 
+## Docs
+
+A doc's prose is the same in every dialect, but the code embedded in it — inline examples and `@eval` blocks — is
+rendered (and re-parsed) in the active dialect. Define a doc with a call to `inc` (back in the default syntax):
+
+``` ucm
+scratch/main> syntax.set unison
+```
+
+``` unison
+incDoc : Doc2
+incDoc = {{ Apply {inc} like `` inc 5 `` to get @eval{inc 5}. }}
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + incDoc : Doc2
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+In the curly-brace dialect the embedded `inc 5` becomes `inc(5)`:
+
+``` ucm
+scratch/main> syntax.set curlison
+
+scratch/main> view incDoc
+
+  incDoc = {{ Apply {inc} like `` inc ( 5 ) `` to get @eval{inc(5)}. }};
+```
+
+In Pyson, likewise:
+
+``` ucm
+scratch/main> syntax.set pyson
+
+scratch/main> view incDoc
+
+  incDoc = {{ Apply {inc} like `` inc ( 5 ) `` to get @eval{inc(5)}. }}
+```
+
 ## Back to the default syntax
 
 ``` ucm
