@@ -21,7 +21,7 @@ module Unison.Syntax.Dialect.Curlison
 where
 
 import Control.Monad.Writer (Writer)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Set (Set)
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
@@ -133,12 +133,30 @@ stmtLine b
       renderCFunction (renderPlain (bName b)) tvs retTy effs params argTys body
   | otherwise = renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm (bValue b)
 
+-- | A @{ … }@ block whose items are each terminated with @;@.
 braceBlock :: [Pretty SyntaxText] -> Pretty SyntaxText
-braceBlock items =
+braceBlock items = braceBlockRaw (map (<> fmt S.DelimiterChar ";") items)
+
+-- | A @{ … }@ block whose items already carry their own terminators (so a nested function, which ends in @}@, needs no
+-- trailing @;@).
+braceBlockRaw :: [Pretty SyntaxText] -> Pretty SyntaxText
+braceBlockRaw items =
   fmt S.DelimiterChar "{"
-    <> PP.indentNAfterNewline 2 (PP.newline <> PP.lines (map (<> fmt S.DelimiterChar ";") items))
+    <> PP.indentNAfterNewline 2 (PP.newline <> PP.lines items)
     <> PP.newline
     <> fmt S.DelimiterChar "}"
+
+-- | A block binding rendered as a statement: terminated with @;@, unless it's a nested function (function form ends in
+-- @}@, Java\/C method style — no trailing @;@).
+bindingStmt :: SBinding -> Pretty SyntaxText
+bindingStmt b = stmtLine b <> if isLocalFunc b then mempty else fmt S.DelimiterChar ";"
+
+-- | Whether 'stmtLine' renders this binding in nested-function form (an ascribed multi-arg lambda, not discarded).
+isLocalFunc :: SBinding -> Bool
+isLocalFunc b = case bValue b of
+  STerm _ (SAnn (STerm _ (SLam params _)) ty)
+    | Name.toText (bName b) /= "_" -> isJust (splitFunctionType (length params) ty)
+  _ -> False
 
 renderCase :: SCase -> Pretty SyntaxText
 renderCase (SCase pat guard body) =
@@ -283,21 +301,22 @@ renderCFunction namePretty tvs retTy effs params argTys body =
     <> parens (commas [renderType t <> " " <> renderPlain p | (SParam _ p, t) <- zip params argTys])
     <> throwsClause effs
     <> " "
-    <> braceBlock (funcStmts body)
+    <> braceBlockRaw (funcStmts body)
   where
     generics [] = mempty
     generics vs = fmt S.DelimiterChar "<" <> commas (map renderPlain vs) <> fmt S.DelimiterChar "> "
     throwsClause Nothing = mempty
     throwsClause (Just es) = " " <> ctrl "throws" <> " " <> renderEffects es
 
--- | The statements of a function body: the bindings of a leading let-block, then @return <result>@.
+-- | The statements of a function body (each self-terminated): the bindings of a leading let-block, then
+-- @return <result>;@.
 funcStmts :: STerm -> [Pretty SyntaxText]
 funcStmts body = case body of
-  STerm _ (SLet bs e) -> map stmtLine bs ++ [ret e]
-  STerm _ (SLetRec bs e) -> map stmtLine bs ++ [ret e]
+  STerm _ (SLet bs e) -> map bindingStmt bs ++ [ret e]
+  STerm _ (SLetRec bs e) -> map bindingStmt bs ++ [ret e]
   e -> [ret e]
   where
-    ret e = ctrl "return" <> " " <> renderTerm e
+    ret e = ctrl "return" <> " " <> renderTerm e <> fmt S.DelimiterChar ";"
 
 -- | For a typed @n@-parameter lambda, peel any leading @forall@ (returning the type variables) and then exactly @n@
 -- argument arrows, returning the argument types, the function's overall effect (the abilities on the final arrow —

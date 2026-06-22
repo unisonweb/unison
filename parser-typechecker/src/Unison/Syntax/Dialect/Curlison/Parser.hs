@@ -269,11 +269,16 @@ pFuncBody = do
   _ <- P.optional (symbol ";")
   pure (if null stmts then e else STerm (tAnn e) (SLet stmts e))
 
--- | A statement before @return@: a @name = e;@ binding or a bare @e;@ expression (a discarded statement, bound to @_@).
+-- | A statement before @return@: a nested function (function form, terminated by its @}@ — an optional @;@ is
+-- tolerated), a @name = e;@ binding, or a bare @e;@ expression (a discarded statement, bound to @_@).
 pFuncStmt :: CP SBinding
 pFuncStmt = do
   P.notFollowedBy (symbol "return")
-  (P.try pLocalFunc P.<|> P.try pNamed P.<|> pBare) <* symbol ";"
+  P.choice
+    [ P.try pLocalFunc <* P.optional (symbol ";"),
+      P.try pNamed <* symbol ";",
+      pBare <* symbol ";"
+    ]
   where
     pNamed = do
       (a, nm) <- withAnn nameRaw
