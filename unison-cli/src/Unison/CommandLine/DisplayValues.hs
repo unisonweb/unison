@@ -36,6 +36,7 @@ type Pretty = P.Pretty P.ColorText
 
 displayTerm ::
   (Monad m) =>
+  Dialect.PrintDialect ->
   PPE.PrettyPrintEnvDecl ->
   (Reference -> m (Maybe (Term Symbol ()))) ->
   (Referent -> m (Maybe (Type Symbol ()))) ->
@@ -43,7 +44,7 @@ displayTerm ::
   (Reference -> m (Maybe (DD.Decl Symbol ()))) ->
   Term Symbol () ->
   m Pretty
-displayTerm = displayTerm' False
+displayTerm pd = displayTerm' pd False
 
 -- Whether to elide printing of `()` at the end of a block
 -- For instance, in:
@@ -59,6 +60,7 @@ type ElideUnit = Bool
 
 displayTerm' ::
   (Monad m) =>
+  Dialect.PrintDialect ->
   ElideUnit ->
   PPE.PrettyPrintEnvDecl ->
   (Reference -> m (Maybe (Term Symbol ()))) ->
@@ -67,9 +69,9 @@ displayTerm' ::
   (Reference -> m (Maybe (DD.Decl Symbol ()))) ->
   Term Symbol () ->
   m Pretty
-displayTerm' elideUnit pped terms typeOf eval types = \case
+displayTerm' pd elideUnit pped terms typeOf eval types = \case
   tm@(Term.Apps' (Term.Constructor' (ConstructorReference typ _)) _)
-    | typ == DD.docRef -> displayDoc pped terms typeOf eval types tm
+    | typ == DD.docRef -> displayDoc pd pped terms typeOf eval types tm
     | typ == DD.doc2Ref -> do
         -- Pretty.get (doc.formatConsole tm)
         let tm' =
@@ -80,10 +82,10 @@ displayTerm' elideUnit pped terms typeOf eval types = \case
         tm <- eval tm'
         case tm of
           Nothing -> pure $ errMsg tm'
-          Just tm -> displayTerm pped terms typeOf eval types tm
-    | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
+          Just tm -> displayTerm pd pped terms typeOf eval types tm
+    | typ == DD.prettyAnnotatedRef -> displayPretty pd pped terms typeOf eval types tm
   tm@(Term.Constructor' (ConstructorReference typ _))
-    | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
+    | typ == DD.prettyAnnotatedRef -> displayPretty pd pped terms typeOf eval types tm
   tm -> pure $ src tm
   where
     errMsg tm =
@@ -100,13 +102,18 @@ displayTerm' elideUnit pped terms typeOf eval types = \case
               "Sadly, I don't know the error, but you can evaluate"
                 <> "the above expression in a scratch file to see it."
           ]
-    src tm = TP.prettyBlock elideUnit (PPE.suffixifiedPPE pped) tm
+    -- Doc-embedded code (examples, eval/typecheck blocks) renders in the active dialect. The default keeps its exact
+    -- block printer (which honors `elideUnit`); alt dialects use their bare-term renderer.
+    src tm
+      | Dialect.pdName pd == "unison" = TP.prettyBlock elideUnit (PPE.suffixifiedPPE pped) tm
+      | otherwise = P.syntaxToColor (Dialect.pdPrettyTerm pd (PPE.suffixifiedPPE pped) tm)
 
 -- assume this is given a
 -- Pretty.Annotated ann (Either SpecialForm ConsoleText)
 displayPretty ::
   forall m.
   (Monad m) =>
+  Dialect.PrintDialect ->
   PPE.PrettyPrintEnvDecl ->
   (Reference -> m (Maybe (Term Symbol ()))) ->
   (Referent -> m (Maybe (Type Symbol ()))) ->
@@ -114,7 +121,7 @@ displayPretty ::
   (Reference -> m (Maybe (DD.Decl Symbol ()))) ->
   Term Symbol () ->
   m Pretty
-displayPretty pped terms typeOf eval types tm = go tm
+displayPretty pd pped terms typeOf eval types tm = go tm
   where
     go = \case
       DD.PrettyEmpty -> pure mempty
@@ -134,7 +141,7 @@ displayPretty pped terms typeOf eval types tm = go tm
         where
           goRow (Term.List' row) = traverse go (toList row)
           goRow _ = pure []
-      tm -> displayTerm pped terms typeOf eval types tm
+      tm -> displayTerm pd pped terms typeOf eval types tm
 
     goSrc es = do
       -- we ignore the annotations; but this could be extended later
@@ -163,9 +170,8 @@ displayPretty pped terms typeOf eval types tm = go tm
          in Map.fromList <$> traverse go tms
       -- in docs, we use suffixed names everywhere
       let pped' = pped {PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped}
-      -- Doc-embedded definitions render in the standard syntax (matching the surrounding doc code rendered by
-      -- `prettyDoc2`); this `Monad m` context has no IO to resolve the active dialect.
-      pure . P.group . P.indentN 4 $ OutputMessages.displayDefinitions' Dialect.defaultPrintDialect pped' typeMap termMap
+      -- Doc-embedded definitions (@source, @foldedSource) render in the active dialect (threaded in as `pd`).
+      pure . P.group . P.indentN 4 $ OutputMessages.displayDefinitions' pd pped' typeMap termMap
 
     goSpecial = \case
       DD.Doc2SpecialFormFoldedSource (Term.List' es) -> goSrc es
@@ -176,12 +182,12 @@ displayPretty pped terms typeOf eval types tm = go tm
       -- 2 is the number of variables that should be dropped from the rendering.
       -- So this will render as `foo x y`.
       DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
-        P.backticked <$> displayTerm pped terms typeOf eval types ex
+        P.backticked <$> displayTerm pd pped terms typeOf eval types ex
         where
           ex = Term.lamWithoutBindingAnns (ABT.annotation body) (drop (fromIntegral n) vs) body
       DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
         -- todo: maybe do something with `vs` to indicate the variables are free
-        P.indentN 4 <$> displayTerm' True pped terms typeOf eval types ex
+        P.indentN 4 <$> displayTerm' pd True pped terms typeOf eval types ex
         where
           ex = Term.lamWithoutBindingAnns (ABT.annotation body) (drop (fromIntegral n) vs) body
 
@@ -198,8 +204,8 @@ displayPretty pped terms typeOf eval types tm = go tm
                   go $ PPE.termName ppe (Referent.Con ref CT.Effect)
                 Term.Constructor' ref ->
                   go $ PPE.termName ppe (Referent.Con ref CT.Data)
-                _ -> P.red <$> displayTerm pped terms typeOf eval types t
-              _ -> P.red <$> displayTerm pped terms typeOf eval types e
+                _ -> P.red <$> displayTerm pd pped terms typeOf eval types t
+              _ -> P.red <$> displayTerm pd pped terms typeOf eval types e
       -- Signature [Doc2.Term]
       DD.Doc2SpecialFormSignature (Term.List' tms) ->
         let referents = [r | DD.Doc2Term (toReferent -> Just r) <- toList tms]
@@ -209,32 +215,32 @@ displayPretty pped terms typeOf eval types tm = go tm
       DD.Doc2SpecialFormSignatureInline (DD.Doc2Term tm) ->
         P.backticked <$> case toReferent tm of
           Just r -> goSignature r
-          _ -> displayTerm pped terms typeOf eval types tm
+          _ -> displayTerm pd pped terms typeOf eval types tm
       -- Eval Doc2.Term
       DD.Doc2SpecialFormEval (DD.Doc2Term tm) ->
         eval tm >>= \case
           Nothing -> do
-            p <- displayTerm pped terms typeOf eval types tm
+            p <- displayTerm pd pped terms typeOf eval types tm
             pure . P.indentN 4 $ P.lines [p, "⧨", P.red "🆘  An error occured during evaluation"]
           Just result -> do
-            p1 <- displayTerm pped terms typeOf eval types tm
-            p2 <- displayTerm pped terms typeOf eval types result
+            p1 <- displayTerm pd pped terms typeOf eval types tm
+            p2 <- displayTerm pd pped terms typeOf eval types result
             pure . P.indentN 4 $ P.lines [p1, "⧨", P.green p2]
 
       -- EvalInline Doc2.Term
       DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) ->
         eval tm >>= \case
           Nothing -> pure . P.backticked . P.red $ "🆘  An error occurred during evaluation"
-          Just result -> P.backticked <$> displayTerm pped terms typeOf eval types result
+          Just result -> P.backticked <$> displayTerm pd pped terms typeOf eval types result
       -- Embed Any
       DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
-        displayTerm pped terms typeOf eval types any <&> \p ->
+        displayTerm pd pped terms typeOf eval types any <&> \p ->
           P.indentN 2 $ "\n" <> "{{ embed {{" <> p <> "}} }}" <> "\n"
       -- EmbedInline Any
       DD.Doc2SpecialFormEmbedInline any ->
-        displayTerm pped terms typeOf eval types any <&> \p ->
+        displayTerm pd pped terms typeOf eval types any <&> \p ->
           "{{ embed {{" <> p <> "}} }}"
-      tm -> P.red <$> displayTerm pped terms typeOf eval types tm
+      tm -> P.red <$> displayTerm pd pped terms typeOf eval types tm
 
     toReferent tm = case tm of
       Term.Ref' r -> Just (Referent.Ref r)
@@ -280,13 +286,14 @@ displayPretty pped terms typeOf eval types tm = go tm
       DD.ConsoleTextBold txt -> P.bold <$> goConsole txt
       DD.ConsoleTextUnderline txt -> P.underline <$> goConsole txt
       DD.ConsoleTextInvert txt -> P.invert <$> goConsole txt
-      tm -> displayTerm pped terms typeOf eval types tm
+      tm -> displayTerm pd pped terms typeOf eval types tm
 
 -- pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
 
 displayDoc ::
   forall v m.
   (Var v, Monad m) =>
+  Dialect.PrintDialect ->
   PPE.PrettyPrintEnvDecl ->
   (Reference -> m (Maybe (Term v ()))) ->
   (Referent -> m (Maybe (Type v ()))) ->
@@ -294,7 +301,7 @@ displayDoc ::
   (Reference -> m (Maybe (DD.Decl v ()))) ->
   Term v () ->
   m Pretty
-displayDoc pped terms typeOf evaluated types = go
+displayDoc pd pped terms typeOf evaluated types = go
   where
     go (DD.DocJoin docs) = fold <$> traverse go docs
     go (DD.DocBlob txt) = pure $ P.paragraphyText txt
@@ -306,7 +313,7 @@ displayDoc pped terms typeOf evaluated types = go
     go (DD.DocSource (DD.LinkType (Term.TypeLink' r))) = prettyType r
     go (DD.DocSignature (Term.TermLink' r)) = prettySignature r
     go (DD.DocEvaluate (Term.TermLink' r)) = prettyEval (evaluated . Term.ref ()) r
-    go tm = pure $ TP.pretty (PPE.suffixifiedPPE pped) tm
+    go tm = pure $ P.syntaxToColor (Dialect.pdPrettyTerm pd (PPE.suffixifiedPPE pped) tm)
     prettySignature r =
       typeOf r >>= \case
         Nothing -> pure $ termName (PPE.unsuffixifiedPPE pped) r
@@ -321,7 +328,7 @@ displayDoc pped terms typeOf evaluated types = go
         let ppe = PPE.declarationPPE pped ref
          in terms ref >>= \case
               Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
-              Just tm -> pure $ TP.pretty ppe tm
+              Just tm -> pure $ P.syntaxToColor (Dialect.pdPrettyTerm pd ppe tm)
       Referent.Con (ConstructorReference r _) _ -> pure $ typeName (PPE.declarationPPE pped r) r
     prettyTerm terms r = case r of
       Referent.Ref (Reference.Builtin _) -> prettySignature r
@@ -329,7 +336,7 @@ displayDoc pped terms typeOf evaluated types = go
         let ppe = PPE.declarationPPE pped ref
          in terms ref >>= \case
               Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
-              Just tm -> pure . P.syntaxToColor . P.group $ TP.prettyBinding ppe (PPE.termName ppe r) tm
+              Just tm -> pure . P.syntaxToColor . P.group $ Dialect.pdPrettyBinding pd ppe (PPE.termName ppe r) tm
       Referent.Con (ConstructorReference r _) _ -> prettyType r
     prettyType r =
       let ppe = PPE.declarationPPE pped r
@@ -338,7 +345,8 @@ displayDoc pped terms typeOf evaluated types = go
             Just ty ->
               pure . P.syntaxToColor $
                 P.group $
-                  DP.prettyDecl
+                  Dialect.pdPrettyDecl
+                    pd
                     pped
                     DP.RenderUniqueTypeGuids'No
                     r

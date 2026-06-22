@@ -75,7 +75,10 @@ type SyntaxText = S.SyntaxText' Reference
 -- use @OverloadedRecordDot@ on these fields — @HasField@ is not derivable for higher-rank fields. Use the plain
 -- selectors, e.g. @pdPrettyBinding pd ppe hq tm@.)
 data PrintDialect = PrintDialect
-  { -- | Render a bare term (e.g. the body of a @>@ watch expression).
+  { -- | The dialect's name (e.g. @"unison"@). Lets callers special-case the default dialect to preserve its exact
+    -- output where an alt dialect would render differently.
+    pdName :: Text,
+    -- | Render a bare term (e.g. the body of a @>@ watch expression).
     pdPrettyTerm ::
       forall v at ap a.
       (Var v) =>
@@ -161,7 +164,8 @@ printDialect = dialectPrint
 defaultPrintDialect :: PrintDialect
 defaultPrintDialect =
   PrintDialect
-    { pdPrettyTerm = TermPrinter.goPretty,
+    { pdName = "unison",
+      pdPrettyTerm = TermPrinter.goPretty,
       pdPrettyBinding = TermPrinter.prettyBinding,
       pdPrettyBindingWithoutTypeSignature = TermPrinter.prettyBindingWithoutTypeSignature,
       pdPrettyDeclW = DeclPrinter.prettyDeclW,
@@ -192,14 +196,15 @@ sexprDialect =
       parseFile = SExpr.Parser.parseFile,
       dialectPrint =
         PrintDialect
-          { pdPrettyTerm = SExpr.prettyTerm,
+          { pdName = "sexpr",
+            pdPrettyTerm = SExpr.prettyTerm,
             pdPrettyBinding = SExpr.prettyBinding,
             pdPrettyBindingWithoutTypeSignature = SExpr.prettyBindingWithoutTypeSignature,
             pdPrettyDeclW = SExpr.prettyDeclW,
             pdPrettyDecl = SExpr.prettyDecl,
             pdPrettyType = SExpr.prettyType,
             pdPrettySignatures = SExpr.prettySignatures,
-            pdPrettyDoc2 = TermPrinter.prettyDoc2
+            pdPrettyDoc2 = SExpr.prettyDoc2
           }
     }
 
@@ -212,14 +217,15 @@ curlisonDialect =
       parseFile = Curlison.Parser.parseFile,
       dialectPrint =
         PrintDialect
-          { pdPrettyTerm = Curlison.prettyTerm,
+          { pdName = "curlison",
+            pdPrettyTerm = Curlison.prettyTerm,
             pdPrettyBinding = Curlison.prettyBinding,
             pdPrettyBindingWithoutTypeSignature = Curlison.prettyBindingWithoutTypeSignature,
             pdPrettyDeclW = Curlison.prettyDeclW,
             pdPrettyDecl = Curlison.prettyDecl,
             pdPrettyType = Curlison.prettyType,
             pdPrettySignatures = Curlison.prettySignatures,
-            pdPrettyDoc2 = TermPrinter.prettyDoc2
+            pdPrettyDoc2 = Curlison.prettyDoc2
           }
     }
 
@@ -231,14 +237,15 @@ pysonDialect =
       parseFile = Pyson.Parser.parseFile,
       dialectPrint =
         PrintDialect
-          { pdPrettyTerm = Pyson.prettyTerm,
+          { pdName = "pyson",
+            pdPrettyTerm = Pyson.prettyTerm,
             pdPrettyBinding = Pyson.prettyBinding,
             pdPrettyBindingWithoutTypeSignature = Pyson.prettyBindingWithoutTypeSignature,
             pdPrettyDeclW = Pyson.prettyDeclW,
             pdPrettyDecl = Pyson.prettyDecl,
             pdPrettyType = Pyson.prettyType,
             pdPrettySignatures = Pyson.prettySignatures,
-            pdPrettyDoc2 = TermPrinter.prettyDoc2
+            pdPrettyDoc2 = Pyson.prettyDoc2
           }
     }
 

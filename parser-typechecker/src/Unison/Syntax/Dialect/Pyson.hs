@@ -13,6 +13,7 @@ module Unison.Syntax.Dialect.Pyson
     prettySignatures,
     prettyDecl,
     prettyDeclW,
+    prettyDoc2,
   )
 where
 
@@ -204,6 +205,10 @@ lowerT ppe = Lower.lowerTermD (Just (docRender ppe)) ppe
 
 prettyTerm :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Pretty SyntaxText
 prettyTerm ppe = renderTerm . lowerT ppe
+
+-- | Render a Doc2 term as a doc literal, with embedded code in this dialect.
+prettyDoc2 :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Maybe (Pretty SyntaxText)
+prettyDoc2 ppe = TermPrinter.prettyDoc2With (Just (docRender ppe)) ppe
 
 prettyType :: (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
 prettyType ppe = renderType . Lower.lowerType ppe
