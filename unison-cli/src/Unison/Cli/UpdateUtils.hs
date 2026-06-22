@@ -43,8 +43,6 @@ import Unison.Hash (Hash)
 import Unison.Name (Name)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
-import Unison.Syntax.Dialect (Dialect)
-import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Prelude
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Reference qualified as Reference
@@ -53,6 +51,8 @@ import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Dialect (Dialect)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)

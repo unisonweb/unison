@@ -27,21 +27,21 @@ import Text.Megaparsec.Char qualified as CP
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as BuiltinDecls
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration (..), EffectDeclaration)
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Records (generateRecordAccessors)
 import Unison.HashQualified qualified as HQ
 import Unison.Lexer.Pos qualified as Pos
-import Unison.Parser.Ann (Ann)
-import Unison.Parser.Ann qualified as Ann
-import Unison.Pattern (Pattern)
-import Unison.Pattern qualified as Pattern
-import Unison.Prelude
-import Unison.ConstructorType qualified as CT
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
+import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
+import Unison.Pattern (Pattern)
+import Unison.Pattern qualified as Pattern
+import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPEN
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
@@ -49,18 +49,18 @@ import Unison.Syntax.Lexer.Unison (Err, Token, typeOrTerm)
 import Unison.Syntax.Name qualified as Name (toVar, unsafeParseVar)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.Parser.Doc qualified as Doc
+import Unison.Syntax.Surface
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.Var qualified as Var (namespaced)
-import Unison.Syntax.Surface
 import Unison.Term (Term)
 import Unison.Term qualified as Term
-import Unison.Util.Pretty qualified as PP
-import Unison.Typechecker.Components qualified as Components
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Typechecker.Components qualified as Components
 import Unison.UnisonFile (UnisonFile (..))
 import Unison.UnisonFile.Env qualified as UFE
 import Unison.UnisonFile.Names qualified as UFN
+import Unison.Util.Pretty qualified as PP
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 

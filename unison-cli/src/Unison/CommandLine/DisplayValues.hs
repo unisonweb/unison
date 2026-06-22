@@ -6,7 +6,6 @@ import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Decls qualified as DD
 import Unison.Codebase.Editor.DisplayObject qualified as DO
 import Unison.CommandLine.OutputMessages qualified as OutputMessages
-import Unison.Syntax.Dialect qualified as Dialect
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
@@ -22,6 +21,7 @@ import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as DD
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DP
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.NamePrinter qualified as NP
 import Unison.Syntax.TermPrinter qualified as TP
 import Unison.Syntax.TypePrinter qualified as TypePrinter

@@ -12,7 +12,6 @@ import Language.LSP.Protocol.Types qualified as LSP
 import Language.LSP.Server (sendRequest)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (renderToFile)
-import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Codebase.Editor.Input (RelativeToFold (..))
 import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
@@ -21,6 +20,7 @@ import Unison.LSP.Types
 import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.Server.Backend qualified as Backend
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.Name qualified as Names
 
 editDefinitionByFQN ::

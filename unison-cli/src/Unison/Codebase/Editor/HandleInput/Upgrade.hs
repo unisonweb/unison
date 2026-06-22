@@ -24,12 +24,12 @@ import TextBuilder qualified
 import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Util.Text qualified as Text (unsafeToInt)
+import Unison.Cli.Dialect (getActiveDialect)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as Cli
-import Unison.Cli.Dialect (getActiveDialect)
 import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)

@@ -49,7 +49,6 @@ import Unison.Names qualified as Names
 import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
-import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -62,6 +61,7 @@ import Unison.Result qualified as Result
 import Unison.Runtime (Error)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)

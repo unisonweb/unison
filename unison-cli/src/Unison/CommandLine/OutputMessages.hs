@@ -35,6 +35,7 @@ import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
 import System.Directory (canonicalizePath, getHomeDirectory)
+import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..))
 import Text.Pretty.Simple (pShowNoColor, pStringNoColor)
 import U.Codebase.Branch (NamespaceStats (..))
@@ -139,6 +140,8 @@ import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.Dialect (PrintDialect)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.HashQualified qualified as HQ (toText, unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter
@@ -153,9 +156,6 @@ import Unison.Syntax.NamePrinter
     prettyReferent,
     prettyShortHash,
   )
-import System.Environment (lookupEnv)
-import Unison.Syntax.Dialect (PrintDialect)
-import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -194,7 +194,7 @@ renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 notifyNumbered :: PrintDialect -> NumberedOutput -> (Pretty, NumberedArgs)
 notifyNumbered pd = \case
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
-    showDiffNamespace pd ShowNumbers ppe(either BranchAtSCH BranchAtProjectPath oldPrefix) (either BranchAtSCH BranchAtProjectPath newPrefix) diffOutput
+    showDiffNamespace pd ShowNumbers ppe (either BranchAtSCH BranchAtProjectPath oldPrefix) (either BranchAtSCH BranchAtProjectPath newPrefix) diffOutput
   ShowDiffAfterDeleteBranch bAbs ppe diff ->
     first
       ( \p ->
@@ -204,7 +204,7 @@ notifyNumbered pd = \case
               undoTip
             ]
       )
-      (showDiffNamespace pd ShowNumbers ppe(absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
+      (showDiffNamespace pd ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   ShowDiffAfterModifyBranch b' _ _ (OBD.isEmpty -> True) ->
     (P.wrap $ "Nothing changed in" <> prettyPath b' <> ".", mempty)
   ShowDiffAfterModifyBranch b' bAbs ppe diff ->
@@ -218,11 +218,11 @@ notifyNumbered pd = \case
               undoTip
             ]
       )
-      (showDiffNamespace pd ShowNumbers ppe(absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
+      (showDiffNamespace pd ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   ShowDiffAfterUndo ppe diffOutput ->
     first
       (\p -> P.lines ["Here are the changes I undid", "", p])
-      (showDiffNamespace pd ShowNumbers ppe(absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diffOutput)
+      (showDiffNamespace pd ShowNumbers ppe (absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diffOutput)
   ShowDiffAfterPull dest' destAbs ppe diff ->
     if OBD.isEmpty diff
       then ("✅  Looks like " <> prettyPath dest' <> " is up to date.", mempty)
@@ -237,7 +237,7 @@ notifyNumbered pd = \case
                   undoTip
                 ]
           )
-          (showDiffNamespace pd ShowNumbers ppe(absPathToBranchId destAbs) (absPathToBranchId destAbs) diff)
+          (showDiffNamespace pd ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diff)
   -- todo: these numbers aren't going to work,
   --  since the content isn't necessarily here.
   -- Should we have a mode with no numbers? :P
@@ -257,7 +257,7 @@ notifyNumbered pd = \case
                   <> P.group (prettyPath authorPath' <> ".")
             ]
       )
-      (showDiffNamespace pd ShowNumbers ppe(absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
+      (showDiffNamespace pd ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   TestResults stats ppe _showSuccess _showFailures oksUnsorted failsUnsorted ->
     let oks = Name.sortByText (HQ.toText . fst) [(name r, msgs) | (r, msgs) <- Map.toList oksUnsorted]
         fails = Name.sortByText (HQ.toText . fst) [(name r, msgs) | (r, msgs) <- Map.toList failsUnsorted]

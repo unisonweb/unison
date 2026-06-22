@@ -40,9 +40,9 @@ import Unison.Reference (TermReference)
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toText)
-import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Typed (Typed)
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as P

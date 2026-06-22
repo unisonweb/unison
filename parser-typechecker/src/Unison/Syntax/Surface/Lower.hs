@@ -189,8 +189,9 @@ lowerPattern ppe = go
       Pattern.Char _ c -> (sp (SPLit (SChar c)), vs)
       -- Tuple patterns `(p, q, …)` are sugar for the `Tuple` constructor pattern. (A 1-element tuple pattern is just
       -- the element, so it isn't sugared.)
-      TuplePattern ps | length ps /= 1 ->
-        let (sps, vs') = goList vs ps in (sp (SPTuple sps), vs')
+      TuplePattern ps
+        | length ps /= 1 ->
+            let (sps, vs') = goList vs ps in (sp (SPTuple sps), vs')
       Pattern.Constructor _ cref ps ->
         let (sps, vs') = goList vs ps
          in (sp (SPCtor (conName cref CT.Data) sps), vs')
@@ -247,7 +248,7 @@ lowerDecl pped ref hq decl =
         Nothing -> Name.unsafeParseText ("Constructor" <> tShow i)
     ctors =
       [ SConstructor External (ctorName i) (lowerType (PPED.suffixifiedPPE pped) ty)
-        | (i, (_, _v, ty)) <- zip [(0 :: Int) ..] (DD.constructors' dd)
+      | (i, (_, _v, ty)) <- zip [(0 :: Int) ..] (DD.constructors' dd)
       ]
 
 -- | Lower a type to the Surface IR. Applies the same normalization the default type printer does

@@ -169,7 +169,6 @@ import Text.Megaparsec qualified as Megaparsec
 import Text.Numeral (defaultInflection)
 import Text.Numeral.Language.ENG qualified as Numeral
 import U.Codebase.Config qualified as Config
-import Unison.Syntax.Dialect qualified as Dialect
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -243,6 +242,7 @@ import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.HashQualified qualified as HQ (parseText, toText)
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (parseText)
 import Unison.Syntax.Name qualified as Name (parseTextEither, toText)

@@ -22,12 +22,12 @@ import Data.Set (Set)
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import Unison.Syntax.Name qualified as Name (toText)
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Reference (Reference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Syntax.DeclPrinter (AccessorName, RenderUniqueTypeGuids)
+import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyName)
 import Unison.Syntax.Precedence (Precedence (Application, Bottom), increment)
 import Unison.Syntax.Surface
