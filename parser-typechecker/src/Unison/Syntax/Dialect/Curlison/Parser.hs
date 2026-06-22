@@ -33,7 +33,7 @@ import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
-import Unison.Syntax.Name qualified as Name (isSymboly, unsafeParseText)
+import Unison.Syntax.Name qualified as Name (isSymboly, parseTextEither, unsafeParseText)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.Precedence (InfixPrecedence (Lowest), Precedence (Bottom, InfixOp), increment, operatorPrecedence)
 import Unison.Syntax.Surface
@@ -113,7 +113,7 @@ sname :: String -> SName
 sname = HQ.NameOnly . pname
 
 isOpName :: String -> Bool
-isOpName s = not (null s) && Name.isSymboly (pname s)
+isOpName s = not (null s) && either (const False) Name.isSymboly (Name.parseTextEither (Text.pack s))
 
 -- Top level ----------------------------------------------------------------------------------------------------------
 
@@ -195,7 +195,18 @@ pStmt = do
 -- its full @arg -> … -> ret@ type inlined and a lambda value, so it round-trips with what 'Unison.Syntax.Dialect.Curlison'
 -- prints.
 pCFunction :: CP RawForm
-pCFunction = do
+pCFunction = (\(a, nm, fullTy, lam) -> RBind (SBinding a nm (Just fullTy) lam)) <$> pCFunctionParts
+
+-- | A typed local helper inside a block, written in the same function form as a top-level definition. Its type is
+-- attached to the value as an ascription (where 'Elaborate' looks for a local binding's type), not as a separate
+-- signature.
+pLocalFunc :: CP SBinding
+pLocalFunc = (\(a, nm, fullTy, lam) -> SBinding a nm Nothing (STerm a (SAnn lam fullTy))) <$> pCFunctionParts
+
+-- | The shared parser for the curly-brace function form: @\<tvs\> RetTy name(ArgTy a, …) throws {e} { …; return e; }@.
+-- Returns @(ann, name, full arrow type, lambda value)@.
+pCFunctionParts :: CP (Ann, Name, SType, STerm)
+pCFunctionParts = do
   tvs <- P.option [] (angles (commaSep nameRaw))
   retTy <- pType
   (a, nm) <- withAnn nameRaw
@@ -209,7 +220,7 @@ pCFunction = do
            in foldl (\acc (t, _) -> SType a (STyArrow t Nothing acc)) lastArrow restRev
       fullTy = if null tvs then arrows else SType a (STyForall (map pname tvs) arrows)
       lam = STerm a (SLam [SParam a p | (_, p) <- ps] body)
-  pure (RBind (SBinding a (pname nm) (Just fullTy) lam))
+  pure (a, pname nm, fullTy, lam)
 
 -- | A typed parameter, @Type name@.
 pCParam :: CP (SType, Name)
@@ -231,7 +242,7 @@ pFuncBody = do
 pFuncStmt :: CP SBinding
 pFuncStmt = do
   P.notFollowedBy (symbol "return")
-  (P.try pNamed P.<|> pBare) <* symbol ";"
+  (P.try pLocalFunc P.<|> P.try pNamed P.<|> pBare) <* symbol ";"
   where
     pNamed = do
       (a, nm) <- withAnn nameRaw
@@ -377,7 +388,7 @@ pBlock = do
       items <- P.sepEndBy1 pItem (symbol ";")
       pure (map toBinding (init items), case last items of Right (_, e) -> e; Left b -> bValue b)
     toBinding = \case Right (a, e) -> SBinding a (pname "_") Nothing e; Left b -> b
-    pItem = (Left <$> P.try pBlockBinding) P.<|> (Right <$> withAnn pTerm)
+    pItem = (Left <$> P.try pLocalFunc) P.<|> (Left <$> P.try pBlockBinding) P.<|> (Right <$> withAnn pTerm)
     pBlockBinding = do
       (a, nm) <- withAnn nameRaw
       _ <- symbol "="

@@ -106,17 +106,25 @@ renderTermP ctx (STerm _ f) = case f of
   SDocLit t -> fmt S.DocDelimiter (PP.text t)
 
 -- | A binding inside a @let@\/@letrec@ block. A function-valued binding becomes a nested @def@ (Python's @lambda@ is
--- expression-only, so a multi-statement function body can't be a @lambda@); a plain value becomes @name = value@.
+-- expression-only, so a multi-statement function body can't be a @lambda@); a typed local function additionally gets a
+-- signature line, so it reads like a top-level definition; a plain value becomes @name = value@.
 renderLetBinding :: SBinding -> Pretty SyntaxText
 renderLetBinding b
   -- A discarded statement (bound to @_@) prints as a bare expression.
   | Name.toText (bName b) == "_" = renderTerm (bValue b)
-  | otherwise = case bValue b of
-      STerm _ (SLam ps body) ->
-        suite
-          (ctrl "def" <> " " <> renderPlain (bName b) <> parens (commas [renderPlain p | SParam _ p <- ps]))
-          [renderTerm body]
-      v -> renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm v
+  -- A typed local function: signature line + @def@ (like a top-level definition).
+  | STerm _ (SAnn (STerm _ (SLam ps body)) ty) <- bValue b =
+      PP.lines
+        [ renderPlain (bName b) <> " " <> fmt S.TypeAscriptionColon ":" <> " " <> renderType ty,
+          defLine ps body
+        ]
+  | STerm _ (SLam ps body) <- bValue b = defLine ps body
+  | otherwise = renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm (bValue b)
+  where
+    defLine ps body =
+      suite
+        (ctrl "def" <> " " <> renderPlain (bName b) <> parens (commas [renderPlain p | SParam _ p <- ps]))
+        [renderTerm body]
 
 renderCase :: SCase -> Pretty SyntaxText
 renderCase (SCase pat guard body) =

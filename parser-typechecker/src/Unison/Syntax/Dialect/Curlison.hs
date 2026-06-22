@@ -123,11 +123,14 @@ renderTermP ctx (STerm _ f) = case f of
 block :: [SBinding] -> STerm -> Pretty SyntaxText
 block bs body = braceBlock (map stmtLine bs ++ [renderTerm body])
 
--- | A statement line in a block: a discarded statement (bound to @_@) prints as a bare expression; anything else as
--- @name = e@.
+-- | A statement line in a block: a discarded statement (bound to @_@) prints as a bare expression; a typed local
+-- function (an ascribed lambda) prints in function form, like a top-level definition; anything else as @name = e@.
 stmtLine :: SBinding -> Pretty SyntaxText
 stmtLine b
   | Name.toText (bName b) == "_" = renderTerm (bValue b)
+  | STerm _ (SAnn (STerm _ (SLam params body)) ty) <- bValue b,
+    Just (tvs, argTys, effs, retTy) <- splitFunctionType (length params) ty =
+      renderCFunction (renderPlain (bName b)) tvs retTy effs params argTys body
   | otherwise = renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm (bValue b)
 
 braceBlock :: [Pretty SyntaxText] -> Pretty SyntaxText
@@ -265,29 +268,36 @@ prettyBinding ppe hq term =
   case lowerT ppe term of
     STerm _ (SAnn (STerm _ (SLam params body)) ty)
       | Just (tvs, argTys, effs, retTy) <- splitFunctionType (length params) ty ->
-          cFunction tvs retTy effs params argTys body
-    STerm _ (SAnn e ty) -> renderType ty <> " " <> defAssign hq e <> semi
-    s -> defAssign hq s <> semi
+          renderCFunction (prettyHashQualified hq) tvs retTy effs params argTys body
+    STerm _ (SAnn e ty) -> renderType ty <> " " <> defAssign hq e <> fmt S.DelimiterChar ";"
+    s -> defAssign hq s <> fmt S.DelimiterChar ";"
+
+-- | Render a Curlison function definition: @\<tvs\> RetTy name(ArgTy p, …) throws {e} { …; return body; }@. Shared by
+-- top-level bindings and typed local helpers, so both look the same.
+renderCFunction :: Pretty SyntaxText -> [Name] -> SType -> Maybe [SType] -> [SParam] -> [SType] -> STerm -> Pretty SyntaxText
+renderCFunction namePretty tvs retTy effs params argTys body =
+  generics tvs
+    <> renderType retTy
+    <> " "
+    <> namePretty
+    <> parens (commas [renderType t <> " " <> renderPlain p | (SParam _ p, t) <- zip params argTys])
+    <> throwsClause effs
+    <> " "
+    <> braceBlock (funcStmts body)
   where
-    cFunction tvs retTy effs params argTys body =
-      generics tvs
-        <> renderType retTy
-        <> " "
-        <> prettyHashQualified hq
-        <> parens (commas [renderType t <> " " <> renderPlain p | (SParam _ p, t) <- zip params argTys])
-        <> throwsClause effs
-        <> " "
-        <> braceBlock (funcStmts body)
     generics [] = mempty
     generics vs = fmt S.DelimiterChar "<" <> commas (map renderPlain vs) <> fmt S.DelimiterChar "> "
     throwsClause Nothing = mempty
     throwsClause (Just es) = " " <> ctrl "throws" <> " " <> renderEffects es
-    funcStmts body = case body of
-      STerm _ (SLet bs e) -> map stmtLine bs ++ [ret e]
-      STerm _ (SLetRec bs e) -> map stmtLine bs ++ [ret e]
-      e -> [ret e]
+
+-- | The statements of a function body: the bindings of a leading let-block, then @return <result>@.
+funcStmts :: STerm -> [Pretty SyntaxText]
+funcStmts body = case body of
+  STerm _ (SLet bs e) -> map stmtLine bs ++ [ret e]
+  STerm _ (SLetRec bs e) -> map stmtLine bs ++ [ret e]
+  e -> [ret e]
+  where
     ret e = ctrl "return" <> " " <> renderTerm e
-    semi = fmt S.DelimiterChar ";"
 
 -- | For a typed @n@-parameter lambda, peel any leading @forall@ (returning the type variables) and then exactly @n@
 -- argument arrows, returning the argument types, the function's overall effect (the abilities on the final arrow —

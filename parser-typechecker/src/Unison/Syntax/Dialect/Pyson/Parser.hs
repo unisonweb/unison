@@ -33,7 +33,7 @@ import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
-import Unison.Syntax.Name qualified as Name (isSymboly, unsafeParseText)
+import Unison.Syntax.Name qualified as Name (isSymboly, parseTextEither, unsafeParseText)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.Precedence (InfixPrecedence (Lowest), Precedence (Bottom, InfixOp), increment, operatorPrecedence)
 import Unison.Syntax.Surface
@@ -116,7 +116,7 @@ sname :: String -> SName
 sname = HQ.NameOnly . pname
 
 isOpName :: String -> Bool
-isOpName s = not (null s) && Name.isSymboly (pname s)
+isOpName s = not (null s) && either (const False) Name.isSymboly (Name.parseTextEither (Text.pack s))
 
 reserved :: [String]
 reserved = ["if", "else", "and", "or", "lambda", "match", "case", "let", "letrec", "def"]
@@ -273,29 +273,47 @@ pLet = pLetLike "let" SLet
 pLetrec :: PP STerm
 pLetrec = pLetLike "letrec" SLetRec
 
+-- | A block item: a type signature line, a binding (a nested @def@ or @name = term@), or a body\/statement term.
+data BlockItem = BISig Name SType | BIBind SBinding | BITerm STerm
+
 pLetLike :: String -> ([SBinding] -> STerm -> STermF) -> PP STerm
 pLetLike kw mk = L.indentBlock scn do
   (a, _) <- withAnn (P.try (symbol kw <* symbol ":"))
   pure (L.IndentSome Nothing (\items -> pure (assemble a items)) pBlockItem)
   where
-    -- The final item is the block result; earlier bare expressions are discarded statements (bound to @_@). Order is
-    -- preserved so a statement can sit between two bindings.
+    -- The final item is the block result; earlier bare expressions are discarded statements (bound to @_@). A
+    -- signature line types the following binding (its value gets an ascription, where 'Elaborate' looks for a local
+    -- binding's type). Order is preserved so a statement can sit between two bindings.
     assemble a items =
-      let stmts = map (toBinding a) (init items)
-          body = case last items of Right t -> t; Left b -> bValue b
-       in STerm a (mk stmts body)
-    toBinding _ (Left b) = b
-    toBinding a (Right t) = SBinding a (pname "_") Nothing t
+      let sigs = [(n, t) | BISig n t <- items]
+          withSig b = case lookup (bName b) sigs of
+            Just t -> b {bValue = STerm (bAnn b) (SAnn (bValue b) t)}
+            Nothing -> b
+          toBind (BIBind b) = withSig b
+          toBind (BITerm t) = SBinding a (pname "_") Nothing t
+          toBind (BISig _ _) = SBinding a (pname "_") Nothing (STerm a SHole)
+          bodyOf (BITerm t) = t
+          bodyOf (BIBind b) = bValue (withSig b)
+          bodyOf (BISig _ _) = STerm a SHole
+       in case filter notSig items of
+            [] -> STerm a (mk [] (STerm a SHole))
+            real -> STerm a (mk (map toBind (init real)) (bodyOf (last real)))
+    notSig (BISig _ _) = False
+    notSig _ = True
 
--- | A block item is a nested @def@ function binding (Left), a @name = term@ binding (Left), or the body term (Right).
-pBlockItem :: PP (Either SBinding STerm)
+pBlockItem :: PP BlockItem
 pBlockItem =
   P.choice
-    [ Left <$> pDefBinding,
-      Left <$> P.try pBindingItem,
-      Right <$> pTerm
+    [ P.try pSig,
+      BIBind <$> pDefBinding,
+      BIBind <$> P.try pBindingItem,
+      BITerm <$> pTerm
     ]
   where
+    pSig = do
+      nm <- nameRaw
+      _ <- symbol ":"
+      BISig (pname nm) <$> pType
     pBindingItem = do
       (a, nm) <- withAnn nameRaw
       _ <- symbol "="
