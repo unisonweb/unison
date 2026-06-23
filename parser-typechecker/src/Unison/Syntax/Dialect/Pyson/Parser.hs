@@ -249,8 +249,11 @@ pAssignOrSig = do
 
 -- Terms --------------------------------------------------------------------------------------------------------------
 
+-- The block parsers ('pLet'\/'pLetrec'\/'pMatch') run @L.indentBlock@, whose leading @scn@ consumes a newline before
+-- the keyword fails to match — so they must be wrapped in 'P.try' to fully backtrack (otherwise a value on its own
+-- line, e.g. @name =\n  letrec:@, commits to the first alternative and never reaches the right one).
 pTerm :: PP STerm
-pTerm = P.choice [pLet, pLetrec, pMatch, P.try pLambda, pInfix]
+pTerm = P.choice [P.try pLet, P.try pLetrec, P.try pMatch, P.try pLambda, pInfix]
 
 -- | An application optionally followed by a chain of symbolic infix operators, resolved by precedence climbing so the
 -- result matches the renderer's minimal-paren printing. Keyword operators (@and@\/@or@\/conditional) are not handled

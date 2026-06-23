@@ -119,7 +119,7 @@ renderLetBinding b
           defLine ps body
         ]
   | STerm _ (SLam ps body) <- bValue b = defLine ps body
-  | otherwise = renderPlain (bName b) <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm (bValue b)
+  | otherwise = valueAssign (renderPlain (bName b)) (bValue b)
   where
     defLine ps body =
       suite
@@ -259,7 +259,25 @@ defForm :: HQ.HashQualified Name -> STerm -> Pretty SyntaxText
 defForm hq s = case s of
   STerm _ (SLam ps body) ->
     suite (ctrl "def" <> " " <> prettyHashQualified hq <> parens (commas [renderPlain p | SParam _ p <- ps])) (funcBody body)
-  _ -> prettyHashQualified hq <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm s
+  _ -> valueAssign (prettyHashQualified hq) s
+
+-- | A @name = value@ binding. A block-valued RHS (a @let@\/@letrec@\/@match@\/@handle@ — i.e. one that renders as an
+-- indented suite) goes on the next line, indented past the binding, so its keyword sits deeper than @name@ and re-parses
+-- (megaparsec's 'L.indentBlock' references the keyword's column; an inline @name = letrec:@ would put the keyword
+-- mid-line and its items too shallow).
+valueAssign :: Pretty SyntaxText -> STerm -> Pretty SyntaxText
+valueAssign lhs s
+  | isSuiteForm s = lhs <> " " <> fmt S.BindingEquals "=" <> PP.indentNAfterNewline 2 (PP.newline <> renderTerm s)
+  | otherwise = lhs <> " " <> fmt S.BindingEquals "=" <> " " <> renderTerm s
+
+-- | Whether a term renders as an indented colon-suite (so as a @name = …@ RHS it must start on the next line).
+isSuiteForm :: STerm -> Bool
+isSuiteForm (STerm _ f) = case f of
+  SLet {} -> True
+  SLetRec {} -> True
+  SMatch {} -> True
+  SHandle {} -> True
+  _ -> False
 
 -- | The body lines of a @def@: when the body is a leading @let@\/@letrec@, its bindings become statements directly in
 -- the suite (Python defines nested functions inline, with no wrapper keyword), then the result expression. Any other

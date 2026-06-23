@@ -329,7 +329,13 @@ pCase = parens do
 -- Patterns -----------------------------------------------------------------------------------------------------------
 
 pPattern :: SP SPattern
-pPattern = P.choice [pCtorPattern, pStringPattern, pCharPattern, pAtomPattern]
+pPattern = P.choice [pListPattern, pCtorPattern, pStringPattern, pCharPattern, pAtomPattern]
+
+-- | A list pattern: @[]@, @[a b]@.
+pListPattern :: SP SPattern
+pListPattern = do
+  (a, subs) <- withAnn (brackets (P.many pPattern))
+  pure (SPattern a (SPList subs))
 
 pStringPattern :: SP SPattern
 pStringPattern = do
@@ -354,10 +360,21 @@ pAtomPattern = do
       | Just f <- readFloat s -> SPLit (SFloat f)
       | otherwise -> SPVar (pname s)
 
+-- | A parenthesized pattern, dispatched on its head: the seq operators @cons@\/@snoc@\/@concat@, an as-pattern @as@, an
+-- ability @request@\/@pure@, a @tuple@, or otherwise a constructor application. (Inverse of 'SExpr.renderSPattern'.)
 pCtorPattern :: SP SPattern
 pCtorPattern = do
   (a, (name, subs)) <- withAnn (parens ((,) <$> atom <*> P.many pPattern))
-  pure (SPattern a (if snd name == "tuple" then SPTuple subs else SPCtor (sname (snd name)) subs))
+  let mk = case (snd name, subs) of
+        ("tuple", _) -> SPTuple subs
+        ("cons", [l, r]) -> SPSeqOp l SCons r
+        ("snoc", [l, r]) -> SPSeqOp l SSnoc r
+        ("concat", [l, r]) -> SPSeqOp l SConcat r
+        ("as", [SPattern _ (SPVar n), sub]) -> SPAs n sub
+        ("pure", [sub]) -> SPEffectPure sub
+        ("request", SPattern _ (SPVar n) : rest@(_ : _)) -> SPEffect (HQ.NameOnly n) (init rest) (last rest)
+        _ -> SPCtor (sname (snd name)) subs
+  pure (SPattern a mk)
 
 -- Types --------------------------------------------------------------------------------------------------------------
 
@@ -398,8 +415,11 @@ pArrow = do
   ts <- P.some pType
   pure \_ -> arrows ts
   where
+    -- A bare ability row @{e}@ (parsed as 'STyEffects') annotates the arrow leading to the type that follows it, i.e.
+    -- @(-> a {e} b)@ is @a ->{e} b@ — it is the arrow's effect, not an argument of kind Ability.
     arrows = \case
       [t] -> tyOut t
+      (i : SType _ (STyEffects es) : rest@(_ : _)) -> STyArrow i (Just es) (SType (tyAnn i) (arrows rest))
       (i : rest@(_ : _)) -> STyArrow i Nothing (SType (tyAnn i) (arrows rest))
       [] -> STyVar (pname "_")
 pForall = do
