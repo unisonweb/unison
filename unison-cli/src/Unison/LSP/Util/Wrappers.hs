@@ -20,6 +20,7 @@ import Unison.LSP.Types
 import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.Server.Backend qualified as Backend
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.Name qualified as Names
 
 editDefinitionByFQN ::
@@ -59,5 +60,5 @@ editDefinitionByFQN fileURI fqn = do
         void $ sendRequest Msg.SMethod_WorkspaceApplyEdit params $ \case
           Left err -> Debug.debugM Debug.LSP "Error applying workspace edit" err
           Right _ -> pure ()
-  numRendered <- renderToFile codebase (const True) appendText mayUnisonFile fp WithinFold pped termResults typeResults
+  numRendered <- renderToFile Dialect.defaultPrintDialect codebase (const True) appendText mayUnisonFile fp WithinFold pped termResults typeResults
   pure (numRendered > 0)

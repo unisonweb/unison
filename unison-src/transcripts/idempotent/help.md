@@ -99,7 +99,7 @@
 
   `config.get author.name`
 
-  Configuration options include: author.name
+  Configuration options include: author.name, syntax.dialect
 
   config.set
   The `config.set` command sets the configuration key to the
@@ -107,7 +107,7 @@
 
   `config.set author.name "Author Name"`
 
-  Configuration options include: author.name
+  Configuration options include: author.name, syntax.dialect
 
   create.author
   `create.author alicecoder "Alice McGee"` creates `alicecoder`
@@ -974,6 +974,22 @@
                                      the file `branch.usync`.
   `sync.to-file ./main.usync /main`  saves the main branch to
                                      the file `main.usync`.
+
+  syntax.get
+  `syntax.get` shows the surface syntax dialect currently
+  configured for this codebase.
+
+  Available dialects: unison, sexpr, curlison, pyson
+
+  syntax.set
+  `syntax.set` chooses the surface syntax dialect UCM uses to
+  read and print code. It takes effect immediately and persists
+  in this codebase (the `UNISON_SYNTAX` environment variable
+  overrides it). For example,
+
+  `syntax.set sexpr`
+
+  Available dialects: unison, sexpr, curlison, pyson
 
   test
   `test`      runs unit tests for the current branch

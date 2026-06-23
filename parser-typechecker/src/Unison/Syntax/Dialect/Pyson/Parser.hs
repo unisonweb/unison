@@ -1,0 +1,653 @@
+{-# LANGUAGE OverloadedStrings #-}
+
+-- | The Pyson-like /parser/: text -> 'SFile'. Indentation-significant (via megaparsec's 'L.indentBlock').
+--
+-- v1 grammar (matching 'Unison.Syntax.Dialect.Pyson'):
+--
+-- > name : Type
+-- > x = value
+-- > def name(a, b):
+-- >   body
+-- > match s:
+-- >   case p: body
+-- > let:
+-- >   x = e
+-- >   body
+-- > lambda x, y: body        (a + b)   (t if c else e)   f(a, b)   [a, b]
+module Unison.Syntax.Dialect.Pyson.Parser
+  ( parseFile,
+  )
+where
+
+import Data.Char (isAlphaNum)
+import Data.List (intercalate)
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Text.Megaparsec qualified as P
+import Text.Megaparsec.Char qualified as C
+import Text.Megaparsec.Char.Lexer qualified as L
+import Text.Read qualified as Read
+import Unison.HashQualified qualified as HQ
+import Unison.Lexer.Pos qualified as Pos
+import Unison.Name (Name)
+import Unison.Name qualified as Name (snoc)
+import Unison.NameSegment qualified as NameSegment (docSegment)
+import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann qualified as Ann
+import Unison.Prelude
+import Unison.Syntax.Name qualified as Name (isSymboly, parseTextEither, unsafeParseText)
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.Precedence (InfixPrecedence (Lowest), Precedence (Bottom, InfixOp), increment, operatorPrecedence)
+import Unison.Syntax.Surface
+import Unison.Syntax.Surface.Elaborate (elaborateFile, parseDocs, resolveDeclGuids)
+import Unison.UnisonFile (UnisonFile)
+import Unison.Var (Var)
+import Unison.WatchKind qualified as WK
+
+type PP = P.Parsec Void String
+
+data RawForm = RSig Name SType | RBind SBinding | RDecl SDecl | RWatch SWatch
+
+parseFile :: forall m v. (Monad m, Var v) => FilePath -> String -> Parser.ParsingEnv m -> m (Either (Parser.Err v) (UnisonFile v Ann))
+parseFile fp src env =
+  case P.runParser pSFile fp src of
+    Left bundle -> pure (Left (P.FancyError 0 (Set.singleton (P.ErrorFail (P.errorBundlePretty bundle)))))
+    Right sfile0 -> do
+      sfile <- resolveDeclGuids env sfile0
+      edocs <- parseDocs env pTerm sfile
+      pure (edocs >>= \docMap -> elaborateFile (Parser.names env) docMap sfile)
+
+-- Lexing: two space consumers — `sc` stays on the line, `scn` crosses newlines (for indentation). ------------------
+
+lineComment :: PP ()
+lineComment = L.skipLineComment "#"
+
+scn :: PP ()
+scn = L.space C.space1 lineComment P.empty
+
+sc :: PP ()
+sc = L.space (void (P.takeWhile1P (Just "space") (\c -> c == ' ' || c == '\t'))) lineComment P.empty
+
+lexeme :: PP a -> PP a
+lexeme = L.lexeme sc
+
+symbol :: String -> PP String
+symbol = L.symbol sc
+
+parens, brackets, braces :: PP a -> PP a
+parens p = symbol "(" *> p <* symbol ")"
+brackets p = symbol "[" *> p <* symbol "]"
+braces p = symbol "{" *> p <* symbol "}"
+
+commaSep :: PP a -> PP [a]
+commaSep p = P.sepBy p (symbol ",")
+
+withAnn :: PP a -> PP (Ann, a)
+withAnn p = do
+  s <- P.getSourcePos
+  x <- p
+  e <- P.getSourcePos
+  pure (Ann.Ann (toPos s) (toPos e), x)
+  where
+    toPos sp = Pos.Pos (P.unPos (P.sourceLine sp)) (P.unPos (P.sourceColumn sp))
+
+-- | Characters allowed to start a wordy identifier segment (matches Unison's @wordyIdStartChar@).
+isWordyStart :: Char -> Bool
+isWordyStart c = isAlphaNum c || c == '_'
+
+-- | Characters allowed within a wordy identifier segment (matches Unison's @wordyIdChar@): includes @!@ and @'@.
+isWordyChar :: Char -> Bool
+isWordyChar c = isAlphaNum c || c == '_' || c == '!' || c == '\''
+
+isSymChar :: Char -> Bool
+isSymChar c = c `elem` ("+-*/<>=!&|^%~$:" :: String)
+
+nameRaw :: PP String
+nameRaw = lexeme do
+  first <- seg
+  rest <- P.many (P.try (C.char '.' *> seg))
+  pure (intercalate "." (first : rest))
+  where
+    seg = wordy P.<|> P.takeWhile1P (Just "operator") isSymChar
+    wordy = (:) <$> P.satisfy isWordyStart <*> P.takeWhileP (Just "wordy") isWordyChar
+
+pname :: String -> Name
+pname = Name.unsafeParseText . Text.pack
+
+sname :: String -> SName
+sname = HQ.NameOnly . pname
+
+isOpName :: String -> Bool
+isOpName s = not (null s) && either (const False) Name.isSymboly (Name.parseTextEither (Text.pack s))
+
+reserved :: [String]
+reserved = ["if", "else", "and", "or", "lambda", "match", "case", "let", "letrec", "def"]
+
+-- Top level ----------------------------------------------------------------------------------------------------------
+
+pSFile :: PP SFile
+pSFile = do
+  scn
+  forms <- concat <$> P.many (L.nonIndented scn pTopForm <* scn)
+  P.eof
+  let sigs = [(n, t) | RSig n t <- forms]
+      binds = [b {bType = lookup (bName b) sigs} | RBind b <- forms]
+      decls = [d | RDecl d <- forms]
+      watches = [w | RWatch w <- forms]
+  pure (SFile Nothing decls binds watches)
+
+-- | A top-level form: a watch, or a declaration\/definition optionally preceded by a @{{ }}@ doc block. A leading doc
+-- becomes a separate @<name>.doc@ binding (the same desugaring Unison's own file parser does), so a documented
+-- definition round-trips.
+pTopForm :: PP [RawForm]
+pTopForm =
+  P.choice
+    [ P.try ((: []) <$> pWatch),
+      pDocumented
+    ]
+  where
+    pDocumented = do
+      mdoc <- P.optional (withAnn (pDocRaw <* scn))
+      form <- P.choice [P.try pDecl, pStmt]
+      pure case mdoc of
+        Just (a, txt) | Just nm <- formName form -> [docBinding a nm txt, form]
+        _ -> [form]
+
+-- | The name a form defines, if any (for attaching a preceding doc).
+formName :: RawForm -> Maybe Name
+formName = \case
+  RBind b -> Just (bName b)
+  RSig n _ -> Just n
+  RDecl d -> Just (dName d)
+  RWatch _ -> Nothing
+
+-- | A @<name>.doc = {{ … }}@ binding synthesized from a doc block preceding a definition.
+docBinding :: Ann -> Name -> String -> RawForm
+docBinding a nm txt = RBind (SBinding a (Name.snoc nm NameSegment.docSegment) Nothing (STerm a (SDocLit (Text.pack txt))))
+
+pWatch :: PP RawForm
+pWatch = do
+  (a, kind) <- withAnn (P.choice [WK.TestWatch <$ symbol "test>", WK.RegularWatch <$ symbol ">"])
+  RWatch . SWatch a kind <$> pInlineExpr
+
+srcAnn :: P.SourcePos -> Ann
+srcAnn sp = Ann.Ann p p where p = Pos.Pos (P.unPos (P.sourceLine sp)) (P.unPos (P.sourceColumn sp))
+
+-- | An optional declaration modifier. @structural@ is explicit; its absence means @unique@ (the default), whose GUID
+-- is recovered by name in 'parseFile' (the empty 'SUnique' sentinel is filled there).
+pModifier :: PP SModifier
+pModifier = P.option (SUnique "") (SStructural <$ symbol "structural")
+
+data DeclKind = DKData | DKAbility | DKRecord deriving (Eq)
+
+-- | An indented declaration item: a constructor (for @type@\/@ability@) or a @field : Type@ (for @record@).
+data DeclItem = ItemCtor SConstructor | ItemField Name SType
+
+pDecl :: PP RawForm
+pDecl = L.indentBlock scn do
+  start <- P.getSourcePos
+  modi <- pModifier
+  kind <- P.choice [DKData <$ symbol "type", DKAbility <$ symbol "ability", DKRecord <$ symbol "record"]
+  nm <- nameRaw
+  tvs <- P.option [] (brackets (commaSep nameRaw))
+  _ <- symbol ":"
+  let a = srcAnn start
+      tyvarNames = map pname tvs
+      selfTy =
+        SType a $
+          if null tyvarNames
+            then STyVar (pname nm)
+            else STyApp (SType a (STyVar (pname nm))) [SType a (STyVar t) | t <- tyvarNames]
+      mk items = RDecl case kind of
+        DKRecord ->
+          let fields = [(n, t) | ItemField n t <- items]
+              ctorType = foldr (\(_, t) acc -> SType a (STyArrow t Nothing acc)) selfTy fields
+           in SDecl a modi False (pname nm) tyvarNames [SConstructor a (pname nm) ctorType] (Just (map fst fields))
+        _ -> SDecl a modi (kind == DKAbility) (pname nm) tyvarNames [c | ItemCtor c <- items] Nothing
+  pure (L.IndentSome Nothing (pure . mk) (pDeclItem kind selfTy))
+
+-- | Parse one indented declaration item, dispatched on the declaration kind.
+pDeclItem :: DeclKind -> SType -> PP DeclItem
+pDeclItem kind selfTy = case kind of
+  DKRecord -> (\(_, cn) t -> ItemField (pname cn) t) <$> withAnn nameRaw <* symbol ":" <*> pType
+  DKAbility -> ItemCtor <$> pCtor True selfTy
+  DKData -> ItemCtor <$> pCtor False selfTy
+
+pCtor :: Bool -> SType -> PP SConstructor
+pCtor isAb selfTy = do
+  (ca, cn) <- withAnn nameRaw
+  if isAb
+    then symbol ":" *> (SConstructor ca (pname cn) <$> pType)
+    else do
+      margs <- P.optional (parens (commaSep pType))
+      let args = fromMaybe [] margs
+      pure (SConstructor ca (pname cn) (foldr (\arg acc -> SType ca (STyArrow arg Nothing acc)) selfTy args))
+
+pStmt :: PP RawForm
+pStmt = P.choice [pDefStmt, pAssignOrSig]
+
+pDefStmt :: PP RawForm
+pDefStmt = L.indentBlock scn do
+  (a, _) <- withAnn (P.try (symbol "def"))
+  nm <- nameRaw
+  ps <- parens (commaSep nameRaw)
+  _ <- symbol ":"
+  pure (L.IndentSome Nothing (\items -> pure (RBind (SBinding a (pname nm) Nothing (STerm a (SLam [SParam a (pname p) | p <- ps] (assembleBody a items)))))) pBlockItem)
+
+lastItem :: Ann -> [STerm] -> STerm
+lastItem a = \case
+  [] -> STerm a SHole
+  xs -> last xs
+
+pAssignOrSig :: PP RawForm
+pAssignOrSig = do
+  (a, nm) <- withAnn nameRaw
+  P.choice
+    [ symbol ":" *> (RSig (pname nm) <$> pType),
+      symbol "=" *> (RBind . SBinding a (pname nm) Nothing <$> pTerm)
+    ]
+
+-- Terms --------------------------------------------------------------------------------------------------------------
+
+-- The block parsers ('pLet'\/'pLetrec'\/'pMatch') run @L.indentBlock@, whose leading @scn@ consumes a newline before
+-- the keyword fails to match — so they must be wrapped in 'P.try' to fully backtrack (otherwise a value on its own
+-- line, e.g. @name =\n  letrec:@, commits to the first alternative and never reaches the right one).
+pTerm :: PP STerm
+pTerm = P.choice [P.try pLet, P.try pLetrec, P.try pMatch, P.try pLambda, pInfix]
+
+-- | An application optionally followed by a chain of symbolic infix operators, resolved by precedence climbing so the
+-- result matches the renderer's minimal-paren printing. Keyword operators (@and@\/@or@\/conditional) are not handled
+-- here — they live in 'pParen'.
+pInfix :: PP STerm
+pInfix = do
+  lhs <- pApp
+  rest <- P.many ((,) <$> pOp <*> pApp)
+  pure (resolveInfix lhs rest)
+
+-- | A (possibly qualified) symbolic infix operator token, e.g. @+@ or @Nat.+@. Excludes punctuation with dedicated
+-- grammar (@=@, @=>@, @->@, @:@, @|@, @<-@).
+pOp :: PP String
+pOp = P.try (nameRaw >>= check)
+  where
+    check s
+      | s `elem` reserved = fail "reserved operator"
+      | isOpName s = pure s
+      | otherwise = fail "operator"
+    reserved = ["=", "=>", "->", ":", "|", "<-"]
+
+-- | The precedence the renderer and parser agree to use for an operator, keyed on its last segment (so @Nat.+@ and @+@
+-- agree); loosest infix level if it has no entry.
+precFor :: String -> Precedence
+precFor s = fromMaybe (InfixOp Lowest) (operatorPrecedence (Text.pack (lastSeg s)))
+  where
+    lastSeg = reverse . takeWhile (/= '.') . reverse
+
+-- | Precedence-climbing resolution of a left operand plus a flat list of @(operator, operand)@ pairs (all
+-- left-associative).
+resolveInfix :: STerm -> [(String, STerm)] -> STerm
+resolveInfix lhs0 toks0 = fst (parseExpr lhs0 toks0 Bottom)
+  where
+    parseExpr lhs toks minPrec = case toks of
+      ((op, rhs) : rest)
+        | precFor op >= minPrec ->
+            let (rhs', rest') = climbRhs rhs rest (precFor op)
+             in parseExpr (mkBin op lhs rhs') rest' minPrec
+      _ -> (lhs, toks)
+    climbRhs rhs toks opPrec = case toks of
+      ((op2, _) : _)
+        | precFor op2 > opPrec ->
+            let (rhs', rest') = parseExpr rhs toks (increment opPrec)
+             in climbRhs rhs' rest' opPrec
+      _ -> (rhs, toks)
+    mkBin op l r = STerm (tAnn l) (SBinOp (sname op) (precFor op) l r)
+
+pLet :: PP STerm
+pLet = pLetLike "let" SLet
+
+pLetrec :: PP STerm
+pLetrec = pLetLike "letrec" SLetRec
+
+-- | A block item: a type signature line, a binding (a nested @def@ or @name = term@), or a body\/statement term.
+data BlockItem = BISig Name SType | BIBind SBinding | BITerm STerm
+
+pLetLike :: String -> ([SBinding] -> STerm -> STermF) -> PP STerm
+pLetLike kw mk = L.indentBlock scn do
+  (a, _) <- withAnn (P.try (symbol kw <* symbol ":"))
+  pure (L.IndentSome Nothing (\items -> pure (assemble a items)) pBlockItem)
+  where
+    -- The final item is the block result; earlier bare expressions are discarded statements (bound to @_@). A
+    -- signature line types the following binding (its value gets an ascription, where 'Elaborate' looks for a local
+    -- binding's type). Order is preserved so a statement can sit between two bindings.
+    assemble a items =
+      let sigs = [(n, t) | BISig n t <- items]
+          withSig b = case lookup (bName b) sigs of
+            Just t -> b {bValue = STerm (bAnn b) (SAnn (bValue b) t)}
+            Nothing -> b
+          toBind (BIBind b) = withSig b
+          toBind (BITerm t) = SBinding a (pname "_") Nothing t
+          toBind (BISig _ _) = SBinding a (pname "_") Nothing (STerm a SHole)
+          bodyOf (BITerm t) = t
+          bodyOf (BIBind b) = bValue (withSig b)
+          bodyOf (BISig _ _) = STerm a SHole
+       in case filter notSig items of
+            [] -> STerm a (mk [] (STerm a SHole))
+            real -> STerm a (mk (map toBind (init real)) (bodyOf (last real)))
+    notSig (BISig _ _) = False
+    notSig _ = True
+
+pBlockItem :: PP BlockItem
+pBlockItem =
+  P.choice
+    [ P.try pSig,
+      BIBind <$> pDefBinding,
+      BIBind <$> P.try pBindingItem,
+      BITerm <$> pTerm
+    ]
+  where
+    pSig = do
+      nm <- nameRaw
+      _ <- symbol ":"
+      BISig (pname nm) <$> pType
+    pBindingItem = do
+      (a, nm) <- withAnn nameRaw
+      _ <- symbol "="
+      SBinding a (pname nm) Nothing <$> pTerm
+
+-- | Assemble the indented body of a @def@ — a sequence of statements followed by a result expression — into a single
+-- term. Leading bindings become a @let@ block (elaboration re-derives let-vs-letrec by recursion analysis), pairing in
+-- any signature lines; a body with no bindings is just its result expression. The inverse of 'Pyson.funcBody'.
+assembleBody :: Ann -> [BlockItem] -> STerm
+assembleBody a items =
+  let sigs = [(n, t) | BISig n t <- items]
+      withSig b = case lookup (bName b) sigs of
+        Just t -> b {bValue = STerm (bAnn b) (SAnn (bValue b) t)}
+        Nothing -> b
+      toBind (BIBind b) = withSig b
+      toBind (BITerm t) = SBinding a (pname "_") Nothing t
+      toBind (BISig _ _) = SBinding a (pname "_") Nothing (STerm a SHole)
+      bodyOf (BITerm t) = t
+      bodyOf (BIBind b) = bValue (withSig b)
+      bodyOf (BISig _ _) = STerm a SHole
+      notSig = \case BISig _ _ -> False; _ -> True
+   in case filter notSig items of
+        [] -> STerm a SHole
+        real ->
+          let binds = map toBind (init real)
+              result = bodyOf (last real)
+           in if null binds then result else STerm a (SLet binds result)
+
+-- | A nested function binding: @def name(params): <indented body>@. The inverse of 'renderLetBinding'.
+pDefBinding :: PP SBinding
+pDefBinding = L.indentBlock scn do
+  (a, _) <- withAnn (P.try (symbol "def"))
+  nm <- nameRaw
+  ps <- parens (commaSep nameRaw)
+  _ <- symbol ":"
+  pure (L.IndentSome Nothing (\items -> pure (SBinding a (pname nm) Nothing (STerm a (SLam [SParam a (pname p) | p <- ps] (assembleBody a items))))) pBlockItem)
+
+pMatch :: PP STerm
+pMatch = L.indentBlock scn do
+  (a, s) <- withAnn (P.try (symbol "match") *> pInlineExpr)
+  _ <- symbol ":"
+  pure (L.IndentSome Nothing (\cs -> pure (STerm a (SMatch s cs))) pCase)
+
+pCase :: PP SCase
+pCase = L.indentBlock scn do
+  _ <- P.try (symbol "case")
+  pat <- pPattern
+  guard_ <- P.optional (symbol "if" *> pInlineExpr)
+  _ <- symbol ":"
+  pure (L.IndentSome Nothing (\items -> pure (SCase pat guard_ (lastItem (patAnn pat) items))) pTerm)
+
+pLambda :: PP STerm
+pLambda = do
+  (a, (ps, body)) <- withAnn do
+    _ <- symbol "lambda"
+    ps <- commaSep nameRaw
+    _ <- symbol ":"
+    body <- pInlineExpr
+    pure (ps, body)
+  pure (STerm a (SLam [SParam a (pname p) | p <- ps] body))
+
+-- | An inline (single-line) expression: no block forms.
+pInlineExpr :: PP STerm
+pInlineExpr = P.choice [P.try pLambda, pInfix]
+
+pApp :: PP STerm
+pApp = do
+  (a, h) <- withAnn pAtom
+  calls <- P.many (parens (commaSep pTermArg))
+  -- An empty argument list `f()` forces a delayed computation, i.e. applies to unit: `f ()`.
+  let force args = if null args then [STerm a (STuple [])] else args
+  pure (foldl (\f args -> STerm a (SApp f (force args))) h calls)
+  where
+    pTermArg = pInlineExpr
+
+pAtom :: PP STerm
+pAtom = P.choice [pDoc, pStringTerm, pCharTerm, pList, pDelay, pParen, pNameAtom]
+
+-- | A delayed computation @delay(e)@ — Unison's @'e@ \/ @do e@, the dual of the @f()@ force. @delay@ is only a keyword
+-- here when immediately applied; a bare or qualified @delay@ elsewhere stays an ordinary name.
+pDelay :: PP STerm
+pDelay = P.try do
+  (a, nm) <- withAnn nameRaw
+  guard (nm == "delay")
+  STerm a . SDelay <$> parens pInlineExpr
+
+pDoc :: PP STerm
+pDoc = do
+  (a, txt) <- withAnn pDocRaw
+  pure (STerm a (SDocLit (Text.pack txt)))
+
+-- | The raw text of a @{{ … }}@ doc block (delimiters included, nested @{{ }}@ balanced), as 'SDocLit' stores it.
+pDocRaw :: PP String
+pDocRaw = lexeme (C.string "{{" *> scanDoc (1 :: Int) "{{")
+  where
+    scanDoc depth acc =
+      P.choice
+        [ P.try (C.string "}}") *> (let d = depth - 1 in if d == 0 then pure (acc <> "}}") else scanDoc d (acc <> "}}")),
+          P.try (C.string "{{") *> scanDoc (depth + 1) (acc <> "{{"),
+          P.anySingle >>= \c -> scanDoc depth (acc <> [c])
+        ]
+
+pNameAtom :: PP STerm
+pNameAtom = do
+  (a, nm) <- withAnn (P.notFollowedBy (P.choice (map (P.try . kw) reserved)) *> nameRaw)
+  pure $ STerm a case nm of
+    "True" -> SLit (SBool True)
+    "False" -> SLit (SBool False)
+    _
+      | Just n <- readNat nm -> SLit (SNat n)
+      | Just i <- readInt nm -> SLit (SInt i)
+      | Just f <- readFloat nm -> SLit (SFloat f)
+      | otherwise -> SName (sname nm)
+  where
+    kw s = lexeme (C.string s <* P.notFollowedBy (P.satisfy isWordyChar))
+
+pStringTerm :: PP STerm
+pStringTerm = do
+  (a, s) <- withAnn (lexeme (C.char '"' *> P.manyTill L.charLiteral (C.char '"')))
+  pure (STerm a (SLit (SText (Text.pack s))))
+
+pCharTerm :: PP STerm
+pCharTerm = do
+  (a, c) <- withAnn (lexeme (C.char '\'' *> L.charLiteral <* C.char '\''))
+  pure (STerm a (SLit (SChar c)))
+
+pList :: PP STerm
+pList = do
+  (a, xs) <- withAnn (brackets (commaSep pInlineExpr))
+  pure (STerm a (SList xs))
+
+pParen :: PP STerm
+pParen = do
+  (a, f) <- withAnn (parens (P.option (STuple []) pParenBody))
+  pure (STerm a f)
+  where
+    pParenBody = do
+      e <- pInlineExpr
+      P.choice
+        [ symbol "if" *> ((\c el -> SIf c e el) <$> pInlineExpr <* symbol "else" <*> pInlineExpr),
+          symbol "and" *> (SAnd e <$> pInlineExpr),
+          symbol "or" *> (SOr e <$> pInlineExpr),
+          symbol ":" *> (SAnn e <$> pType),
+          symbol "," *> ((\rest -> STuple (e : rest)) <$> commaSep pInlineExpr),
+          pure (tOut e)
+        ]
+
+-- Patterns -----------------------------------------------------------------------------------------------------------
+
+pPattern :: PP SPattern
+pPattern = P.choice [pListPat, pParenPat, pEffectPat, P.try pAsPat, P.try pCtorPattern, pStringPat, pCharPat, pAtomPat]
+
+-- | A list pattern: @[]@, @[a, b]@.
+pListPat :: PP SPattern
+pListPat = do
+  (a, subs) <- withAnn (brackets (commaSep pPattern))
+  pure (SPattern a (SPList subs))
+
+-- | A parenthesized pattern, optionally an infix sequence op: @(p)@, @(l +: r)@, @(l :+ r)@, @(l ++ r)@.
+pParenPat :: PP SPattern
+pParenPat = do
+  (a, items) <- withAnn (parens (commaSep pSeqPat))
+  pure case items of
+    [p] -> p
+    _ -> SPattern a (SPTuple items)
+
+pSeqPat :: PP SPattern
+pSeqPat = do
+  l <- pPattern
+  P.optional pSeqOp >>= \case
+    Nothing -> pure l
+    Just op -> do
+      r <- pPattern
+      pure (SPattern (patAnn l) (SPSeqOp l op r))
+
+pSeqOp :: PP SSeqOp
+pSeqOp = P.choice [SCons <$ P.try (symbol "+:"), SSnoc <$ P.try (symbol ":+"), SConcat <$ P.try (symbol "++")]
+
+-- | An as-pattern: @name\@pat@.
+pAsPat :: PP SPattern
+pAsPat = do
+  (a, nm) <- withAnn nameRaw
+  _ <- symbol "@"
+  SPattern a . SPAs (pname nm) <$> pPattern
+
+-- | An ability pattern: @{ E.op(a, …) -> k }@ (a request) or @{ p }@ (a pure result).
+pEffectPat :: PP SPattern
+pEffectPat = braces (P.choice [P.try pRequest, pPure])
+  where
+    pRequest = do
+      (a, nm) <- withAnn nameRaw
+      subs <- parens (commaSep pPattern)
+      _ <- symbol "->"
+      SPattern a . SPEffect (sname nm) subs <$> pPattern
+    pPure = do
+      p <- pPattern
+      pure (SPattern (patAnn p) (SPEffectPure p))
+
+pStringPat :: PP SPattern
+pStringPat = do
+  (a, s) <- withAnn (lexeme (C.char '"' *> P.manyTill L.charLiteral (C.char '"')))
+  pure (SPattern a (SPLit (SText (Text.pack s))))
+
+pCharPat :: PP SPattern
+pCharPat = do
+  (a, c) <- withAnn (lexeme (C.char '\'' *> L.charLiteral <* C.char '\''))
+  pure (SPattern a (SPLit (SChar c)))
+
+pAtomPat :: PP SPattern
+pAtomPat = do
+  (a, nm) <- withAnn nameRaw
+  pure $ SPattern a case nm of
+    "_" -> SPWild
+    "True" -> SPLit (SBool True)
+    "False" -> SPLit (SBool False)
+    _
+      | Just n <- readNat nm -> SPLit (SNat n)
+      | Just i <- readInt nm -> SPLit (SInt i)
+      | Just f <- readFloat nm -> SPLit (SFloat f)
+      | otherwise -> SPVar (pname nm)
+
+pCtorPattern :: PP SPattern
+pCtorPattern = do
+  (a, (nm, subs)) <- withAnn ((,) <$> nameRaw <*> parens (commaSep pPattern))
+  pure (SPattern a (SPCtor (sname nm) subs))
+
+-- Types --------------------------------------------------------------------------------------------------------------
+
+pType :: PP SType
+pType = P.choice [pForallTy, pArrowTy]
+
+pForallTy :: PP SType
+pForallTy = do
+  (a, (vs, body)) <- withAnn do
+    _ <- symbol "forall"
+    vs <- commaSep nameRaw
+    _ <- symbol "."
+    body <- pType
+    pure (vs, body)
+  pure (SType a (STyForall (map pname vs) body))
+
+-- | A right-associative arrow chain, each arrow optionally carrying an ability set: @a ->{e} b -> c@.
+pArrowTy :: PP SType
+pArrowTy = do
+  i <- pAppTy
+  P.optional pArrowTail >>= \case
+    Nothing -> pure i
+    Just (es, o) -> pure (SType (tyAnn i) (STyArrow i es o))
+  where
+    pArrowTail = do
+      _ <- symbol "->"
+      es <- P.optional (braces (commaSep pType))
+      o <- pArrowTy
+      pure (es, o)
+
+pAppTy :: PP SType
+pAppTy = do
+  (a, t) <- withAnn pTypeAtom
+  margs <- P.optional (brackets (commaSep pType))
+  pure case margs of
+    Nothing -> t
+    Just args -> SType a (STyApp t args)
+
+pTypeAtom :: PP SType
+pTypeAtom = P.choice [pEffectsTy, pParenOrTupleTy, pNameTy]
+
+-- | A parenthesized type @(t)@, a tuple @(a, b, …)@, or the unit type @()@.
+pParenOrTupleTy :: PP SType
+pParenOrTupleTy = do
+  (a, items) <- withAnn (parens (commaSep pType))
+  pure case items of
+    [t] -> t
+    _ -> SType a (STyTuple items)
+
+pNameTy :: PP SType
+pNameTy = do
+  (a, nm) <- withAnn nameRaw
+  pure (SType a (STyVar (pname nm)))
+
+-- | An ability row @{e1, e2}@, optionally annotating a following type as @{e} t@ (e.g. the @{Abort} a@ request type).
+pEffectsTy :: PP SType
+pEffectsTy = do
+  (a, es) <- withAnn (braces (commaSep pType))
+  P.optional pAppTy >>= \case
+    Nothing -> pure (SType a (STyEffects es))
+    Just t -> pure (SType a (STyEffectful es t))
+
+-- Literal classification ---------------------------------------------------------------------------------------------
+
+readNat :: String -> Maybe Word64
+readNat s = if not (null s) && all isDig s then Read.readMaybe s else Nothing
+
+readInt :: String -> Maybe Int64
+readInt = \case
+  ('+' : r) | not (null r) && all isDig r -> Read.readMaybe r
+  ('-' : r) | not (null r) && all isDig r -> negate <$> Read.readMaybe r
+  _ -> Nothing
+
+readFloat :: String -> Maybe Double
+readFloat s = if elem '.' s && all (`elem` ("0123456789.+-eE" :: String)) s then Read.readMaybe s else Nothing
+
+isDig :: Char -> Bool
+isDig c = c >= '0' && c <= '9'

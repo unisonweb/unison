@@ -29,6 +29,7 @@ import U.Codebase.Reflog qualified as Reflog
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Terms qualified as Builtin
+import Unison.Cli.Dialect qualified as Cli.Dialect
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils (getCurrentProjectBranch)
@@ -1016,7 +1017,8 @@ doDisplay outputLoc names tm = do
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, _, ty) <- Map.lookup r tms = pure $ Just (void ty)
       loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . Codebase.getTypeOfReferent codebase $ r
-  rendered <- DisplayValues.displayTerm pped loadTerm loadTypeOfTerm' evalTerm loadDecl tm
+  pd <- Cli.Dialect.getActivePrintDialect
+  rendered <- DisplayValues.displayTerm pd pped loadTerm loadTypeOfTerm' evalTerm loadDecl tm
   mayFP <- case outputLoc of
     ConsoleLocation -> pure Nothing
     FileLocation path _ -> Just <$> Directory.canonicalizePath path

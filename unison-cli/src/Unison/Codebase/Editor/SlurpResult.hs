@@ -40,9 +40,9 @@ import Unison.Reference (TermReference)
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toText)
-import Unison.Syntax.TypePrinter qualified as TP
 import Unison.Typed (Typed)
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as P
@@ -118,11 +118,12 @@ aliasesToShow :: Int
 aliasesToShow = 5
 
 pretty ::
+  Dialect.PrintDialect ->
   IsPastTense ->
   PPE.PrettyPrintEnv ->
   SlurpResult ->
   P.Pretty P.ColorText
-pretty isPast ppe sr =
+pretty pd isPast ppe sr =
   let tms = UF.hashTerms (originalFile sr)
       goodIcon = P.green "⍟ "
       badIcon = P.red "x "
@@ -185,7 +186,7 @@ pretty isPast ppe sr =
           [(P.bold (prettyVar v), Just $ P.red "(Unison bug, unknown term)")]
         Just (_, _, _, _, ty) ->
           ( plus <> P.bold (prettyVar v),
-            Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
+            Just $ ": " <> P.indentNAfterNewline 2 (P.syntaxToColor (Dialect.pdPrettyType pd ppe ty))
           )
             : ((,Nothing) <$> aliases)
           where
@@ -225,7 +226,7 @@ pretty isPast ppe sr =
               Just (_, _ref, _wk, _tm, ty) ->
                 ( prettyStatus status,
                   P.bold (P.text $ Var.name v),
-                  ": " <> P.indentNAfterNewline 6 (TP.pretty ppe ty)
+                  ": " <> P.indentNAfterNewline 6 (P.syntaxToColor (Dialect.pdPrettyType pd ppe ty))
                 )
               Nothing -> (prettyStatus status, P.text (Var.name v), "")
             termMsgs =

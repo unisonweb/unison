@@ -24,6 +24,7 @@ import TextBuilder qualified
 import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Util.Text qualified as Text (unsafeToInt)
+import Unison.Cli.Dialect (getActiveDialect)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -60,6 +61,7 @@ import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeRefe
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.UnconflictedLocalDefnsView qualified
@@ -192,9 +194,11 @@ handleUpgrade1 namePairs = do
 
       pure (declNameLookup, dependents, dependentsRefs, hydratedDependents1)
 
+  dialect <- getActiveDialect
   let prettyUnisonFile =
         makePrettyUnisonFile $
           renderDefnsForUnisonFile
+            (Dialect.printDialect dialect)
             declNameLookup
             ( PPED.leftBiased
                 [ makeOldDepPPE upgradeInfos currentDeepDefnsSansOlds,
@@ -213,7 +217,7 @@ handleUpgrade1 namePairs = do
     Cli.makeParsingEnv pp (Names.fromRelations currentDeepDefnsSansOlds)
 
   typecheckedUnisonFile <- do
-    parseAndTypecheck prettyUnisonFile parsingEnv & onNothingM do
+    parseAndTypecheck dialect prettyUnisonFile parsingEnv & onNothingM do
       uniqueTypeGuidsByName <-
         Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types))
 

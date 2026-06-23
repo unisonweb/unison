@@ -39,6 +39,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.HashQualified qualified as HQ (toVar)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -190,4 +191,4 @@ renderRewrittenFile ppe msg (vs, uf) = do
   let prettyVar = P.text . Var.name
       modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
       header = "-- " <> P.string msg <> "\n" <> "-- | Modified definition(s): " <> modifiedDefs
-   in (header <> "\n\n" <> P.prettyUnisonFile ppe uf)
+   in (header <> "\n\n" <> P.prettyUnisonFile Dialect.defaultPrintDialect ppe uf)

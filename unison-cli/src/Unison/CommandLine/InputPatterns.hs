@@ -17,6 +17,8 @@ module Unison.CommandLine.InputPatterns
     clone,
     configSet,
     configGet,
+    syntaxSet,
+    syntaxGet,
     createAuthor,
     debugClearWatchCache,
     debugDependentsGraph,
@@ -240,6 +242,7 @@ import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.HashQualified qualified as HQ (parseText, toText)
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (parseText)
 import Unison.Syntax.Name qualified as Name (parseTextEither, toText)
@@ -2666,6 +2669,54 @@ configGet =
         args -> wrongArgsLength "exactly one argument" args
     }
 
+syntaxSet :: InputPattern
+syntaxSet =
+  InputPattern
+    { patternName = "syntax.set",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("dialect", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrap $
+              makeExample' syntaxSet
+                <> "chooses the surface syntax dialect UCM uses to read and print code. It takes effect immediately and"
+                <> "persists in this codebase (the `UNISON_SYNTAX` environment variable overrides it). For example,",
+            "",
+            makeExample syntaxSet ["sexpr"],
+            "",
+            P.hang "Available dialects:" (P.wrap . P.text $ Text.intercalate ", " Dialect.allDialectNames)
+          ],
+      parse = \case
+        [name] -> do
+          name' <- unsupportedStructuredArgument syntaxSet "a dialect name" name
+          let dialect = Text.pack name'
+           in if dialect `elem` Dialect.allDialectNames
+                then Right $ Input.ConfigSetI Config.SyntaxDialectKey dialect
+                else
+                  Left . P.text $
+                    "I don't recognize the syntax dialect " <> dialect <> ". Available dialects are: " <> Text.intercalate ", " Dialect.allDialectNames
+        args -> wrongArgsLength "exactly one argument (the dialect name)" args
+    }
+
+syntaxGet :: InputPattern
+syntaxGet =
+  InputPattern
+    { patternName = "syntax.get",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrap $ makeExample' syntaxGet <> "shows the surface syntax dialect currently configured for this codebase.",
+            "",
+            P.hang "Available dialects:" (P.wrap . P.text $ Text.intercalate ", " Dialect.allDialectNames)
+          ],
+      parse = \case
+        [] -> Right $ Input.ConfigGetI Config.SyntaxDialectKey
+        args -> wrongArgsLength "no arguments" args
+    }
+
 edit :: InputPattern
 edit =
   InputPattern
@@ -3918,6 +3969,8 @@ validInputs =
       clone,
       configGet,
       configSet,
+      syntaxGet,
+      syntaxSet,
       createAuthor,
       debugAliasTermForce,
       debugAliasTypeForce,

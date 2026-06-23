@@ -17,6 +17,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Unison.Builtin.Decls qualified as DD
+import Unison.Cli.Dialect (getActivePrintDialect)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -48,9 +49,9 @@ import Unison.Referent qualified as Referent
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Dialect (PrintDialect (..))
 import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.NamePrinter (SyntaxText)
-import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UnisonFile
@@ -148,13 +149,14 @@ showDefinitions ::
   Cli ()
 showDefinitions outputLoc nameInOriginalQuery pped terms types misses = do
   Cli.Env {codebase, writeSource} <- ask
+  pd <- getActivePrintDialect
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
-    Nothing -> renderToConsole nameInOriginalQuery pped terms types
+    Nothing -> renderToConsole pd nameInOriginalQuery pped terms types
     Just (fp, relToFold) -> do
       mayTF <- use #latestTypecheckedFile
-      numRendered <- renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types
+      numRendered <- renderToFile pd codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types
 
       when (numRendered > 0) do
         -- We set latestFile to be programmatically generated, if we
@@ -178,6 +180,7 @@ showDefinitions outputLoc nameInOriginalQuery pped terms types misses = do
             Just (path, _) -> Just (path, relToFold)
 
 renderCodePretty ::
+  PrintDialect ->
   (HQ.HashQualified Name -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Bool ->
@@ -187,7 +190,7 @@ renderCodePretty ::
   Defns (Set Symbol) (Set Symbol) ->
   -- Result is Nothing if nothing was rendered
   Maybe (Pretty Pretty.ColorText, Int)
-renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types excludeNames =
+renderCodePretty pd nameInOriginalQuery pped isSourceFile isTest terms types excludeNames =
   let -- Associate each term and type with their best unsuffixified name
       namedTerms :: Map (HQ.HashQualified Name) (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann))
       namedTerms =
@@ -216,7 +219,7 @@ renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types exclud
         name <- HQ.asNameOnly hqName
         (_, DisplayObject.UserObject docTerm) <-
           Map.lookup (HQ.NameOnly (Name.snoc name NameSegment.docSegment)) docNamedTerms
-        TermPrinter.prettyDoc2 pped.suffixifiedPPE docTerm
+        pdPrettyDoc2 pd pped.suffixifiedPPE docTerm
 
       -- For each of the not-doc terms, e.g. foo.bar, pair with its doc, i.e. foo.bar.doc (if it's there)
       termsWithMaybeDocs ::
@@ -295,7 +298,7 @@ renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types exclud
           & List.sortBy (\(n0, _) (n1, _) -> Name.compareAlphabetical n0 n1)
           & map \(name, ((ref, typ), maybeDoc)) ->
             maybe mempty (<> Pretty.newline) maybeDoc
-              <> Pretty.prettyType pped (name, ref, typ)
+              <> Pretty.prettyType pd pped (name, ref, typ)
 
       prettyTerms :: [Pretty SyntaxText]
       prettyTerms =
@@ -304,17 +307,18 @@ renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types exclud
           & List.sortBy (\(n0, _) (n1, _) -> Name.compareAlphabetical n0 n1)
           & map \(name, ((ref, term), maybeDoc)) ->
             maybe mempty (<> Pretty.newline) maybeDoc
-              <> Pretty.prettyTerm pped isSourceFile (maybe False isTest (Reference.toId ref)) (name, ref, term)
+              <> Pretty.prettyTerm pd pped isSourceFile (maybe False isTest (Reference.toId ref)) (name, ref, term)
    in NEL.nonEmpty (prettyTypes ++ prettyTerms)
         $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)), length prettyTerms + length prettyTypes)
 
 renderToConsole ::
+  PrintDialect ->
   (HQ.HashQualified Name -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   Cli ()
-renderToConsole nameInOriginalQuery pped terms types = do
+renderToConsole pd nameInOriginalQuery pped terms types = do
   -- If we're writing to console we don't add test-watch syntax
   let isTest _ = False
   let isSourceFile = False
@@ -322,6 +326,7 @@ renderToConsole nameInOriginalQuery pped terms types = do
   let renderedCodePretty =
         fst
           <$> renderCodePretty
+            pd
             nameInOriginalQuery
             pped
             isSourceFile
@@ -336,6 +341,7 @@ renderToConsole nameInOriginalQuery pped terms types = do
 -- Definitions can be obtained via definitionsByName
 renderToFile ::
   (MonadIO m, Monoid a) =>
+  PrintDialect ->
   Codebase IO Symbol a ->
   (HQ.HashQualified Name -> Bool) ->
   (Text -> Text -> Bool -> IO ()) ->
@@ -346,7 +352,7 @@ renderToFile ::
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   (m Int)
-renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types = do
+renderToFile pd codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types = do
   -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
   -- already bound in the file
   let excludeNames =
@@ -379,7 +385,7 @@ renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped te
         (Map.keysSet terms & Set.mapMaybe Reference.toId)
   let isTest r = Set.member r testRefs
   let isSourceFile = True
-  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types excludeNames
+  let mayRenderedCodePretty = renderCodePretty pd nameInOriginalQuery pped isSourceFile isTest terms types excludeNames
   case mayRenderedCodePretty of
     Just (renderedCodePretty, numRendered) -> do
       let (renderedCodeText) = Pretty.toPlain 80 renderedCodePretty

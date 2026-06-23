@@ -124,10 +124,20 @@ library
       Unison.Result
       Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
+      Unison.Syntax.Dialect
+      Unison.Syntax.Dialect.Curlison
+      Unison.Syntax.Dialect.Curlison.Parser
+      Unison.Syntax.Dialect.Pyson
+      Unison.Syntax.Dialect.Pyson.Parser
+      Unison.Syntax.Dialect.SExpr
+      Unison.Syntax.Dialect.SExpr.Parser
       Unison.Syntax.FileParser
       Unison.Syntax.FilePrinter
       Unison.Syntax.NamePrinter
       Unison.Syntax.Precedence
+      Unison.Syntax.Surface
+      Unison.Syntax.Surface.Elaborate
+      Unison.Syntax.Surface.Lower
       Unison.Syntax.TermParser
       Unison.Syntax.TermPrinter
       Unison.Syntax.TypeParser

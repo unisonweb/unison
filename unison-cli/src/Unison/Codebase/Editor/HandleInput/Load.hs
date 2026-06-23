@@ -20,6 +20,7 @@ import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Builtin qualified as Builtin
+import Unison.Cli.Dialect (getActiveDialect)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -48,7 +49,6 @@ import Unison.Names qualified as Names
 import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
-import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -61,6 +61,7 @@ import Unison.Result qualified as Result
 import Unison.Runtime (Error)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Dialect qualified as Dialect
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
@@ -371,6 +372,7 @@ parseAndTypecheckUnisonFile names sourceName text = do
       & (#latestTypecheckedFile .~ Nothing)
   Cli.Env {codebase, generateUniqueName} <- ask
   uniqueName <- liftIO generateUniqueName
+  dialect <- getActiveDialect
   let parsingEnv =
         Parser.ParsingEnv
           { uniqueNames = uniqueName,
@@ -380,7 +382,7 @@ parseAndTypecheckUnisonFile names sourceName text = do
             localNamespacePrefixedTypesAndConstructors = mempty
           }
   unisonFile <-
-    Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
+    Cli.runTransaction (Dialect.parseFile dialect (Text.unpack sourceName) (Text.unpack text) parsingEnv)
       & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
   -- set that the file at least parsed (but didn't typecheck)
   State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))

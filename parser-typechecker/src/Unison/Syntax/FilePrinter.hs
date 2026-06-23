@@ -23,8 +23,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.DeclPrinter (AccessorName, RenderUniqueTypeGuids (..))
-import Unison.Syntax.DeclPrinter qualified as DeclPrinter
-import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Syntax.Dialect (PrintDialect (..))
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
@@ -41,12 +40,14 @@ import Unison.Var (Var)
 renderDefnsForUnisonFile ::
   forall a v.
   (Var v, Monoid a) =>
+  -- | The active dialect's printers; render and re-parse must use the same dialect (see 'Unison.Cli.Dialect').
+  PrintDialect ->
   DeclNameLookup ->
   PrettyPrintEnvDecl ->
   Set Name ->
   DefnsF (Map Name) (Term v a, Type v a) (TypeReferenceId, Decl v a) ->
   DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
-renderDefnsForUnisonFile declNameLookup ppe needsGuid defns =
+renderDefnsForUnisonFile pd declNameLookup ppe needsGuid defns =
   let (types, accessorNames) = Writer.runWriter (Map.traverseWithKey renderType defns.types)
    in Defns
         { terms = Map.mapMaybeWithKey (renderTerm accessorNames) defns.terms,
@@ -56,7 +57,8 @@ renderDefnsForUnisonFile declNameLookup ppe needsGuid defns =
     renderType :: Name -> (TypeReferenceId, Decl v a) -> Writer (Set AccessorName) (Pretty ColorText)
     renderType name (ref, typ) =
       fmap Pretty.syntaxToColor $
-        DeclPrinter.prettyDeclW
+        pdPrettyDeclW
+          pd
           -- Sort of a hack; since the decl printer looks in the PPE for names of constructors,
           -- we just delete all term names out and add back the constructors...
           -- probably no need to wipe out the suffixified side but we do it anyway
@@ -72,8 +74,8 @@ renderDefnsForUnisonFile declNameLookup ppe needsGuid defns =
       let hqName = HQ.NameOnly name
       let rendered
             | Typechecker.isEqual (Builtin.Decls.testResultListType mempty) typ =
-                "test> " <> TermPrinter.prettyBindingWithoutTypeSignature ppe.suffixifiedPPE hqName term
-            | otherwise = TermPrinter.prettyBinding ppe.suffixifiedPPE hqName term
+                "test> " <> pdPrettyBindingWithoutTypeSignature pd ppe.suffixifiedPPE hqName term
+            | otherwise = pdPrettyBinding pd ppe.suffixifiedPPE hqName term
       Just (Pretty.syntaxToColor rendered)
 
 setPpedToConstructorNames :: DeclNameLookup -> Name -> TypeReferenceId -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
