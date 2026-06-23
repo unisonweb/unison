@@ -48,10 +48,14 @@ import Unison.Reference (Reference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Syntax.DeclPrinter (AccessorName, RenderUniqueTypeGuids (..))
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.Dialect.Basison qualified as Basison
+import Unison.Syntax.Dialect.Basison.Parser qualified as Basison.Parser
 import Unison.Syntax.Dialect.Curlison qualified as Curlison
 import Unison.Syntax.Dialect.Curlison.Parser qualified as Curlison.Parser
 import Unison.Syntax.Dialect.Pyson qualified as Pyson
 import Unison.Syntax.Dialect.Pyson.Parser qualified as Pyson.Parser
+import Unison.Syntax.Dialect.Rubascal qualified as Rubascal
+import Unison.Syntax.Dialect.Rubascal.Parser qualified as Rubascal.Parser
 import Unison.Syntax.Dialect.SExpr qualified as SExpr
 import Unison.Syntax.Dialect.SExpr.Parser qualified as SExpr.Parser
 import Unison.Syntax.Parser qualified as Parser
@@ -249,13 +253,55 @@ pysonDialect =
           }
     }
 
+-- | The BASIC-flavored dialect (@FUNCTION … END FUNCTION@, @SELECT CASE@, @IF … END IF@, UPPERCASE keywords).
+basisonDialect :: Dialect
+basisonDialect =
+  Dialect
+    { dialectName = "basison",
+      parseFile = Basison.Parser.parseFile,
+      dialectPrint =
+        PrintDialect
+          { pdName = "basison",
+            pdPrettyTerm = Basison.prettyTerm,
+            pdPrettyBinding = Basison.prettyBinding,
+            pdPrettyBindingWithoutTypeSignature = Basison.prettyBindingWithoutTypeSignature,
+            pdPrettyDeclW = Basison.prettyDeclW,
+            pdPrettyDecl = Basison.prettyDecl,
+            pdPrettyType = Basison.prettyType,
+            pdPrettySignatures = Basison.prettySignatures,
+            pdPrettyDoc2 = Basison.prettyDoc2
+          }
+    }
+
+-- | The Pascal\/Ruby hybrid dialect (@def … end@, @case … when … end@, @:=@ assignment, lowercase keywords).
+rubascalDialect :: Dialect
+rubascalDialect =
+  Dialect
+    { dialectName = "rubascal",
+      parseFile = Rubascal.Parser.parseFile,
+      dialectPrint =
+        PrintDialect
+          { pdName = "rubascal",
+            pdPrettyTerm = Rubascal.prettyTerm,
+            pdPrettyBinding = Rubascal.prettyBinding,
+            pdPrettyBindingWithoutTypeSignature = Rubascal.prettyBindingWithoutTypeSignature,
+            pdPrettyDeclW = Rubascal.prettyDeclW,
+            pdPrettyDecl = Rubascal.prettyDecl,
+            pdPrettyType = Rubascal.prettyType,
+            pdPrettySignatures = Rubascal.prettySignatures,
+            pdPrettyDoc2 = Rubascal.prettyDoc2
+          }
+    }
+
 -- | All registered dialects. New dialects are added here.
 allDialects :: [Dialect]
 allDialects =
   [ defaultDialect,
     sexprDialect,
     curlisonDialect,
-    pysonDialect
+    pysonDialect,
+    basisonDialect,
+    rubascalDialect
   ]
 
 -- | Look up a dialect by its 'dialectName'.

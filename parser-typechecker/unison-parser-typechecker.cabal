@@ -125,10 +125,14 @@ library
       Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
       Unison.Syntax.Dialect
+      Unison.Syntax.Dialect.Basison
+      Unison.Syntax.Dialect.Basison.Parser
       Unison.Syntax.Dialect.Curlison
       Unison.Syntax.Dialect.Curlison.Parser
       Unison.Syntax.Dialect.Pyson
       Unison.Syntax.Dialect.Pyson.Parser
+      Unison.Syntax.Dialect.Rubascal
+      Unison.Syntax.Dialect.Rubascal.Parser
       Unison.Syntax.Dialect.SExpr
       Unison.Syntax.Dialect.SExpr.Parser
       Unison.Syntax.FileParser

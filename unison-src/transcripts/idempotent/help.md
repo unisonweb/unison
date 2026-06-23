@@ -979,7 +979,8 @@
   `syntax.get` shows the surface syntax dialect currently
   configured for this codebase.
 
-  Available dialects: unison, sexpr, curlison, pyson
+  Available dialects:
+    unison, sexpr, curlison, pyson, basison, rubascal
 
   syntax.set
   `syntax.set` chooses the surface syntax dialect UCM uses to
@@ -989,7 +990,8 @@
 
   `syntax.set sexpr`
 
-  Available dialects: unison, sexpr, curlison, pyson
+  Available dialects:
+    unison, sexpr, curlison, pyson, basison, rubascal
 
   test
   `test`      runs unit tests for the current branch
