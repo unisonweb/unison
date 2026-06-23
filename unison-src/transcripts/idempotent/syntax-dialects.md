@@ -228,6 +228,94 @@ scratch/main> view inc combine demo Shape Point isCircle
         False
 ```
 
+## BASIC-flavored (Basison)
+
+``` ucm
+scratch/main> syntax.set basison
+
+scratch/main> view inc combine demo Shape Point isCircle
+
+  RECORD Point
+    x AS Nat
+    y AS Nat
+  END RECORD
+
+  TYPE Shape
+    Circle
+    Square
+    Triangle
+  END TYPE
+
+  combine AS Nat -> Nat -> Nat -> Nat
+  FUNCTION combine(a, b, c)
+    RETURN a Nat.+ b Nat.* c
+  END FUNCTION
+
+  demo AS Nat -> Nat
+  FUNCTION demo(n)
+    RETURN combine(inc(n), n, 2)
+  END FUNCTION
+
+  inc AS Nat -> Nat
+  FUNCTION inc(x)
+    RETURN x Nat.+ 1
+  END FUNCTION
+
+  isCircle AS Shape -> Boolean
+  FUNCTION isCircle(s)
+    RETURN SELECT CASE s
+      CASE Circle:
+        TRUE
+      CASE _:
+        FALSE
+    END SELECT
+  END FUNCTION
+```
+
+## Pascal/Ruby (Rubascal)
+
+``` ucm
+scratch/main> syntax.set rubascal
+
+scratch/main> view inc combine demo Shape Point isCircle
+
+  record Point
+    x : Nat
+    y : Nat
+  end
+
+  type Shape
+    Circle
+    Square
+    Triangle
+  end
+
+  combine : Nat -> Nat -> Nat -> Nat
+  def combine(a, b, c)
+    a Nat.+ b Nat.* c
+  end
+
+  demo : Nat -> Nat
+  def demo(n)
+    combine(inc(n), n, 2)
+  end
+
+  inc : Nat -> Nat
+  def inc(x)
+    x Nat.+ 1
+  end
+
+  isCircle : Shape -> Boolean
+  def isCircle(s)
+    case s
+      when Circle then
+        true
+      when _ then
+        false
+    end
+  end
+```
+
 ## Docs
 
 A doc's prose is the same in every dialect, but the code embedded in it — inline examples and `@eval` blocks — is
