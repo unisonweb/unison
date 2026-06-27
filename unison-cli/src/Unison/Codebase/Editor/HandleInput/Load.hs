@@ -70,8 +70,6 @@ import Unison.Typed (Typed (..))
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
-import Unison.UnisonFile.OpaqueReify qualified as OpaqueReify
-import Unison.Runtime.Decompile qualified as Decompile
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -203,32 +201,8 @@ loadUnisonFile sourceName text = do
     Timing.time "evaluating watches" do
       evalUnisonFile (Permissive NoProf) newPpe unisonFile [] >>= \case
         Right (bindings, e) -> do
-          when (not (null e)) do
-            -- Phase 9b: route each watch result through 'decompileTypedTerm'
-            -- with its statically-known type, so values of opaque type get
-            -- rendered via the registered 'reify' body fn instead of as their
-            -- underlying representation.
-            let reifyOf = OpaqueReify.reifyLookupForFile unisonFile
-                watchTypes :: Map.Map Symbol (Type Symbol Ann)
-                watchTypes =
-                  Map.fromList
-                    [ (v, tp)
-                    | (_wk, ws) <- UF.watchComponents unisonFile,
-                      (v, _a, _tm, tp) <- ws
-                    ]
-                evaler :: Term Symbol () -> Cli (Maybe (Term Symbol ()))
-                evaler tm = do
-                  let tmAnn = Term.amap (const Ann.External) tm
-                  RuntimeUtils.evalUnisonTermE (Permissive NoProf) newPpe False tmAnn >>= \case
-                    Right res -> pure (Just (Term.amap (const ()) res))
-                    Left _ -> pure Nothing
-            e' <- for (Map.toList e) \(v, (ann, kind, hash, uneval, evald, isHit)) -> do
-              evald' <- case Map.lookup v watchTypes of
-                Just tp -> Decompile.decompileTypedTerm evaler reifyOf (void tp) evald
-                Nothing -> pure evald
-              pure (v, (ann, kind, hash, uneval, evald', isHit))
-            let f (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-            Cli.respond $ Output.Evaluated text newPpe bindings (Map.map f (Map.fromList e'))
+          let f (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+          Cli.respond $ Output.Evaluated text newPpe bindings (Map.map f e)
         Left err -> Cli.respond (Output.EvaluationFailure id err)
 
   #latestTypecheckedFile .= Just (Right unisonFile)
@@ -497,17 +471,10 @@ parseAndTypecheckUnisonFile names sourceName text = do
           | Result.CompilerBug (Result.TypecheckerBug bug) <-
               toList notes
           ]
-        opaqueReifyMismatches =
-          [ (v, loc, found, expected)
-          | Result.OpaqueReifyBadSignature v loc found expected <- toList notes
-          ]
 
     when (not (null tes)) do
       currentPath <- Cli.getCurrentPath
       Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
-    when (not (null opaqueReifyMismatches)) do
-      currentPath <- Cli.getCurrentPath
-      Cli.respond (Output.OpaqueReifyBadSignatures currentPath text suffixifiedPPE opaqueReifyMismatches)
     when (not (null cbs)) do
       Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
     Cli.returnEarlyWithoutOutput

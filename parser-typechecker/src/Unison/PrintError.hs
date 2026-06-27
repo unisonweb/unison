@@ -1579,23 +1579,6 @@ printNoteWithSource env s (CompilerBug (Result.TypecheckerBug c)) =
   renderCompilerBug env s c
 printNoteWithSource _env _s (CompilerBug c) =
   fromString $ "Compiler bug: " <> show c
-printNoteWithSource env s (Result.OpaqueReifyBadSignature v loc found expected) =
-  Pr.lines
-    [ Pr.wrap $
-        "The `reify` body fn of an opaque type must have a specific signature, but `"
-          <> style ErrorSite (fromString (Text.unpack (Var.name v)))
-          <> "` did not match.",
-      "",
-      annotatedAsErrorSite s loc,
-      "",
-      Pr.wrap "Expected:",
-      "  " <> renderType' env expected,
-      "",
-      Pr.wrap "Got:",
-      "  " <> renderType' env found,
-      "",
-      Pr.wrap "The expected shape is `forall a*. T a* ->{} '(T a*)` — a pure function from the opaque type to a thunk producing it."
-    ]
 
 _printPosRange :: String -> L.Pos -> L.Pos -> String
 _printPosRange s (L.Pos startLine startCol) _end =

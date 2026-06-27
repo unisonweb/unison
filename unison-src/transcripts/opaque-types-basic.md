@@ -6,10 +6,6 @@ that may freely cross between the opaque type and its representation.
 At runtime the value *is* the representation; the opaque identity is
 only visible at the typecheck / codebase level.
 
-The body block may include a `reify : T ->{} '(T)` body fn that the
-display layer uses to render values; when present, watch results are
-routed through it (see Phase 9b).
-
 ```ucm :hide
 > builtins.mergeio
 ```
@@ -22,16 +18,8 @@ opaque type Logarithm = Float where
   toFloat : Logarithm -> Float
   toFloat l = l
 
-  reify : Logarithm ->{} '(Logarithm)
-  reify l =
-    f = toFloat l
-    do Logarithm.fromFloat f
-
 > Logarithm.fromFloat 1.0
 ```
-
-The watch evaluates at runtime; the rendered output reflects the
-`reify`-produced form rather than the underlying `Float`.
 
 ```ucm
 > add

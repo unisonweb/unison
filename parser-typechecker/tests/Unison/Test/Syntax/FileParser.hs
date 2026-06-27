@@ -89,10 +89,7 @@ test =
       opaqueBodyFnCallableFromOutsideTest,
       opaqueOutsideBodyRejectsRhsAssignTest,
       opaqueParameterizedKindInfersTest,
-      opaqueKindAppArityRejectedTest,
-      opaqueReifySignatureAcceptedTest,
-      opaqueReifySignatureRejectedTest,
-      opaqueReifyParameterizedAcceptedTest
+      opaqueKindAppArityRejectedTest
     ]
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -410,64 +407,6 @@ expectTypecheckFailure s =
   case Common.parseAndSynthesizeAsFile [] "<test>" s of
     Result.Result _ (Just (Right _)) -> crash "expected typecheck failure, got success"
     Result.Result _ _ -> ok
-
--- | An opaque type whose @reify@ body fn has the canonical signature
--- @Logarithm ->{} '(Logarithm)@ typechecks. Confirms the Phase 9a
--- validation accepts the correct shape.
-opaqueReifySignatureAcceptedTest :: Test ()
-opaqueReifySignatureAcceptedTest =
-  scope "opaqueReifySignatureAcceptedTest" $ do
-    let src =
-          unlines
-            [ "opaque type Logarithm = Float where",
-              "  fromFloat : Float -> Logarithm",
-              "  fromFloat x = Float.log x",
-              "  toFloat : Logarithm -> Float",
-              "  toFloat l = l",
-              "  reify : Logarithm ->{} '(Logarithm)",
-              "  reify l =",
-              "    f = toFloat l",
-              "    do Logarithm.fromFloat f"
-            ]
-    _ <- typechecksOrCrash src
-    ok
-
--- | An opaque type whose @reify@ body fn has the wrong signature must be
--- rejected after typechecking. Here @reify@ returns @Float@ instead of
--- @'(Logarithm)@, so the Phase 9a check fails.
-opaqueReifySignatureRejectedTest :: Test ()
-opaqueReifySignatureRejectedTest =
-  scope "opaqueReifySignatureRejectedTest" $ do
-    let src =
-          unlines
-            [ "opaque type Logarithm = Float where",
-              "  toFloat : Logarithm -> Float",
-              "  toFloat l = l",
-              "  reify : Logarithm -> Float",
-              "  reify l = toFloat l"
-            ]
-    expectTypecheckFailure src
-
--- | A parameterized opaque type with a correct polymorphic @reify@
--- signature typechecks. Here @Box a@ requires
--- @reify : Box a ->{} '(Box a)@.
-opaqueReifyParameterizedAcceptedTest :: Test ()
-opaqueReifyParameterizedAcceptedTest =
-  scope "opaqueReifyParameterizedAcceptedTest" $ do
-    let src =
-          unlines
-            [ "opaque type Box a = a where",
-              "  wrap : a -> Box a",
-              "  wrap x = x",
-              "  unwrap : Box a -> a",
-              "  unwrap b = b",
-              "  reify : Box a ->{} '(Box a)",
-              "  reify b =",
-              "    inner = unwrap b",
-              "    do Box.wrap inner"
-            ]
-    _ <- typechecksOrCrash src
-    ok
 
 -- | An opaque type declaration survives a parse → pretty-print → re-parse
 -- roundtrip with the same set of opaque-decl names and the same parameter

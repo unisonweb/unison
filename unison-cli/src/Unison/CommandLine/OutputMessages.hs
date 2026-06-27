@@ -1030,11 +1030,6 @@ notifyUser dir issueFn = \case
           intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
     pure $ showNote notes
-  OpaqueReifyBadSignatures _curPath src ppenv mismatches -> do
-    let showOne (v, loc, found, expected) =
-          printNoteWithSource ppenv (Text.unpack src) $
-            Result.OpaqueReifyBadSignature v loc found expected
-    pure $ intercalateMap "\n\n" showOne mismatches
   TypeWarns _curPath src ppenv warns ->
     pure $ renderTypeWarnings ppenv (Text.unpack src) warns
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs

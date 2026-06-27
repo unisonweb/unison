@@ -6,10 +6,6 @@ that may freely cross between the opaque type and its representation.
 At runtime the value *is* the representation; the opaque identity is
 only visible at the typecheck / codebase level.
 
-The body block may include a `reify : T ->{} '(T)` body fn that the
-display layer uses to render values; when present, watch results are
-routed through it (see Phase 9b).
-
 ``` ucm :hide
 > builtins.mergeio
 ```
@@ -22,30 +18,27 @@ opaque type Logarithm = Float where
   toFloat : Logarithm -> Float
   toFloat l = l
 
-  reify : Logarithm ->{} '(Logarithm)
-  reify l =
-    f = toFloat l
-    do Logarithm.fromFloat f
-
 > Logarithm.fromFloat 1.0
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + Logarithm.fromFloat : Float -> #a2ldi1bckv
-  + Logarithm.reify     : #a2ldi1bckv -> '#a2ldi1bckv
-  + Logarithm.toFloat   : #a2ldi1bckv -> Float
+  + opaque type Logarithm = Float where
+    fromFloat : Float -> Logarithm
+    fromFloat x = log x
+    toFloat : Logarithm -> Float
+    toFloat l = l
+
+  + Logarithm.fromFloat : Float -> Logarithm
+  + Logarithm.toFloat   : Logarithm -> Float
 
   Run `update` to apply these changes to your codebase.
 
-    13 | > Logarithm.fromFloat 1.0
-           ⧩
-           fromFloat 0.0
+    8 | > Logarithm.fromFloat 1.0
+          ⧩
+          0.0
 ```
-
-The watch evaluates at runtime; the rendered output reflects the
-`reify`-produced form rather than the underlying `Float`.
 
 ``` ucm
 > add
@@ -61,8 +54,7 @@ ordinary names; the opaque type's identity is enforced at typecheck time.
 > ls Logarithm
 
   1. fromFloat (Float -> Logarithm)
-  2. reify     (Logarithm -> 'Logarithm)
-  3. toFloat   (Logarithm -> Float)
+  2. toFloat   (Logarithm -> Float)
 ```
 
 The same body fns can be called from a fresh unison block, with the
