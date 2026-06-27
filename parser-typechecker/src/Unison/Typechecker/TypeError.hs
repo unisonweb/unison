@@ -145,6 +145,7 @@ data TypeError v loc
   | UncoveredPatterns loc (NonEmpty (Pattern ()))
   | RedundantPattern loc
   | KindInferenceFailure (KindError v loc)
+  | RunWatchTypeMismatch (Type v loc) loc (C.ErrorNote v loc)
   | Other (C.ErrorNote v loc)
   deriving (Show)
 
@@ -193,7 +194,8 @@ allErrors =
       duplicateDefinitions,
       redundantPattern,
       uncoveredPatterns,
-      kindInferenceFailure
+      kindInferenceFailure,
+      runWatchTypeMismatch
     ]
 
 topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
@@ -210,6 +212,12 @@ kindInferenceFailure :: Ex.ErrorExtractor v a (TypeError v a)
 kindInferenceFailure = do
   ke <- Ex.kindInferenceFailure
   pure (KindInferenceFailure ke)
+
+runWatchTypeMismatch :: Ex.ErrorExtractor v a (TypeError v a)
+runWatchTypeMismatch = do
+  (loc, typ) <- Ex.runWatchTypeMismatch
+  n <- Ex.errorNote
+  pure (RunWatchTypeMismatch typ loc n)
 
 uncoveredPatterns :: Ex.ErrorExtractor v a (TypeError v a)
 uncoveredPatterns = do

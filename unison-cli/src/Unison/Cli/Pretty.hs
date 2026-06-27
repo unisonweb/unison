@@ -438,6 +438,11 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
                 "> " <> P.indentNAfterNewline 2 (TermPrinter.pretty sppe tm)
           WK.RegularWatch -> "> " <> pb (hqv v) tm
           WK.TestWatch -> "test> " <> st (TermPrinter.prettyBindingWithoutTypeSignature sppe (hqv v) tm)
+          w
+            -- an unnamed watch of some other kind (e.g. `run> <expr>`) prints as a
+            -- bare expression, like the unnamed `RegularWatch` case above
+            | Var.UnnamedWatch _ _ <- Var.typeOf v ->
+                P.string w <> "> " <> P.indentNAfterNewline (P.Width (length w + 2)) (TermPrinter.pretty sppe tm)
           w -> P.string w <> "> " <> pb (hqv v) tm
     st = P.syntaxToColor
     sppe = PPED.suffixifiedPPE ppe'

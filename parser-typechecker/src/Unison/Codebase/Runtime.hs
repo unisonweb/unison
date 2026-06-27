@@ -6,7 +6,7 @@ module Unison.Codebase.Runtime where
 import Data.Map qualified as Map
 import Data.Set.NonEmpty (NESet)
 import Unison.ABT qualified as ABT
-import Unison.Builtin.Decls (tupleTerm, pattern TupleTerm')
+import Unison.Builtin.Decls (forceTerm, tupleTerm, pattern TupleTerm')
 import Unison.Codebase.CodeLookup qualified as CL
 import Unison.Codebase.CodeLookup.Util qualified as CL
 import Unison.Codebase.Runtime.Profile
@@ -112,10 +112,12 @@ evaluateWatches code ppe prof evaluationCache rt tuf = do
       watchKinds =
         Map.fromList
           [(v, k) | (k, ws) <- UF.watchComponents tuf, (v, _a, _tm, _tp) <- ws]
+      isRunWatch v = Map.lookup v watchKinds == Just WK.RunWatch
       unann = Term.amap (const ())
-  -- 2. use the cache to lookup things already computed
+  -- 2. use the cache to lookup things already computed, except for run watches,
+  --    which are never cached (we always re-force them so their side effects run)
   m' <- fmap Map.fromList . for (Map.toList m) $ \(v, (r, t)) -> do
-    o <- evaluationCache r
+    o <- if isRunWatch v then pure Nothing else evaluationCache r
     case o of
       Nothing -> pure (v, (r, ABT.annotation t, unann t, False))
       Just t' -> pure (v, (r, ABT.annotation t, t', True))
@@ -124,7 +126,13 @@ evaluateWatches code ppe prof evaluationCache rt tuf = do
       rv = Map.fromList [(r, v) | (v, (r, _)) <- Map.toList m]
       bindings :: [(v, (), Term v)]
       bindings = [(v, (), unref rv b) | (v, (_, _, b, _)) <- Map.toList m']
-      watchVars = [Term.var () v | v <- toList watches]
+      -- run watches hold a `'{IO, Exception} a` thunk; force it so its side
+      -- effects run. The let-rec body is always evaluated fresh, so this runs
+      -- every time (run watches are also excluded from the cache above).
+      watchVar v
+        | isRunWatch v = forceTerm () () (Term.var () v)
+        | otherwise = Term.var () v
+      watchVars = [watchVar v | v <- toList watches]
       bigOl'LetRec = Term.letRec' True bindings (tupleTerm watchVars)
       cl = void (CL.fromTypecheckedUnisonFile tuf) <> void code
   -- 4. evaluate it and get all the results out of the tuple, then
