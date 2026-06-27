@@ -36,6 +36,12 @@ module U.Codebase.Sqlite.Operations
     expectTypeAliasByReference,
     isTypeAliasReference,
 
+    -- * opaque declarations
+    Q.saveOpaqueDeclaration,
+    loadOpaqueDeclarationByReference,
+    expectOpaqueDeclarationByReference,
+    isOpaqueDeclarationReference,
+
     -- * terms/decls
     getCycleLen,
 
@@ -145,6 +151,7 @@ import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
+import U.Codebase.OpaqueDeclaration qualified as C.OpaqueDeclaration
 import U.Codebase.Reference qualified as C
 import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Referent qualified as C
@@ -165,6 +172,7 @@ import U.Codebase.Sqlite.HashHandle (HashHandle (..))
 import U.Codebase.Sqlite.LocalIds (LocalIds, WatchLocalIds)
 import U.Codebase.Sqlite.LocalizeObject qualified as LocalizeObject
 import U.Codebase.Sqlite.ObjectType qualified as ObjectType
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as S.OpaqueDeclaration
 import U.Codebase.Sqlite.Patch.Diff qualified as S
 import U.Codebase.Sqlite.Patch.Format qualified as S
 import U.Codebase.Sqlite.Patch.Format qualified as S.Patch.Format
@@ -540,6 +548,33 @@ isTypeAliasReference = \case
         Q.expectObjectWithType
           oid
           (\typ _bytes -> Right @CheckFailure (typ == ObjectType.TypeAliasComponent))
+
+-- * Opaque declarations
+
+loadOpaqueDeclarationByReference :: C.Reference.Id -> MaybeT Transaction (C.OpaqueDeclaration.OpaqueDeclaration Symbol)
+loadOpaqueDeclarationByReference (C.Reference.Id h _i) = do
+  oid <- MaybeT (Q.loadObjectIdForPrimaryHash h)
+  S.OpaqueDeclaration.OpaqueDeclaration localIds entry <- MaybeT (Q.loadOpaqueDeclarationObject oid decodeOpaqueDeclarationFormat)
+  lift (Q.s2cOpaqueDeclaration localIds entry)
+
+expectOpaqueDeclarationByReference :: C.Reference.Id -> Transaction (C.OpaqueDeclaration.OpaqueDeclaration Symbol)
+expectOpaqueDeclarationByReference (C.Reference.Id h _i) = do
+  oid <- Q.expectObjectIdForPrimaryHash h
+  S.OpaqueDeclaration.OpaqueDeclaration localIds entry <- Q.expectOpaqueDeclarationObject oid decodeOpaqueDeclarationFormat
+  Q.s2cOpaqueDeclaration localIds entry
+
+-- | Determine whether a reference points to an opaque declaration entry in the
+-- codebase (as opposed to a regular data\/effect decl or type alias).
+isOpaqueDeclarationReference :: C.Reference -> Transaction Bool
+isOpaqueDeclarationReference = \case
+  C.Reference.ReferenceBuiltin _ -> pure False
+  C.Reference.ReferenceDerived (C.Reference.Id h _) -> do
+    Q.loadObjectIdForPrimaryHash h >>= \case
+      Nothing -> pure False
+      Just oid ->
+        Q.expectObjectWithType
+          oid
+          (\typ _bytes -> Right @CheckFailure (typ == ObjectType.OpaqueDeclarationComponent))
 
 -- | A trivial 'SqliteExceptionReason' used only as the @Left@ slot of
 -- 'expectObjectWithType' callbacks that cannot actually fail.

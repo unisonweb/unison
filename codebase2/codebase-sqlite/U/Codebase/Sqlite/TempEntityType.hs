@@ -12,6 +12,7 @@ data TempEntityType
   | PatchType -- 3
   | CausalType -- 4
   | TypeAliasComponentType -- 5
+  | OpaqueDeclarationComponentType -- 6
   deriving (Eq, Ord, Show, Enum)
 
 instance ToField TempEntityType where

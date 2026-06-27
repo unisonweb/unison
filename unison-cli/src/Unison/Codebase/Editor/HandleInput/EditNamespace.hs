@@ -69,7 +69,11 @@ handleEditNamespace outputLoc paths0 = do
 
   (types, terms) <- Cli.runTransaction (getNamesForEdit codebase ppe allNamesToEdit)
   let misses = []
-  showDefinitions outputLoc (const True) ppe terms types mempty misses
+  -- TODO(opaque): also pull opaque decls into the scratch file from
+  -- 'edit.namespace'. For now we pass an empty map so the build typechecks;
+  -- the regular 'edit' / 'view' paths in 'ShowDefinition' handle opaque
+  -- decls fully via the 'definitionsByName' result.
+  showDefinitions outputLoc (const True) ppe terms types mempty mempty misses
 
 -- | Get names "for edit": gets types and terms out the codebase as display objects, but is careful not to get an
 -- auto-generated record accessor term like `Foo.bar.set` if it's also getting the corresponding type `Foo`. This is

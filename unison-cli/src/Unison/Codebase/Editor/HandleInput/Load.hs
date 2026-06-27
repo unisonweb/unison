@@ -99,7 +99,19 @@ loadUnisonFile sourceName text = do
   let oldNames = Branch.toNames oldBranch0
   unisonFile <- parseAndTypecheckUnisonFile oldNames sourceName text
   let unisonFileNames = UF.typecheckedToNames unisonFile
-  let newNames = UF.addNamesFromTypeCheckedUnisonFile unisonFile oldNames
+  -- Extend the file-level Names with opaque-type names so the PPE can render
+  -- body fn signatures with the local opaque-type name (e.g. @Set a@) rather
+  -- than the hash. We keep opaques out of 'typecheckedToNames' itself
+  -- because the slurp pipeline expects every entry in its types map to be a
+  -- data/effect decl, and opaque decls are handled via the separate
+  -- 'fileOpaques' channel in 'Output.Typechecked'.
+  let unisonFileNamesWithOpaques =
+        let opaqueNames =
+              [ (Name.unsafeParseVar v, Reference.DerivedId rid)
+              | (v, (rid, _)) <- Map.toList (UF.opaqueDeclarationsId' unisonFile)
+              ]
+         in unisonFileNames <> Names.fromTermsAndTypes [] opaqueNames
+  let newNames = Names.shadowing unisonFileNamesWithOpaques oldNames
   let newPpe = PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 newNames) (PPE.suffixifyByHash newNames))
   pp <- Cli.getCurrentProjectPath
 
@@ -182,15 +194,15 @@ loadUnisonFile sourceName text = do
         getTermAliases existingTerms slurpEntries.terms
 
   let fileAliases = snd <$> UF.typeAliasesId' unisonFile
-  Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries fileAliases aliases pp.branch.isMerge)
+  let fileOpaques = snd <$> UF.opaqueDeclarationsId' unisonFile
+  Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries fileAliases fileOpaques aliases pp.branch.isMerge)
 
   when (not . null $ UF.watchComponents unisonFile) do
     Timing.time "evaluating watches" do
       evalUnisonFile (Permissive NoProf) newPpe unisonFile [] >>= \case
         Right (bindings, e) -> do
-          when (not (null e)) do
-            let f (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-            Cli.respond $ Output.Evaluated text newPpe bindings (Map.map f e)
+          let f (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+          Cli.respond $ Output.Evaluated text newPpe bindings (Map.map f e)
         Left err -> Cli.respond (Output.EvaluationFailure id err)
 
   #latestTypecheckedFile .= Just (Right unisonFile)

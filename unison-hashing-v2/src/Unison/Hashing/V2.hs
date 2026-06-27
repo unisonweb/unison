@@ -14,6 +14,8 @@ module Unison.Hashing.V2
     MdValues (..),
     Modifier (..),
     NameSegment (..),
+    OpaqueDeclaration (..),
+    OpaqueModifier (..),
     Patch (..),
     Pattern (..),
     Reference (..),
@@ -32,6 +34,7 @@ module Unison.Hashing.V2
     crashOnHashingWarning,
     hashClosedTerm,
     hashDecls,
+    hashOpaqueDeclaration,
     hashTermComponents,
     hashTermComponentsWithoutTypes,
     hashTypeAlias,
@@ -53,6 +56,7 @@ import Unison.Hashing.V2.DataDeclaration (DataDeclaration (..), Decl, EffectDecl
 import Unison.Hashing.V2.HistoryComments (hashHistoryComment, hashHistoryCommentRevision)
 import Unison.Hashing.V2.Kind (Kind (..))
 import Unison.Hashing.V2.NameSegment (NameSegment (..))
+import Unison.Hashing.V2.OpaqueDeclaration (OpaqueDeclaration (..), OpaqueModifier (..), hashOpaqueDeclaration)
 import Unison.Hashing.V2.Patch (Patch (..))
 import Unison.Hashing.V2.Pattern (Pattern (..), SeqOp (..))
 import Unison.Hashing.V2.Reference (Reference (..), ReferenceId (..), pattern ReferenceDerived)

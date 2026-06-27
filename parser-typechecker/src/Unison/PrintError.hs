@@ -2197,6 +2197,18 @@ renderParseErrors s = \case
                 Pr.wrap "Type aliases cannot be recursive — use a `type` declaration instead."
               ]
        in (msg, mapMaybe rangeForAnnotated [ann])
+    go (Parser.OpaqueDeclCycle ann names) =
+      let msg =
+            Pr.lines
+              [ Pr.wrap $
+                  "I found a cycle among these `opaque type` declarations: "
+                    <> Pr.commas (map (style ErrorSite . Var.nameStr) names),
+                "",
+                annotatedAsErrorSite s ann,
+                "",
+                Pr.wrap "An opaque type's RHS cannot mention itself or form a cycle with another opaque type."
+              ]
+       in (msg, mapMaybe rangeForAnnotated [ann])
 
 annotatedAsErrorSite ::
   (Annotated a) => String -> a -> Pretty ColorText

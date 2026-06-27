@@ -27,6 +27,7 @@ library
       Unison.Hashing.V2.HistoryComments
       Unison.Hashing.V2.Kind
       Unison.Hashing.V2.NameSegment
+      Unison.Hashing.V2.OpaqueDeclaration
       Unison.Hashing.V2.Patch
       Unison.Hashing.V2.Pattern
       Unison.Hashing.V2.Reference

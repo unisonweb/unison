@@ -28,6 +28,7 @@ import U.Codebase.Sqlite.Causal qualified as SqliteCausal
 import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
@@ -508,6 +509,7 @@ data SyncTag
   | NamespaceTag
   | CausalTag
   | TypeAliasComponentTag
+  | OpaqueDeclarationComponentTag
   deriving (Eq, Show)
 
 instance Serialise SyncTag where
@@ -518,6 +520,7 @@ instance Serialise SyncTag where
     NamespaceTag -> CBOR.encodeWord 3
     CausalTag -> CBOR.encodeWord 4
     TypeAliasComponentTag -> CBOR.encodeWord 5
+    OpaqueDeclarationComponentTag -> CBOR.encodeWord 6
 
   decode = do
     tag <- CBOR.decodeWord
@@ -528,6 +531,7 @@ instance Serialise SyncTag where
       3 -> pure NamespaceTag
       4 -> pure CausalTag
       5 -> pure TypeAliasComponentTag
+      6 -> pure OpaqueDeclarationComponentTag
       _ -> fail $ "Unknown tag: " <> show tag
 
 newtype ComponentBody t d = ComponentBody {unComponentBody :: (LocalIds.LocalIds' t d, ByteString)}
@@ -576,6 +580,11 @@ instance Serialise TempEntity where
         <> CBOR.encodeVector textLookup
         <> CBOR.encodeVector defnLookup
         <> CBOR.encodeBytes bytes
+    Entity.OD (OpaqueDeclarationFormat.SyncOpaqueDeclaration LocalIds.LocalIds {textLookup, defnLookup} bytes) ->
+      CBOR.encode OpaqueDeclarationComponentTag
+        <> CBOR.encodeVector textLookup
+        <> CBOR.encodeVector defnLookup
+        <> CBOR.encodeBytes bytes
 
   decode = do
     CBOR.decode >>= \case
@@ -607,6 +616,11 @@ instance Serialise TempEntity where
         defnLookup <- CBOR.decodeVector
         bytes <- CBOR.decodeBytes
         pure $ Entity.TA (TypeAliasFormat.SyncTypeAlias LocalIds.LocalIds {textLookup, defnLookup} bytes)
+      OpaqueDeclarationComponentTag -> do
+        textLookup <- CBOR.decodeVector
+        defnLookup <- CBOR.decodeVector
+        bytes <- CBOR.decodeBytes
+        pure $ Entity.OD (OpaqueDeclarationFormat.SyncOpaqueDeclaration LocalIds.LocalIds {textLookup, defnLookup} bytes)
 
 encodeVectorWith :: (a -> CBOR.Encoding) -> Vector.Vector a -> CBOR.Encoding
 encodeVectorWith f xs =

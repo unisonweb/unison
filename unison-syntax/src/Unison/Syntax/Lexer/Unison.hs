@@ -576,6 +576,7 @@ lexemes eof =
             <|> wordyKw "true"
             <|> wordyKw "false"
             <|> wordyKw "namespace"
+            <|> wordyKw "opaque"
             <|> wordyKw "use"
             <|> wordyKw "forall"
             <|> wordyKw "∀"

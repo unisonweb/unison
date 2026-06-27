@@ -33,6 +33,7 @@ extra-source-files:
     sql/021-hash-history-comments.sql
     sql/022-hash-history-comments-cleanup.sql
     sql/023-add-type-alias-support.sql
+    sql/024-add-opaque-decl-support.sql
     sql/create.sql
 
 source-repository head
@@ -56,6 +57,7 @@ library
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.ObjectType
+      U.Codebase.Sqlite.OpaqueDeclaration.Format
       U.Codebase.Sqlite.Operations
       U.Codebase.Sqlite.Orphans
       U.Codebase.Sqlite.Patch.Diff

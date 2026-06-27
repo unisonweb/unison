@@ -25,10 +25,12 @@ import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Names.ResolvesTo (ResolvesTo (..))
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.Reference (TermReference, TypeReference)
+import Unison.Reference (Reference, TermReference, TypeReference)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
@@ -37,6 +39,8 @@ import Unison.Syntax.Name qualified as Name (toText, unsafeParseText, unsafePars
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
+import Unison.TypeAlias (TypeAlias)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
@@ -99,6 +103,9 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
         Typechecker.Env
           { ambientAbilities = ambientAbilities,
             typeLookup = tl,
+            scopedAliases = opaqueScopedAliases uf,
+            bodyFnScope = opaqueBodyFnScope uf,
+            opaqueDeclarations = opaqueDeclarationsForEnv uf,
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,
@@ -192,11 +199,61 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
         Typechecker.Env
           { ambientAbilities,
             typeLookup,
+            scopedAliases = opaqueScopedAliases uf,
+            bodyFnScope = opaqueBodyFnScope uf,
+            opaqueDeclarations = opaqueDeclarationsForEnv uf,
             termsByShortname,
             freeNameToFuzzyTermsByShortName,
             topLevelComponents = Map.empty,
             variances = Variance.fromTypeLookup typeLookup
           }
+
+-- | Opaque-as-alias entries that are only visible inside the parent
+-- opaque's body fns. Keyed by the opaque type's 'Reference'. Equivalent
+-- in shape to 'UF.opaqueAliases' but unconditionally produced here so
+-- that 'TypeLookup.typeAliases' stays free of opaque entries.
+--
+-- TODO(opaque): Phase 7 will need the same data for body fns that are
+-- loaded from the codebase (not the file). At that point this should
+-- consult the opaque-body membership table for refs not in this file.
+opaqueScopedAliases :: (Ord v) => UnisonFile v -> Map Reference (TypeAlias v Ann)
+opaqueScopedAliases uf =
+  Map.fromList
+    [ ( Reference.DerivedId r,
+        TypeAlias.TypeAlias
+          { TypeAlias.paramNames = OpaqueDeclaration.paramNames od,
+            TypeAlias.body = OpaqueDeclaration.rhs od
+          }
+      )
+    | (_v, (r, od)) <- Map.toList uf.opaqueDeclarationsId
+    ]
+
+-- | Map from body-fn var name to its parent opaque type 'Reference'.
+-- Body fn vars are fully qualified (e.g. @Logarithm.fromFloat@) thanks
+-- to 'Unison.Syntax.FileParser.resolveOpaque'. When checking a body
+-- fn, this lets 'whnfAlias' know which 'scopedAliases' entry to
+-- activate.
+opaqueBodyFnScope :: (Ord v) => UnisonFile v -> Map v Reference
+opaqueBodyFnScope uf =
+  Map.fromList
+    [ (b.name, Reference.DerivedId r)
+    | (_v, (r, od)) <- Map.toList uf.opaqueDeclarationsId,
+      b <- OpaqueDeclaration.body od
+    ]
+
+-- | Opaque declarations from the unison file, keyed by their 'Reference'.
+-- These flow into kind inference so the kindchecker knows each opaque
+-- ref's kind. Body functions are not part of this map — they are checked
+-- as ordinary terms.
+opaqueDeclarationsForEnv ::
+  (Ord v) =>
+  UnisonFile v ->
+  Map Reference (OpaqueDeclaration.OpaqueDeclaration v Ann)
+opaqueDeclarationsForEnv uf =
+  Map.fromList
+    [ (Reference.DerivedId r, od)
+    | (_v, (r, od)) <- Map.toList uf.opaqueDeclarationsId
+    ]
 
 -- | 'fuzzyFindByEditDistanceRanked' finds matches for the given 'name' within 'names' by edit distance.
 --
@@ -324,6 +381,7 @@ synthesizeFile env0 uf = do
         (UF.dataDeclarationsId uf)
         (UF.effectDeclarationsId uf)
         (UF.typeAliasesId uf)
+        (UF.opaqueDeclarationsId uf)
         terms'
         (map tlcKind watches')
   where

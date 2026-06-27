@@ -98,7 +98,8 @@ migrations personalKey regionVar getDeclType termBuffer declBuffer rootCodebaseP
       sqlMigration 24 Q.addHistoryCommentHashing,
       (25, runT $ hashHistoryCommentsMigration personalKey),
       sqlMigration 26 Q.historyCommentHashingCleanup,
-      sqlMigration 27 Q.addTypeAliasSupport
+      sqlMigration 27 Q.addTypeAliasSupport,
+      sqlMigration 28 Q.addOpaqueDeclarationSupport
     ]
   where
     runT :: Sqlite.Transaction () -> Sqlite.Connection -> IO ()

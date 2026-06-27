@@ -88,6 +88,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.KindInference qualified as KindInference
 import Unison.Name (Name)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
@@ -153,6 +154,29 @@ data Env v loc = Env {freshId :: Word64, ctx :: Context v loc}
 type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
 
 type TypeAliasMap v loc = Map Reference (TypeAlias.TypeAlias v loc)
+
+-- | The alias context threaded through typechecking. Two pieces:
+--
+-- * 'typeAliases' is the set of ordinary type aliases that are always
+--   visible (unconditional 'whnfAlias' expansion).
+-- * 'scopedAliases' carries opaque-type alias entries that are only
+--   active when we are currently checking inside a body fn of the
+--   corresponding opaque decl. The 'bodyFnScope' map says which body fn
+--   var names map back to which parent opaque-type reference; when one
+--   of those vars is on the 'getCurrentDefs' stack, the matching
+--   'scopedAliases' entry becomes visible.
+--
+-- TODO(opaque): When an opaque body fn is loaded for re-typecheck
+-- outside the file (Phase 7), the parent opaque must be looked up via
+-- the membership table and its scope injected before checking.
+data AliasContext v loc = AliasContext
+  { typeAliases :: TypeAliasMap v loc,
+    scopedAliases :: Map Reference (TypeAlias.TypeAlias v loc),
+    bodyFnScope :: Map v Reference
+  }
+
+emptyAliasContext :: AliasContext v loc
+emptyAliasContext = AliasContext Map.empty Map.empty Map.empty
 
 type EffectDeclarations v loc = Map Reference (EffectDeclaration v loc)
 
@@ -242,8 +266,8 @@ newtype MT v loc f a = MT
       DataDeclarations v loc ->
       -- Effect declarations in scope
       EffectDeclarations v loc ->
-      -- Type aliases in scope
-      TypeAliasMap v loc ->
+      -- Aliases (regular + opaque scoped) in scope
+      AliasContext v loc ->
       -- Stack of definitions being checked
       [v] ->
       Env v loc ->
@@ -868,20 +892,34 @@ getDataDeclarations = MT \_ _ _ datas _ _ _ env -> pure (datas, env)
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
 getEffectDeclarations = MT \_ _ _ _ effects _ _ env -> pure (effects, env)
 
-getTypeAliases :: M v loc (TypeAliasMap v loc)
-getTypeAliases = MT \_ _ _ _ _ aliases _ env -> pure (aliases, env)
+getAliasContext :: M v loc (AliasContext v loc)
+getAliasContext = MT \_ _ _ _ _ aliases _ env -> pure (aliases, env)
 
 -- | Expand the type's head when it's a saturated alias reference,
 -- repeatedly until the head is no longer an alias. Returns the input
 -- unchanged when the head isn't an alias or the alias is under-applied.
+--
+-- Scope-aware: ordinary aliases in 'typeAliases' always expand;
+-- entries in 'scopedAliases' only expand when we are currently checking
+-- inside one of the parent opaque's body fns (as recorded by
+-- 'bodyFnScope' + 'getCurrentDefs').
 whnfAlias ::
   forall v loc.
   (Var v) =>
   Type.Type (TypeVar v loc) loc ->
   M v loc (Type.Type (TypeVar v loc) loc)
 whnfAlias ty = do
-  aliases <- getTypeAliases
-  pure (go aliases ty)
+  ctx <- getAliasContext
+  defs <- getCurrentDefs
+  let activeOpaqueRefs =
+        Set.fromList
+          [ r
+          | v <- defs,
+            Just r <- [Map.lookup (Var.reset v) ctx.bodyFnScope]
+          ]
+      activeScoped = Map.restrictKeys ctx.scopedAliases activeOpaqueRefs
+      effective = ctx.typeAliases <> activeScoped
+  pure (go effective ty)
   where
     liftBody :: TypeAlias.TypeAlias v loc -> Type.Type (TypeVar v loc) loc
     liftBody alias = TypeVar.liftType alias.body
@@ -1297,7 +1335,11 @@ synthesizeWanted tm@(Term.Request' r) =
   fmap (wantRequest tm) . ungeneralize . Type.purifyArrows
     =<< getEffectConstructorType r
 synthesizeWanted (Term.Let1Top' top binding boundVarAnn e) = do
-  (tbinding, wb) <- synthesizeBinding top binding
+  -- Push the bound var onto the defs stack while checking the binding,
+  -- so 'whnfAlias' can detect when we're inside an opaque body fn
+  -- (see 'AliasContext.bodyFnScope'). The bound var's name comes from
+  -- 'ABT.variable e' (e is the binding's continuation body).
+  (tbinding, wb) <- insideDef (ABT.variable e) $ synthesizeBinding top binding
   v' <- ABT.freshen e freshenVar
   when (Var.isAction (ABT.variable e)) . scope InActionRestriction $
     -- enforce that actions in a block have type ()
@@ -3648,22 +3690,44 @@ synthesizeClosed ::
   Map Reference [Variance] ->
   [Type v loc] ->
   TL.TypeLookup v loc ->
+  -- | Opaque-as-alias entries (visible only inside the parent's body fns).
+  Map Reference (TypeAlias.TypeAlias v loc) ->
+  -- | Body-fn var name → parent opaque-type Reference. Used by
+  -- 'whnfAlias' to decide which scoped aliases are active.
+  Map v Reference ->
+  -- | Opaque type declarations, keyed by their 'Reference'. Used by
+  -- kind inference to derive each opaque ref's kind from its RHS.
+  Map Reference (OpaqueDeclaration.OpaqueDeclaration v loc) ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosed ppe pmcSwitch vars abilities lookupType term0 =
+synthesizeClosed ppe pmcSwitch vars abilities lookupType scopedAliases bodyFnScope opaques term0 =
   let datas = TL.dataDecls lookupType
       effects = TL.effectDecls lookupType
-      aliases = TL.typeAliases lookupType
+      aliasCtx =
+        AliasContext
+          { typeAliases = TL.typeAliases lookupType,
+            scopedAliases = scopedAliases,
+            bodyFnScope = bodyFnScope
+          }
       term = annotateRefs (TL.typeOfTerm' lookupType) term0
+      -- Opaque decls loaded from the codebase via 'TypeLookup' are unioned
+      -- with file-local opaques so kind inference can register their kinds
+      -- (and so terms referencing body fns of stored opaques can resolve
+      -- those opaque refs). File-local opaques win on key conflict.
+      allOpaques = opaques `Map.union` TL.opaqueDecls lookupType
    in case term of
         Left missingRef ->
           compilerCrashResult (UnknownTermReference missingRef)
-        Right term -> run ppe pmcSwitch vars datas effects aliases $ do
+        Right term -> run ppe pmcSwitch vars datas effects aliasCtx $ do
           liftResult $
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
               *> verifyClosedTerm term
-          doKindInference ppe datas effects aliases term
+          -- For kind inference, treat regular aliases and the scoped
+          -- opaque aliases uniformly: the kind equations are well-defined
+          -- regardless of opaque scoping, and 'whnfAlias' is the only
+          -- thing that needs scope.
+          doKindInference ppe datas effects (TL.typeAliases lookupType <> scopedAliases) allOpaques term
           synthesizeClosed' abilities term
 
 doKindInference ::
@@ -3676,9 +3740,10 @@ doKindInference ::
   DataDeclarations v loc ->
   Map Reference (EffectDeclaration v loc) ->
   Map Reference (TypeAlias.TypeAlias v loc) ->
+  Map Reference (OpaqueDeclaration.OpaqueDeclaration v loc) ->
   Term v loc ->
   MT v loc (Result v loc) ()
-doKindInference ppe datas effects aliases term = do
+doKindInference ppe datas effects aliases opaques term = do
   getPatternMatchCoverageCheckAndKindInferenceSwitch >>= \case
     PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled -> pure ()
     PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled -> do
@@ -3695,7 +3760,16 @@ doKindInference ppe datas effects aliases term = do
             st0 <- KindInference.inferAliases ppe (KindInference.initialState (KindInference.kindEnv ppe)) aliasesBefore
             st1 <- KindInference.inferDeclsFromState ppe st0 decls
             st2 <- KindInference.inferAliases ppe st1 aliasesAfter
-            KindInference.kindCheckAnnotations ppe st2 (TypeVar.lowerTerm term)
+            -- Opaques run last. They may reference file decls and
+            -- aliases in their RHS but for v1 are not referenced by
+            -- aliases/decls themselves. Inter-opaque references resolve
+            -- inside the single-batch call (FileParser's
+            -- 'OpaqueDeclaration.Expand.inDependencyOrder' guarantees no
+            -- cycles).
+            -- TODO(opaque): support decls/aliases referencing opaques
+            -- (reverse direction) via a symmetric two-phase split.
+            st3 <- KindInference.inferOpaques ppe st2 opaques
+            KindInference.kindCheckAnnotations ppe st3 (TypeVar.lowerTerm term)
       case kindInferRes of
         Left (ke Nel.:| _kes) -> failWith (KindInferenceFailure ke)
         Right () -> pure ()
@@ -3737,7 +3811,7 @@ run ::
   Map Reference [Variance] ->
   DataDeclarations v loc ->
   EffectDeclarations v loc ->
-  TypeAliasMap v loc ->
+  AliasContext v loc ->
   MT v loc f a ->
   f a
 run ppe pmcSwitch vars datas effects aliases m =
@@ -3783,7 +3857,7 @@ isSubtype' type1 type2 = succeeds $ do
 
 -- See documentation at 'Unison.Typechecker.fitsScheme'
 fitsScheme :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
-fitsScheme type1 type2 = run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled defaultVariances Map.empty Map.empty Map.empty $
+fitsScheme type1 type2 = run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled defaultVariances Map.empty Map.empty emptyAliasContext $
   succeeds $ do
     let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
     reserveAll (TypeVar.underlying <$> vars)
@@ -3824,7 +3898,7 @@ isRedundant userType0 inferredType0 = do
 isSubtype ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
-  run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled defaultVariances Map.empty Map.empty Map.empty (isSubtype' t1 t2)
+  run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled defaultVariances Map.empty Map.empty emptyAliasContext (isSubtype' t1 t2)
 
 isEqual ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool

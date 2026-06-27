@@ -20,6 +20,7 @@ import U.Codebase.Sqlite.Decode qualified as Decode
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle qualified as HH
 import U.Codebase.Sqlite.LocalIds qualified
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.Orphans ()
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Serialization qualified as Serialization
@@ -62,6 +63,8 @@ validateTempEntity expectedHash32 tempEntity = do
       Right <$> validatePatchFull expectedHash32 localIds bytes
     Entity.TA (TypeAliasFormat.SyncTypeAlias localIds bytes) ->
       Right <$> validateTypeAlias expectedHash localIds bytes
+    Entity.OD (OpaqueDeclarationFormat.SyncOpaqueDeclaration localIds bytes) ->
+      Right <$> validateOpaqueDeclaration expectedHash localIds bytes
   where
     expectedHash :: Hash
     expectedHash = Hash32.toHash expectedHash32
@@ -147,6 +150,28 @@ validateTypeAlias expectedHash localIds bytes =
         Just (HH.TypeAliasHashMismatch (HH.HashMismatch {expectedHash, actualHash})) ->
           Just . Share.EntityHashMismatch Share.TypeAliasComponentType $ mismatch expectedHash actualHash
         Just HH.TypeAliasHashResolutionFailure ->
+          Just $ Share.HashResolutionFailure (Hash32.fromHash expectedHash)
+
+validateOpaqueDeclaration ::
+  Hash ->
+  U.Codebase.Sqlite.LocalIds.LocalIds' Text Hash32 ->
+  BS.ByteString ->
+  Maybe Share.EntityValidationError
+validateOpaqueDeclaration expectedHash localIds bytes =
+  case Decode.unsyncOpaqueDeclarationFormat (OpaqueDeclarationFormat.SyncOpaqueDeclaration localIds bytes) of
+    Left decodeErr ->
+      Just
+        ( Share.InvalidByteEncoding
+            (Hash32.fromHash expectedHash)
+            Share.OpaqueDeclarationComponentType
+            (tShow decodeErr)
+        )
+    Right hashFmt ->
+      case HH.verifyOpaqueDeclarationFormatHash v2HashHandle (ComponentHash expectedHash) hashFmt of
+        Nothing -> Nothing
+        Just (HH.OpaqueDeclarationHashMismatch (HH.HashMismatch {expectedHash, actualHash})) ->
+          Just . Share.EntityHashMismatch Share.OpaqueDeclarationComponentType $ mismatch expectedHash actualHash
+        Just HH.OpaqueDeclarationHashResolutionFailure ->
           Just $ Share.HashResolutionFailure (Hash32.fromHash expectedHash)
 
 validateCausal :: Hash32 -> Hash32 -> [Hash32] -> Maybe Share.EntityValidationError

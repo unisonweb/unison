@@ -5,6 +5,7 @@ import U.Codebase.Sqlite.Causal qualified as Causal
 import U.Codebase.Sqlite.Decl.Format qualified as Decl
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds')
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclaration
 import U.Codebase.Sqlite.Patch.Format qualified as Patch
 import U.Codebase.Sqlite.Term.Format qualified as Term
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAlias
@@ -19,6 +20,7 @@ import Unison.Prelude
 --   | P TempPatchFormat
 --   | C TempCausalFormat
 --   | TA TempTypeAliasFormat
+--   | OD TempOpaqueDeclarationFormat
 type TempEntity =
   Entity.SyncEntity' Text Hash32 Hash32 Hash32 Hash32 Hash32 Hash32
 
@@ -39,3 +41,5 @@ type TempNamespaceLocalIds = Namespace.BranchLocalIds' Text Hash32 Hash32 (Hash3
 type TempCausalFormat = Causal.SyncCausalFormat' Hash32 Hash32
 
 type TempTypeAliasFormat = TypeAlias.SyncTypeAliasFormat' Text Hash32
+
+type TempOpaqueDeclarationFormat = OpaqueDeclaration.SyncOpaqueDeclarationFormat' Text Hash32

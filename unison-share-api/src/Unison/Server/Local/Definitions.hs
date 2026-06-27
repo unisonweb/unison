@@ -82,8 +82,8 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   (localNamesOnly, unbiasedPPED) <- namesAtPathFromRootBranchHash codebase shallowRoot $ Path.unabsolute namesRoot
   let pped = PPED.biasTo biases unbiasedPPED
   let nameSearch = makeNameSearch hqLength localNamesOnly
-  (DefinitionResults terms types _typeAliases misses) <- liftIO $ Codebase.runTransaction codebase do
-    definitionsByName codebase nameSearch DontIncludeCycles Names.ExactName (Set.singleton query)
+  (DefinitionResults terms types _typeAliases _opaqueDecls misses) <- liftIO $ Codebase.runTransaction codebase do
+    definitionsByName codebase nameSearch DontIncludeCycles Names.ExactName localNamesOnly (Set.singleton query)
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do

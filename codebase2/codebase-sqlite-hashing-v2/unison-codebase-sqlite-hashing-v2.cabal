@@ -22,6 +22,7 @@ library
       U.Codebase.Branch.Hashing
       U.Codebase.Causal.Hashing
       U.Codebase.Decl.Hashing
+      U.Codebase.OpaqueDeclaration.Hashing
       U.Codebase.Term.Hashing
       U.Codebase.TypeAlias.Hashing
       Unison.Hashing.V2.Convert2

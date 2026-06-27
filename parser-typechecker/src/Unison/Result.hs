@@ -78,6 +78,9 @@ fromParsing (Right a) = pure a
 tellAndFail :: (Monad f) => note -> ResultT (Seq note) f a
 tellAndFail note = tell1 note *> Fail.fail "Elegantly and responsibly"
 
+tellAndFailMany :: (Monad f) => Seq note -> ResultT (Seq note) f a
+tellAndFailMany notes = tell notes *> Fail.fail "Elegantly and responsibly"
+
 compilerBug :: (Monad f) => CompilerBug v loc -> ResultT (Seq (Note v loc)) f a
 compilerBug = tellAndFail . CompilerBug
 

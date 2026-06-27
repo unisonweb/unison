@@ -9,6 +9,7 @@ import U.Codebase.Branch.Hashing qualified as H2
 import U.Codebase.Causal.Hashing qualified as H2
 import U.Codebase.Decl.Hashing qualified as H2
 import U.Codebase.HashTags (BranchHash (..), PatchHash (..))
+import U.Codebase.OpaqueDeclaration.Hashing qualified as H2
 import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
 import U.Codebase.Sqlite.HashHandle
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
@@ -32,7 +33,8 @@ v2HashHandle =
       hashPatchFormatFull,
       verifyTermFormatHash = H2.verifyTermFormatHash,
       verifyDeclFormatHash = H2.verifyDeclFormatHash,
-      verifyTypeAliasFormatHash = H2.verifyTypeAliasFormatHash
+      verifyTypeAliasFormatHash = H2.verifyTypeAliasFormatHash,
+      verifyOpaqueDeclarationFormatHash = H2.verifyOpaqueDeclarationFormatHash
     }
   where
     hashBranchFormatFull localIds localBranch =

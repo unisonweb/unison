@@ -11,6 +11,7 @@ data ObjectType
   | Namespace -- 2
   | Patch -- 3
   | TypeAliasComponent -- 4
+  | OpaqueDeclarationComponent -- 5
   deriving (Eq, Ord, Show, Enum)
 
 instance ToField ObjectType where

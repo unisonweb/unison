@@ -20,12 +20,15 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
+import Unison.OpaqueDeclaration (OpaqueBody (..), OpaqueDeclaration (..))
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
+import Unison.OpaqueDeclaration.Expand qualified as OpaqueDeclaration.Expand
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference
-import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
+import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynOpaqueBody (..), SynOpaqueDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.Parser
@@ -89,8 +92,10 @@ file = do
   let synDecls = maybe id applyNamespaceToSynDecls maybeNamespaceVar unNamespacedSynDecls
 
   -- Make real data/effect decls from the "syntactic" ones, and capture the
-  -- file's type aliases (already cycle-checked, in dependency order).
-  (dataDecls, effectDecls, fileAliases) <- synDeclsToDecls synDecls
+  -- file's type aliases (already cycle-checked, in dependency order) plus
+  -- the file's opaque-type decls (un-hashed; resolved + hashed below once we
+  -- have the alias env).
+  (dataDecls, effectDecls, fileAliases, fileOpaques) <- synDeclsToDecls synDecls
 
   -- Decls and aliases can reference each other but not cyclically. We
   -- hash in two passes around 'environmentFor':
@@ -164,6 +169,104 @@ file = do
           | (v, (rid, _)) <- Map.toList fileAliasesWithHashes
           ]
 
+  -- Convert each parsed @SynOpaqueDecl@ to a core 'OpaqueDeclaration' and
+  -- compute its hash. Opaques may reference file decls, aliases, and other
+  -- opaques in their RHS, so we (a) order them by dependency, (b) accumulate
+  -- each opaque's name into the resolution env as we go, and (c) raise
+  -- 'OpaqueDeclCycle' on self-reference or cross-opaque cycles.
+  let opaquesAsMap :: Map v (SynOpaqueDecl v)
+      opaquesAsMap = Map.fromList fileOpaques
+      -- A stripped-down OpaqueDeclaration carrying just the fields needed
+      -- for dependency ordering. The body is irrelevant — only the RHS
+      -- contributes to type-level deps — and the modifier doesn't matter
+      -- here either.
+      opaquesForOrdering :: Map v (OpaqueDeclaration v Ann)
+      opaquesForOrdering =
+        opaquesAsMap
+          & Map.map \sd ->
+            OpaqueDeclaration
+              { OpaqueDeclaration.modifier = sd.modifier,
+                OpaqueDeclaration.annotation = sd.annotation,
+                OpaqueDeclaration.paramNames = sd.tyvars,
+                OpaqueDeclaration.rhs = sd.rhs,
+                OpaqueDeclaration.body = []
+              }
+  orderedOpaques :: [(v, SynOpaqueDecl v)] <-
+    case OpaqueDeclaration.Expand.inDependencyOrder opaquesForOrdering of
+      Right ordered -> pure [(v, opaquesAsMap Map.! v) | (v, _) <- ordered]
+      Left (OpaqueDeclaration.Expand.OpaqueCycle names) ->
+        let anns =
+              names
+                & Set.toList
+                & mapMaybe (\v -> (\sd -> (v, sd.annotation)) <$> Map.lookup v opaquesAsMap)
+            firstAnn = case anns of
+              ((_, a) : _) -> a
+              _ -> Ann.External
+         in P.customFailure (OpaqueDeclCycle firstAnn (map fst anns))
+
+  let envNamesForOpaquesStart :: Names
+      envNamesForOpaquesStart =
+        Names.shadowing (aliasNamesForDecls <> UF.names env) envNamesAfterPhase1
+  let resolveOpaque ::
+        Names ->
+        SynOpaqueDecl v ->
+        P v m (TypeReferenceId, OpaqueDeclaration v Ann)
+      resolveOpaque accNames sd = do
+        resolvedRhs <-
+          Type.Names.bindNames
+            Name.unsafeParseVar
+            Name.toVar
+            (Set.fromList sd.tyvars)
+            accNames
+            sd.rhs
+            & onLeft \errs -> resolutionFailures (toList errs)
+        -- Prefix each body item's name with the opaque type's (now fully-
+        -- qualified) name so that body fns surface as ordinary top-level
+        -- terms named e.g. @Logarithm.fromFloat@. Substitute through each
+        -- body term so intra-body references (one body fn calling another
+        -- by its short name) target the qualified sibling. This mirrors
+        -- how 'applyNamespaceToStanza' rewrites sibling references in
+        -- ordinary term stanzas.
+        let opaqueName :: v
+            opaqueName = sd.name.payload
+            bodyVarReplacements :: [(v, Term2 v Ann Ann v ())]
+            bodyVarReplacements =
+              [ (b.name, Term.var () (Var.namespaced2 opaqueName b.name))
+              | b <- sd.body
+              ]
+            bodyItems =
+              [ OpaqueBody
+                  { OpaqueDeclaration.name = Var.namespaced2 opaqueName b.name,
+                    OpaqueDeclaration.nameAnn = b.nameAnn,
+                    OpaqueDeclaration.term =
+                      ABT.substsInheritAnnotation bodyVarReplacements b.term
+                  }
+              | b <- sd.body
+              ]
+        let opaque =
+              OpaqueDeclaration
+                { OpaqueDeclaration.modifier = sd.modifier,
+                  OpaqueDeclaration.annotation = sd.annotation,
+                  OpaqueDeclaration.paramNames = sd.tyvars,
+                  OpaqueDeclaration.rhs = resolvedRhs,
+                  OpaqueDeclaration.body = bodyItems
+                }
+        pure (Hashing.hashOpaqueDeclaration opaque, opaque)
+      opaqueStep ::
+        (Names, Map v (TypeReferenceId, OpaqueDeclaration v Ann)) ->
+        (v, SynOpaqueDecl v) ->
+        P v m (Names, Map v (TypeReferenceId, OpaqueDeclaration v Ann))
+      opaqueStep (accNames, acc) (v, sd) = do
+        (refId, resolved) <- resolveOpaque accNames sd
+        let accNames' =
+              Names.fromTermsAndTypes
+                []
+                [(Name.unsafeParseVar v, Reference.DerivedId refId)]
+                <> accNames
+        pure (accNames', Map.insert v (refId, resolved) acc)
+  (_, fileOpaquesWithHashes :: Map v (TypeReferenceId, OpaqueDeclaration v Ann)) <-
+    foldM opaqueStep (envNamesForOpaquesStart, Map.empty) orderedOpaques
+
   -- Generate the record accessors with *un-namespaced* names below, because we need to know these names in order to
   -- perform rewriting. As an example,
   --
@@ -200,10 +303,19 @@ file = do
             Nothing -> id
             Just namespace -> over (mapped . _1) (Var.namespaced2 namespace)
 
+  let opaqueNamesForDecls :: Names
+      opaqueNamesForDecls =
+        Names.fromTermsAndTypes
+          []
+          [ (Name.unsafeParseVar v, Reference.DerivedId rid)
+          | (v, (rid, _)) <- Map.toList fileOpaquesWithHashes
+          ]
+
   -- At this stage of the file parser, we've parsed all the type and ability
-  -- declarations. File-local alias names are visible during term parsing
-  -- so type-position references to them resolve to alias refs.
-  let envNamesWithAliases = aliasNamesForDecls <> UF.names env
+  -- declarations. File-local alias and opaque names are visible during term
+  -- parsing so type-position references to them resolve to alias / opaque
+  -- refs.
+  let envNamesWithAliases = aliasNamesForDecls <> opaqueNamesForDecls <> UF.names env
   let updateEnvForTermParsing e =
         e
           { names = Names.shadowing envNamesWithAliases namesStart,
@@ -241,10 +353,28 @@ file = do
           Binding ((spanningAnn, v), at) -> ((v, spanningAnn, Term.generalizeTypeSignatures at) : terms, watches)
           Bindings bs -> ([(v, spanningAnn, Term.generalizeTypeSignatures at) | ((spanningAnn, v), at) <- bs] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
+        -- Opaque-decl body items surface as ordinary top-level terms during
+        -- typechecking. Their names are already fully qualified (set in
+        -- 'resolveOpaque'), so they slot directly into 'fqLocalTerms' and
+        -- get 'bindNames'-resolved alongside the file's other terms.
+        opaqueBodyTermsByOpaque :: [(v, [(v, Ann, Term v Ann)])]
+        opaqueBodyTermsByOpaque =
+          [ ( opaqueVar,
+              [ (b.name, b.nameAnn, Term.generalizeTypeSignatures b.term)
+              | b <- od.body
+              ]
+            )
+          | (opaqueVar, (_, od)) <- Map.toList fileOpaquesWithHashes
+          ]
+        opaqueBodyTerms :: [(v, Ann, Term v Ann)]
+        opaqueBodyTerms = concatMap snd opaqueBodyTermsByOpaque
         -- All locally declared term variables, running example:
         --   [foo.alice, bar.alice, zonk.bob]
         fqLocalTerms :: [v]
-        fqLocalTerms = (stanzas >>= getVars) <> (view _1 <$> accessors)
+        fqLocalTerms =
+          (stanzas >>= getVars)
+            <> (view _1 <$> accessors)
+            <> (view _1 <$> opaqueBodyTerms)
     let bindNames =
           Term.bindNames
             Name.unsafeParseVar
@@ -257,12 +387,47 @@ file = do
     watches <- case List.validate (traverseOf (traversed . _3) bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
+    -- Resolve free vars in opaque body terms, then write the resolved terms
+    -- back into the OpaqueDeclaration.body lists.
+    boundOpaqueBodyTermsByOpaque ::
+      [(v, [(v, Ann, Term v Ann)])] <-
+      forM opaqueBodyTermsByOpaque \(opaqueVar, bs) -> do
+        bs' <- case List.validate (traverseOf _3 bindNames) bs of
+          Left es -> resolutionFailures (toList es)
+          Right xs -> pure xs
+        pure (opaqueVar, bs')
+    let fileOpaquesWithBoundBodies ::
+          Map v (TypeReferenceId, OpaqueDeclaration v Ann)
+        fileOpaquesWithBoundBodies =
+          List.foldl'
+            ( \acc (opaqueVar, bs) ->
+                Map.adjust
+                  ( \(rid, od) ->
+                      ( rid,
+                        od
+                          { OpaqueDeclaration.body =
+                              [ OpaqueBody
+                                  { OpaqueDeclaration.name = v',
+                                    OpaqueDeclaration.nameAnn = a',
+                                    OpaqueDeclaration.term = tm'
+                                  }
+                              | (v', a', tm') <- bs
+                              ]
+                          }
+                      )
+                  )
+                  opaqueVar
+                  acc
+            )
+            fileOpaquesWithHashes
+            boundOpaqueBodyTermsByOpaque
 
     validateUnisonFile
       maybeAnnotatedNamespace
       (UF.datasId env)
       (UF.effectsId env)
       fileAliasesWithHashes
+      fileOpaquesWithBoundBodies
       (terms <> accessors)
       (List.multimap watches)
 
@@ -309,6 +474,19 @@ applyNamespaceToSynDecls namespace decls =
                 & over #body (ABT.substsInheritAnnotation typeReplacements)
                 & over (#name . mapped) (Var.namespaced2 namespace)
             )
+        SynDecl'Opaque decl ->
+          -- Rewrite the RHS, the decl name, and any type-position references
+          -- inside body item terms. Body-item *name* qualification (prefixing
+          -- each body name with the opaque type's name) and intra-body
+          -- term-level substitution happen unconditionally in the
+          -- 'SynOpaqueDecl' → 'OpaqueDeclaration' conversion below, so we
+          -- skip them here to avoid double-prefixing.
+          SynDecl'Opaque
+            ( decl
+                & over #rhs (ABT.substsInheritAnnotation typeReplacements)
+                & over (#body . mapped . #term) (Term.typeMap (ABT.substsInheritAnnotation typeReplacements))
+                & over (#name . mapped) (Var.namespaced2 namespace)
+            )
     )
     decls
   where
@@ -336,10 +514,11 @@ synDeclsToDecls ::
     m
     ( Map v (DataDeclaration v Ann),
       Map v (EffectDeclaration v Ann),
-      [(v, Unison.TypeAlias.TypeAlias v Ann)]
+      [(v, Unison.TypeAlias.TypeAlias v Ann)],
+      [(v, SynOpaqueDecl v)]
     )
 synDeclsToDecls decls = do
-  let (datasRaw, effectsRaw, aliasesRaw) = partitionDecls decls
+  let (datasRaw, effectsRaw, aliasesRaw, opaquesRaw) = partitionDecls decls
 
   -- Cycle-check aliases and order them so each appears after the aliases
   -- it references — callers downstream resolve and hash in this order.
@@ -368,18 +547,22 @@ synDeclsToDecls decls = do
           | decl <- effectsRaw
           ]
 
-  pure (datas, effects, aliases)
+  pure (datas, effects, aliases, opaquesRaw)
 
--- | Split a parsed decl list into data, effect, and alias maps.
+-- | Split a parsed decl list into data, effect, alias, and opaque parts.
 partitionDecls ::
   (Ord v) =>
   [SynDecl v] ->
-  ([SynDataDecl v], [SynEffectDecl v], Map v (Unison.TypeAlias.TypeAlias v Ann))
-partitionDecls = foldr step ([], [], Map.empty)
+  ( [SynDataDecl v],
+    [SynEffectDecl v],
+    Map v (Unison.TypeAlias.TypeAlias v Ann),
+    [(v, SynOpaqueDecl v)]
+  )
+partitionDecls = foldr step ([], [], Map.empty, [])
   where
-    step (SynDecl'Data d) (ds, es, as) = (d : ds, es, as)
-    step (SynDecl'Effect d) (ds, es, as) = (ds, d : es, as)
-    step (SynDecl'TypeAlias d) (ds, es, as) =
+    step (SynDecl'Data d) (ds, es, as, os) = (d : ds, es, as, os)
+    step (SynDecl'Effect d) (ds, es, as, os) = (ds, d : es, as, os)
+    step (SynDecl'TypeAlias d) (ds, es, as, os) =
       ( ds,
         es,
         Map.insert
@@ -389,8 +572,11 @@ partitionDecls = foldr step ([], [], Map.empty)
                 Unison.TypeAlias.body = d.body
               }
           )
-          as
+          as,
+        os
       )
+    step (SynDecl'Opaque d) (ds, es, as, os) =
+      (ds, es, as, (d.name.payload, d) : os)
 
 applyNamespaceToStanza ::
   forall a v.
@@ -426,11 +612,12 @@ validateUnisonFile ::
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
   Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) ->
+  Map v (TypeReferenceId, OpaqueDeclaration v Ann) ->
   [(v, Ann, Term v Ann)] ->
   Map WatchKind [(v, Ann, Term v Ann)] ->
   P v m (UnisonFile v Ann)
-validateUnisonFile fn datas effects aliases terms watches =
-  checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches
+validateUnisonFile fn datas effects aliases opaques terms watches =
+  checkForDuplicateTermsAndConstructors fn datas effects aliases opaques terms watches
 
 -- | Because types and abilities can introduce their own constructors and fields it's difficult
 -- to detect all duplicate terms during parsing itself. Here we collect all terms and
@@ -442,10 +629,11 @@ checkForDuplicateTermsAndConstructors ::
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
   Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) ->
+  Map v (TypeReferenceId, OpaqueDeclaration v Ann) ->
   [(v, Ann, Term v Ann)] ->
   Map WatchKind [(v, Ann, Term v Ann)] ->
   P v m (UnisonFile v Ann)
-checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches = do
+checkForDuplicateTermsAndConstructors fn datas effects aliases opaques terms watches = do
   when (not . null $ duplicates) $ do
     let dupeList :: [(v, [Ann])]
         dupeList =
@@ -459,6 +647,7 @@ checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches = d
         dataDeclarationsId = datas,
         effectDeclarationsId = effects,
         typeAliasesId = aliases,
+        opaqueDeclarationsId = opaques,
         terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
         watches
       }

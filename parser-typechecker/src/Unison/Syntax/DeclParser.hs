@@ -6,6 +6,8 @@ module Unison.Syntax.DeclParser
     SynDataDecl (..),
     SynEffectDecl (..),
     SynTypeAliasDecl (..),
+    SynOpaqueDecl (..),
+    SynOpaqueBody (..),
   )
 where
 
@@ -26,6 +28,7 @@ import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TermParser
 import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Syntax.Var qualified as Var (namespaced)
+import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Var (Var)
@@ -36,24 +39,28 @@ data SynDecl v
   = SynDecl'Data !(SynDataDecl v)
   | SynDecl'Effect !(SynEffectDecl v)
   | SynDecl'TypeAlias !(SynTypeAliasDecl v)
+  | SynDecl'Opaque !(SynOpaqueDecl v)
 
 instance Annotated (SynDecl v) where
   ann = \case
     SynDecl'Data decl -> decl.annotation
     SynDecl'Effect decl -> decl.annotation
     SynDecl'TypeAlias decl -> decl.annotation
+    SynDecl'Opaque decl -> decl.annotation
 
 synDeclConstructors :: SynDecl v -> [(Ann, v, Type v Ann)]
 synDeclConstructors = \case
   SynDecl'Data decl -> decl.constructors
   SynDecl'Effect decl -> decl.constructors
   SynDecl'TypeAlias _ -> []
+  SynDecl'Opaque _ -> []
 
 synDeclName :: SynDecl v -> L.Token v
 synDeclName = \case
   SynDecl'Data decl -> decl.name
   SynDecl'Effect decl -> decl.name
   SynDecl'TypeAlias decl -> decl.name
+  SynDecl'Opaque decl -> decl.name
 
 data SynDataDecl v = SynDataDecl
   { annotation :: !Ann,
@@ -81,6 +88,30 @@ data SynTypeAliasDecl v = SynTypeAliasDecl
     body :: !(Type v Ann),
     name :: !(L.Token v),
     tyvars :: ![v]
+  }
+  deriving stock (Generic)
+
+-- | A parsed @opaque type@ declaration. The 'rhs' is the underlying type
+-- representation; the 'body' is a list of bindings (each with a name and a
+-- term that may carry an embedded type signature) that get privileged
+-- unification access to the alias @T ≡ rhs@ at typecheck time.
+data SynOpaqueDecl v = SynOpaqueDecl
+  { annotation :: !Ann,
+    modifier :: !DataDeclaration.Modifier,
+    name :: !(L.Token v),
+    tyvars :: ![v],
+    rhs :: !(Type v Ann),
+    body :: ![SynOpaqueBody v]
+  }
+  deriving stock (Generic)
+
+-- | A single body item of an opaque type declaration. The 'term' may carry an
+-- embedded type signature via 'Unison.Term.ann' (when the source supplied
+-- both a signature and a definition).
+data SynOpaqueBody v = SynOpaqueBody
+  { name :: !v,
+    nameAnn :: !Ann,
+    term :: !(Term v Ann)
   }
   deriving stock (Generic)
 
@@ -114,13 +145,20 @@ modifierP = do
 
 synDeclP :: (Monad m, Var v) => P v m (SynDecl v)
 synDeclP = do
+  -- @opaque@ is a leading keyword: @opaque [unique|structural] type T α* = RHS where bs@.
+  -- We peel it off before the standard modifier so the rest of the
+  -- machinery (modifierP, type/ability parsing) can be reused.
+  opaqueKw <- optional (reserved "opaque")
   modifier <- modifierP
-  -- Try @type alias@ first — it shares the @type@ keyword with data decls so
-  -- we wrap in 'P.try' to backtrack cleanly when the @alias@ keyword is
-  -- absent. Aliases don't accept @unique@/@structural@ modifiers.
-  P.try (SynDecl'TypeAlias <$> synTypeAliasDeclP modifier)
-    <|> SynDecl'Effect <$> synEffectDeclP modifier
-    <|> SynDecl'Data <$> synDataDeclP modifier
+  case opaqueKw of
+    Just tok -> SynDecl'Opaque <$> synOpaqueDeclP tok modifier
+    Nothing ->
+      -- Try @type alias@ first — it shares the @type@ keyword with data decls so
+      -- we wrap in 'P.try' to backtrack cleanly when the @alias@ keyword is
+      -- absent. Aliases don't accept @unique@/@structural@ modifiers.
+      P.try (SynDecl'TypeAlias <$> synTypeAliasDeclP modifier)
+        <|> SynDecl'Effect <$> synEffectDeclP modifier
+        <|> SynDecl'Data <$> synDataDeclP modifier
 
 synDataDeclP :: forall m v. (Monad m, Var v) => Maybe (L.Token UnresolvedModifier) -> P v m (SynDataDecl v)
 synDataDeclP modifier0 = do
@@ -227,6 +265,46 @@ aliasContextualKw = queryToken \case
   LU.WordyId (HQ'.NameOnly n)
     | Name.toText n == "alias" -> Just ()
   _ -> Nothing
+
+-- | Parse the rest of an opaque type declaration after the leading
+-- @opaque@ keyword has been consumed.
+--
+-- Layout: when no modifier is supplied, @type@ opens a layout block, and
+-- the trailing @where@ opens another. Both are closed at the end.
+-- When a modifier is supplied, the modifier opens the outer layout and
+-- @type@ is just a keyword (mirroring data/effect decls).
+synOpaqueDeclP ::
+  forall m v.
+  (Monad m, Var v) =>
+  L.Token String ->
+  Maybe (L.Token UnresolvedModifier) ->
+  P v m (SynOpaqueDecl v)
+synOpaqueDeclP opaqueToken modifier0 = do
+  _typeToken <- fmap void (reserved "type") <|> openBlockWith "type"
+  name <- TermParser.verifyRelativeVarName prefixDefinitionName
+  typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
+  let tyvars = L.payload <$> typeArgs
+  _ <- reserved "="
+  rhs <- TypeParser.effectList <|> TypeParser.valueType
+  whereTok <- openBlockWith "where"
+  bodyItems <- sepBy semi opaqueBodyItem
+  _ <- closeBlock -- close "where"
+  _ <- closeBlock -- close outer (modifier or "type")
+  modifier <- resolveModifier name modifier0
+  pure
+    SynOpaqueDecl
+      { annotation = ann opaqueToken <> ann whereTok <> foldMap (ann . (.term)) bodyItems,
+        modifier,
+        name,
+        tyvars,
+        rhs,
+        body = bodyItems
+      }
+  where
+    opaqueBodyItem :: P v m (SynOpaqueBody v)
+    opaqueBodyItem = do
+      ((nameAnn, v), t) <- TermParser.binding
+      pure SynOpaqueBody {name = v, nameAnn, term = t}
 
 synEffectDeclP :: forall m v. (Monad m, Var v) => Maybe (L.Token UnresolvedModifier) -> P v m (SynEffectDecl v)
 synEffectDeclP modifier0 = do

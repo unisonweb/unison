@@ -53,6 +53,11 @@ module Unison.Codebase
     isTypeAlias,
     putTypeAlias,
 
+    -- * Opaque declarations
+    getOpaqueDeclaration,
+    isOpaqueDeclaration,
+    putOpaqueDeclaration,
+
     -- * Branches
     SqliteCodebase.Operations.branchExists,
     getBranchForHash,
@@ -165,6 +170,8 @@ import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
 import Unison.NamesUtils qualified as NamesUtils
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
@@ -352,6 +359,7 @@ installUcmDependencies c = do
             (Map.fromList Builtin.builtinDataDecls)
             (Map.fromList Builtin.builtinEffectDecls)
             mempty
+            mempty
             [Builtin.builtinTermsSrc Parser.Intrinsic]
             mempty
         )
@@ -369,6 +377,12 @@ addDefsToCodebase c uf = do
   traverse_ (goType Right) (UF.dataDeclarationsId' uf)
   traverse_ (goType Left) (UF.effectDeclarationsId' uf)
   traverse_ goAlias (UF.typeAliasesId' uf)
+  -- TODO(opaque): body items are not yet extracted to ordinary term defs
+  -- (Phase 4 work). For now we only persist the opaque decl's own
+  -- (modifier, paramNames, rhs) identity; the @body@ field is stored as an
+  -- empty list and any body fns the parser produced are dropped on the floor
+  -- when reading back from the codebase.
+  traverse_ goOpaque (UF.opaqueDeclarationsId' uf)
   -- put terms
   traverse_ goTerm (UF.hashTermsId uf)
   where
@@ -379,6 +393,8 @@ addDefsToCodebase c uf = do
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
     goAlias :: (Reference.Id, TypeAlias v a) -> Sqlite.Transaction ()
     goAlias (ref, ta) = putTypeAlias c ref ta
+    goOpaque :: (Reference.Id, OpaqueDeclaration v a) -> Sqlite.Transaction ()
+    goOpaque (ref, od) = putOpaqueDeclaration c ref od
 
 getTypeOfConstructor :: (Ord v) => Codebase m v a -> ConstructorReference -> Sqlite.Transaction (Maybe (Type v a))
 getTypeOfConstructor codebase (ConstructorReference r0 cid) =
@@ -447,7 +463,7 @@ typeLookupForDependencies codebase s = do
     goTerm tl ref =
       getTypeOfTerm codebase ref >>= \case
         Just typ ->
-          let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty mempty
+          let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty mempty mempty
            in depthFirstAccumTypes z (Type.dependencies typ)
         Nothing -> pure tl
 
@@ -455,17 +471,22 @@ typeLookupForDependencies codebase s = do
     goType tl ref@(Reference.DerivedId id) =
       getTypeAlias codebase id >>= \case
         Just ta ->
-          let z = tl <> TypeLookup mempty mempty mempty (Map.singleton ref ta)
+          let z = tl <> TypeLookup mempty mempty mempty (Map.singleton ref ta) mempty
            in depthFirstAccumTypes z (Type.dependencies (TypeAlias.body ta))
         Nothing ->
-          getTypeDeclaration codebase id >>= \case
-            Just (Left ed) ->
-              let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed) mempty
-               in depthFirstAccumTypes z (DD.typeDependencies $ DD.toDataDecl ed)
-            Just (Right dd) ->
-              let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty mempty
-               in depthFirstAccumTypes z (DD.typeDependencies dd)
-            Nothing -> pure tl
+          getOpaqueDeclaration codebase id >>= \case
+            Just od ->
+              let z = tl <> TypeLookup mempty mempty mempty mempty (Map.singleton ref od)
+               in depthFirstAccumTypes z (OpaqueDeclaration.rhsDependencies od)
+            Nothing ->
+              getTypeDeclaration codebase id >>= \case
+                Just (Left ed) ->
+                  let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed) mempty mempty
+                   in depthFirstAccumTypes z (DD.typeDependencies $ DD.toDataDecl ed)
+                Just (Right dd) ->
+                  let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty mempty mempty
+                   in depthFirstAccumTypes z (DD.typeDependencies dd)
+                Nothing -> pure tl
     goType tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
     unseen tl r =
@@ -474,6 +495,7 @@ typeLookupForDependencies codebase s = do
             <|> Map.lookup r (TL.typeOfTerms tl) $> ()
             <|> Map.lookup r (TL.effectDecls tl) $> ()
             <|> Map.lookup r (TL.typeAliases tl) $> ()
+            <|> Map.lookup r (TL.opaqueDecls tl) $> ()
         )
 
 -- | Get the type of a term.
@@ -528,8 +550,20 @@ expectTypeOfReferent c r =
 componentReferencesForReference :: Reference -> Sqlite.Transaction (Set Reference)
 componentReferencesForReference = \case
   r@Reference.Builtin {} -> pure (Set.singleton r)
-  Reference.Derived h _i ->
-    Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength h
+  r@(Reference.Derived h _i) -> do
+    -- Type aliases and opaque declarations are stored as single-element
+    -- "components" but with a different on-disk format than term/decl
+    -- components. 'unsafeGetComponentLength' assumes the term/decl framed-array
+    -- layout, so calling it on a type-alias or opaque-decl object yields a
+    -- bogus length (and an enormous iteration). For these two object kinds,
+    -- just return the reference itself.
+    Operations.isTypeAliasReference (Cv.reference1to2 r) >>= \case
+      True -> pure (Set.singleton r)
+      False ->
+        Operations.isOpaqueDeclarationReference (Cv.reference1to2 r) >>= \case
+          True -> pure (Set.singleton r)
+          False ->
+            Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength h
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.

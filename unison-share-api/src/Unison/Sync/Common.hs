@@ -19,6 +19,7 @@ import U.Codebase.Sqlite.Causal qualified as Causal
 import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
@@ -93,6 +94,8 @@ entityToTempEntity toHash32 = \case
         }
   Share.TAC (Share.TypeAliasComponent localIds bytes) ->
     Entity.TA (TypeAliasFormat.SyncTypeAlias (mungeLocalIds localIds) bytes)
+  Share.ODC (Share.OpaqueDeclarationComponent localIds bytes) ->
+    Entity.OD (OpaqueDeclarationFormat.SyncOpaqueDeclaration (mungeLocalIds localIds) bytes)
   where
     mungeLocalIds :: Share.LocalIds Text hash -> TempEntity.TempLocalIds
     mungeLocalIds Share.LocalIds {texts, hashes} =
@@ -201,6 +204,16 @@ tempEntityToEntity = \case
   Entity.TA (TypeAliasFormat.SyncTypeAlias LocalIds {textLookup, defnLookup} bytes) ->
     Share.TAC
       ( Share.TypeAliasComponent
+          ( Share.LocalIds
+              { texts = Vector.toList textLookup,
+                hashes = Vector.toList defnLookup
+              }
+          )
+          bytes
+      )
+  Entity.OD (OpaqueDeclarationFormat.SyncOpaqueDeclaration LocalIds {textLookup, defnLookup} bytes) ->
+    Share.ODC
+      ( Share.OpaqueDeclarationComponent
           ( Share.LocalIds
               { texts = Vector.toList textLookup,
                 hashes = Vector.toList defnLookup

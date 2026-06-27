@@ -37,6 +37,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -47,6 +48,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name (toVar)
@@ -108,7 +110,16 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
       let pped = PPED.makePPED (PPE.hqNamer 10 currentNames) (suffixify currentNames)
       pure (currentNames, pped)
   let pped = PPED.biasTo (mapMaybe HQ.toName (Set.toList query)) unbiasedPPED
-  Backend.DefinitionResults terms types typeAliases misses0 <- do
+  -- Opaque-decl integration: if a query targets a body fn (e.g.
+  -- @Logarithm.fromFloat@), rewrite it to the parent opaque-type name so the
+  -- whole decl is rendered. The "parent" check is the lightweight namespace
+  -- pattern (plan §2.2): we look at @Name.parent@ and ask whether it resolves
+  -- to an opaque type. The original query is preserved in 'originalQuerySet'
+  -- so misses-reporting still matches the user's input.
+  -- TODO(opaque): swap for the strict membership-table lookup once the SQL
+  -- table lands.
+  rewrittenQuery <- Cli.runTransaction $ rewriteOpaqueBodyQueries env.codebase names query
+  Backend.DefinitionResults terms types typeAliases opaqueDecls misses0 <- do
     let nameSearch = NameSearch.makeNameSearch 10 names
     Cli.runTransaction $
       Backend.definitionsByName
@@ -116,13 +127,14 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
         nameSearch
         includeCycles
         Names.IncludeSuffixes
-        query
+        names
+        rewrittenQuery
   -- Removed missed docs that the user didn't ask for from `misses`
   let misses =
         -- Unlikely that both original query list and misses list are both very long, but make a set out of original
         -- query anyway, to replace pathological O(n^2) with O(n log n)
         filter (`Set.member` originalQuerySet) misses0
-  showDefinitions outputLoc (`Set.member` originalQuerySet) pped terms types typeAliases misses
+  showDefinitions outputLoc (`Set.member` originalQuerySet) pped terms types typeAliases opaqueDecls misses
   where
     suffixify =
       case outputLoc of
@@ -147,17 +159,18 @@ showDefinitions ::
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   Map TypeReference (DisplayObject () (TypeAlias Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (OpaqueDeclaration Symbol Ann)) ->
   [HQ.HashQualified Name] ->
   Cli ()
-showDefinitions outputLoc nameInOriginalQuery pped terms types typeAliases misses = do
+showDefinitions outputLoc nameInOriginalQuery pped terms types typeAliases opaqueDecls misses = do
   Cli.Env {codebase, writeSource} <- ask
   outputPath <- getOutputPath
   case outputPath of
-    _ | null terms && null types && null typeAliases -> pure ()
-    Nothing -> renderToConsole nameInOriginalQuery pped terms types typeAliases
+    _ | null terms && null types && null typeAliases && null opaqueDecls -> pure ()
+    Nothing -> renderToConsole nameInOriginalQuery pped terms types typeAliases opaqueDecls
     Just (fp, relToFold) -> do
       mayTF <- use #latestTypecheckedFile
-      numRendered <- renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types typeAliases
+      numRendered <- renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types typeAliases opaqueDecls
 
       when (numRendered > 0) do
         -- We set latestFile to be programmatically generated, if we
@@ -188,11 +201,16 @@ renderCodePretty ::
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   Map TypeReference (DisplayObject () (TypeAlias Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (OpaqueDeclaration Symbol Ann)) ->
   Defns (Set Symbol) (Set Symbol) ->
   -- Result is Nothing if nothing was rendered
   Maybe (Pretty Pretty.ColorText, Int)
-renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types typeAliases excludeNames =
-  let -- Associate each term and type with their best unsuffixified name
+renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types typeAliases opaqueDecls excludeNames =
+  let -- Associate each term and type with their best unsuffixified name.
+      -- Body fns of opaque decls in 'opaqueDecls' are bundled into the
+      -- 'prettyOpaqueDecl' output below; they are not added to 'terms' by
+      -- the upstream query path (we always view the parent decl, not a
+      -- body fn, courtesy of 'rewriteOpaqueBodyQueries').
       namedTerms :: Map (HQ.HashQualified Name) (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann))
       namedTerms =
         nameTerms pped.unsuffixifiedPPE excludeNames.terms terms
@@ -316,6 +334,21 @@ renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types typeAl
             DisplayObject.BuiltinObject {} -> mempty
             DisplayObject.MissingObject _ -> mempty
 
+      namedOpaqueDecls :: Map (HQ.HashQualified Name) (TypeReference, DisplayObject () (OpaqueDeclaration Symbol Ann))
+      namedOpaqueDecls =
+        nameTypes pped.unsuffixifiedPPE excludeNames.types opaqueDecls
+
+      prettyOpaqueDecls :: [Pretty SyntaxText]
+      prettyOpaqueDecls =
+        namedOpaqueDecls
+          & Map.toList
+          & List.sortBy (\(n0, _) (n1, _) -> Name.compareAlphabetical n0 n1)
+          & map \(name, (_ref, displayObj)) -> case displayObj of
+            DisplayObject.UserObject od ->
+              DeclPrinter.prettyOpaqueDecl pped DeclPrinter.RenderUniqueTypeGuids'No name od
+            DisplayObject.BuiltinObject {} -> mempty
+            DisplayObject.MissingObject _ -> mempty
+
       prettyTerms :: [Pretty SyntaxText]
       prettyTerms =
         termsWithMaybeDocs1
@@ -324,8 +357,12 @@ renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types typeAl
           & map \(name, ((ref, term), maybeDoc)) ->
             maybe mempty (<> Pretty.newline) maybeDoc
               <> Pretty.prettyTerm pped isSourceFile (maybe False isTest (Reference.toId ref)) (name, ref, term)
-   in NEL.nonEmpty (prettyTypes ++ prettyTypeAliases ++ prettyTerms)
-        $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTypeAliases ++ prettyTerms)), length prettyTerms + length prettyTypes + length prettyTypeAliases)
+
+      pieces = prettyTypes ++ prettyTypeAliases ++ prettyOpaqueDecls ++ prettyTerms
+   in NEL.nonEmpty pieces
+        $> ( Pretty.syntaxToColor (Pretty.sep "\n\n" pieces),
+             length prettyTerms + length prettyTypes + length prettyTypeAliases + length prettyOpaqueDecls
+           )
 
 renderToConsole ::
   (HQ.HashQualified Name -> Bool) ->
@@ -333,8 +370,9 @@ renderToConsole ::
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   Map TypeReference (DisplayObject () (TypeAlias Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (OpaqueDeclaration Symbol Ann)) ->
   Cli ()
-renderToConsole nameInOriginalQuery pped terms types typeAliases = do
+renderToConsole nameInOriginalQuery pped terms types typeAliases opaqueDecls = do
   -- If we're writing to console we don't add test-watch syntax
   let isTest _ = False
   let isSourceFile = False
@@ -349,6 +387,7 @@ renderToConsole nameInOriginalQuery pped terms types typeAliases = do
             terms
             types
             typeAliases
+            opaqueDecls
             (Defns Set.empty Set.empty)
   Cli.respond $ DisplayDefinitions (fromMaybe mempty renderedCodePretty)
 
@@ -367,8 +406,9 @@ renderToFile ::
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
   Map TypeReference (DisplayObject () (TypeAlias Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (OpaqueDeclaration Symbol Ann)) ->
   (m Int)
-renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types typeAliases = do
+renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types typeAliases opaqueDecls = do
   -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
   -- already bound in the file
   let excludeNames =
@@ -386,9 +426,10 @@ renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped te
                           _ -> Set.empty
                     boundDataDeclNames = Map.keysSet unisonFile.dataDeclarationsId
                     boundEffectDeclNames = Map.keysSet unisonFile.effectDeclarationsId
+                    boundOpaqueDeclNames = Map.keysSet unisonFile.opaqueDeclarationsId
                  in Defns
                       { terms = boundTermNames <> boundTestWatchNames,
-                        types = boundDataDeclNames <> boundEffectDeclNames
+                        types = boundDataDeclNames <> boundEffectDeclNames <> boundOpaqueDeclNames
                       }
               Just (Right typecheckedUnisonFile) -> UnisonFile.namespaceBindings typecheckedUnisonFile
 
@@ -401,7 +442,7 @@ renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped te
         (Map.keysSet terms & Set.mapMaybe Reference.toId)
   let isTest r = Set.member r testRefs
   let isSourceFile = True
-  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types typeAliases excludeNames
+  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types typeAliases opaqueDecls excludeNames
   case mayRenderedCodePretty of
     Just (renderedCodePretty, numRendered) -> do
       let (renderedCodeText) = Pretty.toPlain 80 renderedCodePretty
@@ -432,6 +473,47 @@ nameTypes ::
 nameTypes ppe =
   nameDefns (PPE.typeName ppe)
 
+-- | Rewrite each query name whose parent is an opaque type to refer to the
+-- parent opaque type instead. For example, @view Logarithm.fromFloat@ becomes
+-- @view Logarithm@, so the renderer can pull the whole opaque decl.
+--
+-- This implements the lightweight (namespace-pattern) membership lookup from
+-- plan §2.2: split a fully-qualified term name on its last segment; if the
+-- prefix resolves to an opaque type ref, dispatch to that. The strict
+-- alternative is a SQL @opaque_body_membership@ table consulted via a new
+-- query; see TODO(opaque) at the call sites.
+rewriteOpaqueBodyQueries ::
+  Codebase IO Symbol Ann ->
+  Names.Names ->
+  Set (HQ.HashQualified Name) ->
+  Sqlite.Transaction (Set (HQ.HashQualified Name))
+rewriteOpaqueBodyQueries codebase names0 query = do
+  Foldable.foldlM step Set.empty query
+  where
+    step acc hq = do
+      replacement <- rewriteOne hq
+      pure (Set.insert replacement acc)
+
+    rewriteOne :: HQ.HashQualified Name -> Sqlite.Transaction (HQ.HashQualified Name)
+    rewriteOne hq = case HQ.toName hq of
+      Nothing -> pure hq
+      Just name -> case Name.parent name of
+        Nothing -> pure hq
+        Just parent -> do
+          -- Look up the parent in the namespace as a type. If any of its type
+          -- refs is an opaque decl, rewrite the query.
+          let parentTypeRefs = Set.toList (Names.typesNamed names0 parent)
+          isOpaque <- anyIsOpaque parentTypeRefs
+          pure (if isOpaque then HQ.NameOnly parent else hq)
+
+    anyIsOpaque :: [TypeReference] -> Sqlite.Transaction Bool
+    anyIsOpaque [] = pure False
+    anyIsOpaque (r : rs) = do
+      yes <- Codebase.isOpaqueDeclaration codebase r
+      if yes then pure True else anyIsOpaque rs
+
+-- | @nameTypes ppe excludeNames types@ keys each type in @types@ by its best name in @ppe@, but types whose best name
+-- is in the set @exclude@ are thrown away.
 nameDefns ::
   forall defn ref.
   (ref -> HQ.HashQualified Name) ->

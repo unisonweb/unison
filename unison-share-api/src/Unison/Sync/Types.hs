@@ -16,6 +16,7 @@ module Unison.Sync.Types
     TermComponent (..),
     DeclComponent (..),
     TypeAliasComponent (..),
+    OpaqueDeclarationComponent (..),
     Patch (..),
     PatchDiff (..),
     Namespace (..),
@@ -142,6 +143,7 @@ data Entity text noSyncHash hash
   | ND (NamespaceDiff text hash)
   | C (Causal hash)
   | TAC (TypeAliasComponent text hash)
+  | ODC (OpaqueDeclarationComponent text hash)
   deriving stock (Show, Eq, Ord)
 
 instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text noSyncHash hash) where
@@ -154,6 +156,7 @@ instance (ToJSON text, ToJSON noSyncHash, ToJSON hash) => ToJSON (Entity text no
     ND ns -> go NamespaceDiffType ns
     C causal -> go CausalType causal
     TAC tac -> go TypeAliasComponentType tac
+    ODC odc -> go OpaqueDeclarationComponentType odc
     where
       go :: (ToJSON a) => EntityType -> a -> Aeson.Value
       go typ obj = object ["type" .= typ, "object" .= obj]
@@ -169,6 +172,7 @@ instance (FromJSON text, FromJSON noSyncHash, FromJSON hash, Ord hash) => FromJS
       NamespaceDiffType -> ND <$> obj .: "object"
       CausalType -> C <$> obj .: "object"
       TypeAliasComponentType -> TAC <$> obj .: "object"
+      OpaqueDeclarationComponentType -> ODC <$> obj .: "object"
 
 entityHashes_ :: (Applicative m, Ord hash') => (hash -> m hash') -> Entity text noSyncHash hash -> m (Entity text noSyncHash hash')
 entityHashes_ f = \case
@@ -180,6 +184,7 @@ entityHashes_ f = \case
   ND ns -> ND <$> namespaceDiffHashes_ f ns
   C causal -> C <$> causalHashes_ f causal
   TAC tac -> TAC <$> bitraverse pure f tac
+  ODC odc -> ODC <$> bitraverse pure f odc
 
 -- | Get the direct dependencies of an entity (which are actually sync'd).
 entityDependencies :: (Ord hash) => Entity text noSyncHash hash -> Set hash
@@ -290,6 +295,38 @@ instance (FromJSON text, FromJSON hash) => FromJSON (TypeAliasComponent text has
         (localIds, bytes) <- decodeComponentPiece piece
         pure (TypeAliasComponent localIds bytes)
       _ -> fail "TypeAliasComponent: expected exactly one entry"
+
+-- | An opaque declaration on the wire — a single (LocalIds, body bytes) pair,
+-- not a component, since opaque decls are non-recursive (the LHS cannot appear
+-- in the RHS). The JSON shape mirrors 'TypeAliasComponent' (a single-element
+-- list under @"opaque_declarations"@) for consistency.
+data OpaqueDeclarationComponent text hash = OpaqueDeclarationComponent (LocalIds text hash) ByteString
+  deriving stock (Show, Eq, Functor, Ord)
+
+instance Bifoldable OpaqueDeclarationComponent where
+  bifoldMap = bifoldMapDefault
+
+instance Bifunctor OpaqueDeclarationComponent where
+  bimap = bimapDefault
+
+instance Bitraversable OpaqueDeclarationComponent where
+  bitraverse f g (OpaqueDeclarationComponent localIds bytes) =
+    (\lids -> OpaqueDeclarationComponent lids bytes) <$> bitraverse f g localIds
+
+instance (ToJSON text, ToJSON hash) => ToJSON (OpaqueDeclarationComponent text hash) where
+  toJSON (OpaqueDeclarationComponent localIds bytes) =
+    object
+      [ "opaque_declarations" .= [encodeComponentPiece (localIds, bytes)]
+      ]
+
+instance (FromJSON text, FromJSON hash) => FromJSON (OpaqueDeclarationComponent text hash) where
+  parseJSON = Aeson.withObject "OpaqueDeclarationComponent" \obj -> do
+    pieces <- obj .: "opaque_declarations"
+    case pieces of
+      [piece] -> do
+        (localIds, bytes) <- decodeComponentPiece piece
+        pure (OpaqueDeclarationComponent localIds bytes)
+      _ -> fail "OpaqueDeclarationComponent: expected exactly one entry"
 
 data LocalIds text hash = LocalIds
   { texts :: [text],
@@ -507,6 +544,7 @@ data EntityType
   | NamespaceDiffType
   | CausalType
   | TypeAliasComponentType
+  | OpaqueDeclarationComponentType
   deriving stock (Eq, Ord, Show)
 
 instance Serialise EntityType where
@@ -519,6 +557,7 @@ instance Serialise EntityType where
     NamespaceDiffType -> CBOR.encodeWord8 5
     CausalType -> CBOR.encodeWord8 6
     TypeAliasComponentType -> CBOR.encodeWord8 7
+    OpaqueDeclarationComponentType -> CBOR.encodeWord8 8
   decode = do
     tag <- CBOR.decodeWord8
     case tag of
@@ -530,6 +569,7 @@ instance Serialise EntityType where
       5 -> pure NamespaceDiffType
       6 -> pure CausalType
       7 -> pure TypeAliasComponentType
+      8 -> pure OpaqueDeclarationComponentType
       _ -> fail "invalid tag"
 
 instance ToJSON EntityType where
@@ -543,6 +583,7 @@ instance ToJSON EntityType where
       NamespaceDiffType -> "namespace_diff"
       CausalType -> "causal"
       TypeAliasComponentType -> "type_alias_component"
+      OpaqueDeclarationComponentType -> "opaque_declaration_component"
 
 instance FromJSON EntityType where
   parseJSON = Aeson.withText "EntityType" \case
@@ -554,6 +595,7 @@ instance FromJSON EntityType where
     "namespace_diff" -> pure NamespaceDiffType
     "causal" -> pure CausalType
     "type_alias_component" -> pure TypeAliasComponentType
+    "opaque_declaration_component" -> pure OpaqueDeclarationComponentType
     t -> failText $ "Unexpected entity type: " <> t
 
 ------------------------------------------------------------------------------------------------------------------------

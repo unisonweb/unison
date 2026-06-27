@@ -45,6 +45,8 @@ library
       Unison.Names.ResolvesTo
       Unison.NamesUtils
       Unison.NamesWithHistory
+      Unison.OpaqueDeclaration
+      Unison.OpaqueDeclaration.Expand
       Unison.PartialDeclNameLookup
       Unison.Pattern
       Unison.Position

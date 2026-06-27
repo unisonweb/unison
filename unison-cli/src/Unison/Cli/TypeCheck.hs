@@ -44,12 +44,15 @@ typecheckTerm ::
     )
 typecheckTerm codebase tm = do
   let v = Symbol 0 (Var.Inference Var.Other)
-  let file = UF.UnisonFileId Nothing mempty mempty mempty (Map.singleton v (External, tm)) mempty
+  let file = UF.UnisonFileId Nothing mempty mempty mempty mempty (Map.singleton v (External, tm)) mempty
   typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   let typecheckingEnv =
         Typechecker.Env
           { ambientAbilities = [],
             typeLookup,
+            scopedAliases = Map.empty,
+            bodyFnScope = Map.empty,
+            opaqueDeclarations = Map.empty,
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,

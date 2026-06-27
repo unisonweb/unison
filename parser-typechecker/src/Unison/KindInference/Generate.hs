@@ -5,6 +5,7 @@ module Unison.KindInference.Generate
     termConstraints,
     declComponentConstraints,
     aliasComponentConstraints,
+    opaqueComponentConstraints,
     builtinConstraints,
   )
 where
@@ -25,6 +26,8 @@ import Unison.KindInference.Constraint.Provenance qualified as Provenance
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
 import Unison.KindInference.Generate.Monad (Gen, GenError (..), GeneratedConstraint, freshVar, lookupType, popType, pushType, scopedType)
 import Unison.KindInference.UVar (UVar)
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
@@ -269,6 +272,66 @@ aliasComponentConstraintTree aliases = do
     -- Drop the parameter var registrations now that we're done with the body.
     for_ paramKinds \(_, varTyp) -> popType varTyp
     pure $ StrictOrder bodyAtStar unify
+
+-- | Generate kind constraints for a batch of opaque type declarations.
+-- The opaque type's RHS is treated as having kind @*@ with the opaque's
+-- parameters as free type variables. The opaque ref is registered with
+-- kind @k_p1 -> ... -> k_pN -> *@ where N is the arity and each @k_pi@
+-- is the inferred kind of the corresponding parameter.
+--
+-- This mirrors 'aliasComponentConstraints' exactly: kinds are scope-free
+-- (an opaque type has the same kind whether the alias rule is active or
+-- not), so we only operate on the RHS. Body functions are typechecked as
+-- ordinary terms elsewhere; their kind annotations are checked by
+-- 'kindCheckAnnotations'.
+--
+-- Opaques are processed all at once. Inter-opaque references are
+-- resolvable because the constraint solver sees them all in one batch.
+-- Parse-time cycle checks ('OpaqueDeclaration.Expand.inDependencyOrder')
+-- ensure no opaque references itself.
+opaqueComponentConstraints ::
+  forall v loc.
+  (Var v, Ord loc) =>
+  [(Reference, OpaqueDeclaration v loc)] ->
+  Gen v loc [GeneratedConstraint v loc]
+opaqueComponentConstraints opaques = flatten bottomUp <$> opaqueComponentConstraintTree opaques
+
+opaqueComponentConstraintTree ::
+  forall v loc.
+  (Var v, Ord loc) =>
+  [(Reference, OpaqueDeclaration v loc)] ->
+  Gen v loc (ConstraintTree v loc)
+opaqueComponentConstraintTree opaques = do
+  -- Register each opaque ref with a fresh kind variable.
+  prepared <- for opaques \(ref, od) -> do
+    let rhs = OpaqueDeclaration.rhs od
+    let rhsAnn = ABT.annotation rhs
+    opaqueKind <- pushType (Type.ref rhsAnn ref)
+    pure (ref, od, opaqueKind, rhsAnn)
+  Node <$> for prepared \(_ref, od, opaqueKind, rhsAnn) -> do
+    let rhs = OpaqueDeclaration.rhs od
+    -- Register each opaque parameter with a fresh kind variable.
+    paramKinds <- for (OpaqueDeclaration.paramNames od) \v -> do
+      let varTyp = Type.var rhsAnn v
+      k <- pushType varTyp
+      pure (k, varTyp)
+    -- Generate RHS constraints with the RHS required to have kind *.
+    rhsKind <- freshVar rhs
+    rhsConstraints <- typeConstraintTree rhsKind rhs
+    let rhsAtStar = ParentConstraint (IsType rhsKind (Provenance DeclDefinition rhsAnn)) rhsConstraints
+    -- Chain the opaque kind: opaqueKind = paramKind1 -> ... -> paramKindN -> rhsKind.
+    opaqueChainConstraints <-
+      let phi (currentKind, cts) (paramKind, _) = do
+            v <- freshVar rhs
+            let cts' = Constraint (IsArr currentKind (Provenance DeclDefinition rhsAnn) paramKind v) cts
+            pure (v, cts')
+       in foldlM phi (opaqueKind, Node []) paramKinds
+    let (fullyAppliedKind, declConstraints) = opaqueChainConstraints
+    -- Unify the fully applied opaque kind with the RHS's kind (both *).
+    let unify = Constraint (Unify (Provenance DeclDefinition rhsAnn) fullyAppliedKind rhsKind) declConstraints
+    -- Drop the parameter var registrations now that we're done with the RHS.
+    for_ paramKinds \(_, varTyp) -> popType varTyp
+    pure $ StrictOrder rhsAtStar unify
 
 declComponentConstraintTree ::
   forall v loc.

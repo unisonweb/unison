@@ -17,6 +17,7 @@ module Unison.KindInference
   ( inferDecls,
     inferDeclsFromState,
     inferAliases,
+    inferOpaques,
     kindCheckAnnotations,
     initialState,
     kindEnv,
@@ -31,9 +32,10 @@ import Data.List.NonEmpty qualified as Nel
 import Data.Map.Strict qualified as Map
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.DataDeclaration
-import Unison.KindInference.Generate (aliasComponentConstraints, declComponentConstraints, termConstraints)
+import Unison.KindInference.Generate (aliasComponentConstraints, declComponentConstraints, opaqueComponentConstraints, termConstraints)
 import Unison.KindInference.Solve (KindError (..), defaultUnconstrainedVars, initialState, step, verify)
 import Unison.KindInference.Solve.Monad (Env (..), SolveState, runGen, runSolve)
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
 import Unison.Reference
@@ -126,4 +128,32 @@ inferAliases ppe st0 aliasMap
           aliases = Map.toList aliasMap
        in do
             (cs, st) <- mapLeft (Nel.singleton . SolveError) $ runSolve env st0 (runGen $ aliasComponentConstraints aliases)
+            step env st cs
+
+-- | Extend an existing 'SolveState' with kind info for the given opaque
+-- type declarations. Opaques are processed in a single batch — the
+-- constraint solver handles inter-opaque references inside the batch the
+-- same way 'inferAliases' handles them for aliases. By construction
+-- (parse-time cycle check in 'OpaqueDeclaration.Expand.inDependencyOrder')
+-- an opaque cannot reference itself in its RHS, so no SCC pass is needed
+-- here. Opaques may reference decls and aliases already in the
+-- 'SolveState'.
+--
+-- TODO(opaque): v1 does not support decls/aliases referencing opaques in
+-- their bodies (the reverse direction). That would need an additional
+-- two-phase split symmetric to the decl/alias case.
+inferOpaques ::
+  forall v loc.
+  (Var.Var v, BuiltinAnnotation loc, Ord loc, Show loc) =>
+  PrettyPrintEnv.PrettyPrintEnv ->
+  SolveState v loc ->
+  Map Reference (OpaqueDeclaration v loc) ->
+  Either (NonEmpty (KindError v loc)) (SolveState v loc)
+inferOpaques ppe st0 opaqueMap
+  | Map.null opaqueMap = Right st0
+  | otherwise =
+      let env = Env ppe
+          opaques = Map.toList opaqueMap
+       in do
+            (cs, st) <- mapLeft (Nel.singleton . SolveError) $ runSolve env st0 (runGen $ opaqueComponentConstraints opaques)
             step env st cs

@@ -101,4 +101,8 @@ handleEditDependents name = do
       pure (ppe, types, terms)
 
   let misses = []
-  showDefinitions (LatestFileLocation WithinFold) (const True) ppe terms types mempty misses
+  -- TODO(opaque): also pull opaque decls from the dependents set. For now
+  -- pass an empty map so the build typechecks; the regular 'edit'/'view'
+  -- paths in 'ShowDefinition' handle opaque decls fully via
+  -- 'definitionsByName'.
+  showDefinitions (LatestFileLocation WithinFold) (const True) ppe terms types mempty mempty misses

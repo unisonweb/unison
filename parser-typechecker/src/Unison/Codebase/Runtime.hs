@@ -181,6 +181,7 @@ evaluateTerm' codeLookup cache ppe prof rt tm = do
               mempty
               mempty
               mempty
+              mempty
               [(WK.RegularWatch, [(Var.nameds "result", mempty, tm, mempty <$> mainType rt)])]
       r <- evaluateWatches (void codeLookup) ppe prof cache rt (void tuf)
       pure $
