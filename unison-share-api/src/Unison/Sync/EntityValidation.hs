@@ -20,12 +20,12 @@ import U.Codebase.Sqlite.Decode qualified as Decode
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle qualified as HH
 import U.Codebase.Sqlite.LocalIds qualified
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.Orphans ()
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Serialization qualified as Serialization
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
-import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Hash (Hash)

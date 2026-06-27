@@ -76,6 +76,7 @@ import U.Codebase.Decl (Modifier)
 import U.Codebase.Decl qualified as Decl
 import U.Codebase.Kind (Kind)
 import U.Codebase.Kind qualified as Kind
+import U.Codebase.OpaqueDeclaration qualified as OpaqueDeclaration
 import U.Codebase.Reference (Reference' (ReferenceBuiltin, ReferenceDerived))
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
@@ -88,6 +89,7 @@ import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.Patch.Diff qualified as PatchDiff
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Patch.Full qualified as PatchFull
@@ -97,9 +99,7 @@ import U.Codebase.Sqlite.Symbol (Symbol (..))
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.TempEntity qualified as TempEntity
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
-import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
-import U.Codebase.OpaqueDeclaration qualified as OpaqueDeclaration
 import U.Codebase.Term qualified as Term
 import U.Codebase.Type qualified as Type
 import U.Codebase.TypeAlias qualified as TypeAlias

@@ -33,14 +33,14 @@ import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.TypeAlias (TypeAlias)
-import Unison.TypeAlias qualified as TypeAlias
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseText, unsafeParseVar)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
+import Unison.TypeAlias (TypeAlias)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)

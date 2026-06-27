@@ -18,11 +18,11 @@ import U.Codebase.Reference qualified as C
 import U.Codebase.Sqlite.Branch.Format (HashBranchLocalIds)
 import U.Codebase.Sqlite.Branch.Full (LocalBranch)
 import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.Patch.Format (HashPatchLocalIds)
 import U.Codebase.Sqlite.Patch.Full (LocalPatch)
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
-import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type

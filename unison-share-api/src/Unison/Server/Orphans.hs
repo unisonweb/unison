@@ -28,10 +28,10 @@ import U.Codebase.Sqlite.Causal qualified as SqliteCausal
 import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
-import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Util.Base32Hex (Base32Hex (..))
 import Unison.Codebase.Editor.DisplayObject

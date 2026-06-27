@@ -41,6 +41,7 @@ import Unison.Kind qualified as Memory.Kind
 import Unison.NameSegment qualified as Memory (NameSegment)
 import Unison.NameSegment.Internal qualified as Memory.NameSegment
 import Unison.Names.ResolutionResult (ResolutionResult)
+import Unison.OpaqueDeclaration qualified as Memory.OpaqueDeclaration
 import Unison.Pattern qualified as Memory.Pattern
 import Unison.Prelude
 import Unison.Reference qualified as Memory.Reference
@@ -48,7 +49,6 @@ import Unison.Referent qualified as Memory.Referent
 import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Term qualified as Memory.Term
 import Unison.Type qualified as Memory.Type
-import Unison.OpaqueDeclaration qualified as Memory.OpaqueDeclaration
 import Unison.TypeAlias qualified as Memory.TypeAlias
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation

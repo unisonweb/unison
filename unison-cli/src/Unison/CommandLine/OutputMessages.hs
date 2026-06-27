@@ -107,6 +107,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -158,7 +159,6 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
-import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)

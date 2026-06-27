@@ -144,6 +144,8 @@ import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
+import Unison.OpaqueDeclaration (OpaqueBody (..), OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -182,8 +184,6 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
-import Unison.OpaqueDeclaration (OpaqueBody (..), OpaqueDeclaration)
-import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.TypeAlias (TypeAlias)
 import Unison.Typechecker qualified as Typechecker
 import Unison.Util.AnnotatedText (AnnotatedText)

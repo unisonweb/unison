@@ -37,6 +37,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -47,7 +48,6 @@ import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
-import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter

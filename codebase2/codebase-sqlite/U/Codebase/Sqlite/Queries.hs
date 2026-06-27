@@ -374,6 +374,7 @@ import U.Codebase.HashTags
     HistoryCommentRevisionHash (..),
     PatchHash (..),
   )
+import U.Codebase.OpaqueDeclaration qualified as C.OpaqueDeclaration
 import U.Codebase.Reference (Reference' (..))
 import U.Codebase.Reference qualified as C (Reference)
 import U.Codebase.Reference qualified as C.Reference
@@ -417,6 +418,8 @@ import U.Codebase.Sqlite.LocalIds
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, OpaqueDeclarationComponent, Patch, TermComponent, TypeAliasComponent))
 import U.Codebase.Sqlite.ObjectType qualified as ObjectType
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as S.OpaqueDeclaration
 import U.Codebase.Sqlite.Orphans ()
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Project (Project (..))
@@ -435,11 +438,8 @@ import U.Codebase.Sqlite.TempEntityType (TempEntityType)
 import U.Codebase.Sqlite.TempEntityType qualified as TempEntityType
 import U.Codebase.Sqlite.Term.Format qualified as S.Term
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
-import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as S.OpaqueDeclaration
-import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.TypeAlias.Format qualified as S.TypeAlias
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
-import U.Codebase.OpaqueDeclaration qualified as C.OpaqueDeclaration
 import U.Codebase.Term qualified as C
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type

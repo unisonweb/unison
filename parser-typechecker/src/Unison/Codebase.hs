@@ -170,6 +170,8 @@ import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
 import Unison.NamesUtils qualified as NamesUtils
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
@@ -185,8 +187,6 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
-import Unison.OpaqueDeclaration (OpaqueDeclaration)
-import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.TypeAlias (TypeAlias)
 import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))

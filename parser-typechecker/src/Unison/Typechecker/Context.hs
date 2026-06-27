@@ -88,6 +88,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.KindInference qualified as KindInference
 import Unison.Name (Name)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
@@ -103,7 +104,6 @@ import Unison.Referent (Referent)
 import Unison.Syntax.TypePrinter qualified as TP
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
-import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker.Components (minimize')
 import Unison.Typechecker.Context.Structure hiding

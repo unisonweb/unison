@@ -26,13 +26,13 @@ import Unison.KindInference.Constraint.Provenance qualified as Provenance
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
 import Unison.KindInference.Generate.Monad (Gen, GenError (..), GeneratedConstraint, freshVar, lookupType, popType, pushType, scopedType)
 import Unison.KindInference.UVar (UVar)
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
-import Unison.OpaqueDeclaration (OpaqueDeclaration)
-import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.TypeAlias (TypeAlias)
 import Unison.TypeAlias qualified as TypeAlias
 import Unison.Util.Recursion

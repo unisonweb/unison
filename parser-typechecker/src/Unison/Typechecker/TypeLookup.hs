@@ -5,12 +5,12 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import Unison.DataDeclaration qualified as DD
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Prelude
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.OpaqueDeclaration (OpaqueDeclaration)
-import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
 import Unison.Type (Type)
 import Unison.TypeAlias (TypeAlias)
 import Unison.TypeAlias qualified as TypeAlias

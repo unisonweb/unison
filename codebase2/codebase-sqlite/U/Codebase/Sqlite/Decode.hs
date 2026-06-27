@@ -53,12 +53,12 @@ import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Sqlite.Branch.Format qualified as NamespaceFormat
 import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds)
+import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.TempEntity qualified as TempEntity
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
-import U.Codebase.Sqlite.OpaqueDeclaration.Format qualified as OpaqueDeclarationFormat
 import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Util.Serialization (Get)
 import U.Util.Serialization qualified as Serialization (lengthFramedArray)

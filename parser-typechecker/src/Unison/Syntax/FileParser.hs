@@ -20,14 +20,14 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
+import Unison.OpaqueDeclaration (OpaqueBody (..), OpaqueDeclaration (..))
+import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
+import Unison.OpaqueDeclaration.Expand qualified as OpaqueDeclaration.Expand
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference
-import Unison.OpaqueDeclaration (OpaqueBody (..), OpaqueDeclaration (..))
-import Unison.OpaqueDeclaration qualified as OpaqueDeclaration
-import Unison.OpaqueDeclaration.Expand qualified as OpaqueDeclaration.Expand
 import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynOpaqueBody (..), SynOpaqueDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)

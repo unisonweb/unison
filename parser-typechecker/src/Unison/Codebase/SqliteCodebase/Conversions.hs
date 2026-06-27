@@ -9,6 +9,7 @@ import U.Codebase.Causal qualified as V2
 import U.Codebase.Decl qualified as V2.Decl
 import U.Codebase.HashTags
 import U.Codebase.Kind qualified as V2.Kind
+import U.Codebase.OpaqueDeclaration qualified as V2.OpaqueDeclaration
 import U.Codebase.Reference qualified as V2
 import U.Codebase.Reference qualified as V2.Reference
 import U.Codebase.Referent qualified as V2
@@ -17,7 +18,6 @@ import U.Codebase.Sqlite.Symbol qualified as V2
 import U.Codebase.Term qualified as V2.Term
 import U.Codebase.TermEdit qualified as V2.TermEdit
 import U.Codebase.Type qualified as V2.Type
-import U.Codebase.OpaqueDeclaration qualified as V2.OpaqueDeclaration
 import U.Codebase.TypeAlias qualified as V2.TypeAlias
 import U.Codebase.TypeEdit qualified as V2.TypeEdit
 import U.Codebase.WatchKind qualified as V2
@@ -40,6 +40,7 @@ import Unison.Hash qualified as Hash
 import Unison.Hash qualified as V1
 import Unison.Kind qualified as V1.Kind
 import Unison.NameSegment (NameSegment)
+import Unison.OpaqueDeclaration qualified as V1.OpaqueDeclaration
 import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.OrBuiltin qualified as OrBuiltin
 import Unison.Parser.Ann (Ann)
@@ -55,7 +56,6 @@ import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol qualified as V1
 import Unison.Term qualified as V1.Term
 import Unison.Type qualified as V1.Type
-import Unison.OpaqueDeclaration qualified as V1.OpaqueDeclaration
 import Unison.TypeAlias qualified as V1.TypeAlias
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation

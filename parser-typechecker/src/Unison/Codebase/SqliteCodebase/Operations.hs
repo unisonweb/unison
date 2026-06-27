@@ -43,6 +43,7 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -60,7 +61,6 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
-import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.TypeAlias (TypeAlias)
 import Unison.TypeEntry (TypeEntry)
 import Unison.TypeEntry qualified as TypeEntry

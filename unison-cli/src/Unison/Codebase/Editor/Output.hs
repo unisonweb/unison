@@ -71,6 +71,7 @@ import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
+import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -92,7 +93,6 @@ import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.OpaqueDeclaration (OpaqueDeclaration)
 import Unison.TypeAlias (TypeAlias)
 import Unison.Typechecker.Context qualified as Context
 import Unison.Util.Conflicted (Conflicted)
