@@ -6,6 +6,7 @@ where
 
 import Data.List.NonEmpty (pattern (:|))
 import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -30,6 +31,18 @@ import Unison.Var qualified as Var
 -- that can't be re-generalized in a purely inferred result, but
 -- check-direction handling skolemizes the inner foralls and
 -- succeeds.
+--
+-- The setter and modifier are given their /fully general/ types: the
+-- type variables that a field is the sole one to reference can change
+-- when that field is updated, so they are freshened in the result
+-- type. For example @type These a b = { here : a, there : b }@ yields
+--
+-- > These.here.set    : c -> These a b -> These c b
+-- > These.here.modify : (a -> c) -> These a b -> These c b
+--
+-- since @here@ is the only field mentioning @a@. A variable shared by
+-- more than one field (or referenced by no field) is left fixed, so
+-- such records get the usual non-type-changing accessors.
 generateRecordAccessors ::
   (Semigroup a, Var v) =>
   (List.NonEmpty v -> v) ->
@@ -48,13 +61,19 @@ generateRecordAccessors namespaced generatedAnn fields tyvars typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
-    -- The enclosing record's own type, applied to its parameters:
-    -- e.g. @Point a b@ for @type Point a b = …@.
-    selfType ann =
-      foldl' (\acc tyv -> Type.app ann acc (Type.var ann tyv)) (Type.ref ann typ) tyvars
-    -- Quantify a body type by the data decl's tyvars only; field
-    -- types' own 'forall's stay nested as-is.
-    quantify ann body = Type.foralls ann tyvars body
+    tyvarSet = Set.fromList tyvars
+    -- The enclosing record's own type, applied to its parameters with
+    -- the given type-variable renaming: e.g. @Point a b@ (or, under a
+    -- @{a ↦ a1}@ renaming, @Point a1 b@) for @type Point a b = …@.
+    selfTypeWith ann renaming =
+      foldl'
+        (\acc tyv -> Type.app ann acc (Type.var ann (Map.findWithDefault tyv tyv renaming)))
+        (Type.ref ann typ)
+        tyvars
+    -- All variable names to steer clear of when minting fresh type
+    -- variables for type-changing accessors.
+    avoidVars =
+      Set.unions (tyvarSet : Set.singleton argname : [Type.freeVars ty | (_, _, ty) <- fields])
     arrow ann i o = Type.arrow ann i o
     tm (fname, fieldAnn, fieldTy) i =
       [ (namespaced (typename :| [fname]), ann, Term.ann ann get getTy),
@@ -66,15 +85,49 @@ generateRecordAccessors namespaced generatedAnn fields tyvars typename typ =
         conref = ConstructorReference typ 0
         pat = Pattern.Constructor ann conref
 
-        -- Accessor type annotations. Quantifying over the data
-        -- decl's tyvars wraps the outer 'forall'; the field's own
-        -- 'forall's (if any) remain nested inside @fieldTy@.
-        getTy = quantify ann (arrow ann (selfType ann) fieldTy)
-        setTy = quantify ann (arrow ann fieldTy (arrow ann (selfType ann) (selfType ann)))
-        modifyTy =
-          quantify
+        -- The decl's type variables that this field is the /sole/ one
+        -- to reference. Updating this field can change them without
+        -- affecting any other field, so the setter and modifier
+        -- freshen them in their result type.
+        soleTyvars =
+          [ v
+          | v <- tyvars,
+            Set.member v thisFieldVars,
+            not (Set.member v otherFieldVars)
+          ]
+          where
+            thisFieldVars = Set.intersection tyvarSet (Type.freeVars fieldTy)
+            otherFieldVars =
+              Set.unions
+                [ Set.intersection tyvarSet (Type.freeVars ty)
+                | ((_, _, ty), j) <- fields `zip` [(0 :: Int) ..],
+                  j /= i
+                ]
+        -- A fresh counterpart for each sole-referenced variable.
+        renaming = snd (foldl' freshen (avoidVars, Map.empty) soleTyvars)
+          where
+            freshen (used, m) v =
+              let v' = Var.freshIn used v
+               in (Set.insert v' used, Map.insert v v' m)
+        freshTyvars = Map.elems renaming
+        -- @fieldTy@ with the sole-referenced variables freshened.
+        fieldTy' = ABT.renames renaming fieldTy
+
+        -- Accessor type annotations. Quantifying over the data decl's
+        -- tyvars (plus the fresh ones for set/modify) wraps the outer
+        -- 'forall'; the field's own 'forall's (if any) remain nested
+        -- inside @fieldTy@.
+        getTy = Type.foralls ann tyvars (arrow ann (selfTypeWith ann mempty) fieldTy)
+        setTy =
+          Type.foralls
             ann
-            (arrow ann (arrow ann fieldTy fieldTy) (arrow ann (selfType ann) (selfType ann)))
+            (tyvars <> freshTyvars)
+            (arrow ann fieldTy' (arrow ann (selfTypeWith ann mempty) (selfTypeWith ann renaming)))
+        modifyTy =
+          Type.foralls
+            ann
+            (tyvars <> freshTyvars)
+            (arrow ann (arrow ann fieldTy fieldTy') (arrow ann (selfTypeWith ann mempty) (selfTypeWith ann renaming)))
 
         -- point -> case point of Point _ y _ -> y
         get =
