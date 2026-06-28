@@ -105,19 +105,32 @@ file = do
           ( \case
               SynDecl'Data decl
                 | Just fields <- decl.fields,
-                  Just (ref, _) <-
+                  Just (ref, dataDecl) <-
                     Map.lookup (maybe id Var.namespaced2 maybeNamespaceVar decl.name.payload) (UF.datas env) ->
-                    generateRecordAccessors
-                      Var.namespaced
-                      Ann.GeneratedFrom
-                      (toPair <$> fields)
-                      decl.name.payload
-                      ref
+                    -- Pair each parsed field with its corresponding
+                    -- type from the /resolved/ constructor — the
+                    -- parsed type still has user-level type names
+                    -- that haven't been bound to namespace references
+                    -- yet, so checking the accessor against an
+                    -- annotation built from parsed types fails for
+                    -- any field referencing another type. Records
+                    -- have exactly one constructor whose type is
+                    -- @forall tyvars. T1 -> T2 -> … -> Tn -> Self@;
+                    -- the inputs are the field types in declaration
+                    -- order.
+                    let resolvedFieldTypes = resolveFieldTypes dataDecl fields
+                     in generateRecordAccessors
+                          Var.namespaced
+                          Ann.GeneratedFrom
+                          (toTriple <$> resolvedFieldTypes)
+                          decl.tyvars
+                          decl.name.payload
+                          ref
               _ -> []
           )
           unNamespacedSynDecls
         where
-          toPair (tok, typ) = (tok.payload, ann tok <> ann typ)
+          toTriple (tok, typ) = (tok.payload, ann tok <> ann typ, typ)
 
   let accessors :: [(v, Ann, Term v Ann)]
       accessors =
@@ -284,6 +297,32 @@ applyNamespaceToStanza namespace locallyBoundTerms = \case
       locallyBoundTerms
         & Set.toList
         & map (\v -> (v, Term.var () (Var.namespaced2 namespace v)))
+
+-- | Pair each parsed field name with its corresponding type as it
+-- appears in the /resolved/ data declaration's constructor — that
+-- form has every type reference bound to the namespace (e.g.
+-- @Text@ → its builtin reference), which is what the typechecker
+-- needs when validating an accessor's body against the generated
+-- type annotation. Records have exactly one constructor and its
+-- declared type is @forall tyvars. T1 -> T2 -> … -> Tn -> Self@;
+-- the inputs of that arrow chain are the field types in the order
+-- the record syntax declared them.
+resolveFieldTypes ::
+  forall v.
+  (Var v) =>
+  DataDeclaration v Ann ->
+  [(L.Token v, Type v Ann)] ->
+  [(L.Token v, Type v Ann)]
+resolveFieldTypes dataDecl fields =
+  case DataDeclaration.constructors' dataDecl of
+    [(_, _, ctorType)] ->
+      let inputs = peelInputs (snd (Type.unforall' ctorType))
+       in zipWith (\(tok, _) ty -> (tok, ty)) fields inputs
+    _ -> fields
+  where
+    peelInputs ty = case ty of
+      Type.Arrow' i o -> i : peelInputs o
+      _ -> []
 
 -- | Final validations and sanity checks to perform before finishing parsing.
 validateUnisonFile ::
