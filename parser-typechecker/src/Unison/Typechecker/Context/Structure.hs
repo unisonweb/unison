@@ -70,6 +70,19 @@ data Element v loc
   | -- | `v` has type `a`, maybe quantified
     -- loc contains the span of the name of the bound 'v'
     Ann v loc (Type v loc)
+  | -- | The (already-bound) universal variable `v` is locally known to
+    -- equal the given type. This is how GADT pattern matching refines a
+    -- rigid type index inside a branch: matching e.g. @NatLit : Expr Nat@
+    -- against a scrutinee of type @Expr a@ records @a ~ Nat@ for the
+    -- duration of that branch. Like other branch-local context, these are
+    -- introduced after a 'Marker' and dropped on retraction.
+    Refined v (Type v loc)
+  | -- | Marks the context as inconsistent (the DK indexed-types paper's `⊥`):
+    -- the branch-local equalities are contradictory, so the current pattern-match
+    -- branch is unreachable and its body is vacuously well-typed. Carries a
+    -- (fresh) variable only so it scopes like any other element and is dropped on
+    -- retraction. See 'inconsistent'.
+    Inconsistent v
   | -- | used for scoping
     Marker v
 
@@ -77,12 +90,16 @@ variable :: Element v loc -> v
 variable (Var v) = TypeVar.underlying v
 variable (Solved _ v _) = v
 variable (Ann v _ _) = v
+variable (Refined v _) = v
+variable (Inconsistent v) = v
 variable (Marker v) = v
 
 instance (Var v) => Eq (Element v loc) where
   Var v == Var v2 = v == v2
   Solved _ v t == Solved _ v2 t2 = v == v2 && t == t2
   Ann v _loc t == Ann v2 _loc2 t2 = v == v2 && t == t2
+  Refined v t == Refined v2 t2 = v == v2 && t == t2
+  Inconsistent v == Inconsistent v2 = v == v2
   Marker v == Marker v2 = v == v2
   _ == _ = False
 
@@ -123,6 +140,14 @@ instance (Var v) => Eq (Element v loc) where
 data Info v loc = Info
   { boundExistentialVars :: Set v,
     solvedExistentials :: Map v (Monotype v loc),
+    -- | Branch-local equalities @universal ~ type@ introduced by GADT
+    -- pattern matching (see 'Refined'). Applied alongside
+    -- 'solvedExistentials' by 'apply'.
+    refinedUniversals :: Map v (Type v loc),
+    -- | True when the segment contains an 'Inconsistent' element, i.e. the
+    -- branch-local equalities are contradictory (the DK indexed-types paper's
+    -- `⊥`). A branch whose context is inconsistent is unreachable.
+    inconsistent :: Bool,
     boundUniversalVars :: Set v,
     termVarAnnotations :: Map v (loc, Type v loc),
     allBoundVars :: Set v,
@@ -152,6 +177,9 @@ instance (Ord v) => Semigroup (Info v loc) where
         -- Note: prefer solutions/annotations from the _right_
         solvedExistentials =
           (Map.union `on` solvedExistentials) segr segl,
+        refinedUniversals =
+          (Map.union `on` refinedUniversals) segr segl,
+        inconsistent = inconsistent segl || inconsistent segr,
         termVarAnnotations =
           (Map.union `on` termVarAnnotations) segr segl,
         freeExistentialVars =
@@ -184,6 +212,8 @@ emptyInfo =
   Info
     { boundExistentialVars = Set.empty,
       solvedExistentials = Map.empty,
+      refinedUniversals = Map.empty,
+      inconsistent = False,
       boundUniversalVars = Set.empty,
       termVarAnnotations = Map.empty,
       allBoundVars = Set.empty,
@@ -247,6 +277,18 @@ instance (Ord v) => Measured (Info v loc) (Element v loc) where
             freeExistentialVars = Set.fromList evs,
             freeUniversalVars = Set.fromList uvs
           }
+  measure (Refined v ty)
+    -- `v` is a universal bound earlier in the context, and the refinement's
+    -- type must also be well-scoped, so both `v` and `ty`'s free variables are
+    -- recorded as occurring free in this segment.
+    | (evs, uvs) <- part $ Type.freeVars ty =
+        emptyInfo
+          { refinedUniversals = Map.singleton v ty,
+            freeExistentialVars = Set.fromList evs,
+            freeUniversalVars = Set.insert v (Set.fromList uvs)
+          }
+  measure (Inconsistent v) =
+    emptyInfo {inconsistent = True, allBoundVars = Set.singleton v}
   measure (Marker v) = emptyInfo {allBoundVars = Set.singleton v}
 
 instance (Ord v) => Measured (Info v loc) (Context v loc) where
@@ -316,15 +358,18 @@ apply ::
   c ->
   Type v loc ->
   Type v loc
-apply ctx = apply' (solvedExistentials . measure $ ctx)
+apply ctx = apply' (solvedExistentials m) (refinedUniversals m)
+  where
+    m = measure ctx
 
 apply' ::
-  (Var v) => Map v (Monotype v loc) -> Type v loc -> Type v loc
-apply' _ t | Set.null (Type.freeVars t) = t
-apply' solved t = go t
+  (Var v) => Map v (Monotype v loc) -> Map v (Type v loc) -> Type v loc -> Type v loc
+apply' _ _ t | Set.null (Type.freeVars t) = t
+apply' solved refined t = go t
   where
     go t = case t of
-      Type.Var' (TypeVar.Universal _) -> t
+      Type.Var' (TypeVar.Universal v) ->
+        maybe t go (Map.lookup v refined)
       Type.Ref' _ -> t
       Type.Var' (TypeVar.Existential _ v) ->
         maybe t (\(Type.Monotype t') -> go t') (Map.lookup v solved)
@@ -423,6 +468,11 @@ instance (Var v) => Show (Element v loc) where
     Text.unpack (Var.name v)
       ++ " : "
       ++ Text.unpack (TP.prettyStr 0 PPE.empty t)
+  show (Refined v t) =
+    Text.unpack (Var.name v)
+      ++ " ~ "
+      ++ Text.unpack (TP.prettyStr 0 PPE.empty t)
+  show (Inconsistent _) = "⊥"
   show (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
 
 toReverseList :: CtxSegment v loc -> [Element v loc]
@@ -450,6 +500,13 @@ renderElement ctx = \case
         " : ",
         renderType ctx t
       ]
+  Refined v t ->
+    mconcat
+      [ Text.unpack $ Var.name v,
+        " ~ ",
+        renderType ctx t
+      ]
+  Inconsistent _ -> "⊥"
   Marker v -> "|" <> Text.unpack (Var.name v) <> "|"
 
 renderElements ::

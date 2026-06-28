@@ -1399,6 +1399,9 @@ renderContext env ctx@(C.Context es) =
       "'" <> shortName v <> " = " <> renderType' env (C.apply ctx t)
     showElem ctx (C.Ann v _ t) =
       shortName v <> " : " <> renderType' env (C.apply ctx t)
+    showElem ctx (C.Refined v t) =
+      shortName v <> " ~ " <> renderType' env (C.apply ctx t)
+    showElem _ (C.Inconsistent _) = "⊥"
     showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 
 renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) v loc1 -> s

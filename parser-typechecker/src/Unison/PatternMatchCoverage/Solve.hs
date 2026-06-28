@@ -605,7 +605,9 @@ addConstraint con0 nc = do
             | otherwise =
                 -- no conflicting info, add constraint
                 (pure (), Update (Just (datacon, convars), neg))
-       in modifyConstructorC var updateConstructor nc
+       in modifyConstructorC var updateConstructor nc >>= \case
+            Nothing -> pure Nothing
+            Just nc' -> mergeConstructorIndex var datacon nc'
     C.NegCon var datacon ->
       let updateConstructor pos neg
             -- contradicts positive info
@@ -661,6 +663,51 @@ addConstraints ::
   NormalizedConstraints vt v loc ->
   m (Maybe (NormalizedConstraints vt v loc))
 addConstraints cs nc0 = runMaybeT $ foldlM (\b a -> MaybeT (addConstraint a b)) nc0 cs
+
+-- | Merge the GADT type-index equation a constructor pins (DK indexed-types
+-- paper: the `P` of its asserting type `A ∧ P`) into the state's accumulated
+-- index equations. If the constructor pins an index variable to a type that is
+-- definitely distinct from one another constructor already pinned it to, the
+-- accumulated equations are contradictory (`⊥`) and the state is dropped — this
+-- is what lets coverage rule out impossible cross-argument combinations. For an
+-- ordinary (non-index-pinning) constructor this finds nothing and is a no-op.
+mergeConstructorIndex ::
+  forall vt v loc m.
+  (Pmc vt v loc m) =>
+  v ->
+  ConstructorReference ->
+  NormalizedConstraints vt v loc ->
+  m (Maybe (NormalizedConstraints vt v loc))
+mergeConstructorIndex var datacon nc = do
+  let (_canon, vi, nc') = expectCanon var nc
+  eqs <- getConstructorIndexRefinements (vi_typ vi) datacon
+  pure (foldlM step nc' eqs)
+  where
+    step nc' (k, ty) = case Map.lookup k (typeRefinements nc') of
+      Just ty' | definitelyDistinct ty ty' -> Nothing
+      _ -> Just nc' {typeRefinements = Map.insert k ty (typeRefinements nc')}
+
+-- | Conservatively decide whether two types can never be equal: true only when
+-- they have rigid, concrete structure that differs (so we never wrongly prune a
+-- state — at worst we fail to prune one). A type variable on either side means
+-- "not definitely distinct".
+--
+-- Soundness rests on Unison's type equality being structural: there are no type
+-- synonyms, type families, or type-level lambdas, so a type never reduces — an
+-- application never collapses to its head (e.g. there is no @Id@ with
+-- @Id r ~ r@), distinct references are distinct types, and type-constructor
+-- application is injective (@f x ~ f y ⟹ x ~ y@, since a higher-kinded variable
+-- can only be a named, injective constructor). That justifies each positive
+-- case below: @Ref@ vs @App@ are always distinct, @r1 /= r2@ implies distinct,
+-- and two applications differ if either component does. If type-level reduction
+-- is ever added, revisit all three.
+definitelyDistinct :: Type vt loc -> Type vt loc -> Bool
+definitelyDistinct a b = case (a, b) of
+  (Type.Ref' r1, Type.Ref' r2) -> r1 /= r2
+  (Type.App' f1 x1, Type.App' f2 x2) -> definitelyDistinct f1 f2 || definitelyDistinct x1 x2
+  (Type.Ref' _, Type.App' _ _) -> True
+  (Type.App' _ _, Type.Ref' _) -> True
+  _ -> False
 
 -- | Equate two variables
 union ::
