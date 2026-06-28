@@ -104,7 +104,6 @@ synDataDeclP modifier0 = do
   typeToken <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
   let tyvars = L.payload <$> typeArgs
-  eq <- reserved "="
   let -- go gives the type of the constructor, given the types of
       -- the constructor arguments, e.g. Cons becomes forall a . a -> List a -> List a
       go :: L.Token v -> [Type v Ann] -> (Ann {- Ann spanning the constructor and its args -}, (Ann, v, Type v Ann))
@@ -136,34 +135,56 @@ synDataDeclP modifier0 = do
         closingToken <- closeBlock
         let lastSegment = name <&> (\v -> Var.named (Name.toText $ Name.unqualified (Name.unsafeParseVar v)))
         pure (snd (go lastSegment (snd <$> fields)), Just fields, ann closingToken)
-  optional record >>= \case
-    Nothing -> do
-      constructors <- sepBy (reserved "|") (go <$> prefixVar <*> many TypeParser.valueTypeLeaf)
-      _ <- closeBlock
+  optional (openBlockWith "where") >>= \case
+    -- GADT syntax: `type Foo a b where Ctor : <type>; ...`, where each
+    -- constructor declares its own explicit (possibly type-indexed) type,
+    -- exactly as ability operations do.
+    Just blockStart -> do
+      constructors <- sepBy semi (gadtConstructorP name)
+      -- `type` opens a block, as does `where`
+      _ <- closeBlock <* closeBlock
       let closingAnn :: Ann
-          closingAnn = NonEmpty.last (ann eq NonEmpty.:| ((\(constrSpanAnn, _) -> constrSpanAnn) <$> constructors))
+          closingAnn = NonEmpty.last (ann blockStart NonEmpty.:| ((\(_, _, t) -> ann t) <$> constructors))
       modifier <- resolveModifier name modifier0
       pure
         SynDataDecl
           { annotation = maybe (ann typeToken) ann modifier0 <> closingAnn,
-            constructors = snd <$> constructors,
+            constructors,
             fields = Nothing,
             modifier,
             name,
             tyvars
           }
-    Just (constructor, fields, closingAnn) -> do
-      _ <- closeBlock
-      modifier <- resolveModifier name modifier0
-      pure
-        SynDataDecl
-          { annotation = maybe (ann typeToken) ann modifier0 <> closingAnn,
-            constructors = [constructor],
-            fields,
-            modifier,
-            name,
-            tyvars
-          }
+    Nothing -> do
+      eq <- reserved "="
+      optional record >>= \case
+        Nothing -> do
+          constructors <- sepBy (reserved "|") (go <$> prefixVar <*> many TypeParser.valueTypeLeaf)
+          _ <- closeBlock
+          let closingAnn :: Ann
+              closingAnn = NonEmpty.last (ann eq NonEmpty.:| ((\(constrSpanAnn, _) -> constrSpanAnn) <$> constructors))
+          modifier <- resolveModifier name modifier0
+          pure
+            SynDataDecl
+              { annotation = maybe (ann typeToken) ann modifier0 <> closingAnn,
+                constructors = snd <$> constructors,
+                fields = Nothing,
+                modifier,
+                name,
+                tyvars
+              }
+        Just (constructor, fields, closingAnn) -> do
+          _ <- closeBlock
+          modifier <- resolveModifier name modifier0
+          pure
+            SynDataDecl
+              { annotation = maybe (ann typeToken) ann modifier0 <> closingAnn,
+                constructors = [constructor],
+                fields,
+                modifier,
+                name,
+                tyvars
+              }
   where
     prefixVar :: P v m (L.Token v)
     prefixVar =
@@ -189,6 +210,26 @@ synEffectDeclP modifier0 = do
         name,
         tyvars = L.payload <$> typeArgs
       }
+
+-- | A GADT constructor: `Ctor : <type>`. Unlike an ordinary `=`-style data
+-- constructor (whose result type is synthesized as the declared type applied to
+-- its parameters), the full type is written out explicitly, so the result type
+-- can be any application of the declared type (e.g. `NatLit : Nat -> Expr Nat`)
+-- and the constructor may introduce its own (existential) type variables. The
+-- type is generalized over its free lowercase variables, just like an ability
+-- operation, but without injecting an ability into the result.
+--
+-- The explicit (type-indexed) result type is where the DK indexed-types paper's
+-- per-constructor equation (its asserting type `A ∧ P`) lives; rather than store
+-- the `∧ P` we recover the proposition `P` from the result type when matching.
+gadtConstructorP :: (Monad m, Var v) => L.Token v -> P v m (Ann, v, Type v Ann)
+gadtConstructorP name =
+  explodeToken
+    <$> TermParser.verifyRelativeVarName prefixDefinitionName
+    <* reserved ":"
+    <*> (Type.generalizeLowercase mempty <$> TypeParser.valueType)
+  where
+    explodeToken v t = (ann v, Var.namespaced (L.payload name :| [L.payload v]), t)
 
 effectConstructorP :: (Monad m, Var v) => [L.Token v] -> L.Token v -> P v m (Ann, v, Type v Ann)
 effectConstructorP typeArgs name =

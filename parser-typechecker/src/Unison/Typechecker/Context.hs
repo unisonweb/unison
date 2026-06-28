@@ -679,6 +679,15 @@ appendContext = extendsContext . fromList
 extendContext :: (Var v) => Element v loc -> M v loc ()
 extendContext e = extendsContext (single e)
 
+-- | Mark the current context inconsistent (the DK indexed-types paper's `⊥`):
+-- the branch-local equalities are contradictory, so the enclosing pattern-match
+-- branch is unreachable. Appended within the branch's scope (after `checkCase`'s
+-- marker) and dropped on retraction.
+markInconsistent :: (Var v) => M v loc ()
+markInconsistent = do
+  v <- freshenVar Var.inferOther
+  appendContext [Inconsistent v]
+
 extendsContext :: (Var v) => CtxSegment v loc -> M v loc ()
 extendsContext seg = modifyContextChecked extends seg
 
@@ -1531,15 +1540,58 @@ getDataConstructorsAtType t0 = do
                         equate t0 e
                         applyM t
                   _ -> pure t
-    _ -> traverseConstructorTypes (\_ _ t -> fixType t) dataConstructors
+    -- For a GADT, a constructor whose result type is incompatible with the
+    -- scrutinee is impossible here, so it is dropped from the enumerated set:
+    -- coverage then neither requires it nor (since the typechecker has already
+    -- rejected matching it) ever sees it. For an ordinary ADT nothing is
+    -- dropped and behavior is unchanged.
+    --
+    -- This index-aware narrowing only applies when the scrutinee is /principal/
+    -- (no unsolved existentials). For a non-principal scrutinee we mustn't use
+    -- the index to rule constructors out (the DK indexed-types paper), so all
+    -- constructors stay possible and must be covered.
+    _ -> case dataConstructors of
+      -- Non-principal GADT scrutinee: keep every constructor, with general
+      -- argument types and without pinning the scrutinee's type. Ordinary types
+      -- (no index-pinning constructors) keep the original behavior, which nested
+      -- coverage relies on.
+      ConstructorType cs
+        | hasUnsolvedExistentials t0 && any (\(_, _, t) -> gadtConstructorPinsIndex t) cs ->
+            ConstructorType <$> for cs \(v, cr, t) -> (v,cr,) <$> ungeneralize t
+        | otherwise ->
+            ConstructorType . catMaybes
+              <$> for cs \(v, cr, t) -> fmap (v,cr,) <$> specialize t
+      _ -> traverseConstructorTypes (\_ _ t -> fixType t) dataConstructors
   where
+    -- Specialize a constructor's type to the scrutinee. First try unifying the
+    -- scrutinee directly with the constructor's result type (this always works
+    -- for ordinary ADTs and for GADT constructors whose index already matches).
+    -- If that fails, retry with the scrutinee's rigid index variables opened to
+    -- existentials, so a constructor that /could/ apply when the index is still
+    -- abstract — e.g. matching @NatLit : Expr Nat@ against scrutinee @Expr a@ —
+    -- is kept and specialized. If even that fails the constructor's index
+    -- clashes with the scrutinee's, so it is impossible here and dropped.
+    specialize :: Type v loc -> M v loc (Maybe (Type v loc))
+    specialize t =
+      (Just <$> fixType t)
+        `orElse` ((Just <$> fixTypeOpen t) `orElse` pure Nothing)
     fixType t = do
       t <- ungeneralize t
-      let lastT = case t of
-            Type.Arrows' xs -> last xs
-            _ -> t
-      subtype t0 lastT
+      subtype t0 (resultTypeOf t)
       applyM t
+    fixTypeOpen t = do
+      t <- ungeneralize t
+      t0' <- existentializeUniversals t0
+      subtype t0' (resultTypeOf t)
+      applyM t
+    -- Replace each rigid (universal) variable of the scrutinee type with a fresh
+    -- existential so it can unify against a more specific constructor index.
+    existentializeUniversals :: Type v loc -> M v loc (Type v loc)
+    existentializeUniversals ty = do
+      subs <- for [u | TypeVar.Universal u <- Set.toList (Type.freeVars ty)] \u -> do
+        e <- extendExistential u
+        pure (TypeVar.Universal u, existentialp (ABT.annotation ty) e)
+      pure (ABT.substsInheritAnnotation subs ty)
 
 data PmcState vt v loc = PmcState
   { variables :: !(Set v),
@@ -1556,20 +1608,41 @@ instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (PmcState (TypeVa
     (result, newCache) <- getCompose (Map.alterF f typ constructorCache)
     put st {constructorCache = newCache}
     pure result
-  getConstructorVarTypes t cref@(ConstructorReference _r cid) = do
+  getConstructorVarTypes t cref = do
     Pmc.getConstructors t >>= \case
       AbilityType _ m -> case Map.lookup cref m of
         Nothing -> error $ show cref <> " not found in constructor map: " <> show m
         Just (_, conArgs) -> pure (extractArgs conArgs)
-      ConstructorType cs -> case drop (fromIntegral cid) cs of
-        [] -> error $ show cref <> " not found in constructor list: " <> show cs
-        (_, _, conArgs) : _ -> pure (extractArgs conArgs)
+      -- Look up by constructor reference rather than by position: the
+      -- enumerated list may have been filtered (GADTs), so list index no longer
+      -- corresponds to constructor id.
+      ConstructorType cs -> case find (\(_, cr', _) -> cr' == cref) cs of
+        Just (_, _, conArgs) -> pure (extractArgs conArgs)
+        -- The constructor isn't in the enumerated set because it was filtered out
+        -- as impossible for this scrutinee's index, yet it's explicitly matched
+        -- (a dead GADT branch). Its argument types still come from its declared
+        -- type, so coverage can desugar the (unreachable) pattern.
+        Nothing -> extractArgs <$> lift (ungeneralize =<< getDataConstructorType cref)
       BooleanType -> pure []
       OtherType -> pure []
       SequenceType {} -> pure []
     where
       extractArgs (Type.Arrows' xs) = init xs
       extractArgs _ = []
+
+  -- Implemented via 'gadtRefinements', the same logic the typechecker uses for
+  -- branch refinement. Only index-pinning constructors carry an equation;
+  -- short-circuiting the rest avoids allocating fresh variables (which would
+  -- perturb gensym numbering elsewhere).
+  getConstructorIndexRefinements t cref = lift do
+    ctorTy <- getDataConstructorType cref
+    if gadtConstructorPinsIndex ctorTy
+      then do
+        ctorTy' <- ungeneralize ctorTy
+        t' <- applyM t
+        result <- applyM (resultTypeOf ctorTy')
+        pure [(TypeVar.Universal v, ty) | Refined v ty <- gadtRefinements t' result]
+      else pure []
   fresh = do
     st@PmcState {variables} <- get
     let v = Var.freshIn variables (Var.typed Var.Pattern)
@@ -1679,15 +1752,23 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
         mayGuard = snd . peel <$> guard
     (substs, remains) <- runStateT (checkPattern scrutineeType pat) rhsvs
     unless (null remains) $ compilerCrash (MalformedPattern pat)
-    let subst = ABT.substsInheritAnnotation (second (Term.var ()) <$> substs)
-        rhs' = subst rhsbod
-        guard' = subst <$> mayGuard
-    gwant <- for guard' $ \g ->
-      scope InMatchGuard $
-        checkWantedScoped False [] g (Type.boolean (loc g))
-    outputType <- applyM outputType
-    scope InMatchBody $
-      checkWantedScoped False (fromMaybe [] gwant) rhs' outputType
+    -- If matching this pattern made the context inconsistent, the branch is
+    -- unreachable (its index equalities are contradictory). Per the DK
+    -- indexed-types paper (`⊥`) it is vacuously well-typed, so we don't check the
+    -- guard or body and it demands no abilities.
+    dead <- inconsistent . info <$> getContext
+    if dead
+      then pure []
+      else do
+        let subst = ABT.substsInheritAnnotation (second (Term.var ()) <$> substs)
+            rhs' = subst rhsbod
+            guard' = subst <$> mayGuard
+        gwant <- for guard' $ \g ->
+          scope InMatchGuard $
+            checkWantedScoped False [] g (Type.boolean (loc g))
+        outputType <- applyM outputType
+        scope InMatchBody $
+          checkWantedScoped False (fromMaybe [] gwant) rhs' outputType
 
 -- For example:
 --   match scrute with
@@ -1793,8 +1874,49 @@ checkPattern scrutineeType p =
           step _ _ =
             lift . failWith $ PatternArityMismatch loc dct (length args)
       (overall, vs) <- foldM step (udct, []) args
-      st <- lift $ applyM scrutineeType
-      lift $ subtype st overall
+      lift $ do
+        st0 <- applyM scrutineeType
+        overall0 <- applyM overall
+        -- Principality (DK indexed-types paper): a GADT match refines the
+        -- scrutinee's type index only when the scrutinee's type is *principal* —
+        -- it has no unsolved existential variables. Otherwise we must not let
+        -- the pattern's shape drive type inference.
+        if gadtConstructorPinsIndex dct && hasUnsolvedExistentials st0
+          then do
+            -- Non-principal scrutinee, index-pinning constructor: /drop/ the
+            -- index equation (DK indexed-types paper: non-principal match) rather than pin
+            -- the scrutinee's type from the pattern. We unify against a copy of
+            -- the constructor's result whose index is fresh existentials, so the
+            -- match still binds the constructor's fields and typechecks, but
+            -- introduces no refinement. A branch that genuinely needs the
+            -- refinement then fails on its own (the branches disagree), which is
+            -- the signal that the scrutinee needs a type annotation.
+            overallGen <- generalizeIndex overall0
+            subtype st0 overallGen
+          else
+            if gadtConstructorPinsIndex dct
+              then do
+                -- Principal, index-pinning constructor: incorporate the index
+                -- equation (DK `elimeq`). A contradictory equation makes the
+                -- branch dead (`⊥`); `checkCase` then types its body vacuously. A
+                -- consistent one yields branch-local 'Refined' equations (applied
+                -- after the enclosing `checkCase` marker, dropped on retract).
+                -- The equation comes from the /declared/ index, so a field-type
+                -- error in `subtype` below is reported rather than mistaken for a
+                -- dead branch.
+                idxResult <- resultTypeOf <$> ungeneralize dct
+                case gadtIndexEquation st0 idxResult of
+                  Nothing -> markInconsistent
+                  Just refs -> do
+                    appendContext refs
+                    st <- applyM scrutineeType
+                    ov <- applyM overall
+                    subtype st ov
+              else do
+                -- Ordinary (non-pinning) ADT constructor: no index to refine, so
+                -- behavior is unchanged.
+                st <- applyM scrutineeType
+                subtype st overall
       pure vs
     Pattern.As loc p' -> do
       v <- getAdvance p
@@ -1868,6 +1990,168 @@ checkPattern scrutineeType p =
         (v : vs) -> do
           put vs
           pure v
+
+-- GADT typechecking below follows the DK indexed-types paper: Dunfield &
+-- Krishnaswami, "Sound and Complete Bidirectional Typechecking for Higher-Rank
+-- Polymorphism and Indexed Types" (arXiv:1601.05106). It's referenced by that
+-- short name in the comments here. The correspondence: matching a constructor
+-- eliminates an asserting type `A ∧ P`, adding its proposition `P` (a type-index
+-- equation) to the branch; a consistent `P` refines ('gadtRefinements' +
+-- 'Refined'), an inconsistent `P` makes the branch dead ('markInconsistent'),
+-- and the equation is only added when the scrutinee is principal (no unsolved
+-- existentials).
+
+-- | Given a scrutinee type and a constructor's result type (in that order),
+-- find the equalities a rigid (universal) scrutinee variable must satisfy, as
+-- branch-local 'Refined' elements (e.g. `NatLit : Expr Nat` against `Expr a`
+-- yields `a ~ Nat`). Used by coverage to read off a constructor's index
+-- equation; the typechecker incorporates the equation with the fuller
+-- 'gadtIndexEquation', which also handles variable~variable equalities.
+--
+-- Only /scrutinee-side/ universals are refined: existentials on either side are
+-- left to ordinary unification, and an equality whose right-hand side mentions
+-- the variable being refined (occurs failure) is skipped. For an ordinary ADT
+-- this finds nothing.
+gadtRefinements :: forall v loc. (Var v) => Type v loc -> Type v loc -> [Element v loc]
+gadtRefinements = go
+  where
+    go :: Type v loc -> Type v loc -> [Element v loc]
+    go s c = case (s, c) of
+      (Type.Var' (TypeVar.Universal v), _)
+        | not (isExistential c),
+          Set.notMember v (Set.map TypeVar.underlying (Type.freeVars c)) ->
+            [Refined v c]
+      (Type.App' s1 s2, Type.App' c1 c2) -> go s1 c1 ++ go s2 c2
+      (Type.Arrow' s1 s2, Type.Arrow' c1 c2) -> go s1 c1 ++ go s2 c2
+      (Type.Effect1' s1 s2, Type.Effect1' c1 c2) -> go s1 c1 ++ go s2 c2
+      -- Anything else (a head mismatch, or a genuinely higher-order equation
+      -- like `f a ~ Nat` where a variable-headed application meets a type it
+      -- can't be decomposed against) yields no refinement and is left for
+      -- `subtype` to solve or reject.
+      _ -> []
+    isExistential = \case
+      Type.Var' (TypeVar.Existential _ _) -> True
+      _ -> False
+
+-- | The result of an arrow chain (the type itself if it is not a function).
+resultTypeOf :: Type v loc -> Type v loc
+resultTypeOf t = case t of
+  Type.Arrows' xs -> last xs
+  _ -> t
+
+-- | Incorporate the type-index equation a GADT match imposes — the DK
+-- indexed-types paper's equation elimination (`elimeq`). Unifies the scrutinee's
+-- index against the constructor's (freshly existentialized) declared result
+-- index, treating the constructor's variables as solvable existentials and the
+-- scrutinee's rigid variables as refinable. Returns:
+--
+--   * @Nothing@ — the equation is contradictory (two distinct rigid type
+--     constructors are forced equal in an index position), so the branch is
+--     unreachable (`⊥`).
+--   * @Just refs@ — the branch-local 'Refined' equations to add. These include
+--     /variable~variable/ equations (e.g. matching @Refl : Equ a a@ against
+--     scrutinee @Equ a b@ yields @b ~ a@), which a purely structural pass can't
+--     express because the repeated index variable becomes one shared existential.
+--
+-- Driving the decision from the declared index keeps it independent of the
+-- constructor's field patterns, so a field-type error is reported as such rather
+-- than mistaken for a dead branch.
+gadtIndexEquation :: forall v loc. (Var v) => Type v loc -> Type v loc -> Maybe [Element v loc]
+gadtIndexEquation scrutIndex ctorIndex = go Map.empty [] [(scrutIndex, ctorIndex)]
+  where
+    go :: Map v (Type v loc) -> [Element v loc] -> [(Type v loc, Type v loc)] -> Maybe [Element v loc]
+    go _ refs [] = Just refs
+    go esub refs ((a0, b0) : rest) =
+      let a = subst esub a0
+          b = subst esub b0
+       in if a == b
+            then go esub refs rest
+            else case (a, b) of
+              -- Solve a constructor existential to the other side.
+              (Type.Var' (TypeVar.Existential _ e), _) -> go (Map.insert e b esub) refs rest
+              (_, Type.Var' (TypeVar.Existential _ e)) -> go (Map.insert e a esub) refs rest
+              -- Refine a rigid scrutinee variable (occurs check), including to
+              -- another rigid variable.
+              (Type.Var' (TypeVar.Universal u), _)
+                | u `Set.notMember` underlyingVars b -> go esub (Refined u b : refs) rest
+              (_, Type.Var' (TypeVar.Universal u))
+                | u `Set.notMember` underlyingVars a -> go esub (Refined u a : refs) rest
+              -- Decompose structurally.
+              (Type.App' a1 a2, Type.App' b1 b2) -> go esub refs ((a1, b1) : (a2, b2) : rest)
+              (Type.Arrow' a1 a2, Type.Arrow' b1 b2) -> go esub refs ((a1, b1) : (a2, b2) : rest)
+              (Type.Effect1' a1 a2, Type.Effect1' b1 b2) -> go esub refs ((a1, b1) : (a2, b2) : rest)
+              -- Distinct rigid structure ⇒ contradiction. Anything we can't
+              -- decide (a variable still involved, a higher-order shape) is left
+              -- for `subtype`, never treated as ⊥.
+              _
+                | definitelyDistinctIndex a b -> Nothing
+                | otherwise -> go esub refs rest
+    subst esub t = case t of
+      Type.Var' (TypeVar.Existential _ e) | Just t' <- Map.lookup e esub -> subst esub t'
+      _ -> t
+    underlyingVars t = Set.map TypeVar.underlying (Type.freeVars t)
+    definitelyDistinctIndex a b = case (a, b) of
+      (Type.Ref' r1, Type.Ref' r2) -> r1 /= r2
+      (Type.App' f1 x1, Type.App' f2 x2) -> definitelyDistinctIndex f1 f2 || definitelyDistinctIndex x1 x2
+      (Type.Ref' _, Type.App' _ _) -> True
+      (Type.App' _ _, Type.Ref' _) -> True
+      _ -> False
+
+-- | Is this a GADT (index-pinning) constructor: one whose /declared/ result
+-- type specializes a type index (like @NatLit : Expr Nat@, or a repeated index
+-- like @Refl : Equ a a@), rather than applying the data type to fully general,
+-- distinct type variables? Ordinary ADT constructors (@Some : a -> Optional a@,
+-- @Cons : a -> List a -> List a@) and existential-only constructors
+-- (@MkShowable : a -> (a -> Text) -> Showable@) are not pinning. Only a pinning
+-- constructor can refine a scrutinee's index, and only when the scrutinee is
+-- principal.
+--
+-- Computed from the constructor's /declared/ type (with its outer @forall@),
+-- before skolemization, so that inference solving the constructor's result
+-- variables to concrete types can't mislead the test.
+gadtConstructorPinsIndex :: (Var v) => Type v loc -> Bool
+gadtConstructorPinsIndex ctorType = case result of
+  -- The index is "general" (not pinned) when the data type is applied to
+  -- distinct type variables — i.e. the constructor is parametric in the index.
+  Type.Apps' (Type.Ref' _) args -> not (allDistinctVars args)
+  Type.Ref' _ -> False
+  _ -> True
+  where
+    body = case ctorType of
+      Type.ForallsNamed' _ b -> b
+      _ -> ctorType
+    result = resultTypeOf body
+
+-- | Are these type arguments all distinct type variables (a fully general index
+-- like @a b@, rather than something pinned like @Nat@)?
+allDistinctVars :: (Var v) => [Type v loc] -> Bool
+allDistinctVars args =
+  let vs = [v | Type.Var' v <- args]
+   in length vs == length args && Set.size (Set.fromList vs) == length vs
+
+-- | Replace the type-index arguments of a (data-type-headed) result type with
+-- fresh existential variables, discarding any equation the constructor would
+-- otherwise impose on the scrutinee's index. Used to "drop the proposition" for
+-- a non-principal GADT pattern match.
+generalizeIndex :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
+generalizeIndex ty = case ty of
+  Type.Apps' f@(Type.Ref' _) args -> do
+    args' <- for args \a -> do
+      e <- extendExistential Var.inferOther
+      pure (existentialp (ABT.annotation a) e)
+    pure (foldl' (Type.app (ABT.annotation ty)) f args')
+  _ -> pure ty
+
+-- | Whether a type still contains unsolved existential variables. A type with
+-- none is /principal/ in the sense of the DK indexed-types paper: it is the
+-- only type that could have been inferred. (Call on a context-applied type, so
+-- that solved existentials have already been substituted away.)
+hasUnsolvedExistentials :: (Var v) => Type v loc -> Bool
+hasUnsolvedExistentials t = any isExistential (Set.toList (Type.freeVars t))
+  where
+    isExistential = \case
+      TypeVar.Existential {} -> True
+      _ -> False
 
 applyM :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 applyM t = (`apply` t) <$> getContext
