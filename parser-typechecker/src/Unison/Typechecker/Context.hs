@@ -1529,17 +1529,29 @@ getDataConstructorsAtType t0 = do
                     _ -> Nothing
                 )
               $ ets
-       in flip traverseConstructorTypes dataConstructors \_ cr t -> do
-            case Map.lookup (view reference_ cr) effectMap of
-              Nothing -> pure t
-              Just t0 -> do
-                t <- ungeneralize t
-                case t of
-                  Type.EffectfulArrows' _ xs
-                    | (Just [e], _) <- last xs -> do
-                        equate t0 e
-                        applyM t
-                  _ -> pure t
+       in case dataConstructors of
+            -- An ability is a GADT: operations can pin its index differently
+            -- (e.g. `emitNat : Nat ->{Eff Nat} ()`). For a concrete scrutinee
+            -- index, an operation whose effect can't unify with it is impossible
+            -- here and is dropped, exactly as a data GADT drops impossible
+            -- constructors. For an abstract index every operation stays possible.
+            AbilityType resultType m ->
+              AbilityType resultType
+                <$> Map.traverseMaybeWithKey
+                  ( \cr (v, t) -> case Map.lookup (view reference_ cr) effectMap of
+                      Nothing -> pure (Just (v, t))
+                      Just scrutAbility -> do
+                        t' <- ungeneralize t
+                        case t' of
+                          Type.EffectfulArrows' _ xs
+                            | (Just [e], _) <- last xs ->
+                                if abilityPinsIndex scrutAbility
+                                  then (equate scrutAbility e *> (Just . (v,) <$> applyM t')) `orElse` pure Nothing
+                                  else pure (Just (v, t'))
+                          _ -> pure (Just (v, t))
+                  )
+                  m
+            other -> traverseConstructorTypes (\_ _ t -> fixType t) other
     -- For a GADT, a constructor whose result type is incompatible with the
     -- scrutinee is impossible here, so it is dropped from the enumerated set:
     -- coverage then neither requires it nor (since the typechecker has already
@@ -1611,8 +1623,11 @@ instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (PmcState (TypeVa
   getConstructorVarTypes t cref = do
     Pmc.getConstructors t >>= \case
       AbilityType _ m -> case Map.lookup cref m of
-        Nothing -> error $ show cref <> " not found in constructor map: " <> show m
         Just (_, conArgs) -> pure (extractArgs conArgs)
+        -- The operation was filtered out as impossible for this scrutinee's
+        -- ability index, yet it's explicitly matched (a dead handler branch);
+        -- its argument types still come from its declared type.
+        Nothing -> extractArgs <$> lift (ungeneralize =<< getEffectConstructorType cref)
       -- Look up by constructor reference rather than by position: the
       -- enumerated list may have been filtered (GADTs), so list index no longer
       -- corresponds to constructor id.
@@ -1682,8 +1697,15 @@ checkCases ::
 checkCases _ _ [] = pure []
 checkCases scrutType outType cases = do
   mes <- requestType (cases <&> \(Term.MatchCase p _ _) -> p)
-  for_ mes $ \es ->
-    applyM scrutType >>= \sty -> ensureReqEffects sty es
+  for_ mes $ \es -> do
+    -- An ability is a GADT: an indexed operation (e.g. `emitNat : Nat ->{Eff Nat}
+    -- ()`) pins the ability's index, and different operations of one ability can
+    -- pin it differently, handled in different branches. The up-front "scrutinee
+    -- provides every operation's effect" check must not require all those indices
+    -- at once (contradictory), so we drop each pinned index to a fresh existential
+    -- and recover the precise index per branch (DK `elimeq`, in @EffectBind@).
+    es' <- traverse generalizeAbilityIndex es
+    applyM scrutType >>= \sty -> ensureReqEffects sty es'
   scrutType' <- applyM =<< ungeneralize scrutType
   coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
 
@@ -1967,14 +1989,35 @@ checkPattern scrutineeType p =
         Type.Effect'' [et] it
           -- expecting scrutineeType to be `Effect et vt`
           | Type.Apps' _ [eff, vt] <- st -> do
-              -- ensure that the variables in `et` unify with those from
-              -- the scrutinee.
-              lift $ abilityCheck' [eff] [et]
+              -- An ability is a GADT, so handling an operation gets the same DK
+              -- `elimeq` treatment as the data `Constructor` case. The scrutinee
+              -- effect is a /row/ (a handler may handle several abilities); we
+              -- incorporate the index equation between the operation's declared
+              -- effect and the one ability in the row sharing its head, leaving
+              -- the rest of the row alone. A contradictory equation marks the
+              -- branch dead (`⊥`); an ordinary (non-indexed) ability is skipped
+              -- and reduces to plain `abilityCheck'`. The continuation is typed at
+              -- the refined ability.
+              eff' <- lift do
+                eff0 <- applyM eff
+                et0 <- applyM et
+                when (abilityPinsIndex et0) do
+                  opEffect <- getEffect ref
+                  case find (\a -> headMatch a opEffect) (Type.flattenEffects eff0) of
+                    Nothing -> pure ()
+                    Just a -> case gadtIndexEquation a opEffect of
+                      Nothing -> markInconsistent
+                      Just refs -> appendContext refs
+                eff1 <- applyM eff
+                et1 <- applyM et
+                abilityCheck' [eff1] [et1]
+                applyM eff
+              it' <- lift $ applyM it
               let kt =
                     Type.arrow
                       (Pattern.loc k)
-                      it
-                      (Type.effect (Pattern.loc k) [eff] vt)
+                      it'
+                      (Type.effect (Pattern.loc k) [eff'] vt)
               (vs ++) <$> checkPattern kt k
           | otherwise -> lift . compilerCrash $ PatternMatchFailure
         _ ->
@@ -2128,6 +2171,24 @@ allDistinctVars :: (Var v) => [Type v loc] -> Bool
 allDistinctVars args =
   let vs = [v | Type.Var' v <- args]
    in length vs == length args && Set.size (Set.fromList vs) == length vs
+
+-- | Does an ability type apply its type constructor to something other than
+-- distinct type variables (e.g. @Eff Nat@, not @Eff a@) — i.e. is it a GADT-style
+-- /indexed/ ability? The analog of 'gadtConstructorPinsIndex' for abilities.
+abilityPinsIndex :: (Var v) => Type v loc -> Bool
+abilityPinsIndex et = case et of
+  Type.Apps' (Type.Ref' _) args -> not (allDistinctVars args)
+  _ -> False
+
+-- | For the up-front handler ability check, replace an index-pinning operation
+-- effect's index with fresh existentials (DK indexed-types paper: drop the
+-- proposition), so the scrutinee need only provide the ability at /some/ index;
+-- the precise index is then refined per branch (see the @EffectBind@ case).
+-- Ordinary (non-indexed) operation effects are unchanged.
+generalizeAbilityIndex :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
+generalizeAbilityIndex et
+  | abilityPinsIndex et = generalizeIndex et
+  | otherwise = pure et
 
 -- | Replace the type-index arguments of a (data-type-headed) result type with
 -- fresh existential variables, discarding any equation the constructor would
