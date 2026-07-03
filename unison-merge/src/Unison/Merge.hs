@@ -25,15 +25,26 @@ module Unison.Merge
     Unconflicts (..),
     Updated,
 
-    -- * Given-set conflict resolution (see "Unison.Merge.GivenSet")
-    GivenMarks,
-    GivenSetConflict (..),
-    GivenSetMergeOutcome (..),
-    GivenSetSide (..),
+    -- * Namespace metadata-mark merge (see "Unison.Merge.GivenSet")
+    Marks,
+    MarkConflict (..),
+    MarksMergeOutcome (..),
+    MarkSide (..),
     MergeMode (..),
+    mergeMarks,
+    applyMarks,
+    -- ** Given-mark specialisation
+    GivenMarks,
+    GivenSetConflict,
+    GivenSetMergeOutcome,
+    GivenSetSide,
     SurvivorMap,
     applyGivenSet,
     mergeGivenSets,
+    -- ** Class-mark specialisation
+    ClassMarks,
+    mergeClassSets,
+    applyClassSet,
   )
 where
 
@@ -43,14 +54,23 @@ import Unison.Merge.Diffblob (Diffblob (..), DiffblobLog (..), emptyDiffblobLog,
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
 import Unison.Merge.GivenSet
-  ( GivenMarks,
-    GivenSetConflict (..),
-    GivenSetMergeOutcome (..),
-    GivenSetSide (..),
+  ( ClassMarks,
+    GivenMarks,
+    GivenSetConflict,
+    GivenSetMergeOutcome,
+    GivenSetSide,
+    MarkConflict (..),
+    MarkSide (..),
+    Marks,
+    MarksMergeOutcome (..),
     MergeMode (..),
     SurvivorMap,
+    applyClassSet,
     applyGivenSet,
+    applyMarks,
+    mergeClassSets,
     mergeGivenSets,
+    mergeMarks,
   )
 import Unison.Merge.Libdeps (LibdepDiffOp (..))
 import Unison.Merge.Mergeblob (Mergeblob (..), MergeblobError (..), makeMergeblob)

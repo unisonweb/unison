@@ -1,11 +1,12 @@
-# Scenario: a namespace merge preserves `given` marks
+# Scenario: a namespace merge preserves `given` and `class` marks
 
-Given-ness is namespace metadata (the `##Builtin.Given` sentinel in a
-definition's `MdValues`). A three-way merge rebuilds the merged
-namespace from unconflicted definitions, which carry no metadata — so
-without explicit handling every `given` mark would be silently dropped
-by a merge. This transcript confirms that a mark on a definition that
-is unconflicted across the merge survives into the merged branch.
+Given-ness and class-ness are namespace metadata (the `##Builtin.Given`
+sentinel on a term and the `##Builtin.Class` sentinel on a type, in
+their `MdValues`). A three-way merge rebuilds the merged namespace from
+unconflicted definitions, which carry no metadata — so without explicit
+handling every `given` / `class` mark would be silently dropped by a
+merge. This transcript confirms that marks on definitions that are
+unconflicted across the merge survive into the merged branch.
 
 ``` ucm :hide
 scratch/main> builtins.merge
@@ -68,8 +69,10 @@ sides), so it flows through the unconflicted-defn rebuild — and its
 scratch/alice> merge /bob
 ```
 
-`givens` on the merged branch still lists `Foo.nat`, and `view Foo.nat`
-still renders it with the `given` keyword.
+`givens` on the merged branch still lists `Foo.nat`, `view Foo.nat`
+still renders it with the `given` keyword, and `view Foo` still renders
+the class with the `class` keyword and record-field syntax — so both
+the `given` and the `class` mark survived the merge.
 
 ``` ucm
 scratch/alice> givens
@@ -81,4 +84,8 @@ scratch/alice> givens
 scratch/alice> view Foo.nat
 
   given Foo.nat : Foo Nat = Foo (n -> n)
+
+scratch/alice> view Foo
+
+  class Foo a = { foo : a -> Nat }
 ```

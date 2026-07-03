@@ -10,7 +10,9 @@ module Unison.Codebase.Editor.HandleInput.Givens
     handleUnmarkGiven,
     handleGivens,
     deepGivenMarks,
+    deepClassMarks,
     mergeGivenMarksInto,
+    mergeClassMarksInto,
   )
 where
 
@@ -23,6 +25,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Classes qualified as Classes
 import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Codebase.Givens qualified as Givens
 import Unison.Codebase.Path (Path')
@@ -35,6 +38,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
+import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Util.Relation qualified as Relation
@@ -153,37 +157,71 @@ deepGivenMarks = go []
               (Map.toList (view Branch.children_ b0))
        in here ++ there
 
--- | Merge the given-set metadata (the @##Builtin.Given@ marks) across
--- the three input branches of a namespace merge and stamp the surviving
--- marks onto the merged branch.
+-- | Enumerate every deep @(name, type-reference)@ under the branch whose
+-- metadata carries the @class@ sentinel. Companion to 'deepGivenMarks'
+-- for the type namespace.
+deepClassMarks :: Branch0 m -> [(Name, TypeReference)]
+deepClassMarks = go []
+  where
+    go :: [NameSegment] -> Branch0 m -> [(Name, TypeReference)]
+    go revPrefix b0 =
+      let here :: [(Name, TypeReference)]
+          here =
+            [ (Name.fromReverseSegments (seg :| revPrefix), r)
+            | (r, seg) <- Relation.toList (Star2.d1 (view Branch.types_ b0)),
+              Classes.isClass r b0
+            ]
+          there =
+            concatMap
+              (\(seg, child) -> go (seg : revPrefix) (Branch.head child))
+              (Map.toList (view Branch.children_ b0))
+       in here ++ there
+
+-- | Merge namespace metadata marks across the three input branches of a
+-- namespace merge and stamp the surviving marks onto the merged branch.
 --
 -- This is needed because the merged namespace is assembled from
--- unconflicted definitions, which carry no metadata — so without this,
--- a merge would silently drop every @given@ mark. Marks are extracted
--- from the non-@lib@ portion of each input branch (library givens ride
--- along with the library merge), combined by
--- 'GivenSet.mergeGivenSets' in the non-interactive "mark wins" mode,
--- pruned to the survivors (a rename relocates a mark, a delete drops
--- it), and re-applied with 'Givens.markGivenAt' at each surviving name.
-mergeGivenMarksInto ::
-  (Monad m) =>
+-- unconflicted definitions, which carry no metadata — so without this a
+-- merge would silently drop every mark. Marks are extracted from the
+-- non-@lib@ portion of each input branch (library marks ride along with
+-- the library merge), combined by 'GivenSet.mergeMarks' in the
+-- non-interactive "mark wins" mode, pruned to the survivors (a rename
+-- relocates a mark, a delete drops it), and re-stamped at each surviving
+-- name. 'mergeGivenMarksInto' / 'mergeClassMarksInto' specialise it to
+-- the @given@ (term) and @class@ (type) namespaces respectively.
+mergeMarksIntoWith ::
+  (Monad m, Ord r) =>
+  -- | Extract this kind of mark from a branch.
+  (Branch0 m -> [(Name, r)]) ->
+  -- | Stamp one mark onto a branch node.
+  (r -> NameSegment -> Branch0 m -> Branch0 m) ->
   -- | The LCA / Alice / Bob input branches.
   Merge.ThreeWay (Branch0 m) ->
-  -- | Survivor map: the merged namespace's term names (typically
-  -- @mergeblob.unconflictedDefns.terms@).
-  Map Name Referent ->
+  -- | Survivor map: the merged namespace's names for this kind.
+  Map Name r ->
   -- | The merged branch to stamp.
   Branch0 m ->
   Branch0 m
-mergeGivenMarksInto inputs survivors mergedBranch =
-  let marksOf b = GivenSet.fromList (deepGivenMarks (Branch.withoutLib b))
+mergeMarksIntoWith extract stamp inputs survivors mergedBranch =
+  let marksOf b = GivenSet.fromList (extract (Branch.withoutLib b))
       threeWayMarks = Merge.ThreeWay {lca = marksOf inputs.lca, alice = marksOf inputs.alice, bob = marksOf inputs.bob}
-      merged = GivenSet.merged (GivenSet.mergeGivenSets GivenSet.NonInteractive threeWayMarks)
-      final = GivenSet.applyGivenSet survivors merged
+      merged = GivenSet.merged (GivenSet.mergeMarks GivenSet.NonInteractive threeWayMarks)
+      final = GivenSet.applyMarks survivors merged
    in Branch.batchUpdates (map markStep (GivenSet.toMarkList final)) mergedBranch
   where
-    markStep :: (Name, Referent) -> (Path.Path, Branch0 m -> Branch0 m)
     markStep (name, ref) =
       let (seg :| revParent) = Name.reverseSegments name
           parentPath = Path.fromList (reverse revParent)
-       in (parentPath, Givens.markGivenAt ref seg)
+       in (parentPath, stamp ref seg)
+
+-- | Preserve @given@ (term) marks across a merge. The survivor map is
+-- typically @mergeblob.unconflictedDefns.terms@.
+mergeGivenMarksInto ::
+  (Monad m) => Merge.ThreeWay (Branch0 m) -> Map Name Referent -> Branch0 m -> Branch0 m
+mergeGivenMarksInto = mergeMarksIntoWith deepGivenMarks Givens.markGivenAt
+
+-- | Preserve @class@ (type) marks across a merge. The survivor map is
+-- typically @mergeblob.unconflictedDefns.types@.
+mergeClassMarksInto ::
+  (Monad m) => Merge.ThreeWay (Branch0 m) -> Map Name TypeReference -> Branch0 m -> Branch0 m
+mergeClassMarksInto = mergeMarksIntoWith deepClassMarks Classes.markClassAt
