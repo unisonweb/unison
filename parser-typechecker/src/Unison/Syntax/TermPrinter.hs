@@ -431,12 +431,9 @@ pretty0
                         fmt S.ControlKeyword " with" `PP.hang` pbs
                       ]
                   else (fmt S.ControlKeyword "match " <> ps <> fmt S.ControlKeyword " with") `PP.hang` pbs
-          -- When 'stripImplicitArgsByType' decides the leading @=>@
-          -- slot(s) of an application were user-supplied (rather than
-          -- resolver-picked), it tags the head with a
-          -- 'Type.giveMarkerRef' ascription. Render that as the @give@
-          -- keyword so the source round-trips back to a parse with
-          -- the matching 'Ann.Lowered' annotation.
+          -- The @give@-marked application form is handled in
+          -- 'specialCases' (see the 'isGiveMarkerType' branch); an
+          -- ordinary application falls through to here.
           Apps' f args -> paren (p >= Application) <$> (PP.hang <$> goNormal (InfixOp Highest) f <*> PP.spacedTraverse (goNormal Application) args)
           t -> pure $ l "error: " <> l (show t)
     where
@@ -1026,28 +1023,41 @@ prettyGivenBinding ::
   HQ.HashQualified Name ->
   Term2 v at ap v a ->
   Pretty SyntaxText
-prettyGivenBinding ppe v tm =
-  runPretty (avoidShadowing tm ppe) $ do
-    let annotated = printAnnotate ppe tm
-        (tp, body) = splitGivenAnn annotated
-        im = Map.empty
-        v' = elideFQN im v
-        renderedName =
-          parenIfInfix v' NonInfix $ styleHashQualified'' (fmt $ S.HashQualifier v') v'
-    tp' <- TypePrinter.pretty0 im (-1) tp
-    body' <- pretty0 (ac Basement Block im MaybeDoc) body
-    let header =
-          fmt S.DataTypeKeyword "given "
-            <> renderedName
-            <> PP.hang (fmt S.TypeAscriptionColon " :") tp'
-    pure $
-      PP.group $
-        PP.group (header <> fmt S.BindingEquals " =")
-          `PP.hang` body'
+prettyGivenBinding ppe v tm = case tm of
+  Ann' _ _ -> renderGiven
+  -- Defensive: the parser only accepts the annotated form
+  -- @given n : T = body@, so a given binding should always carry a
+  -- top-level type annotation. If somehow it doesn't, fall back to the
+  -- ordinary binding printer rather than crashing @view@ with a partial
+  -- match (at the cost of not re-emitting the @given@ keyword).
+  _ -> prettyBinding ppe v tm
   where
-    splitGivenAnn t = case t of
-      Ann' inner ty -> (ty, stripSyntheticImplicitLambdas inner)
-      _ -> error "prettyGivenBinding: term has no top-level annotation"
+    renderGiven = runPretty (avoidShadowing tm ppe) $ case printAnnotate ppe tm of
+      Ann' inner ty -> do
+        let body = stripSyntheticImplicitLambdas inner
+            im = Map.empty
+            v' = elideFQN im v
+            renderedName =
+              parenIfInfix v' NonInfix $ styleHashQualified'' (fmt $ S.HashQualifier v') v'
+            -- Track the signature's quantified type variables so the
+            -- body's inner type annotations don't capture them.
+            avoidCapture = case ty of
+              ForallsNamed' vs _ -> addTypeVars vs
+              _ -> id
+        tp' <- TypePrinter.pretty0 im (-1) ty
+        body' <- avoidCapture (pretty0 (ac Basement Block im MaybeDoc) body)
+        let header =
+              fmt S.DataTypeKeyword "given "
+                <> renderedName
+                <> PP.hang (fmt S.TypeAscriptionColon " :") tp'
+        pure $
+          PP.group $
+            PP.group (header <> fmt S.BindingEquals " =")
+              `PP.hang` body'
+      -- 'printAnnotate' preserves the top-level 'Ann', so this is
+      -- unreachable given the guard above; render the body alone rather
+      -- than crash.
+      other -> pretty0 (ac Basement Block Map.empty MaybeDoc) other
     stripSyntheticImplicitLambdas t = case t of
       LamNamed' bv body
         | "_implicit_" `Text.isPrefixOf` Var.name (Var.reset bv) ->

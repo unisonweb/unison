@@ -125,7 +125,7 @@ checkFileContents fileUri sourceName fileVersion contents = do
             maybeNamespace = Nothing,
             localNamespacePrefixedTypesAndConstructors = mempty
           }
-  -- Chunk L1: harvest the namespace's ambient given pool. The branch
+  -- Harvest the namespace's ambient given pool. The branch
   -- read happens in IO above the transaction; the pool itself is built
   -- inside the transaction so we can use the codebase's type lookup.
   branch0 <- liftIO (Branch.head . fromMaybe Branch.empty <$> Codebase.getBranchAtProjectPath cb pp)
@@ -178,21 +178,23 @@ checkFileContents fileUri sourceName fileVersion contents = do
                                 ((annToInterval loc) & foldMap \interval -> (IM.singleton interval (typ, definitionSite)))
                               _ -> mempty
                       _ -> mempty
-            -- Chunk F1: collect 'ImplicitArgRef' notes emitted by D3's
-            -- 'applyGivenDecisions'. We index by the call-site interval
-            -- so the LSP hover/goto-def handlers can detect cursors on
-            -- a function whose call has synthesized implicit args.
-            -- Multiple implicit slots at the same call site each
-            -- contribute one note with the same loc; we accumulate the
-            -- references in left-to-right order.
+            -- Collect the 'ImplicitArgRef' notes emitted by
+            -- 'applyGivenDecisions', indexed by call-site interval so the
+            -- hover/goto-def handlers can detect cursors on a function
+            -- whose call has synthesized implicit args. Multiple implicit
+            -- slots at one call site each contribute a note with the same
+            -- loc, so we must *combine* their reference lists — plain
+            -- 'foldMap' over 'IM.singleton' would drop all but one, since
+            -- the 'IntervalMap' 'Semigroup' is a left-biased union.
+            -- 'fromListWith (flip (<>))' keeps them in left-to-right
+            -- emission order.
             let implicitArgInfo :: IntervalMap Position [Reference] =
-                  typecheckingNotes
-                    & Foldable.toList
-                    & foldMap \case
-                      Result.TypeInfo (Context.ImplicitArgRef loc ref) ->
-                        annToInterval loc
-                          & foldMap \interval -> IM.singleton interval [ref]
-                      _ -> mempty
+                  IM.fromListWith
+                    (flip (<>))
+                    [ (interval, [ref])
+                    | Result.TypeInfo (Context.ImplicitArgRef loc ref) <- Foldable.toList typecheckingNotes,
+                      interval <- Foldable.toList (annToInterval loc)
+                    ]
             pure (localBindingInfo, implicitArgInfo, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
 
   filePPED <- ppedForFileHelper parsedFile typecheckedFile
@@ -528,8 +530,8 @@ toRangeMap :: (Foldable f) => f (Range, a) -> IntervalMap Position [a]
 toRangeMap vs =
   IM.fromListWith (<>) (toList vs <&> \(r, a) -> (rangeToInterval r, [a]))
 
--- | Chunk F2: short, stable string code per implicit-resolution
--- failure category. Editors and tests dispatch on these.
+-- | Short, stable string code per implicit-resolution failure
+-- category. Editors and tests dispatch on these.
 resolveErrorCode :: GR.ResolveError v loc -> Text
 resolveErrorCode = \case
   GR.NoGiven {} -> "implicit-no-given"
@@ -538,15 +540,14 @@ resolveErrorCode = \case
   GR.Cycle {} -> "implicit-cycle"
   GR.UnresolvedMetavarInGoal {} -> "implicit-unresolved-metavar"
 
--- | Chunk F2: per-category code actions for implicit-resolution
--- failures. The 'NoGiven' action is the highest-leverage: insert a
--- 'given _ : <T> = todo' skeleton at file scope so the user has a
--- correctly-shaped placeholder to fill in. 'Ambiguous' inserts a
--- local 'given' skeleton. 'DepthExceeded' attaches an informational
--- code action that explains how to raise the limit. 'Cycle' and
--- 'UnresolvedMetavarInGoal' get no action — the former requires
--- breaking the cycle by hand, the latter requires adding a type
--- annotation at a site only the user knows.
+-- | Per-category code actions for implicit-resolution failures. Both
+-- 'NoGiven' and 'Ambiguous' insert a top-level @given _ : <T> = todo …@
+-- skeleton the user is expected to move and fill in — for 'NoGiven' it
+-- supplies the missing instance; for 'Ambiguous' a strictly-more-specific
+-- given resolves the tie by specificity. The remaining categories get no
+-- action: 'DepthExceeded' has no automatic remedy, 'Cycle' requires
+-- breaking the cycle by hand, and 'UnresolvedMetavarInGoal' requires a
+-- type annotation at a site only the user knows.
 resolveErrorCodeActions ::
   Uri ->
   PrettyPrintEnv ->
@@ -569,19 +570,22 @@ resolveErrorCodeActions fileUri ppe diags goal err = case err of
         rca = rangedCodeAction title diags ranges
      in [insertAtFileTop fileUri snippet rca]
   GR.Ambiguous {} ->
+    -- A strictly-more-specific given wins by specificity and breaks the
+    -- tie, so offer the same (parseable) top-level skeleton as 'NoGiven'.
     let prettyGoal = TypePrinter.prettyStr 80 ppe goal
-        title = "Shadow with local given " <> prettyGoal
-        snippet = "given _ : " <> prettyGoal <> " = ?\n"
+        title = "Define a more specific given for " <> prettyGoal
+        snippet =
+          Text.unlines
+            [ "",
+              "given _ : " <> prettyGoal <> " =",
+              "  todo \"implement given for " <> prettyGoal <> "\"",
+              ""
+            ]
         ranges = diags ^.. folded . range
         rca = rangedCodeAction title diags ranges
      in [insertAtFileTop fileUri snippet rca]
-  GR.DepthExceeded {} ->
-    -- Informational: there's no project-config knob for this yet,
-    -- so we surface the suggestion as a no-edit code action.
-    let title = "Increase implicit-resolution depth limit"
-        ranges = diags ^.. folded . range
-        rca = rangedCodeAction title diags ranges
-     in [rca]
+  -- No automatic remedy: a bare no-edit code action would be noise.
+  GR.DepthExceeded {} -> []
   GR.Cycle {} -> []
   GR.UnresolvedMetavarInGoal {} -> []
 

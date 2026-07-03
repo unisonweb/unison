@@ -151,7 +151,7 @@ data FileAnalysis = FileAnalysis
     codeActions :: IntervalMap Position [CodeAction],
     -- | The types of local variable bindings keyed by the mention's location.
     localBindingInfo :: IntervalMap Position (Context.Type Symbol Ann {- type of binding -}, Range {- binding definition site -}),
-    -- | Chunk F1: synthesized implicit arguments produced by D3's
+    -- | Synthesized implicit arguments produced by
     -- 'applyGivenDecisions'. Indexed by the source position of the
     -- function head whose call has implicit slots; the list collects
     -- references to the resolved givens (one per implicit slot, in

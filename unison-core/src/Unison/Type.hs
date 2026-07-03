@@ -134,9 +134,10 @@ pattern Arrow' i o <- ABT.Tm' (Arrow i o)
 pattern Arrow'' :: (Ord v) => ABT.Term F v a -> [Type v a] -> Type v a -> ABT.Term F v a
 pattern Arrow'' i es o <- Arrow' i (Effect'' es o)
 
--- | Smart pattern for 'ImplicitArrow'. Currently no consumer except the
--- elaborator (Phase 2.D, chunks D2/D3) needs to distinguish this from
--- 'Arrow', but pattern is provided for future use.
+-- | Smart pattern for 'ImplicitArrow'. Used wherever a consumer needs to
+-- distinguish an implicit @=>@ arrow from an ordinary @->@ 'Arrow' — the
+-- resolver, elaborator, printers, variance and kind inference all match on
+-- it.
 pattern ImplicitArrow' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
 pattern ImplicitArrow' i o <- ABT.Tm' (ImplicitArrow i o)
 

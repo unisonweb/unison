@@ -492,12 +492,14 @@ makePPE hashLen namespaceNames initialFileNames dependents =
 
 -- | After @update@ persists the typechecked file, mark every name
 -- the parser tagged with @given@ as a namespace given. Each name is
--- resolved relative to the project root; if no referent is present
--- at the name in the freshly-updated branch the step is silently
--- skipped (this mirrors 'Givens.markGivenAt's no-op behavior).
+-- resolved relative to @pp@'s perspective path — the same place
+-- @update@ applied the definitions — so a @given@ edited while
+-- @cd@'d into a sub-namespace is still marked. If no referent is
+-- present at the name in the freshly-updated branch the step is
+-- silently skipped (this mirrors 'Givens.markGivenAt's no-op behavior).
 autoMarkGivens :: ProjectPath -> [Name] -> Cli ()
-autoMarkGivens _path [] = pure ()
-autoMarkGivens _path names = do
+autoMarkGivens _pp [] = pure ()
+autoMarkGivens pp names = do
   projectRoot <- Cli.getCurrentProjectRoot0
   pb <- Cli.getCurrentProjectBranch
   let stepsForName :: Name -> [(Path.Absolute, Branch0 IO -> Branch0 IO)]
@@ -505,9 +507,8 @@ autoMarkGivens _path names = do
         let revSegs = Name.reverseSegments name
             seg = NonEmpty.head revSegs
             parentSegsRev = NonEmpty.tail revSegs
-            parentPath = Path.fromList (reverse parentSegsRev)
-            parentAbs = Path.Absolute parentPath
-            parentBranch = Branch.getAt0 parentPath projectRoot
+            parentAbs = Path.resolve pp.absPath (Path.fromList (reverse parentSegsRev))
+            parentBranch = Branch.getAt0 (Path.unabsolute parentAbs) projectRoot
             refs =
               [ r
               | (r, s) <- Relation.toList (Star2.d1 (view Branch.terms_ parentBranch)),
@@ -520,12 +521,13 @@ autoMarkGivens _path names = do
 
 -- | After @update@ persists the typechecked file, mark every type
 -- name the parser tagged with @class@ as a namespace class. Mirrors
--- 'autoMarkGivens' but consults the type-namespace ('Branch.types_')
+-- 'autoMarkGivens' (including resolving each name against @pp@'s
+-- perspective path) but consults the type-namespace ('Branch.types_')
 -- and uses 'Classes.markClassAt'. @view@ later reads the marker to
 -- render the declaration with the @class@ keyword and record syntax.
 autoMarkClasses :: ProjectPath -> [Name] -> Cli ()
-autoMarkClasses _path [] = pure ()
-autoMarkClasses _path names = do
+autoMarkClasses _pp [] = pure ()
+autoMarkClasses pp names = do
   projectRoot <- Cli.getCurrentProjectRoot0
   pb <- Cli.getCurrentProjectBranch
   let stepsForName :: Name -> [(Path.Absolute, Branch0 IO -> Branch0 IO)]
@@ -533,9 +535,8 @@ autoMarkClasses _path names = do
         let revSegs = Name.reverseSegments name
             seg = NonEmpty.head revSegs
             parentSegsRev = NonEmpty.tail revSegs
-            parentPath = Path.fromList (reverse parentSegsRev)
-            parentAbs = Path.Absolute parentPath
-            parentBranch = Branch.getAt0 parentPath projectRoot
+            parentAbs = Path.resolve pp.absPath (Path.fromList (reverse parentSegsRev))
+            parentBranch = Branch.getAt0 (Path.unabsolute parentAbs) projectRoot
             refs =
               [ r
               | (r, s) <- Relation.toList (Star2.d1 (view Branch.types_ parentBranch)),

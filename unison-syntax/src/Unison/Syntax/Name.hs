@@ -81,17 +81,21 @@ parseTextEither s =
           let escaped = escapeReservedSegments s
            in if escaped == s then Left err else attempt escaped
 
--- | Wrap every '.'-separated segment that matches a Unison keyword in
--- backticks, leaving non-keyword segments and segment separators
--- untouched. Idempotent on already-escaped input (already-backticked
--- segments contain no bare keyword).
+-- | Wrap every '.'-separated segment that matches a Unison reserved word
+-- — either an alphabetic keyword (@class@, @given@, …) or a reserved
+-- operator (@=>@, @->@, …) — in backticks, leaving ordinary segments and
+-- segment separators untouched. Idempotent on already-escaped input
+-- (already-backticked segments contain no bare reserved word).
 escapeReservedSegments :: Text -> Text
 escapeReservedSegments t =
   Text.intercalate "." (map escapeSeg (Text.splitOn "." t))
   where
     escapeSeg s
-      | Set.member s ReservedWords.keywords = "`" <> s <> "`"
+      | isReserved s = "`" <> s <> "`"
       | otherwise = s
+    isReserved s =
+      Set.member s ReservedWords.keywords
+        || Set.member s ReservedWords.reservedOperators
 
 -- | Unsafely parse a name from a string literal.
 unsafeParseText :: (HasCallStack) => Text -> Name

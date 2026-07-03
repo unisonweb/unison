@@ -71,9 +71,11 @@ reservedOperators =
       "!",
       "'",
       "==>",
-      -- Implicit-parameter constraint arrow. Listed after "==>" so
-      -- the longer match wins via the lexer's alternation order (see
-      -- 'symbolyKw' in Lexer/Unison.hs).
+      -- Implicit-parameter constraint arrow. This set is unordered
+      -- (membership only); maximal munch between "==>" and "=>" is
+      -- enforced by the token order in 'layoutKeywords' (Lexer/Unison.hs),
+      -- where the "==>" rewrite arrow is tried before the "=>" constraint
+      -- arrow.
       "=>"
     ]
 

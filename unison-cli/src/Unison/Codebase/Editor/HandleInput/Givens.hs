@@ -9,6 +9,8 @@ module Unison.Codebase.Editor.HandleInput.Givens
   ( handleMarkGiven,
     handleUnmarkGiven,
     handleGivens,
+    deepGivenMarks,
+    mergeGivenMarksInto,
   )
 where
 
@@ -18,6 +20,7 @@ import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Output (Output (..))
@@ -26,6 +29,8 @@ import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.HashQualifiedPrime qualified as HQ'
+import Unison.Merge qualified as Merge
+import Unison.Merge.GivenSet qualified as GivenSet
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -53,7 +58,9 @@ resolveSingleTerm hq = do
           nameOnly = fmap Path.nameFromSplit hq
       pure (r, absSplit, nameOnly)
     [] -> Cli.returnEarly (TermNotFound hq)
-    _ -> Cli.returnEarly (DeleteNameAmbiguous 10 hq termsAt Set.empty)
+    _ -> do
+      hashLen <- Cli.runTransaction Codebase.hashLength
+      Cli.returnEarly (GivenNameAmbiguous hashLen (fmap Path.nameFromSplit hq) termsAt)
 
 handleMarkGiven :: HQ'.HashQualified (Path.Split Path') -> Cli ()
 handleMarkGiven hq = do
@@ -118,12 +125,22 @@ handleGivens = do
   -- dependents commands, which all consult 'Branch.withoutLib'
   -- before walking the namespace.
   let searchBranch = Branch.withoutLib branch0
-  let givens :: [(Name, Referent)]
-      givens = collectGivens [] searchBranch
-  Cli.respond (ListGivens givens)
+  Cli.respond (ListGivens (deepGivenMarks searchBranch))
+
+-- | Enumerate every deep @(name, referent)@ under the branch whose
+-- metadata carries the given sentinel, paired with the names they are
+-- known by within the namespace. A referent that appears under several
+-- aliases appears once per alias.
+--
+-- 'Givens.isGiven' inspects the metadata stored on a single branch
+-- node alone, so we walk children recursively and consult @isGiven@ at
+-- each level, prefixing each level's marked segments with its path.
+-- The caller decides whether to pass 'Branch.withoutLib' first.
+deepGivenMarks :: Branch0 m -> [(Name, Referent)]
+deepGivenMarks = go []
   where
-    collectGivens :: [NameSegment] -> Branch0 m -> [(Name, Referent)]
-    collectGivens revPrefix b0 =
+    go :: [NameSegment] -> Branch0 m -> [(Name, Referent)]
+    go revPrefix b0 =
       let here :: [(Name, Referent)]
           here =
             [ (Name.fromReverseSegments (seg :| revPrefix), r)
@@ -132,8 +149,41 @@ handleGivens = do
             ]
           there =
             concatMap
-              ( \(seg, child) ->
-                  collectGivens (seg : revPrefix) (Branch.head child)
-              )
+              (\(seg, child) -> go (seg : revPrefix) (Branch.head child))
               (Map.toList (view Branch.children_ b0))
        in here ++ there
+
+-- | Merge the given-set metadata (the @##Builtin.Given@ marks) across
+-- the three input branches of a namespace merge and stamp the surviving
+-- marks onto the merged branch.
+--
+-- This is needed because the merged namespace is assembled from
+-- unconflicted definitions, which carry no metadata — so without this,
+-- a merge would silently drop every @given@ mark. Marks are extracted
+-- from the non-@lib@ portion of each input branch (library givens ride
+-- along with the library merge), combined by
+-- 'GivenSet.mergeGivenSets' in the non-interactive "mark wins" mode,
+-- pruned to the survivors (a rename relocates a mark, a delete drops
+-- it), and re-applied with 'Givens.markGivenAt' at each surviving name.
+mergeGivenMarksInto ::
+  (Monad m) =>
+  -- | The LCA / Alice / Bob input branches.
+  Merge.ThreeWay (Branch0 m) ->
+  -- | Survivor map: the merged namespace's term names (typically
+  -- @mergeblob.unconflictedDefns.terms@).
+  Map Name Referent ->
+  -- | The merged branch to stamp.
+  Branch0 m ->
+  Branch0 m
+mergeGivenMarksInto inputs survivors mergedBranch =
+  let marksOf b = GivenSet.fromList (deepGivenMarks (Branch.withoutLib b))
+      threeWayMarks = Merge.ThreeWay {lca = marksOf inputs.lca, alice = marksOf inputs.alice, bob = marksOf inputs.bob}
+      merged = GivenSet.merged (GivenSet.mergeGivenSets GivenSet.NonInteractive threeWayMarks)
+      final = GivenSet.applyGivenSet survivors merged
+   in Branch.batchUpdates (map markStep (GivenSet.toMarkList final)) mergedBranch
+  where
+    markStep :: (Name, Referent) -> (Path.Path, Branch0 m -> Branch0 m)
+    markStep (name, ref) =
+      let (seg :| revParent) = Name.reverseSegments name
+          parentPath = Path.fromList (reverse revParent)
+       in (parentPath, Givens.markGivenAt ref seg)

@@ -72,8 +72,13 @@ constraintContext = do
   where
     parenthesisedConstraints = do
       _ <- openBlockWith "("
+      -- '(' opens a layout block, so a multi-line constraint context can
+      -- have layout-inserted semicolons around the commas; tolerate them
+      -- (and any leading/trailing one) the way the tuple parser does.
+      _ <- optional semi
       -- A constraint context cannot be empty; @() => T@ is rejected.
-      cs <- sepBy1 (reserved ",") type2
+      cs <- sepBy1 (P.try (optional semi *> reserved "," <* optional semi)) type2
+      _ <- optional semi
       _ <- closeBlock
       pure cs
 

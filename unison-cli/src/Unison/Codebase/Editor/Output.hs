@@ -535,6 +535,10 @@ data Output
   | -- | Result of `givens`: the list of (name, referent) pairs in the
     -- current namespace whose metadata carries the given sentinel.
     ListGivens ![(Name, Referent)]
+  | -- | The user ran `mark.given`/`unmark.given` on a name that
+    -- resolves to more than one term. Carries the hash length to use
+    -- when disambiguating, the name as written, and the candidates.
+    GivenNameAmbiguous !Int !(HQ'.HashQualified Name) !(Set Referent)
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -810,6 +814,7 @@ isFailure o = case o of
   AlreadyMarkedGiven {} -> False
   UnmarkedGiven {} -> False
   NotMarkedGiven {} -> False
+  GivenNameAmbiguous {} -> True
   ListGivens {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool

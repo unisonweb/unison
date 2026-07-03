@@ -2998,6 +2998,16 @@ notifyUser dir issueFn = \case
                 : ""
                 : map (\(n, _r) -> "  " <> prettyName n) entries
             )
+  GivenNameAmbiguous hashLen hq tms ->
+    let nm = HQ'.toName hq
+        qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen nm
+     in pure . P.callout "\129300" . P.lines $
+          [ P.wrap "I wasn't sure which of these you meant:",
+            "",
+            P.indentN 2 (P.lines (map qualifyTerm (Set.toList tms))),
+            "",
+            tip "Try again, using one of the unambiguous names or hashes above."
+          ]
   where
     iveCreatedATemporaryBranch scratchFile =
       P.wrap $

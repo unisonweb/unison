@@ -1,4 +1,4 @@
--- | Three-way merge for namespace given-sets, per ADR-021.
+-- | Three-way merge for namespace given-sets.
 --
 -- A /given/ is a name marked with the @##Builtin.Given@ sentinel
 -- reference inside the namespace's 'MdValues' (see 'Unison.Codebase.Givens').
@@ -17,18 +17,21 @@
 --     existing delete-conflict path drives the resolution. If the
 --     surviving definition exists, it inherits the mark.
 --
--- This module operates as a parallel structure to the rest of the
--- merge pipeline: callers extract the given-marks per branch from
--- their 'Branch0' (using 'Unison.Codebase.Givens') and pass them in
--- alongside the existing merge inputs. The merged given-set returned
--- by 'mergeGivenSets' is then projected back onto the merged branch
--- by 'applyGivenSet'.
+-- The merge pipeline wires this in via
+-- 'Unison.Codebase.Editor.HandleInput.Givens.mergeGivenMarksInto', which
+-- extracts the given-marks per branch from their 'Branch0' (using
+-- 'Unison.Codebase.Givens'), passes them to 'mergeGivenSets' (in
+-- 'NonInteractive' mode) alongside the existing merge inputs, and
+-- projects the result back onto the merged branch with 'applyGivenSet'.
+-- This is necessary because the merged namespace is assembled from
+-- unconflicted definitions, which carry no metadata — so without it a
+-- merge would silently drop every @given@ mark.
 --
 -- Cases (c) and (d) require no new conflict category in the merge
 -- itself - they layer atop the existing rename-conflict and
 -- delete-conflict paths. The single new conflict category introduced
--- by this chunk is case (b)'s metadata-only conflict, exposed to
--- callers via 'GivenSetConflict' for optional confirmation.
+-- here is case (b)'s metadata-only conflict, exposed to callers via
+-- 'GivenSetConflict' for optional confirmation.
 module Unison.Merge.GivenSet
   ( -- * Per-branch given-marks
     GivenMarks,
@@ -67,14 +70,14 @@ import Unison.Referent (Referent)
 
 -- | The givenness sentinel reference, re-exported from
 -- 'Unison.Codebase.Givens' so this module is the single import in the
--- merge pipeline. Per chunk B4 the merge code never compares against a
--- hardcoded string; it always asks B1 what the sentinel is.
+-- merge pipeline. The merge code never compares against a hardcoded
+-- string; it always references this definition.
 sentinel :: TermReference
 sentinel = Givens.givenSentinel
 
 -- | A snapshot of one branch's given-marks. Keyed by 'Name' since a
 -- mark applies at a particular name; the 'Referent' is the term being
--- marked. Per ADR-013, marking is per-name, but V1 'MdValues' is keyed
+-- marked. Marking is conceptually per-name, but V1 'MdValues' is keyed
 -- on referent, so the same referent at multiple names is marked at all
 -- of them. We carry the 'Referent' here so case (c) (rename) and case
 -- (d) (delete) can match marks against the merged namespace.
@@ -97,15 +100,15 @@ fromList = GivenMarks . Map.fromList
 toMarkList :: GivenMarks -> [(Name, Referent)]
 toMarkList (GivenMarks m) = Map.toList m
 
--- | Whether to prompt the user for case (b) ambiguities. ADR-021
--- specifies that non-interactive (CI) merges default to keeping the
--- mark; 'NonInteractive' captures that. 'Interactive' mode reports
--- prompts in the outcome so the caller (UCM, B2) can present them.
+-- | Whether to prompt the user for case (b) ambiguities. Non-interactive
+-- (CI) merges default to keeping the mark; 'NonInteractive' captures
+-- that. 'Interactive' mode reports prompts in the outcome so the caller
+-- (UCM) can present them.
 data MergeMode
   = -- | Surface case (b) ambiguities as prompts; the caller decides.
     Interactive
   | -- | Apply the default ("mark wins") to every case (b) without
-    -- prompting. Per ADR-021 this is the documented CI default.
+    -- prompting. This is the CI default.
     NonInteractive
   deriving stock (Eq, Show)
 
@@ -142,7 +145,7 @@ data GivenSetMergeOutcome = GivenSetMergeOutcome
 
 -- | Three-way merge of given-mark snapshots.
 --
--- The four ADR-021 cases are resolved as follows:
+-- The four cases are resolved as follows:
 --
 --   * Case (a) (both mark, same name): the mark survives unchanged.
 --   * Case (b) (one marks, one doesn't): the mark survives. In
@@ -176,8 +179,8 @@ mergeGivenSets mode ThreeWay {lca, alice, bob} =
         (Map Name Referent, [GivenSetConflict])
       step (acc, conflicts) name =
         case (Map.lookup name aliceM, Map.lookup name bobM) of
-          -- Case (a): both branches still mark this name. Per
-          -- ADR-021 the mark survives unchanged - no prompt. We use
+          -- Case (a): both branches still mark this name. The mark
+          -- survives unchanged - no prompt. We use
           -- Alice's referent as the canonical witness; if the
           -- underlying definition diverges, the existing update-update
           -- conflict path will surface it separately.
@@ -185,9 +188,9 @@ mergeGivenSets mode ThreeWay {lca, alice, bob} =
             (Map.insert name refA acc, conflicts)
           -- Case (b): only Alice marks. Mark wins by default; in
           -- Interactive mode emit a prompt for caller confirmation.
-          -- Per ADR-021 this fires whether the LCA was marked or not:
-          -- "a merge that drops a deliberate mark is more surprising
-          -- than one that keeps it."
+          -- This fires whether the LCA was marked or not: a merge that
+          -- drops a deliberate mark is more surprising than one that
+          -- keeps it.
           (Just refA, Nothing) ->
             ( Map.insert name refA acc,
               case mode of

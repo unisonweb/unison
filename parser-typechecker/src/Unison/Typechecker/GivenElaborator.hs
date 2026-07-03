@@ -17,8 +17,8 @@
 -- goal. The verdict is recorded as a 'Context.SolvedImplicit' info
 -- note so that a post-pass can walk the term and substitute the
 -- resolved dictionary terms back into the AST — exactly how
--- 'applyTdnrDecisions' walks 'Context.Decision' notes (see
--- @parser-typechecker/src/Unison/FileParsers.hs:329@).
+-- 'applyTdnrDecisions' (in "Unison.FileParsers") walks
+-- 'Context.Decision' notes.
 --
 -- ## Pool construction
 --
@@ -79,8 +79,10 @@
 -- candidate's freshened skolems suggest, and otherwise rigid.
 --
 -- Memoization is per-call to 'GR.resolve' and is discarded between
--- goals; that is sound because each goal carries an independent
--- type.
+-- goals. Within a single goal's resolution the resolver caches only
+-- successful sub-resolutions (see 'GR.resolveImpl'), so neither the
+-- per-goal reset nor the intra-goal cache can replay a stack-dependent
+-- failure in the wrong context.
 module Unison.Typechecker.GivenElaborator
   ( -- * Top-level givens
     AmbientGiven (..),
@@ -286,7 +288,7 @@ elaborateGoals ambient = map (resolveOne ambient)
 -- | Convenience: run the entire elaboration pass over a list of info
 -- notes. The result is the original list with one 'SolvedImplicit'
 -- note appended per 'ConstraintGoal' (the original 'ConstraintGoal'
--- notes are preserved so D4's error rendering still has access to
+-- notes are preserved so the error-rendering pass still has access to
 -- them).
 elaborateInfoNotes ::
   (Var v, Ord loc) =>
@@ -297,7 +299,7 @@ elaborateInfoNotes ambient infos =
   infos <> elaborateGoals ambient (extractConstraintGoals infos)
 
 -- | Project the 'Context.SolvedImplicit' notes out of a heterogeneous
--- info-note list. Useful for the D3 post-pass and for tests.
+-- info-note list. Useful for the term-rewriting post-pass and for tests.
 implicitDecisions ::
   [Context.InfoNote v loc] ->
   [(loc, Type v loc, Either (GR.ResolveError v loc) (GR.ResolutionTree v loc))]

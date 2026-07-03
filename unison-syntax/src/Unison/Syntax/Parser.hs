@@ -121,9 +121,12 @@ debug = False
 -- | Parser-side state for tracking which surface-syntax forms each
 -- name originated from. Currently two parallel sets:
 --
---   * @givenBoundVars@ — names bound via the @given@ keyword,
---     populated by 'recordGivenVar'. The typechecker uses this to
---     identify @given@-keyword origins without inspecting the
+--   * @givenBoundVars@ — variables that must be treated as lexical
+--     givens, populated by 'recordGivenVar'. This includes both
+--     @given@-keyword bindings and the synthetic @_implicit_*@
+--     dictionary binders that 'wrapImplicitParams' injects for any
+--     binding whose declared type begins with @=>@. The typechecker
+--     uses this to identify given origins without inspecting the
 --     binding's type shape.
 --
 --   * @classDeclVars@ — type names declared with the @class@

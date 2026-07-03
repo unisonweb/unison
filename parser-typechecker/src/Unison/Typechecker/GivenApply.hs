@@ -4,8 +4,7 @@
 
 -- | Post-typecheck pass that walks a term and substitutes resolved
 -- implicit arguments into 'App' nodes, mirroring the
--- @applyTdnrDecisions@ pattern (see
--- @parser-typechecker/src/Unison/FileParsers.hs:329@).
+-- @applyTdnrDecisions@ pattern in "Unison.FileParsers".
 --
 -- ## Inputs
 --
@@ -138,9 +137,10 @@ import Unison.Var qualified as Var
 --
 -- The result is a term in which every implicit slot whose decision
 -- succeeded has been filled with a dictionary application; every
--- explicit override (per A3) is preserved unchanged; every implicit
--- whose decision failed is left as-is, with the failure surfaced via
--- the original info-note (D4).
+-- explicit override is preserved unchanged; every implicit whose
+-- decision failed is left as-is, with the failure surfaced via the
+-- original info-note (a downstream rendering pass turns it into a
+-- user diagnostic).
 --
 -- Alongside the rewritten term we return a list of
 -- 'Context.ImplicitArgRef' notes (one per inserted dictionary), so
@@ -228,7 +228,7 @@ collectDecisionsAndIndex notes =
 
 -- | Extract every successful 'SolvedImplicit' decision in the order
 -- the typechecker emitted them. Failures are dropped here; they
--- stay in the original info-note list for D4 to render.
+-- stay in the original info-note list for the error-rendering pass.
 collectDecisions :: [Context.InfoNote v Ann] -> [GR.ResolutionTree v Ann]
 collectDecisions = foldr step []
   where
@@ -275,9 +275,9 @@ data DState v = DState
 type M v = State (DState v)
 
 -- | Pop one decision from the head of the queue. Returns 'Nothing'
--- when the queue is empty (which only happens if an apply site
--- has more implicits than the typechecker reported — a bug; see
--- @Note [drained queue]@).
+-- when the queue is empty, which only happens if an apply site has
+-- more implicits than the typechecker reported a decision for; in
+-- that case 'interleave' leaves the remaining arguments untouched.
 popDecision :: M v (Maybe (GR.ResolutionTree v Ann))
 popDecision = do
   q <- gets dsQueue
@@ -649,16 +649,20 @@ stripImplicitArgsByType isGivenRef lookupTermType = go
               rebuild (ABT.annotation tm) (go head_) (recurseArgs args)
 
     -- \| An arg "looks auto-resolved" iff it could plausibly be what
-    -- the resolver picked: either a namespace-given top-level
-    -- reference (ambient pool), or a local 'Var' (lexical given
-    -- bound by @=>I@ or a @let given@). Anything else (a non-given
-    -- top-level reference, a literal, a complex expression) is
-    -- treated as a user-supplied dictionary that @give@ should
-    -- preserve.
+    -- the resolver built: a namespace-given top-level reference
+    -- (ambient pool); a local 'Var' (lexical given bound by @=>I@ or a
+    -- @let given@); or an application chain whose head is a given
+    -- reference and whose every argument is itself auto-resolved — this
+    -- last case is exactly the shape 'buildDictionary' produces for a
+    -- /parametric/ given (e.g. @Show.list Show.nat@ for @Show [Nat]@).
+    -- Anything else (a non-given reference, a literal, an arbitrary
+    -- expression) is treated as a user-supplied dictionary that @give@
+    -- should preserve.
     argLooksAutoResolved :: Term v Ann -> Bool
     argLooksAutoResolved a = case ABT.out a of
       ABT.Tm (Term.Ref r) -> isGivenRef r
       ABT.Var _ -> True
+      ABT.Tm (Term.App f x) -> argLooksAutoResolved f && argLooksAutoResolved x
       _ -> False
 
     -- \| Wrap the apply-chain head with a sentinel 'Term.Ann' whose
@@ -677,13 +681,12 @@ stripImplicitArgsByType isGivenRef lookupTermType = go
       ABT.Tm (Term.App f x) -> collect f ((ABT.annotation t, x) : acc)
       _ -> (t, acc)
 
+    -- The outer annotation is intentionally not re-applied: 'Term.apps'
+    -- reconstructs each apply node's annotation from its parts.
     rebuild :: Ann -> Term v Ann -> [(Ann, Term v Ann)] -> Term v Ann
-    rebuild outerAnn f = \case
+    rebuild _outerAnn f = \case
       [] -> f
-      args -> Term.apps f (map (\(a, x) -> (a, x)) args) `withTopAnn` outerAnn
-
-    withTopAnn :: Term v Ann -> Ann -> Term v Ann
-    withTopAnn t _outer = t
+      args -> Term.apps f args
 
     countLeadingImplicits :: Type v Ann -> Int
     countLeadingImplicits ty0 =

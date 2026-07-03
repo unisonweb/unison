@@ -3440,15 +3440,22 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       subtype (apply ctx' o1) (apply ctx' o2)
     go _ (Type.ImplicitArrow' _ o1) o2 =
       -- A function with a leading constraint is a subtype of its
-      -- conclusion (the elaborator will fill the constraint by
-      -- resolution at the use site). Without this clause a recursive
-      -- self-call inside a `=>`-typed binding fails because the
-      -- body's inferred type (post-`=>I`) doesn't structurally match
-      -- the declared signature.
+      -- conclusion. This only makes the *type-level* subsumption
+      -- succeed; the dictionary itself is inserted independently, by
+      -- the synthesis-side peeling of every `=>`-typed 'Var'/'Ref'
+      -- ('peelLeadingImplicits' and the `=>App` rule in
+      -- 'synthesizeApp'), which is what emits the 'ConstraintGoal'
+      -- notes 'GivenApply' consumes. 'subtype' emits no goal itself, so
+      -- it never drops a dictionary that wasn't already scheduled for
+      -- insertion elsewhere. Without this clause a recursive self-call
+      -- inside a `=>`-typed binding fails, because the body's inferred
+      -- type (post-`=>I`) doesn't structurally match the declared
+      -- signature.
       subtype o1 o2
     go _ o1 (Type.ImplicitArrow' _ o2) =
-      -- Symmetric: a non-constrained value can satisfy a constrained
-      -- expectation because the constraint is supplied separately.
+      -- Symmetric: a value can satisfy a constrained expectation because
+      -- the constraint is discharged by resolution at the use site (the
+      -- `=>I` rule / apply-site goals), not by this subsumption check.
       subtype o1 o2
     go _ (Type.App' x1 y1) (Type.App' x2 y2) = do
       -- analogue of `-->`

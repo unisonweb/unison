@@ -50,9 +50,9 @@ hoverHandler m respond = do
 
 hoverInfo :: forall m. (Lspish m, MonadUnliftIO m) => Uri -> Position -> MaybeT m Text
 hoverInfo uri pos = do
-  -- Chunk F1: combine the regular hover content (type signature,
+  -- Combine the regular hover content (type signature,
   -- docs, local-binding info) with any implicit-arg info recorded by
-  -- D3's 'applyGivenDecisions'. The regular hover content takes
+  -- 'applyGivenDecisions'. The regular hover content takes
   -- priority; the implicit info is appended below it. If only one of
   -- the two is available, return that one alone. If neither, fail (so
   -- the LSP returns @null@).
@@ -158,10 +158,9 @@ hoverInfo uri pos = do
             _ -> tShow localVar
       pure $ renderTypeSigForHover pped varName typ
 
-    -- Chunk F1: render an "Implicit argument; resolved from given …"
-    -- line for each synthesized implicit slot at this cursor position.
-    -- Multiple slots produce multiple lines, in left-to-right
-    -- synthesis order.
+    -- Render an "Implicit argument; resolved from given …" line for
+    -- each synthesized implicit slot at this cursor position. Multiple
+    -- slots produce multiple lines, in left-to-right synthesis order.
     implicitArgHover :: MaybeT m Text
     implicitArgHover = do
       FileAnalysis {implicitArgInfo} <- FileAnalysis.getFileAnalysis uri

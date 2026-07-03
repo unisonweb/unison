@@ -11,7 +11,8 @@ import Language.LSP.Protocol.Types
 import Language.LSP.Protocol.Types qualified as LSP
 import Language.LSP.Server (sendRequest)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.HandleInput.ShowDefinition (renderToFile)
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.HandleInput.ShowDefinition (collectClassTypeReferences, collectGivenReferents, renderToFile)
 import Unison.Codebase.Editor.Input (RelativeToFold (..))
 import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
@@ -19,6 +20,7 @@ import Unison.LSP.FileAnalysis qualified as FA
 import Unison.LSP.Types
 import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
+import Unison.Referent qualified as Referent
 import Unison.Server.Backend qualified as Backend
 import Unison.Syntax.Name qualified as Names
 
@@ -59,8 +61,17 @@ editDefinitionByFQN fileURI fqn = do
         void $ sendRequest Msg.SMethod_WorkspaceApplyEdit params $ \case
           Left err -> Debug.debugM Debug.LSP "Error applying workspace edit" err
           Right _ -> pure ()
-  -- The LSP edit-on-FQN path doesn't surface the `given` marker or
-  -- the @class@ keyword; it's a write-back path, not a user-facing
-  -- view. Pass @const False@ for both predicates.
-  numRendered <- renderToFile codebase (const True) (const False) (const False) appendText mayUnisonFile fp WithinFold pped termResults typeResults
+  -- 'editDefinitionByFQN' renders a codebase definition into the user's
+  -- scratch file for them to edit and re-save, so it must preserve the
+  -- `given` marker and the @class@ keyword just like the CLI @edit@ path;
+  -- otherwise the re-saved definition silently loses its given-ness /
+  -- class-ness. Build the same predicates the CLI path uses.
+  branch0 <- do
+    pp <- lift getCurrentProjectPath
+    liftIO (Branch.head . fromMaybe Branch.empty <$> Codebase.getBranchAtProjectPath codebase pp)
+  let givenReferents = collectGivenReferents branch0
+      classTypeRefs = collectClassTypeReferences branch0
+      isGivenRef r = Set.member (Referent.Ref r) givenReferents
+      isClassRef r = Set.member r classTypeRefs
+  numRendered <- renderToFile codebase (const True) isGivenRef isClassRef appendText mayUnisonFile fp WithinFold pped termResults typeResults
   pure (numRendered > 0)

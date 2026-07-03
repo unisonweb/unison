@@ -22,8 +22,11 @@
 --   ('oneWayMatch'). The candidate-under-comparison's quantified
 --   variables are flexible; the other candidate's are rigid.
 --
--- * Memoization is per-top-level-resolve, keyed on the goal type, and
---   caches both successes and failures.
+-- * Memoization is per-top-level-resolve, keyed on the goal type. Only
+--   successful resolutions are cached; failures are not, because a
+--   failure can be an artifact of the current resolution stack (a
+--   per-branch cycle prune or the depth limit) rather than a property
+--   of the goal itself.
 --
 -- ## Unification choice
 --
@@ -152,22 +155,24 @@ data ResolveError v loc
   | -- | Resolution chain exceeded the depth limit; the chain
     -- (outermost first) is included for diagnosis.
     DepthExceeded [Type v loc]
-  | -- | Hard cycle: the goal recurred along its own chain. Currently
-    -- emitted only when the resolver detects a self-referential goal
-    -- with no escape hatch. The list is the chain at the point of
-    -- detection (outermost first). Ordinary cycles short-circuit
-    -- per-branch and surface as 'NoGiven'; this variant is the
-    -- explicit hard-cycle diagnosis exposed for rendering.
+  | -- | Hard cycle: the goal recurred along its own chain. The list is
+    -- the chain at the point of detection (outermost first).
+    --
+    -- NOTE: the resolver does not currently emit this variant — ordinary
+    -- cycles short-circuit per-branch and surface as 'NoGiven' so that a
+    -- non-cyclic alternative can still win. It is reserved for a future
+    -- hard-cycle diagnosis and is handled by the rendering pass so that
+    -- wiring it up later requires no downstream changes.
     Cycle [Type v loc]
   | -- | The goal contained an unresolved metavariable (an inference
-    -- variable that was not pinned by surrounding inference). The
-    -- resolver cannot meaningfully proceed: head-unification would
-    -- accept any candidate. Surfaced as a distinct diagnostic so the
-    -- user is told to add a type annotation rather than chasing a
-    -- missing given.
+    -- variable that was not pinned by surrounding inference). The 'Type'
+    -- is the goal as the resolver saw it (with the metavar still present).
     --
-    -- The 'Type' is the goal as the resolver saw it (with the
-    -- metavar still present).
+    -- NOTE: the resolver does not currently emit this variant either — it
+    -- runs unconditionally and lets an unmatched goal surface as
+    -- 'NoGiven' (see 'resolveCounted'). It is retained for the rendering
+    -- pass, which turns it into an "add a type annotation" hint should a
+    -- future entry point choose to short-circuit on unpinned metavars.
     UnresolvedMetavarInGoal (Type v loc)
   deriving stock (Show)
 
@@ -223,13 +228,14 @@ data RState v loc = RState
     -- candidate's own variables or any goal variable already in
     -- play.
     sUsed :: !(Set v),
-    -- | Memoization table: 'MemoKey' to either error or success.
-    -- Cleared between top-level 'resolve' calls. Caches both hits and
-    -- misses.
+    -- | Memoization table, cleared between top-level 'resolve' calls.
+    -- Only successful resolutions are inserted (see 'resolveImpl' for
+    -- why failures are not cached). The 'Either' type is retained so a
+    -- future stack-aware caching strategy could store failures too.
     sMemo :: !(Map (MemoKey v) (Either (ResolveError v loc) (ResolutionTree v loc))),
     -- | Number of memo *misses* — distinct sub-goals attempted.
-    -- Exposed via 'resolveCounted' so tests can verify the diamond
-    -- bound from §4.2#6 of the plan.
+    -- Exposed via 'resolveCounted' so tests can verify the memoization
+    -- bound on diamond-shaped resolutions.
     sWork :: !Int,
     -- | Resolution options.
     sOpts :: !(ResolveOptions v),
@@ -363,7 +369,17 @@ resolveImpl goal stack depth = do
             Nothing -> do
               bumpWork
               result <- attemptCandidates goal stack depth
-              modify' (\st -> st {sMemo = Map.insert key result (sMemo st)})
+              -- Only memoize *successes*. A failure can be produced by a
+              -- per-branch cycle prune (see 'cycleHit') or by the depth
+              -- limit, both of which depend on the goals currently on
+              -- 'stack'. Caching such a failure and replaying it for the
+              -- same goal shape in a different stack context would
+              -- spuriously reject a goal that is in fact resolvable there.
+              -- A successful 'ResolutionTree' is a stack-independent proof,
+              -- so it is always safe to cache.
+              case result of
+                Right _ -> modify' (\st -> st {sMemo = Map.insert key result (sMemo st)})
+                Left _ -> pure ()
               pure result
 
 bumpWork :: R v loc ()
@@ -423,7 +439,8 @@ data Candidate v loc = Candidate
     -- applied.
     candPremises :: ![Type v loc],
     -- | Substitution produced by head-unification. Stored on the
-    -- 'ResolutionTree' so post-passes (D3) can apply it to terms.
+    -- 'ResolutionTree' so the term-rewriting post-pass
+    -- ('Unison.Typechecker.GivenApply') can apply it to terms.
     candSubst :: !(Substitution v loc),
     -- | Conclusion *after* freshening but *before* head-unification.
     -- Used for specificity comparison: post-unification, both
@@ -468,32 +485,21 @@ matchHead ::
 matchHead goal g = do
   let Given {givenTyVars, givenPremises, givenConclusion} = g
   (fresh, prems', concl') <- freshenGiven givenTyVars givenPremises givenConclusion
-  -- The candidate's freshened variables are *flexible* (unifiable);
-  -- variables in the goal are *rigid* (we have already committed to
-  -- them at the call site). Implementation: pass the fresh set as
-  -- the unifier's flexible-variable whitelist; everything else is
-  -- treated rigid.
+  -- Flexible variables for unification (everything else is rigid — we
+  -- have already committed to it at the call site):
   --
-  -- Exception: unresolved inference variables that surrounding type
-  -- inference hasn't yet pinned are also treated as flexible. When
-  -- the elaborator emits a 'ConstraintGoal' for a polymorphic
-  -- function used in a context that fully determines its type
-  -- elsewhere, the goal's existential may not have been substituted
-  -- into the note by the time the resolver runs. Treating those
-  -- existentials as flexible lets the unifier bind them to whatever
-  -- the candidate exposes — which is exactly what surrounding
-  -- inference will end up doing.
-  -- Flexible variables for unification:
   --   * the candidate's freshened tyvars (always);
-  --   * goal-side existentials supplied by the typechecker (vars it
-  --     has not yet pinned). Rigid universals from the surrounding
-  --     binding stay opaque so the resolver doesn't unify a
-  --     polymorphic call with a more-specific namespace given.
+  --
+  --   * goal-side existentials the typechecker supplied but hasn't
+  --     pinned yet; and goal-side 'Var.Inference' metavars. Both can
+  --     remain unsubstituted in the 'ConstraintGoal' note by the time
+  --     the resolver runs; binding them to whatever the candidate
+  --     exposes is exactly what surrounding inference will end up doing.
+  --
+  -- Rigid universals from the surrounding binding stay opaque so the
+  -- resolver doesn't unify a polymorphic call with a more-specific
+  -- namespace given.
   goalExistentials <- gets' (optGoalExistentials . sOpts)
-  -- Goal-side 'Var.Inference' variables are flex: these are metavars
-  -- surrounding inference hasn't yet pinned, and binding them to
-  -- whatever the candidate exposes is exactly what later inference
-  -- will end up doing.
   let goalInference = Set.filter (isInference . Var.typeOf) (ABT.freeVars goal)
       flex =
         Set.fromList fresh

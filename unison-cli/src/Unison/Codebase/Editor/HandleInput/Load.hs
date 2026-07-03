@@ -392,7 +392,7 @@ parseAndTypecheckUnisonFile names sourceName text = do
       & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
   -- set that the file at least parsed (but didn't typecheck)
   State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
-  -- Chunk L1: harvest namespace-level givens before entering the
+  -- Harvest namespace-level givens before entering the
   -- typechecking transaction. The branch read happens in 'Cli'; the
   -- pool itself is built inside the transaction with the codebase's
   -- type lookup.

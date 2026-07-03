@@ -56,7 +56,7 @@ goToImplementationHandler m respond = do
 
 locationInfo :: (Lspish m) => Uri -> Position -> MaybeT m Range
 locationInfo uri pos =
-  -- Chunk F1: try implicit-arg goto-def first; otherwise fall back
+  -- Try implicit-arg goto-def first; otherwise fall back
   -- to local-binding goto-def (the prior behavior). If the cursor is
   -- on a function whose call has a synthesized implicit argument, we
   -- jump to the resolved given's definition.

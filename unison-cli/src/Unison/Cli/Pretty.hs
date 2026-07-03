@@ -393,7 +393,7 @@ prettyLibdepName =
   P.blue . P.text . NameSegment.toEscapedText
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> P.Pretty P.ColorText
-prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches _gbs cbs) =
+prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches gbs cbs) =
   P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
   where
     prettyEffects = map prettyEffectDecl (Map.toList effects)
@@ -439,13 +439,21 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches _gbs cb
           (Right dt)
     prettyTerm :: Set AccessorName -> v -> (a, Term v a) -> Maybe (a, P.Pretty P.ColorText)
     prettyTerm skip n (a, tm) =
-      if traceMember isMember then Nothing else Just (a, pb hq tm)
+      if traceMember isMember then Nothing else Just (a, rendered)
       where
         traceMember =
           if Debug.shouldDebug Debug.Update
             then trace (show hq ++ " -> " ++ if isMember then "skip" else "print")
             else id
         isMember = Set.member (Name.unsafeParseVar n) skip
+        -- A binding the parser tagged with @given@ must re-render with
+        -- the @given@ keyword; otherwise the dependents-update re-parse
+        -- drops its given-ness (the re-parsed file's 'givenBindings' is
+        -- empty) and 'autoMarkGivens' never re-marks it. Mirrors the
+        -- 'classBindings' handling for @class@ decls above.
+        rendered
+          | Set.member n gbs = st $ TermPrinter.prettyGivenBinding sppe hq tm
+          | otherwise = pb hq tm
         hq = hqv n
     prettyWatch :: (String, (v, a, Term v a)) -> (a, P.Pretty P.ColorText)
     prettyWatch (wk, (n, a, tm)) = (a, go wk n tm)

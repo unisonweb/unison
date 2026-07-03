@@ -2,6 +2,8 @@ module Unison.Codebase.Editor.HandleInput.ShowDefinition
   ( handleShowDefinition,
     showDefinitions,
     renderToFile,
+    collectGivenReferents,
+    collectClassTypeReferences,
   )
 where
 
@@ -132,30 +134,14 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
   -- as givens in the current namespace. The renderer will prefix
   -- these with the `given` marker.
   currentBranch0 <- Cli.getCurrentBranch0
-  -- 'Givens.isGiven' only inspects the supplied branch's own
-  -- metadata; given-marked terms living in sub-namespaces (the
-  -- common case for class accessors and dot-qualified givens like
-  -- @Monoid.nat@) wouldn't be detected. Walk the whole tree once
-  -- and collect every given-marked referent.
-  let givenReferents :: Set Referent =
-        let go b acc =
-              let here = Set.filter (\r -> Givens.isGiven r b) (Branch.deepReferents b)
-                  acc' = acc <> here
-                  children = b ^. Branch.children_
-               in foldr (\child a -> go (Branch.head child) a) acc' (Map.elems children)
-         in go currentBranch0 Set.empty
+  -- Collect every given-marked referent / class-marked type across the
+  -- whole namespace tree so the renderer can prefix them with the
+  -- @given@ marker / render them with the @class@ keyword. (See
+  -- 'collectGivenReferents' for why the whole tree is walked.)
+  let givenReferents = collectGivenReferents currentBranch0
       isGivenRef :: TermReference -> Bool
       isGivenRef r = Set.member (Referent.Ref r) givenReferents
-      -- Walk the whole tree to collect every class-marked type, so
-      -- the printer renders them with the @class@ keyword and
-      -- record-style field syntax.
-      classTypeRefs :: Set TypeReference =
-        let go b acc =
-              let here = Set.filter (\r -> Classes.isClass r b) (Branch.deepTypeReferences b)
-                  acc' = acc <> here
-                  children = b ^. Branch.children_
-               in foldr (\child a -> go (Branch.head child) a) acc' (Map.elems children)
-         in go currentBranch0 Set.empty
+      classTypeRefs = collectClassTypeReferences currentBranch0
       isClassRef :: TypeReference -> Bool
       isClassRef r = Set.member r classTypeRefs
   showDefinitions outputLoc (`Set.member` originalQuerySet) isGivenRef isClassRef pped terms types misses
@@ -460,6 +446,30 @@ renderToConsole nameInOriginalQuery isGivenRef isClassRef pped terms types = do
             types
             (Defns Set.empty Set.empty)
   Cli.respond $ DisplayDefinitions (fromMaybe mempty renderedCodePretty)
+
+-- | Collect every term referent that is marked as a @given@ anywhere in
+-- the supplied branch's whole subtree. 'Givens.isGiven' only inspects a
+-- single branch's own metadata, so given-marked terms living in
+-- sub-namespaces (the common case for class accessors and dot-qualified
+-- givens like @Monoid.nat@) would be missed without walking the tree.
+-- Shared by the @view@/@edit@ renderers (CLI and LSP) so they agree on
+-- which references render with the @given@ marker.
+collectGivenReferents :: Branch.Branch0 m -> Set Referent
+collectGivenReferents = go Set.empty
+  where
+    go acc b =
+      let here = Set.filter (\r -> Givens.isGiven r b) (Branch.deepReferents b)
+       in foldl' (\a child -> go a (Branch.head child)) (acc <> here) (Map.elems (b ^. Branch.children_))
+
+-- | Collect every type reference marked as a @class@ anywhere in the
+-- supplied branch's whole subtree. Companion to 'collectGivenReferents'
+-- for the type namespace.
+collectClassTypeReferences :: Branch.Branch0 m -> Set TypeReference
+collectClassTypeReferences = go Set.empty
+  where
+    go acc b =
+      let here = Set.filter (\r -> Classes.isClass r b) (Branch.deepTypeReferences b)
+       in foldl' (\a child -> go a (Branch.head child)) (acc <> here) (Map.elems (b ^. Branch.children_))
 
 -- | Render definitions to a file.
 -- Returns whether anything was rendered.

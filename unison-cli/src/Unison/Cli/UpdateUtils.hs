@@ -227,7 +227,7 @@ parseAndTypecheck prettyUf parsingEnv = do
     liftIO do
       putStrLn "--- Scratch ---"
       putStrLn stringUf
-  -- Chunk L1: harvest the ambient given pool from the current branch
+  -- Harvest the ambient given pool from the current branch
   -- before entering the transaction. The branch fetch is an IO action
   -- that runs in 'Cli'; the transaction itself stays IO-free apart
   -- from the type lookups needed for each given's declared type.

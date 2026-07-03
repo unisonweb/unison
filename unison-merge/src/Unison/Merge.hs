@@ -25,7 +25,7 @@ module Unison.Merge
     Unconflicts (..),
     Updated,
 
-    -- * Given-set conflict resolution (per ADR-021)
+    -- * Given-set conflict resolution (see "Unison.Merge.GivenSet")
     GivenMarks,
     GivenSetConflict (..),
     GivenSetMergeOutcome (..),

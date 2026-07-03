@@ -1059,13 +1059,6 @@ destructuringBind = do
          in Term.match a scrute [thecase t]
     )
 
--- | Rules for the annotation of the resulting binding is as follows:
--- * If the binding has a type signature, the top level scope of the annotation for the type
--- Ann node will contain the _entire_ binding, including the type signature.
--- * The body expression of the binding contains the entire lhs (including the name of the
--- binding) and the entire body.
--- * If the binding is a lambda, the  lambda node includes the entire LHS of the binding,
--- including the name as well.
 -- | When a binding's declared type begins with one or more @=>@
 -- constraint arrows (after any leading @forall@ binders), wrap the
 -- binding's body with a leading lambda for each implicit parameter
@@ -1100,6 +1093,13 @@ wrapImplicitParams baseName ty body0 =
           wrap v body = Term.lam bodyAnn (bodyAnn, v) body
       pure (foldr wrap body0 vs)
 
+-- | Rules for the annotation of the resulting binding is as follows:
+-- * If the binding has a type signature, the top level scope of the annotation for the type
+-- Ann node will contain the _entire_ binding, including the type signature.
+-- * The body expression of the binding contains the entire lhs (including the name of the
+-- binding) and the entire body.
+-- * If the binding is a lambda, the  lambda node includes the entire LHS of the binding,
+-- including the name as well.
 binding ::
   forall m v.
   (Monad m, Var v) =>

@@ -48,7 +48,8 @@ data TypeF a
   -- bound by outer type signatures, to support scoped type
   -- variables
   | -- | Hashing-side mirror of 'Unison.Type.ImplicitArrow'. Hashes with
-    -- a distinct tag (8) from 'TypeArrow' (1); see ADR-014/ADR-019.
+    -- a distinct tag (8) from 'TypeArrow' (1) so that @C => T@ and
+    -- @C -> T@ hash to different references.
     TypeImplicitArrow a a
   deriving (Foldable, Functor, Traversable)
 
@@ -154,7 +155,6 @@ instance Hashable1 TypeF where
             TypeEffect e t -> [tag 5, hashed (hash e), hashed (hash t)]
             TypeForall a -> [tag 6, hashed (hash a)]
             TypeIntroOuter a -> [tag 7, hashed (hash a)]
-            -- New tag for implicit arrows (ADR-019). MUST differ from
-            -- 'TypeArrow' (tag 1) so that @C => T@ and @C -> T@ hash
-            -- distinctly. See ADR-014.
+            -- Tag for implicit arrows. MUST differ from 'TypeArrow'
+            -- (tag 1) so that @C => T@ and @C -> T@ hash distinctly.
             TypeImplicitArrow a b -> [tag 8, hashed (hash a), hashed (hash b)]

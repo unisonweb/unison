@@ -161,6 +161,12 @@ synDataDeclP modifier0 = do
         pure (snd (go lastSegment (snd <$> fields)), Just fields, ann closingToken)
   optional record >>= \case
     Nothing -> do
+      -- A `class` declaration is sugar for a record type; the getters it
+      -- generates only make sense for a record body. Reject the non-record
+      -- (sum-type / positional) form rather than silently accepting a
+      -- class with no fields.
+      when classFlag $
+        fail "A `class` declaration must have a record body, e.g. `class Show a = { show : a -> Text }`."
       constructors <- sepBy (reserved "|") (go <$> prefixVar <*> many TypeParser.valueTypeLeaf)
       _ <- closeBlock
       let closingAnn :: Ann
