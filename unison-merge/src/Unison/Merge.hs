@@ -33,6 +33,7 @@ module Unison.Merge
     MergeMode (..),
     mergeMarks,
     applyMarks,
+
     -- ** Given-mark specialisation
     GivenMarks,
     GivenSetConflict,
@@ -41,6 +42,7 @@ module Unison.Merge
     SurvivorMap,
     applyGivenSet,
     mergeGivenSets,
+
     -- ** Class-mark specialisation
     ClassMarks,
     mergeClassSets,
