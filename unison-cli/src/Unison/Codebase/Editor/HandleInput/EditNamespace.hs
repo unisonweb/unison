@@ -17,10 +17,12 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Classes qualified as Classes
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
 import Unison.Codebase.Editor.Input (OutputLocation (..))
+import Unison.Codebase.Givens qualified as Givens
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
@@ -69,7 +71,9 @@ handleEditNamespace outputLoc paths0 = do
 
   (types, terms) <- Cli.runTransaction (getNamesForEdit codebase ppe allNamesToEdit)
   let misses = []
-  showDefinitions outputLoc (const True) ppe terms types misses
+  let isGivenRef r = Givens.isGiven (Referent.Ref r) currentBranch
+      isClassRef r = Classes.isClass r currentBranch
+  showDefinitions outputLoc (const True) isGivenRef isClassRef ppe terms types misses
 
 -- | Get names "for edit": gets types and terms out the codebase as display objects, but is careful not to get an
 -- auto-generated record accessor term like `Foo.bar.set` if it's also getting the corresponding type `Foo`. This is

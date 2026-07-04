@@ -1,6 +1,7 @@
 -- | This module contains various utilities related to the implementation of record types.
 module Unison.DataDeclaration.Records
   ( generateRecordAccessors,
+    RecordKind (..),
   )
 where
 
@@ -19,6 +20,15 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+
+-- | Which surface keyword introduced the record. 'ClassRecord' is for
+-- @class T a = { ... }@ declarations: the accessors elide setters and
+-- modifiers, and the caller is expected to attach a type annotation
+-- whose @T a@ parameter is implicit (an @=>@ arrow) so the dictionary
+-- gets threaded through by the implicit-resolution elaborator. See
+-- @Unison.Syntax.FileParser@ where this is wired.
+data RecordKind = TypeRecord | ClassRecord
+  deriving stock (Eq, Show)
 
 -- | Generate getter, setter, and modify functions for each field of
 -- a record-style data declaration.
@@ -43,8 +53,14 @@ import Unison.Var qualified as Var
 -- since @here@ is the only field mentioning @a@. A variable shared by
 -- more than one field (or referenced by no field) is left fixed, so
 -- such records get the usual non-type-changing accessors.
+--
+-- For a @class@ record ('ClassRecord') only the getter is emitted (a
+-- raw term); the caller re-annotates it with the class's @=>@-bearing
+-- type. Setters and modifiers don't make sense when the dictionary is
+-- threaded implicitly.
 generateRecordAccessors ::
   (Semigroup a, Var v) =>
+  RecordKind ->
   (List.NonEmpty v -> v) ->
   (a -> a) ->
   -- | Each field as @(name, annotation, declared type)@. The
@@ -57,7 +73,7 @@ generateRecordAccessors ::
   v ->
   TypeReference ->
   [(v, a, Term v a)]
-generateRecordAccessors namespaced generatedAnn fields tyvars typename typ =
+generateRecordAccessors kind namespaced generatedAnn fields tyvars typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
@@ -75,11 +91,18 @@ generateRecordAccessors namespaced generatedAnn fields tyvars typename typ =
     avoidVars =
       Set.unions (tyvarSet : Set.singleton argname : [Type.freeVars ty | (_, _, ty) <- fields])
     arrow ann i o = Type.arrow ann i o
-    tm (fname, fieldAnn, fieldTy) i =
-      [ (namespaced (typename :| [fname]), ann, Term.ann ann get getTy),
-        (namespaced (typename :| [fname, Var.named "set"]), ann, Term.ann ann set setTy),
-        (namespaced (typename :| [fname, Var.named "modify"]), ann, Term.ann ann modify modifyTy)
-      ]
+    tm (fname, fieldAnn, fieldTy) i = case kind of
+      TypeRecord ->
+        [ (namespaced (typename :| [fname]), ann, Term.ann ann get getTy),
+          (namespaced (typename :| [fname, Var.named "set"]), ann, Term.ann ann set setTy),
+          (namespaced (typename :| [fname, Var.named "modify"]), ann, Term.ann ann modify modifyTy)
+        ]
+      ClassRecord ->
+        -- 'class' accessors emit only the getter, as a /raw/ term: the
+        -- caller ('Unison.Syntax.FileParser') re-annotates it with the
+        -- class's @=>@-bearing type, so both setters/modifiers and the
+        -- plain @->@ getter annotation are omitted here.
+        [(namespaced (typename :| [fname]), ann, get)]
       where
         ann = generatedAnn fieldAnn
         conref = ConstructorReference typ 0

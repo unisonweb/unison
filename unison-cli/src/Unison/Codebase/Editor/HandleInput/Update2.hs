@@ -10,6 +10,7 @@ where
 import Control.Lens (mapped, (.=), (?=))
 import Control.Monad.Reader.Class (ask)
 import Data.Bifoldable (bifoldMap)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Map.Merge.Strict qualified as Map
 import Data.Set qualified as Set
@@ -33,14 +34,16 @@ import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Classes qualified as Classes
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.DeleteBranch qualified as DeleteBranch
 import Unison.Codebase.Editor.HandleInput.Merge2 qualified as Merge
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Givens qualified as Givens
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.ProjectPath (ProjectPathG (..))
+import Unison.Codebase.ProjectPath (ProjectPath, ProjectPathG (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
@@ -78,6 +81,7 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
+import Unison.Util.Star2 qualified as Star2
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
 
@@ -298,6 +302,30 @@ handleUpdate2 = do
               (\typeName -> Right (Map.lookup typeName declNameLookup.declToConstructors))
               secondTuf
         Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
+        -- Auto-mark every name the parser tagged with the @given@
+        -- keyword as a namespace given. This avoids requiring a
+        -- separate @mark.given@ for each declaration after @add@ /
+        -- @update@. The metadata write is idempotent: re-running
+        -- @add@ on an already-marked given is a no-op (see
+        -- 'Unison.Codebase.Givens.markGivenAt').
+        let givenNames :: [Name]
+            givenNames =
+              [ Name.unsafeParseVar v
+              | v <- Set.toList (UF.givenBindings' secondTuf),
+                Map.member v (UF.hashTermsId secondTuf)
+              ]
+        autoMarkGivens path givenNames
+        -- Also auto-mark every type the parser tagged with the
+        -- @class@ keyword. Same pattern as givens, but on the type
+        -- namespace instead of the term namespace.
+        let classNames :: [Name]
+            classNames =
+              [ Name.unsafeParseVar v
+              | v <- Set.toList (UF.classBindings' secondTuf),
+                Map.member v (UF.dataDeclarationsId' secondTuf)
+                  || Map.member v (UF.effectDeclarationsId' secondTuf)
+              ]
+        autoMarkClasses path classNames
         #latestTypecheckedFile .= Nothing
 
         -- Special case: we are running a successful `update` on a merge/update/upgrade branch that has a parent (such
@@ -461,3 +489,60 @@ makePPE hashLen namespaceNames initialFileNames dependents =
         -- RHS (the initial file names, i.e. what was originally saved) that don't already exist in the LHS.
         (PPE.suffixifyByHash (Names.shadowing namespaceNames initialFileNames))
     ]
+
+-- | After @update@ persists the typechecked file, mark every name
+-- the parser tagged with @given@ as a namespace given. Each name is
+-- resolved relative to @pp@'s perspective path — the same place
+-- @update@ applied the definitions — so a @given@ edited while
+-- @cd@'d into a sub-namespace is still marked. If no referent is
+-- present at the name in the freshly-updated branch the step is
+-- silently skipped (this mirrors 'Givens.markGivenAt's no-op behavior).
+autoMarkGivens :: ProjectPath -> [Name] -> Cli ()
+autoMarkGivens _pp [] = pure ()
+autoMarkGivens pp names = do
+  projectRoot <- Cli.getCurrentProjectRoot0
+  pb <- Cli.getCurrentProjectBranch
+  let stepsForName :: Name -> [(Path.Absolute, Branch0 IO -> Branch0 IO)]
+      stepsForName name =
+        let revSegs = Name.reverseSegments name
+            seg = NonEmpty.head revSegs
+            parentSegsRev = NonEmpty.tail revSegs
+            parentAbs = Path.resolve pp.absPath (Path.fromList (reverse parentSegsRev))
+            parentBranch = Branch.getAt0 (Path.unabsolute parentAbs) projectRoot
+            refs =
+              [ r
+              | (r, s) <- Relation.toList (Star2.d1 (view Branch.terms_ parentBranch)),
+                s == seg
+              ]
+         in [(parentAbs, Givens.markGivenAt r seg) | r <- refs]
+      steps = concatMap stepsForName names
+  when (not (null steps)) $
+    Cli.stepManyAt pb "update.auto-mark.given" steps
+
+-- | After @update@ persists the typechecked file, mark every type
+-- name the parser tagged with @class@ as a namespace class. Mirrors
+-- 'autoMarkGivens' (including resolving each name against @pp@'s
+-- perspective path) but consults the type-namespace ('Branch.types_')
+-- and uses 'Classes.markClassAt'. @view@ later reads the marker to
+-- render the declaration with the @class@ keyword and record syntax.
+autoMarkClasses :: ProjectPath -> [Name] -> Cli ()
+autoMarkClasses _pp [] = pure ()
+autoMarkClasses pp names = do
+  projectRoot <- Cli.getCurrentProjectRoot0
+  pb <- Cli.getCurrentProjectBranch
+  let stepsForName :: Name -> [(Path.Absolute, Branch0 IO -> Branch0 IO)]
+      stepsForName name =
+        let revSegs = Name.reverseSegments name
+            seg = NonEmpty.head revSegs
+            parentSegsRev = NonEmpty.tail revSegs
+            parentAbs = Path.resolve pp.absPath (Path.fromList (reverse parentSegsRev))
+            parentBranch = Branch.getAt0 (Path.unabsolute parentAbs) projectRoot
+            refs =
+              [ r
+              | (r, s) <- Relation.toList (Star2.d1 (view Branch.types_ parentBranch)),
+                s == seg
+              ]
+         in [(parentAbs, Classes.markClassAt r seg) | r <- refs]
+      steps = concatMap stepsForName names
+  when (not (null steps)) $
+    Cli.stepManyAt pb "update.auto-mark.class" steps

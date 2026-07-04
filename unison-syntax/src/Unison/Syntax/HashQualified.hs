@@ -26,17 +26,27 @@ import Unison.Name (Name)
 import Unison.Prelude hiding (fromString)
 import Unison.Syntax.HashQualifiedPrime qualified as HQ'
 import Unison.Syntax.Lexer.Token (Token)
-import Unison.Syntax.Name qualified as Name (nameP, toText)
+import Unison.Syntax.Name qualified as Name (escapeReservedSegments, nameP, toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.ShortHash qualified as ShortHash
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Prelude hiding (take)
 
+-- | Parse a hash-qualified name from text. Reserved-word name
+-- segments (e.g. @class@, @given@) are accepted unescaped — this
+-- entry point is used to deserialize names from the namespace,
+-- where source-code keyword reservation does not apply.
 parseText :: Text -> Maybe (HashQualified Name)
 parseText text =
-  eitherToMaybe (P.runParser parser "" (Text.unpack text))
+  case attempt text of
+    Just hq -> Just hq
+    Nothing ->
+      let escaped = Name.escapeReservedSegments text
+       in if escaped == text then Nothing else attempt escaped
   where
+    attempt t =
+      eitherToMaybe (P.runParser parser "" (Text.unpack t))
     parser =
       hashQualifiedP (P.withParsecT (fmap NameSegment.renderParseErr) Name.nameP) <* P.eof
 

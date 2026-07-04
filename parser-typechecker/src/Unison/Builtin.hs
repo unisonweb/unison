@@ -12,6 +12,10 @@ module Unison.Builtin
     builtinTypes,
     builtinTermsByType,
     builtinTermsByTypeMention,
+    givenSentinelName,
+    classSentinelName,
+    classSentinelRef,
+    givenSentinelRef,
     intrinsicTermReferences,
     intrinsicTypeReferences,
     isBuiltinType,
@@ -285,6 +289,35 @@ intrinsicTypeReferences = foldl' go mempty builtinTypesSrc
 intrinsicTermReferences :: Set R.Reference
 intrinsicTermReferences = Map.keysSet termRefTypes
 
+-- | The textual name of the sentinel builtin reference used to mark a
+-- definition as a "given" via namespace metadata. This corresponds to the
+-- hash-prefix syntax @##Builtin.Given@.
+givenSentinelName :: Text
+givenSentinelName = "Builtin.Given"
+
+-- | The sentinel builtin reference used to mark a definition as a "given"
+-- when present in its 'MdValues' metadata set. The reference is *not*
+-- registered as a callable term (it has no type and is not in
+-- 'termRefTypes'); it exists solely as a tag carried by namespace
+-- metadata, where its presence indicates givenness.
+givenSentinelRef :: R.Reference
+givenSentinelRef = R.Builtin givenSentinelName
+
+-- | The textual name of the sentinel builtin reference used to mark a
+-- /type/ declaration as having originated from the @class@ keyword.
+-- Uses the same metadata-tag storage strategy as 'givenSentinelName'.
+-- 'view' inspects this marker to decide whether to render the
+-- declaration with the @class@ keyword and record-field syntax.
+classSentinelName :: Text
+classSentinelName = "Builtin.Class"
+
+-- | The sentinel builtin reference used to tag a type declaration as
+-- a class. Carried by namespace metadata on the type ref (parallel to
+-- 'givenSentinelRef' for terms). Not registered as a callable term;
+-- only a tag.
+classSentinelRef :: R.Reference
+classSentinelRef = R.Builtin classSentinelName
+
 builtinConstructorType :: Map R.Reference CT.ConstructorType
 builtinConstructorType = Map.fromList [(R.Builtin r, ct) | B' r ct <- builtinTypesSrc]
 
@@ -379,6 +412,12 @@ typeOf a f r = maybe a f (Map.lookup r termRefTypes)
 builtinsSrc :: [BuiltinDSL]
 builtinsSrc =
   [ B "Any.unsafeExtract" $ forall1 "a" (\a -> anyt --> a),
+    -- The @summon@ builtin. Type @forall a. a => a@ — the leading
+    -- @=>@ makes the typechecker emit a 'ConstraintGoal' at every
+    -- reference and the resolver fills it from the surrounding type
+    -- context. Runtime behaviour is the identity function (defined in
+    -- 'Unison.Runtime.Builtin').
+    B "summon" $ forall1 "a" (\a -> a ==> a),
     B "Int.+" $ int --> int --> int,
     B "Int.-" $ int --> int --> int,
     B "Int.*" $ int --> int --> int,
@@ -1308,6 +1347,12 @@ pair l r = DD.pairType () `app` l `app` r
 a --> b = Type.arrow () a b
 
 infixr 9 -->
+
+-- | The implicit-arrow constructor used in builtin signatures.
+(==>) :: Type -> Type -> Type
+a ==> b = Type.implicitArrow () a b
+
+infixr 9 ==>
 
 io, iof :: Type -> Type
 socket, threadId, handle, phandle, unit :: Type

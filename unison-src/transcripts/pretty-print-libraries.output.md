@@ -973,7 +973,7 @@ succeeds, and `` false `` if it fails:
      `` implies a b `` is `` true `` unless `a` is `` true `` and `b` is
      ``false``. This is the same as logical implication.
      
-     `` given a b `` is `` true `` unless `a` is `` false `` and `b` is
+     `` `given` a b `` is `` true `` unless `a` is `` false `` and `b` is
      ``true``. This is the converse of logical implication.
   
   ## Inhibition (not-implies)
@@ -13888,27 +13888,27 @@ Boolean.eq.doc =
     {{ binaryTruthTable "iff" Boolean.eq }}
   }}
 
-Boolean.given.doc : Doc
-Boolean.given.doc =
+Boolean.`given`.doc : Doc
+Boolean.`given`.doc =
   {{
-  Inverse {type Boolean} implication. An expression `` given a b `` Returns ``
-  false `` only if `a` is `` false `` and `b` is ``true``, otherwise returns
+  Inverse {type Boolean} implication. An expression `` `given` a b `` Returns
+  `` false `` only if `a` is `` false `` and `b` is ``true``, otherwise returns
   ``true``. Note that this function cannot short-circuit, as it's strict in
   both arguments. For a short-circuiting version, use the built-in syntax
   {{ docExample 2 do a b -> a || Boolean.not b }}.
   
   # Truth table
   
-    {{ binaryTruthTable "given" given }}
+    {{ binaryTruthTable "given" `given` }}
   }}
 
-test> Boolean.given.test =
+test> Boolean.`given`.test =
   deprecated.run
     (Test.tests
-      [ check' (given false false === true)
-      , check' (given false true === false)
-      , check' (given true false === true)
-      , check' (given true true === true)
+      [ check' (`given` false false === true)
+      , check' (`given` false true === false)
+      , check' (`given` true false === true)
+      , check' (`given` true true === true)
       ])
 
 Boolean.gt.doc : Doc
@@ -66275,13 +66275,23 @@ test.deprecated.gen.float = do Gen.sample Weighted.floats
 
 {{
 Generates one of the binary logical operators {Boolean.and}, {Boolean.or},
-{given}, {implies}, {iff}, and their complements {nand}, {nor}, etc.
+{`given`}, {implies}, {iff}, and their complements {nand}, {nor}, etc.
 }}
 test.deprecated.gen.functions.logic : '{Gen} (Boolean -> Boolean -> Boolean)
 test.deprecated.gen.functions.logic =
   use Boolean != < >
   gen.oneOf
-    [Boolean.and, given, implies, Boolean.or, (!=), nand, (<), (>), nor, (!=)]
+    [ Boolean.and
+    , `given`
+    , implies
+    , Boolean.or
+    , (!=)
+    , nand
+    , (<)
+    , (>)
+    , nor
+    , (!=)
+    ]
 
 {{
 `` someOrNone f b `` returns a generator of functions that are either ``
@@ -69266,7 +69276,8 @@ Text.patterns.charUntil class stop =
       (cases
         (head, tail), p ->
           Pattern.or
-            (Pattern.join [literal head, char (class - in (Text.take 1 tail))])
+            (Pattern.join
+              [literal head, char (`class` - in (Text.take 1 tail))])
             p)
       (char (Class.not Class.any))
       (dropRight 1 (splits stop)))
@@ -69676,10 +69687,11 @@ Text.snoc a b =
 Text.split : Char -> Text -> [Text]
 Text.split separator text =
   use patterns char
-  class = fromChar separator
+  `class` = fromChar separator
   Each.toList do
     eachCapture
-      (sepMany (char class) (Pattern.capture (many (char (Class.not class)))))
+      (sepMany
+        (char `class`) (Pattern.capture (many (char (Class.not `class`)))))
       text
 
 Text.split.examples.ex1 : [Text]

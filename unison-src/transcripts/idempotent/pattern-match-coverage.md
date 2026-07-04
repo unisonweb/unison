@@ -894,14 +894,14 @@ result f = handle !f with cases
 
 ``` unison :error
 unique ability Give a where
-  give : a -> {Give a} Unit
+  giv : a -> {Give a} Unit
 
 unique type T = A | B
 
 result : '{e, Give T} r -> {e} r
 result f = handle !f with cases
        { x } -> x
-       { give T.A -> resume } -> result resume
+       { giv T.A -> resume } -> result resume
 ```
 
 ``` ucm :added-by-ucm
@@ -910,11 +910,11 @@ result f = handle !f with cases
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
         8 |        { x } -> x
-        9 |        { give T.A -> resume } -> result resume
+        9 |        { giv T.A -> resume } -> result resume
     
 
   Patterns not matched:
-   * { give B -> _ }
+   * { giv B -> _ }
 ```
 
 ``` unison :error
@@ -950,22 +950,22 @@ handleMulti c =
 
 ``` unison :error
 unique ability Give a where
-  give : a -> {Give a} Unit
+  giv : a -> {Give a} Unit
 
 unique type T = A | B
 
 result : '{e, Give T} r -> {e} r
 result f = handle !f with cases
        { x } -> x
-       { give _ -> resume } -> result resume
-       { give T.A -> resume } -> result resume
+       { giv _ -> resume } -> result resume
+       { giv T.A -> resume } -> result resume
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
-       10 |        { give T.A -> resume } -> result resume
+       10 |        { giv T.A -> resume } -> result resume
     
 ```
 
@@ -1060,7 +1060,7 @@ abilities will come up and get handlers written for them often.
 
 ``` unison :error
 unique ability Give a where
-  give : a -> {Give a} Unit
+  giv : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
 result : '{e, Give V} r -> {e} r
@@ -1081,13 +1081,13 @@ result f =
 
   Patterns not matched:
 
-    * { give _ -> _ }
+    * { giv _ -> _ }
     * { give2 _ -> _ }
 ```
 
 ``` unison
 unique ability Give a where
-  give : a -> {Give a} Unit
+  giv : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
 result : '{e, Give V} r -> {e} r
@@ -1095,7 +1095,7 @@ result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
-       { give _ -> resume } -> bug "impossible"
+       { giv _ -> resume } -> bug "impossible"
   handle !f with impl
 ```
 
@@ -1111,7 +1111,7 @@ result f =
 
 ``` unison
 unique ability Give a where
-  give : a -> {Give a} Unit
+  giv : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
 result : '{e, Give V} r -> {e} r
@@ -1135,7 +1135,7 @@ result f =
 
 ``` unison :error
 unique ability Give a where
-  give : a -> {Give a} Unit
+  giv : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
 result : '{e, Give V} r -> {e} r
@@ -1143,7 +1143,7 @@ result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
-       { give _ -> resume } -> bug "impossible"
+       { giv _ -> resume } -> bug "impossible"
        { give2 _ -> resume } -> bug "impossible"
   handle !f with impl
 ```

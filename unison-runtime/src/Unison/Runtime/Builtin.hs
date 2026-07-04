@@ -614,6 +614,14 @@ any'extract =
       TMatch v $
         MatchData Ty.anyRef (mapSingleton 0 $ ([BX], TAbs v1 (TVar v1))) Nothing
 
+-- | @summon : forall a. a => a@ is the identity function. The
+-- leading @=>@ on its declared type makes the elaborator insert the
+-- resolved dictionary as the argument, and we just hand that
+-- dictionary back unchanged.
+summon'id :: SuperNormal Reference Symbol
+summon'id =
+  unop0 0 $ \[v] -> TVar v
+
 -- Refs
 
 -- The docs for IORef state that IORef operations can be observed
@@ -899,6 +907,7 @@ builtinLookup =
         ("Value.value", (Tracked, value'create)),
         ("Any.Any", (Untracked, any'construct)),
         ("Any.unsafeExtract", (Untracked, any'extract)),
+        ("summon", (Untracked, summon'id)),
         ("Link.Term.toText", (Untracked, term'link'to'text)),
         ("STM.atomically", (Tracked, stm'atomic)),
         ("validateSandboxed", (Untracked, check'sandbox)),

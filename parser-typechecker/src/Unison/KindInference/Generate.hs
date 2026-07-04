@@ -67,6 +67,24 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
                   ParentConstraint (IsType k2 (Provenance ctx $ ABT.annotation cod)) codConstraints
                 ]
             )
+      -- 'ImplicitArrow' has the same kind structure as 'Arrow' (both
+      -- sides must be of kind Type); tag the resulting constraint with
+      -- 'AppImplicitArrow' so kind errors can point at @=>@ rather
+      -- than @->@.
+      Type.ImplicitArrow dom cod -> do
+        let ctx = AppImplicitArrow annotation dom cod
+        k1 <- freshVar dom
+        domConstraints <- typeConstraintTree k1 dom
+        k2 <- freshVar cod
+        codConstraints <- typeConstraintTree k2 cod
+        pure $
+          Constraint
+            (IsType resultVar (Provenance ctx annotation))
+            ( Node
+                [ ParentConstraint (IsType k1 (Provenance ctx $ ABT.annotation dom)) domConstraints,
+                  ParentConstraint (IsType k2 (Provenance ctx $ ABT.annotation cod)) codConstraints
+                ]
+            )
       Type.App abs arg -> do
         absVar <- freshVar abs
         absArgVar <- freshVar arg
@@ -307,6 +325,8 @@ withInstantiatedConstructorType declType tyParams0 constructorType0 k =
       goArrow :: Type.Type v loc -> Gen v loc [GeneratedConstraint v loc]
       goArrow = \case
         Type.Arrow' _ o -> goArrow o
+        -- 'ImplicitArrow' walks the result spine like 'Arrow'.
+        Type.ImplicitArrow' _ o -> goArrow o
         Type.Effect' es _ -> goEffs es
         resultTyp@(Type.Apps' f xs)
           | f == declType -> unifyVars resultTyp xs

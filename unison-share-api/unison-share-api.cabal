@@ -164,6 +164,7 @@ test-suite unison-share-api-tests
   other-modules:
       Unison.Test.Server.Backend.DefinitionDiff
       Unison.Test.Sync.Gen
+      Unison.Test.Sync.GivenRoundtrip
       Unison.Test.Sync.Roundtrip
   hs-source-dirs:
       tests
@@ -202,17 +203,22 @@ test-suite unison-share-api-tests
   ghc-options: -Wall
   build-depends:
       base
+    , bytes
     , bytestring
     , code-page
+    , containers
     , easytest
     , hedgehog
     , raw-strings-qq
     , serialise
     , text
+    , unison-codebase
     , unison-codebase-sqlite
+    , unison-core
     , unison-hash
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-util-serialization
     , vector
   default-language: Haskell2010

@@ -6,6 +6,7 @@ import System.IO
 import System.IO.CodePage (withCP65001)
 import Unison.Test.ClearCache qualified as ClearCache
 import Unison.Test.Cli.Monad qualified as Cli.Monad
+import Unison.Test.Givens qualified as Givens
 import Unison.Test.LSP qualified as LSP
 import Unison.Test.UriParser qualified as UriParser
 
@@ -15,6 +16,7 @@ test =
     [ LSP.test,
       ClearCache.test,
       Cli.Monad.test,
+      Givens.test,
       UriParser.test
     ]
 

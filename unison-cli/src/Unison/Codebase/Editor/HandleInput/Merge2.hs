@@ -53,6 +53,7 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
+import Unison.Codebase.Editor.HandleInput.Givens (mergeClassMarksInto, mergeGivenMarksInto)
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode (..))
@@ -334,11 +335,25 @@ doMerge info = do
 
               pure (mergeblob, libdepsBranches)
 
+        -- The three input branches, as 'Branch0's, for the given-set merge.
+        let inputBranch0s :: Merge.ThreeWay (Branch0 Transaction)
+            inputBranch0s =
+              Merge.ThreeWay
+                { lca = maybe Branch.empty0 Branch.head branches.lca,
+                  alice = Branch.head branches.alice,
+                  bob = Branch.head branches.bob
+                }
         let makeMergeNode :: (Branch0 Transaction -> Branch0 Transaction) -> Branch Transaction
             makeMergeNode =
               let unconflictedBranch =
                     Branch.fromUnconflictedDefns mergeblob.unconflictedDefns
                       & Branch.setLibdeps libdepsBranches.new
+                      -- 'fromUnconflictedDefns' produces a namespace with no
+                      -- metadata, so the @given@ / @class@ marks from
+                      -- Alice/Bob/LCA would be lost. Re-merge and re-stamp them
+                      -- here so given-ness and class-ness survive the merge.
+                      & mergeGivenMarksInto inputBranch0s mergeblob.unconflictedDefns.terms
+                      & mergeClassMarksInto inputBranch0s mergeblob.unconflictedDefns.types
                in \f ->
                     Branch.mergeNode
                       (f unconflictedBranch)

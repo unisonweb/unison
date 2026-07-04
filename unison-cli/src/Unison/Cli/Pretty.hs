@@ -39,6 +39,7 @@ module Unison.Cli.Pretty
     prettyTerm,
     prettyTermName,
     prettyType,
+    prettyTypeWithClasses,
     prettyTypeName,
     prettyTypeResultHeader',
     prettyTypeResultHeaderFull',
@@ -115,6 +116,7 @@ import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Typechecker.GivenApply qualified as GivenApply
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid qualified as Monoid
@@ -391,13 +393,28 @@ prettyLibdepName =
   P.blue . P.text . NameSegment.toEscapedText
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> P.Pretty P.ColorText
-prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
+prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches gbs cbs) =
   P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
   where
     prettyEffects = map prettyEffectDecl (Map.toList effects)
     (prettyDatas, accessorNames) = runWriter $ traverse prettyDataDecl (Map.toList datas)
     prettyTerms = Map.foldrWithKey (\k v -> (prettyTerm accessorNames k v :)) [] terms
     prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
+
+    -- Rendering the file from the typechecked form should preserve
+    -- the @class@ keyword for any data declaration whose parser-side
+    -- var name was recorded in 'classBindings'. Without this, the
+    -- dependents-update path re-renders @class@es as plain @type@s
+    -- and loses both the field syntax and the ability to round-trip.
+    classRefSet :: Set TypeReference
+    classRefSet =
+      Set.fromList
+        [ Reference.DerivedId r
+        | (n, (r, _)) <- Map.toList datas,
+          Set.member n cbs
+        ]
+    isClassRef :: DeclPrinter.IsClassRef
+    isClassRef r = Set.member r classRefSet
 
     prettyEffectDecl :: (v, (TypeReferenceId, DD.EffectDeclaration v a)) -> (a, P.Pretty P.ColorText)
     prettyEffectDecl (n, (r, et)) =
@@ -413,7 +430,8 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
     prettyDataDecl :: (v, (TypeReferenceId, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, P.Pretty P.ColorText)
     prettyDataDecl (n, (r, dt)) =
       (DD.annotation dt,) . st
-        <$> DeclPrinter.prettyDeclW
+        <$> DeclPrinter.prettyDeclWWithClasses
+          isClassRef
           ppe'
           DeclPrinter.RenderUniqueTypeGuids'No
           (rd r)
@@ -421,13 +439,21 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId _fn datas effects terms watches) =
           (Right dt)
     prettyTerm :: Set AccessorName -> v -> (a, Term v a) -> Maybe (a, P.Pretty P.ColorText)
     prettyTerm skip n (a, tm) =
-      if traceMember isMember then Nothing else Just (a, pb hq tm)
+      if traceMember isMember then Nothing else Just (a, rendered)
       where
         traceMember =
           if Debug.shouldDebug Debug.Update
             then trace (show hq ++ " -> " ++ if isMember then "skip" else "print")
             else id
         isMember = Set.member (Name.unsafeParseVar n) skip
+        -- A binding the parser tagged with @given@ must re-render with
+        -- the @given@ keyword; otherwise the dependents-update re-parse
+        -- drops its given-ness (the re-parsed file's 'givenBindings' is
+        -- empty) and 'autoMarkGivens' never re-marks it. Mirrors the
+        -- 'classBindings' handling for @class@ decls above.
+        rendered
+          | Set.member n gbs = st $ TermPrinter.prettyGivenBinding sppe hq tm
+          | otherwise = pb hq tm
         hq = hqv n
     prettyWatch :: (String, (v, a, Term v a)) -> (a, P.Pretty P.ColorText)
     prettyWatch (wk, (n, a, tm)) = (a, go wk n tm)
@@ -451,9 +477,10 @@ prettyTerm ::
   PPED.PrettyPrintEnvDecl ->
   Bool {- whether we're printing to a source-file or not. -} ->
   Bool {- Whether the term is a test -} ->
+  Bool {- Whether the term is a @given@ (renders as a single @given name : T = body@ stanza). -} ->
   (HQ.HashQualified Name, TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   P.Pretty SyntaxText
-prettyTerm pped isSourceFile isTest (n, r, dt) =
+prettyTerm pped isSourceFile isTest isGiven (n, r, dt) =
   case dt of
     MissingObject r -> missingDefinitionMsg n r
     BuiltinObject typ ->
@@ -462,9 +489,17 @@ prettyTerm pped isSourceFile isTest (n, r, dt) =
           ("builtin " <> prettyHashQualified n <> " :")
           (TypePrinter.prettySyntax (ppeBody n r) typ)
     UserObject tm ->
-      if isTest
-        then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm
-        else TermPrinter.prettyBinding (ppeBody n r) n tm
+      -- Default elide-mode: drop any apply-site argument the
+      -- elaborator marked 'Ann.Synthetic' (a resolved
+      -- implicit-dictionary insertion) before handing the term to
+      -- the surface pretty-printer.
+      let tm' = GivenApply.stripSyntheticArgs tm
+       in if isTest
+            then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm'
+            else
+              if isGiven
+                then TermPrinter.prettyGivenBinding (ppeBody n r) n tm'
+                else TermPrinter.prettyBinding (ppeBody n r) n tm'
   where
     commentBuiltin txt =
       if isSourceFile
@@ -473,12 +508,20 @@ prettyTerm pped isSourceFile isTest (n, r, dt) =
     ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE pped r
 
 prettyType :: PPED.PrettyPrintEnvDecl -> (HQ.HashQualified Name, TypeReference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText
-prettyType pped (n, r, dt) =
+prettyType = prettyTypeWithClasses DeclPrinter.noClasses
+
+prettyTypeWithClasses ::
+  DeclPrinter.IsClassRef ->
+  PPED.PrettyPrintEnvDecl ->
+  (HQ.HashQualified Name, TypeReference, DisplayObject () (DD.Decl Symbol Ann)) ->
+  P.Pretty SyntaxText
+prettyTypeWithClasses isClassRef pped (n, r, dt) =
   case dt of
     MissingObject r -> missingDefinitionMsg n r
     BuiltinObject _ -> builtin n
     UserObject decl ->
-      DeclPrinter.prettyDecl
+      DeclPrinter.prettyDeclWithClasses
+        isClassRef
         (PPED.biasTo (maybeToList $ HQ.toName n) $ pped)
         DeclPrinter.RenderUniqueTypeGuids'No
         r

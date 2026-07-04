@@ -12,10 +12,12 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NameResolutionUtils (resolveHQName)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Classes qualified as Classes
 import Unison.Codebase.Editor.HandleInput.EditNamespace (getNamesForEdit)
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
 import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..))
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Givens qualified as Givens
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -101,4 +103,9 @@ handleEditDependents name = do
       pure (ppe, types, terms)
 
   let misses = []
-  showDefinitions (LatestFileLocation WithinFold) (const True) ppe terms types misses
+  -- Re-read the current branch so we can highlight given-tagged
+  -- and class-tagged definitions in the rendered output.
+  branchForGivens <- Cli.getCurrentBranch0
+  let isGivenRef r = Givens.isGiven (Referent.Ref r) branchForGivens
+      isClassRef r = Classes.isClass r branchForGivens
+  showDefinitions (LatestFileLocation WithinFold) (const True) isGivenRef isClassRef ppe terms types misses

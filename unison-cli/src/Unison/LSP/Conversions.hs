@@ -55,6 +55,8 @@ annToRange = \case
   Ann.Intrinsic -> Nothing
   Ann.External -> Nothing
   Ann.GeneratedFrom a -> annToRange a
+  Ann.Synthetic a -> annToRange a
+  Ann.Lowered a -> annToRange a
   Ann.Ann start end -> Just $ Range (uToLspPos start) (uToLspPos end)
 
 annToURange :: Ann.Ann -> Maybe Range.Range
@@ -62,4 +64,6 @@ annToURange = \case
   Ann.Intrinsic -> Nothing
   Ann.External -> Nothing
   Ann.GeneratedFrom a -> annToURange a
+  Ann.Synthetic a -> annToURange a
+  Ann.Lowered a -> annToURange a
   Ann.Ann start end -> Just $ Range.Range start end

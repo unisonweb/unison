@@ -20,7 +20,9 @@ import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Symbol (Symbol)
 import Unison.Symbol qualified as Symbol
@@ -47,8 +49,20 @@ hoverHandler m respond = do
         }
 
 hoverInfo :: forall m. (Lspish m, MonadUnliftIO m) => Uri -> Position -> MaybeT m Text
-hoverInfo uri pos =
-  (hoverInfoForRef <|> hoverInfoForLiteral <|> hoverInfoForLocalVar)
+hoverInfo uri pos = do
+  -- Combine the regular hover content (type signature,
+  -- docs, local-binding info) with any implicit-arg info recorded by
+  -- 'applyGivenDecisions'. The regular hover content takes
+  -- priority; the implicit info is appended below it. If only one of
+  -- the two is available, return that one alone. If neither, fail (so
+  -- the LSP returns @null@).
+  baseHover <- lift . runMaybeT $ hoverInfoForRef <|> hoverInfoForLiteral <|> hoverInfoForLocalVar
+  implicits <- lift . runMaybeT $ implicitArgHover
+  case (baseHover, implicits) of
+    (Nothing, Nothing) -> empty
+    (Just b, Nothing) -> pure b
+    (Nothing, Just i) -> pure i
+    (Just b, Just i) -> pure (b <> "\n---\n" <> i)
   where
     markdownify :: Text -> Text
     markdownify rendered = Text.unlines ["``` unison", rendered, "```"]
@@ -127,7 +141,12 @@ hoverInfo uri pos =
         LSPQ.TypeNode {} -> empty
         LSPQ.PatternNode {} -> empty
         LSPQ.TermNode trm -> case trm of
+          -- Parser-injected @\_implicit_*@ lambdas are an
+          -- implementation detail of how @=>@-typed bindings get
+          -- their dictionaries; do not surface them on hover.
+          (Term.Var' v) | isSyntheticImplicit v -> empty
           (Term.Var' v) -> pure v
+          (ABT.Abs'' v _body) | isSyntheticImplicit v -> empty
           (ABT.Abs'' v _body) -> pure v
           _ -> empty
       FileAnalysis {localBindingInfo} <- FileAnalysis.getFileAnalysis uri
@@ -138,6 +157,38 @@ hoverInfo uri pos =
             (Symbol.Symbol _ (Var.User name)) -> name
             _ -> tShow localVar
       pure $ renderTypeSigForHover pped varName typ
+
+    -- Render an "Implicit argument; resolved from given …" line for
+    -- each synthesized implicit slot at this cursor position. Multiple
+    -- slots produce multiple lines, in left-to-right synthesis order.
+    implicitArgHover :: MaybeT m Text
+    implicitArgHover = do
+      FileAnalysis {implicitArgInfo} <- FileAnalysis.getFileAnalysis uri
+      let refs =
+            IM.intersecting implicitArgInfo (IM.ClosedInterval pos pos)
+              & IM.toAscList
+              & concatMap snd
+      case refs of
+        [] -> empty
+        _ -> do
+          pped <- lift $ ppedForFile uri
+          pure . Text.unlines $ renderImplicitLine pped <$> refs
+
+    -- See 'wrapImplicitParams' in 'Unison.Syntax.TermParser': for
+    -- each leading @=>@ on a binding's declared type, the parser
+    -- wraps the body in a synthetic @\\_implicit_<base>_<i>@ lambda
+    -- whose binder is the lexical given the typechecker resolves
+    -- against. These binders are an implementation detail and
+    -- should not surface on hover.
+    isSyntheticImplicit :: Symbol.Symbol -> Bool
+    isSyntheticImplicit v = "_implicit_" `Text.isPrefixOf` Var.name (Var.reset v)
+
+    renderImplicitLine :: PPED.PrettyPrintEnvDecl -> Reference -> Text
+    renderImplicitLine pped ref =
+      let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+          name = HQ.toTextWith Name.toText (PPE.termName unsuffixifiedPPE (Referent.Ref ref))
+          hashPrefix = Reference.showShort 9 ref
+       in "Implicit argument; resolved from given `" <> name <> "` (" <> hashPrefix <> ")"
 
     hoistMaybe :: Maybe a -> MaybeT m a
     hoistMaybe = MaybeT . pure

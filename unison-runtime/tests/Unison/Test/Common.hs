@@ -78,6 +78,7 @@ parseAndSynthesizeAsFile ambient filename s = do
             (FP.ShouldUseTndr'Yes parsingEnv)
             ambient
             (\_deps -> pure B.typeLookup)
+            []
             file
   case FP.synthesizeFile typecheckingEnv file of
     Result.Result notes Nothing -> tell notes >> pure (Left file)

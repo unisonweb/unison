@@ -93,6 +93,7 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
 import Unison.Util.Defns (Defns, DefnsF, DefnsF2, defnsAreEmpty)
@@ -286,6 +287,10 @@ data Output
     ParseErrors Text [Parser.Err Symbol]
   | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
   | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
+  | -- | An implicit-resolution failure surfaced from
+    -- 'Unison.FileParsers.synthesizeFile'. The payload list mirrors
+    -- 'Result.UnresolvedImplicit': @(loc, goal, error)@.
+    UnresolvedImplicits Path.Absolute Text PPE.PrettyPrintEnv [(Ann, Type Symbol Ann, GR.ResolveError Symbol Ann)]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure
@@ -304,6 +309,7 @@ data Output
       !PPE.PrettyPrintEnv
       !(DefnsF (Map Name) SR.TermSlurp SR.TypeSlurp)
       !(Map Referent (NESet Name))
+      !(Set Name) -- names the parser tagged as 'class' bindings
       !Bool -- merging? (can expand later to include: upgrading?)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
@@ -515,6 +521,24 @@ data Output
     WatchAddResult !(Maybe FilePath) !FilePath
   | -- `update` was attempted, but it would have either added or edited something in lib.*
     CantUpdateLib !(NESet Name)
+  | -- | The user ran `mark.given <name>` and the marking was applied.
+    -- The 'HQ'.HashQualified Name' identifies the name that was marked.
+    MarkedGiven !(HQ'.HashQualified Name)
+  | -- | The user ran `mark.given <name>` but the name was already
+    -- tagged. Idempotent no-op.
+    AlreadyMarkedGiven !(HQ'.HashQualified Name)
+  | -- | The user ran `unmark.given <name>` and the tag was removed.
+    UnmarkedGiven !(HQ'.HashQualified Name)
+  | -- | The user ran `unmark.given <name>` but no sentinel was
+    -- present. Idempotent no-op.
+    NotMarkedGiven !(HQ'.HashQualified Name)
+  | -- | Result of `givens`: the list of (name, referent) pairs in the
+    -- current namespace whose metadata carries the given sentinel.
+    ListGivens ![(Name, Referent)]
+  | -- | The user ran `mark.given`/`unmark.given` on a name that
+    -- resolves to more than one term. Carries the hash length to use
+    -- when disambiguating, the name as written, and the candidates.
+    GivenNameAmbiguous !Int !(HQ'.HashQualified Name) !(Set Referent)
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -574,6 +598,7 @@ outputShouldUsePager o = case o of
   LoadingFile {} -> False
   Typechecked {} -> False
   TypeErrors {} -> False
+  UnresolvedImplicits {} -> False
   Evaluated {} -> False
   EvaluationFailure {} -> False
   _ -> True
@@ -642,6 +667,7 @@ isFailure o = case o of
   ParseErrors {} -> True
   TypeWarns {} -> False
   TypeErrors {} -> True
+  UnresolvedImplicits {} -> True
   CompilerBugs {} -> True
   DisplayConflicts {} -> False
   EvaluationFailure {} -> True
@@ -784,6 +810,12 @@ isFailure o = case o of
   WatchAddResult Nothing _ -> True
   WatchAddResult (Just _) _ -> False
   CantUpdateLib _ -> True
+  MarkedGiven {} -> False
+  AlreadyMarkedGiven {} -> False
+  UnmarkedGiven {} -> False
+  NotMarkedGiven {} -> False
+  GivenNameAmbiguous {} -> True
+  ListGivens {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

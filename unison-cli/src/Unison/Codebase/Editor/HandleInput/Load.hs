@@ -24,6 +24,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
+import Unison.Cli.TypeCheck qualified as Cli.TypeCheck
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -181,7 +182,14 @@ loadUnisonFile sourceName text = do
       aliases =
         getTermAliases existingTerms slurpEntries.terms
 
-  Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases pp.branch.isMerge)
+  let classNames =
+        Set.fromList
+          [ Name.unsafeParseVar v
+          | v <- Set.toList (UF.classBindings' unisonFile),
+            Map.member v (UF.dataDeclarationsId' unisonFile)
+              || Map.member v (UF.effectDeclarationsId' unisonFile)
+          ]
+  Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases classNames pp.branch.isMerge)
 
   when (not . null $ UF.watchComponents unisonFile) do
     Timing.time "evaluating watches" do
@@ -384,9 +392,15 @@ parseAndTypecheckUnisonFile names sourceName text = do
       & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
   -- set that the file at least parsed (but didn't typecheck)
   State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
+  -- Harvest namespace-level givens before entering the
+  -- typechecking transaction. The branch read happens in 'Cli'; the
+  -- pool itself is built inside the transaction with the codebase's
+  -- type lookup.
+  branch0 <- Cli.getCurrentBranch0
   typecheckingEnv <-
     Cli.runTransaction do
-      computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
+      ambientGivens <- Cli.TypeCheck.ambientGivensFromBranch codebase branch0
+      computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] ambientGivens unisonFile
   let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
       tws = reverse [wrn | Result.TypeWarning wrn <- toList notes]
       suffixifiedPPE = PPED.suffixifiedPPE pped
@@ -421,6 +435,10 @@ parseAndTypecheckUnisonFile names sourceName text = do
 
   maybeTypecheckedUnisonFile & onNothing do
     let tes = [err | Result.TypeError err <- toList notes]
+        ues =
+          [ (loc, goal, err)
+          | Result.UnresolvedImplicit loc goal err <- toList notes
+          ]
         cbs =
           [ bug
           | Result.CompilerBug (Result.TypecheckerBug bug) <-
@@ -430,6 +448,9 @@ parseAndTypecheckUnisonFile names sourceName text = do
     when (not (null tes)) do
       currentPath <- Cli.getCurrentPath
       Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
+    when (not (null ues)) do
+      currentPath <- Cli.getCurrentPath
+      Cli.respond (Output.UnresolvedImplicits currentPath text suffixifiedPPE ues)
     when (not (null cbs)) do
       Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
     Cli.returnEarlyWithoutOutput

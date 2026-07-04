@@ -31,12 +31,14 @@ import Data.Set qualified as Set
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import Unison.Codebase.Editor.SlurpComponent qualified as SC
 import Unison.DataDeclaration (DeclOrBuiltin)
+import Unison.DataDeclaration qualified as DD
 import Unison.Merge (Updated)
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.Reference (TermReference)
+import Unison.Reference (Reference, TermReference)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
@@ -132,9 +134,37 @@ pretty isPast ppe sr =
           shown ++ case sz of
             0 -> []
             n -> [P.shown n <> " more"]
+      -- Surface the @class@ keyword in slurp summaries for types
+      -- whose parser-side var name was recorded as a class binding.
+      -- Mirrors the @view@ render path.
+      classRefSet :: Set Reference =
+        Set.fromList
+          [ Reference.DerivedId r
+          | (n, (r, _)) <- Map.toList (UF.dataDeclarationsId' (originalFile sr)),
+            Set.member n (UF.classBindings' (originalFile sr))
+          ]
+      isClassRef :: Reference -> Bool
+      isClassRef r = Set.member r classRefSet
+      declRefFor v = Reference.DerivedId <$> declRefFor' v
+      declRefFor' v =
+        fst
+          <$> ( Map.lookup v (UF.dataDeclarationsId' (originalFile sr))
+                  <|> (fmap . fmap) DD.toDataDecl (Map.lookup v (UF.effectDeclarationsId' (originalFile sr)))
+              )
+      headerFor v dd =
+        case declRefFor v of
+          Just r ->
+            DeclPrinter.prettyDeclHeaderWithClasses
+              isClassRef
+              DeclPrinter.RenderUniqueTypeGuids'No
+              r
+              (HQ.unsafeFromVar v)
+              dd
+          Nothing ->
+            DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.unsafeFromVar v) dd
       okType v = (plus <>) $ case UF.lookupDecl v (originalFile sr) of
         Just (_, dd) ->
-          P.syntaxToColor (DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.unsafeFromVar v) dd)
+          P.syntaxToColor (headerFor v dd)
             <> if null aliases
               then mempty
               else P.newline <> P.indentN 2 (P.lines aliases)
@@ -210,8 +240,7 @@ pretty isPast ppe sr =
             typeLineFor status v = case UF.lookupDecl v (originalFile sr) of
               Just (_, dd) ->
                 ( prettyStatus status,
-                  P.syntaxToColor $
-                    DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.unsafeFromVar v) dd
+                  P.syntaxToColor (headerFor v dd)
                 )
               Nothing ->
                 ( prettyStatus status,
@@ -318,8 +347,10 @@ filterUnisonFile
       topLevelComponents'
       watchComponents
       hashTerms
+      gbs
+      cbs
     ) =
-    UF.TypecheckedUnisonFileId fileNamespace' datas effects tlcs watches hashTerms'
+    UF.TypecheckedUnisonFileId fileNamespace' datas effects tlcs watches hashTerms' gbs cbs
     where
       keep = adds
       keepTerms = SC.terms keep

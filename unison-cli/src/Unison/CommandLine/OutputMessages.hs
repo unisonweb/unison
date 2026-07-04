@@ -1028,6 +1028,11 @@ notifyUser dir issueFn = \case
           intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
     pure $ showNote notes
+  UnresolvedImplicits _curPath src ppenv items -> do
+    let showNote =
+          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
+            . map (\(loc, goal, err) -> Result.UnresolvedImplicit loc goal err)
+    pure $ showNote items
   TypeWarns _curPath src ppenv warns ->
     pure $ renderTypeWarnings ppenv (Text.unpack src) warns
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
@@ -1083,7 +1088,7 @@ notifyUser dir issueFn = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  Typechecked oldPpe newPpe slurpEntries aliases isMergeBranch -> do
+  Typechecked oldPpe newPpe slurpEntries aliases classRefs isMergeBranch -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -1138,10 +1143,19 @@ notifyUser dir issueFn = \case
         existDeletes = not (List.null deletedTypes && List.null deletedTerms)
         existChanges = existAdds || existUpdates || existDeletes
 
-    let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
+    -- When the parser tagged the type as a @class@, render its slurp
+    -- entry with the @class@ keyword in place of @type@.
+    let isClassName n = Set.member n classRefs
+        renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
         renderType name decl =
           P.syntaxToColor
-            (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
+            ( DeclPrinter.prettyDeclOrBuiltinHeaderWithClasses
+                (const (isClassName name))
+                DeclPrinter.RenderUniqueTypeGuids'No
+                (Reference.Builtin "")
+                (HQ.fromName name)
+                decl
+            )
 
     let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
         renderTerm ppe colored name ty =
@@ -2956,6 +2970,44 @@ notifyUser dir issueFn = \case
           <> "it didn't seem to exist."
   CantUpdateLib names ->
     pure (P.fatalCallout (modifyingLibNotAllowed names))
+  MarkedGiven hq ->
+    pure . P.wrap $
+      "Marked"
+        <> P.group (P.syntaxToColor (prettyHashQualified' hq) <> ".")
+        <> "It will now participate in implicit resolution."
+  AlreadyMarkedGiven hq ->
+    pure . P.wrap $
+      P.group (P.syntaxToColor (prettyHashQualified' hq))
+        <> "is already marked as a given. No changes were made."
+  UnmarkedGiven hq ->
+    pure . P.wrap $
+      "Unmarked"
+        <> P.group (P.syntaxToColor (prettyHashQualified' hq) <> ".")
+        <> "It will no longer participate in implicit resolution."
+  NotMarkedGiven hq ->
+    pure . P.wrap $
+      P.group (P.syntaxToColor (prettyHashQualified' hq))
+        <> "is not marked as a given. No changes were made."
+  ListGivens entries ->
+    pure $
+      if null entries
+        then P.wrap "No definitions in the current namespace are marked as givens."
+        else
+          P.lines
+            ( P.wrap "Definitions marked as givens in the current namespace:"
+                : ""
+                : map (\(n, _r) -> "  " <> prettyName n) entries
+            )
+  GivenNameAmbiguous hashLen hq tms ->
+    let nm = HQ'.toName hq
+        qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen nm
+     in pure . P.callout "\129300" . P.lines $
+          [ P.wrap "I wasn't sure which of these you meant:",
+            "",
+            P.indentN 2 (P.lines (map qualifyTerm (Set.toList tms))),
+            "",
+            tip "Try again, using one of the unambiguous names or hashes above."
+          ]
   where
     iveCreatedATemporaryBranch scratchFile =
       P.wrap $

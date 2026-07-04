@@ -378,6 +378,9 @@ hashTypeFTokens ppe = \case
   Type.Effects es -> [H.Tag 5, hashLengthToken es]
   Type.Forall {} -> [H.Tag 6]
   Type.IntroOuter {} -> [H.Tag 7]
+  -- Implicit arrows synhash with a distinct tag (8) from ordinary
+  -- arrows (1), matching the content-hash tagging in Hashing.V2.Type.
+  Type.ImplicitArrow {} -> [H.Tag 8]
 
 hashTypeReferenceToken :: PrettyPrintEnv -> TypeReference -> Token
 hashTypeReferenceToken ppe =

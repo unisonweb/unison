@@ -346,6 +346,8 @@ generalMismatch = do
       | otherwise =
           case found of
             Type.Arrow' i o -> (i :) <$> findUnderApplication o expected
+            -- 'ImplicitArrow' is treated like 'Arrow' here.
+            Type.ImplicitArrow' i o -> (i :) <$> findUnderApplication o expected
             Type.ForallNamed' _ body -> findUnderApplication body expected
             Type.Effect' _ inner -> findUnderApplication inner expected
             _ -> Nothing

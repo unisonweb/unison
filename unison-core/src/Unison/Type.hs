@@ -48,6 +48,13 @@ data F a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
+  | -- | An implicit-arrow position. Behaves at the term level like
+    -- 'Arrow', but the elaborator fills the argument by
+    -- given-resolution rather than the user supplying it explicitly.
+    -- Multi-constraint signatures @(C1 a, C2 b) => T@ desugar to
+    -- nested @ImplicitArrow@: @ImplicitArrow C1a (ImplicitArrow C2b
+    -- T)@. Hashed with a distinct tag from 'Arrow'.
+    ImplicitArrow a a
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
 _Ref :: Prism' (F a) TypeReference
@@ -100,6 +107,8 @@ monotype t = Monotype <$> ABT.visit isMono t
 arity :: Type v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
+-- 'ImplicitArrow' contributes to arity like 'Arrow'.
+arity (ImplicitArrow' _ o) = 1 + arity o
 arity (Ann' a _) = arity a
 arity _ = 0
 
@@ -110,6 +119,7 @@ arity _ = 0
 arityIgnoringEffects :: Type v a -> Int
 arityIgnoringEffects (ForallNamed' _ body) = arityIgnoringEffects body
 arityIgnoringEffects (Arrow' _ o) = 1 + arityIgnoringEffects o
+arityIgnoringEffects (ImplicitArrow' _ o) = 1 + arityIgnoringEffects o
 arityIgnoringEffects (Ann' a _) = arityIgnoringEffects a
 arityIgnoringEffects (Effect' _ o) = arityIgnoringEffects o
 arityIgnoringEffects _ = 0
@@ -123,6 +133,13 @@ pattern Arrow' i o <- ABT.Tm' (Arrow i o)
 
 pattern Arrow'' :: (Ord v) => ABT.Term F v a -> [Type v a] -> Type v a -> ABT.Term F v a
 pattern Arrow'' i es o <- Arrow' i (Effect'' es o)
+
+-- | Smart pattern for 'ImplicitArrow'. Used wherever a consumer needs to
+-- distinguish an implicit @=>@ arrow from an ordinary @->@ 'Arrow' — the
+-- resolver, elaborator, printers, variance and kind inference all match on
+-- it.
+pattern ImplicitArrow' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
+pattern ImplicitArrow' i o <- ABT.Tm' (ImplicitArrow i o)
 
 pattern Arrows' :: [Type v a] -> Type v a
 pattern Arrows' spine <- (unArrows -> Just spine)
@@ -198,24 +215,70 @@ unPure (Effect'' [] t) = Just t
 unPure (Effect'' _ _) = Nothing
 unPure t = Just t
 
+-- | Extract the spine of a (possibly mixed) chain of explicit and
+-- implicit arrows. 'ImplicitArrow' contributes to the spine the same
+-- way 'Arrow' does — its left-hand side becomes one element of the
+-- spine. Consumers that need to distinguish implicit vs explicit
+-- positions (the elaborator) must walk the AST directly rather than
+-- rely on this view; existing consumers like 'DeclPrinter',
+-- 'TypePrinter', 'Variance.split', and 'Context.checkWanted's
+-- argument-extractor only care about argument count, which is what
+-- this view preserves.
 unArrows :: Type v a -> Maybe [Type v a]
 unArrows t =
   case go t of [_] -> Nothing; l -> Just l
   where
     go (Arrow' i o) = i : go o
+    go (ImplicitArrow' i o) = i : go o
     go o = [o]
 
+-- | Like 'unArrows' but also surfaces effect annotations.
+-- 'ImplicitArrow' contributes a spine element with no attached
+-- effects (constraint resolution does not introduce abilities). When
+-- mixing implicit and explicit arrows, each implicit position adds
+-- an entry to the result list.
 unEffectfulArrows ::
   Type v a -> Maybe (Type v a, [(Maybe [Type v a], Type v a)])
 unEffectfulArrows t = case t of
   Arrow' i o -> Just (i, go o)
+  ImplicitArrow' i o -> Just (i, go o)
   _ -> Nothing
   where
     go (Effect1' (Effects' es) (Arrow' i o)) =
       (Just $ es >>= flattenEffects, i) : go o
+    go (Effect1' (Effects' es) (ImplicitArrow' i o)) =
+      (Just $ es >>= flattenEffects, i) : go o
     go (Effect1' (Effects' es) t) = [(Just $ es >>= flattenEffects, t)]
     go (Arrow' i o) = (Nothing, i) : go o
+    go (ImplicitArrow' i o) = (Nothing, i) : go o
     go t = [(Nothing, t)]
+
+-- | Strip the leading constraint context from a type, returning the
+-- list of constraint types and the conclusion.
+--
+-- For a type of shape
+--
+-- @
+-- forall a b. C1 a => C2 b => T
+-- @
+--
+-- (which is what the parser produces from @C1 a, C2 b => T@), this
+-- returns @([C1 a, C2 b], T)@. Outermost 'Forall' binders are first
+-- looked through using 'unForalls'; if the body does not begin with
+-- 'ImplicitArrow', the empty list and the original (un-foralled)
+-- body are returned.
+--
+-- Note: this does not look through ability annotations; constraint
+-- arrows from @=>@ never carry abilities, so a well-formed
+-- implicit-arrow chain has no intervening 'Effect1'.
+unImplicitArrows :: Type v a -> ([Type v a], Type v a)
+unImplicitArrows t = case unForalls t of
+  Just (_vs, body) -> goImplicit body
+  Nothing -> goImplicit t
+  where
+    goImplicit (ImplicitArrow' i o) =
+      let (cs, conc) = goImplicit o in (i : cs, conc)
+    goImplicit other = ([], other)
 
 unApps :: Type v a -> Maybe (Type v a, [Type v a])
 unApps t = case go t [] of
@@ -260,6 +323,8 @@ unEffects1 _ = Nothing
 isArrow :: (ABT.Var v) => Type v a -> Bool
 isArrow (ForallNamed' _ t) = isArrow t
 isArrow (Arrow' _ _) = True
+-- 'ImplicitArrow' is also a function-shaped type.
+isArrow (ImplicitArrow' _ _) = True
 isArrow _ = False
 
 -- some smart constructors
@@ -287,11 +352,27 @@ booleanRef = Reference.Builtin "Boolean"
 textRef = Reference.Builtin "Text"
 charRef = Reference.Builtin "Char"
 listRef = Reference.Builtin "Sequence"
+
+-- | Sentinel type reference used by
+-- 'GivenApply.stripImplicitArgsByType' to mark an apply-chain head
+-- whose declared @=>@ arrows were filled by the user via the @give@
+-- keyword. The marker is purely print-time: 'TermPrinter' recognises
+-- @t : giveMarker@ on the head of an apply chain and emits @give @
+-- at the surface. The reference name is unparseable as a regular
+-- identifier so user code can't accidentally summon it.
+giveMarkerRef :: TypeReference
+giveMarkerRef = Reference.Builtin "@@give-marker"
+
 bytesRef = Reference.Builtin "Bytes"
+
 effectRef = Reference.Builtin "Effect"
+
 termLinkRef = Reference.Builtin "Link.Term"
+
 typeLinkRef = Reference.Builtin "Link.Type"
+
 integerRef = Reference.Builtin "Integer"
+
 naturalRef = Reference.Builtin "Natural"
 
 builtinIORef, fileHandleRef, filePathRef, threadIdRef, socketRef :: TypeReference
@@ -502,6 +583,14 @@ arrow a i o = ABT.tm' a (Arrow i o)
 arrow' :: (Semigroup a, Ord v) => Type v a -> Type v a -> Type v a
 arrow' i o = arrow (ABT.annotation i <> ABT.annotation o) i o
 
+-- | Smart constructor for 'ImplicitArrow'. Used by the parser for
+-- @=>@ and by the elaborator.
+implicitArrow :: (Ord v) => a -> Type v a -> Type v a -> Type v a
+implicitArrow a i o = ABT.tm' a (ImplicitArrow i o)
+
+implicitArrow' :: (Semigroup a, Ord v) => Type v a -> Type v a -> Type v a
+implicitArrow' i o = implicitArrow (ABT.annotation i <> ABT.annotation o) i o
+
 ann :: (Ord v) => a -> Type v a -> K.Kind -> Type v a
 ann a e t = ABT.tm' a (Ann e t)
 
@@ -690,6 +779,34 @@ existentializeArrows newVar t = ABT.visit go t
         b <- existentializeArrows newVar b
         let ann = ABT.annotation t
         pure $ arrow ann a (effect ann [var ann e] b)
+    -- 'ImplicitArrow' participates in effect-attach the same way
+    -- 'Arrow' does. Constraint resolution does not introduce
+    -- abilities, but the codomain may still be an effectful arrow
+    -- that needs a fresh ability variable.
+    --
+    -- Exception: when the codomain is itself an 'ImplicitArrow'
+    -- (chained constraints like @C1 => C2 => T@), we skip the
+    -- effect-row insertion. @=>@ carries no abilities, and inserting
+    -- an effect row between two @=>@s would break the
+    -- 'ImplicitArrow'' pattern in the @=>I@ checkWanted rule — the
+    -- pattern only sees through @Arrow'@/@Effect''@ tuples, not
+    -- bare 'Effect1'' wrappers — so the lambda binder for the
+    -- second constraint wouldn't be recognised.
+    go t@(ImplicitArrow' a b) = case b of
+      Effect1' _ _ -> Just $ do
+        a <- existentializeArrows newVar a
+        b <- existentializeArrows newVar b
+        pure $ implicitArrow (ABT.annotation t) a b
+      ImplicitArrow' _ _ -> Just $ do
+        a <- existentializeArrows newVar a
+        b <- existentializeArrows newVar b
+        pure $ implicitArrow (ABT.annotation t) a b
+      _ -> Just $ do
+        e <- newVar
+        a <- existentializeArrows newVar a
+        b <- existentializeArrows newVar b
+        let ann = ABT.annotation t
+        pure $ implicitArrow ann a (effect ann [var ann e] b)
     go _ = Nothing
 
 purifyArrows :: (Ord v) => Type v a -> Type v a
@@ -698,6 +815,13 @@ purifyArrows = ABT.visitPure go
     go t@(Arrow' a b) = case b of
       Effect1' _ _ -> Nothing
       _ -> Just $ arrow ann a (effect ann [] b)
+      where
+        ann = ABT.annotation t
+    -- Strip in 'ImplicitArrow' codomain the same way as 'Arrow' so
+    -- effect-stripping is uniform.
+    go t@(ImplicitArrow' a b) = case b of
+      Effect1' _ _ -> Nothing
+      _ -> Just $ implicitArrow ann a (effect ann [] b)
       where
         ann = ABT.annotation t
     go _ = Nothing
@@ -763,6 +887,9 @@ removePureEffects keepEmptied t
 
     keepVarsT pos (Arrow' i o) =
       keepVarsT (not pos) i <> keepVarsT pos o
+    -- 'ImplicitArrow' has the same variance as 'Arrow'.
+    keepVarsT pos (ImplicitArrow' i o) =
+      keepVarsT (not pos) i <> keepVarsT pos o
     keepVarsT pos (Effect1' e o) =
       keepVarsT pos e <> keepVarsT pos o
     keepVarsT pos (Effects' es) = foldMap (keepVarsE pos) es
@@ -791,6 +918,10 @@ editFunctionResult f = go
         (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Forall x) $ go t
       ABT.Tm (Arrow i o) ->
         (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Arrow i x) $ go o
+      -- 'ImplicitArrow' behaves like 'Arrow' here for purposes of
+      -- following the function-result spine.
+      ABT.Tm (ImplicitArrow i o) ->
+        (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ ImplicitArrow i x) $ go o
       ABT.Abs v r ->
         (\x -> ABT.Term (s <> freeVars x) a $ ABT.Abs v x) $ go r
       _ -> f (ABT.Term s a t)
@@ -800,6 +931,9 @@ functionResult = go False
   where
     go inArr (ForallNamed' _ body) = go inArr body
     go _inArr (Arrow' _i o) = go True o
+    -- Traverse 'ImplicitArrow' like 'Arrow' to find the ultimate
+    -- function result.
+    go _inArr (ImplicitArrow' _i o) = go True o
     go _inArr (Effect1' _e body) = go True body
     go inArr t = if inArr then Just t else Nothing
 
@@ -902,6 +1036,10 @@ instance (Show a) => Show (F a) where
       go _ (Ref r) = shows r
       go p (Arrow i o) =
         showParen (p > 0) $ showsPrec (p + 1) i <> s " -> " <> showsPrec p o
+      -- For 'Show', render 'ImplicitArrow' as @=>@ to make debugging
+      -- output unambiguous.
+      go p (ImplicitArrow i o) =
+        showParen (p > 0) $ showsPrec (p + 1) i <> s " => " <> showsPrec p o
       go p (Ann t k) =
         showParen (p > 1) $ shows t <> s ":" <> shows k
       go p (App f x) =

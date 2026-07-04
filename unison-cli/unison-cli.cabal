@@ -69,6 +69,7 @@ library
       Unison.Codebase.Editor.HandleInput.EditNamespace
       Unison.Codebase.Editor.HandleInput.FindAndReplace
       Unison.Codebase.Editor.HandleInput.FormatFile
+      Unison.Codebase.Editor.HandleInput.Givens
       Unison.Codebase.Editor.HandleInput.Global
       Unison.Codebase.Editor.HandleInput.History
       Unison.Codebase.Editor.HandleInput.HistoryComment
@@ -388,6 +389,7 @@ test-suite cli-tests
   other-modules:
       Unison.Test.ClearCache
       Unison.Test.Cli.Monad
+      Unison.Test.Givens
       Unison.Test.LSP
       Unison.Test.Ucm
       Unison.Test.UriParser
@@ -432,7 +434,8 @@ test-suite cli-tests
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      base
+      IntervalMap
+    , base
     , code-page
     , containers
     , crypton

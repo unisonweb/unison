@@ -45,6 +45,13 @@ module Unison.Syntax.Parser
     rootFile,
     run',
     run,
+    runFile,
+    runFile',
+    recordGivenVar,
+    getGivenVars,
+    recordClassDeclVar,
+    getClassDeclVars,
+    ParserState (..),
     semi,
     Unison.Syntax.Parser.seq,
     Unison.Syntax.Parser.seq',
@@ -65,6 +72,7 @@ where
 
 import Control.Monad.Reader (ReaderT (..), ask)
 import Control.Monad.Reader.Class (asks)
+import Control.Monad.State.Strict (StateT, evalStateT, gets, modify, runStateT)
 import Crypto.Random qualified as Random
 import Data.Bool (bool)
 import Data.Bytes.Put (runPutS)
@@ -110,7 +118,40 @@ import Unison.Var qualified as Var
 debug :: Bool
 debug = False
 
-type P v m = P.ParsecT (Error v) Input (ReaderT (ParsingEnv m) m)
+-- | Parser-side state for tracking which surface-syntax forms each
+-- name originated from. Currently two parallel sets:
+--
+--   * @givenBoundVars@ — variables that must be treated as lexical
+--     givens, populated by 'recordGivenVar'. This includes both
+--     @given@-keyword bindings and the synthetic @_implicit_*@
+--     dictionary binders that 'wrapImplicitParams' injects for any
+--     binding whose declared type begins with @=>@. The typechecker
+--     uses this to identify given origins without inspecting the
+--     binding's type shape.
+--
+--   * @classDeclVars@ — type names declared with the @class@
+--     keyword, populated by 'recordClassDeclVar'. The 'add' /
+--     'update' commands consult this set so the namespace can be
+--     marked with the class sentinel, which @view@ then reads when
+--     rendering the declaration.
+data ParserState v = ParserState
+  { givenBoundVars :: Set v,
+    classDeclVars :: Set v
+  }
+
+instance (Ord v) => Semigroup (ParserState v) where
+  ParserState g1 c1 <> ParserState g2 c2 = ParserState (g1 <> g2) (c1 <> c2)
+
+instance (Ord v) => Monoid (ParserState v) where
+  mempty = ParserState Set.empty Set.empty
+
+-- | The parser monad. The inner 'StateT' carries a 'ParserState v'
+-- of names accumulated during the parse — see the docs on
+-- 'ParserState' for the individual fields. The 'StateT' is /below/
+-- 'ParsecT' so that registrations do not get rolled back on parser
+-- backtracking; this is safe because each registration site is
+-- committed (no @try@) once the relevant keyword has been consumed.
+type P v m = P.ParsecT (Error v) Input (StateT (ParserState v) (ReaderT (ParsingEnv m) m))
 
 type Err v = P.ParseError Input (Error v)
 
@@ -197,10 +238,10 @@ uniqueName lenInBase32Hex = do
 
 resolveUniqueTypeGuid :: (Monad m, Var v) => v -> P v m Modifier
 resolveUniqueTypeGuid name0 = do
-  ParsingEnv {maybeNamespace, uniqueTypeGuid} <- ask
+  ParsingEnv {maybeNamespace, uniqueTypeGuid} <- lift (lift ask)
   let name = Name.unsafeParseVar (maybe id (Var.namespaced2 . Name.toVar) maybeNamespace name0)
   guid <-
-    lift (lift (uniqueTypeGuid name)) >>= \case
+    lift (lift (lift (uniqueTypeGuid name))) >>= \case
       Nothing -> uniqueName 32
       Just guid -> pure guid
   pure (Unique guid)
@@ -287,12 +328,57 @@ run' :: (Monad m, Ord v) => P v m a -> String -> String -> ParsingEnv m -> m (Ei
 run' p s name env =
   let lex = bool id (traceWith L.debugPreParse) debug . L.preParse $ L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-   in runReaderT (runParserT pTraced name . Input $ toList lex) env <&> \case
+   in runReaderT (evalStateT (runParserT pTraced name . Input $ toList lex) mempty) env <&> \case
         Left err -> Left (Nel.head (P.bundleErrors err))
         Right x -> Right x
 
 run :: (Monad m, Ord v) => P v m a -> String -> ParsingEnv m -> m (Either (Err v) a)
 run p s = run' p s ""
+
+-- | Variant of 'run'' that also returns the 'ParserState' of names
+-- accumulated by registrations during parsing. Callers that need
+-- these side channels (e.g. 'Unison.Syntax.FileParser.file') use this
+-- instead of plain 'run'' so the typechecker can identify
+-- @given@-keyword origins and the @add@ command can mark
+-- @class@-declared types in namespace metadata.
+runFile' :: (Monad m, Ord v) => P v m a -> String -> String -> ParsingEnv m -> m (Either (Err v) (a, ParserState v))
+runFile' p s name env =
+  let lex = bool id (traceWith L.debugPreParse) debug . L.preParse $ L.lexer name s
+      pTraced = traceRemainingTokens "parser receives" *> p
+   in runReaderT (runStateT (runParserT pTraced name . Input $ toList lex) mempty) env <&> \case
+        (Left err, _) -> Left (Nel.head (P.bundleErrors err))
+        (Right x, gs) -> Right (x, gs)
+
+runFile :: (Monad m, Ord v) => P v m a -> String -> ParsingEnv m -> m (Either (Err v) (a, ParserState v))
+runFile p s = runFile' p s ""
+
+-- | Record that a variable was bound via the @given@ keyword. Called
+-- from 'Unison.Syntax.TermParser.givenBindingBody' (and the file-level
+-- @given@ decl path) so the typechecker can recognise @given@ origins
+-- without inspecting the binding's type shape.
+recordGivenVar :: (Ord v, Monad m) => v -> P v m ()
+recordGivenVar v = lift (modify (\s -> s {givenBoundVars = Set.insert v (givenBoundVars s)}))
+
+-- | Fetch the current accumulated set of @given@-bound variable names.
+-- Mostly useful for tests; production callers use 'runFile' / 'runFile''
+-- to capture the full 'ParserState' at the end of a parse.
+getGivenVars :: (Monad m) => P v m (Set v)
+getGivenVars = lift (gets givenBoundVars)
+
+-- | Record that a type variable was declared with the @class@
+-- keyword. Called from 'Unison.Syntax.DeclParser' when the @class@
+-- alternative of the type-or-class header fires. The 'add' /
+-- 'update' commands consult this set via 'classDeclVars' in
+-- 'ParserState' to mark the type in namespace metadata (via
+-- 'Unison.Codebase.Classes.markClassAt') so @view@ can later
+-- recover the @class@ keyword on the round-trip.
+recordClassDeclVar :: (Ord v, Monad m) => v -> P v m ()
+recordClassDeclVar v = lift (modify (\s -> s {classDeclVars = Set.insert v (classDeclVars s)}))
+
+-- | Fetch the current accumulated set of @class@-declared type
+-- variable names.
+getClassDeclVars :: (Monad m) => P v m (Set v)
+getClassDeclVars = lift (gets classDeclVars)
 
 -- | Virtual pattern match on a lexeme.
 queryToken :: (Ord v) => (L.Lexeme -> Maybe a) -> P v m (L.Token a)

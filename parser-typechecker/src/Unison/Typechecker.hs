@@ -36,6 +36,7 @@ import Unison.Blank qualified as B
 import Unison.Builtin.Decls qualified as BuiltinDecls
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Name qualified as Name
+import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Reference (Reference)
@@ -47,6 +48,7 @@ import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Typechecker.Variance (Variance (..))
@@ -103,7 +105,22 @@ data Env v loc = Env
     -- For each free name, a separate mapping with the same type as termsByShortname is provided.
     freeNameToFuzzyTermsByShortName :: Map Name.Name (Map Name.Name [Either Name.Name (NamedReference v loc)]),
     topLevelComponents :: Map Name.Name (NamedReference v loc),
-    variances :: Map Reference [Variance]
+    variances :: Map Reference [Variance],
+    -- | The ambient pool of namespace-level givens (terms tagged via
+    -- 'Unison.Codebase.Givens.givenSentinel' that the typechecker can
+    -- use to satisfy 'ImplicitArrow' constraints in the file under
+    -- elaboration). Populated by 'computeTypecheckingEnvironment' from
+    -- the namespace; defaults to an empty pool when typechecking
+    -- contexts that don't have a namespace (e.g. some test setups).
+    ambientGivens :: GR.Pool v loc,
+    -- | Variable names bound via the @given@ keyword in the file under
+    -- elaboration. Populated by the parser's side channel (see
+    -- 'Unison.Syntax.Parser') and surfaced via
+    -- 'UF.UnisonFile.givenBindings'. The set covers both file-level
+    -- and block-scoped @let given@ bindings, including premise-free
+    -- givens like @given local : Ord a = …@ which a purely shape-based
+    -- predicate over the declared type would miss.
+    givenBindings :: Set v
   }
   deriving stock (Generic)
 
@@ -111,7 +128,7 @@ data Env v loc = Env
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
 synthesize ::
-  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc, Semigroup loc) =>
+  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   Context.PatternMatchCoverageCheckAndKindInferenceSwitch ->
   Env v loc ->
@@ -125,6 +142,15 @@ synthesize ppe pmccSwitch env t =
             pmccSwitch
             env.variances
             (TypeVar.liftType <$> env.ambientAbilities)
+            -- The lexical given environment starts empty at the top
+            -- of the typechecker pipeline; top-level @given@ decls are
+            -- discovered by walking the file.
+            Map.empty
+            -- Thread the parser-collected @given@-keyword names into
+            -- the typechecker so the letrec/let predicates can
+            -- recognise @given@ origins by name rather than by type
+            -- shape.
+            env.givenBindings
             env.typeLookup
             (TypeVar.liftTerm t)
    in Result.hoist (pure . runIdentity) $ fmap TypeVar.lowerType result
@@ -211,6 +237,7 @@ synthesizeAndResolve ::
   (BuiltinAnnotation loc) =>
   (Ord loc) =>
   (Show loc) =>
+  (Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   Env v loc ->
   TDNR f v loc (Type v loc)
@@ -261,7 +288,7 @@ liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 -- 3. No match at all. Throw an unresolved symbol at the user.
 typeDirectedNameResolution ::
   forall v loc f.
-  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Monoid loc, Show loc) =>
+  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Monoid loc, Show loc, Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   Notes v loc ->
   Type v loc ->
@@ -438,7 +465,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
 check ::
-  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc, Semigroup loc) =>
+  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   Env v loc ->
   Term v loc ->
@@ -468,6 +495,7 @@ wellTyped ::
   (Ord loc) =>
   (Show loc) =>
   (Semigroup loc) =>
+  (Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   Env v loc ->
   Term v loc ->

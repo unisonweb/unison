@@ -71,6 +71,37 @@ test =
       t "\"woot\" -- a comment 1.0" [Textual "woot"],
       t "0:Int" [Numeric "0", Reserved ":", simpleWordyId "Int"],
       t "0 : Int" [Numeric "0", Reserved ":", simpleWordyId "Int"],
+      -- Constraint arrow "=>". Distinct from "==>" (rewrite arrow),
+      -- "->" (function arrow), and "=" (definition arrow /
+      -- layout-opener).
+      t "Show a => a" [simpleWordyId "Show", simpleWordyId "a", Reserved "=>", simpleWordyId "a"],
+      t "a=>b" [simpleWordyId "a", Reserved "=>", simpleWordyId "b"],
+      -- `given` lexes as Reserved (it's a wordy keyword introducing
+      -- a binding form). `summon` is an ordinary builtin term
+      -- reference, so it lexes as a wordy identifier.
+      t "given" [Reserved "given"],
+      t "summon" [simpleWordyId "summon"],
+      t "given x" [Reserved "given", simpleWordyId "x"],
+      t "summon Nat" [simpleWordyId "summon", simpleWordyId "Nat"],
+      -- `given` only lexes as a keyword as a standalone word;
+      -- suffixed forms (e.g., `givens`) remain ordinary wordy
+      -- identifiers. This protects user identifiers whose prefix
+      -- happens to be the keyword.
+      t "givens" [simpleWordyId "givens"],
+      -- "@"-positional explicit override. The lexer just emits a
+      -- single Reserved "@" token; the parser decides between
+      -- as-pattern, doc-prefix, and override based on context.
+      -- Confirms the token shape `f @ d x` relies on.
+      t
+        "f @ d x"
+        [ simpleWordyId "f",
+          Reserved "@",
+          simpleWordyId "d",
+          simpleWordyId "x"
+        ],
+      -- Tight spacing: "f@d" still tokenizes the "@" separately,
+      -- because '@' is not a wordy-id char.
+      t "f@d" [simpleWordyId "f", Reserved "@", simpleWordyId "d"],
       t
         ".Foo Foo `.` .foo.bar.baz"
         [ simpleWordyId ".Foo",

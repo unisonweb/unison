@@ -1665,6 +1665,10 @@ instance (Show v, Show a) => Show (F v a0 p a) where
         B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
         B.Recorded (B.Resolve _ r) -> s r
         B.Recorded (B.MissingResultPlaceholder _) -> s "_"
+        -- An unresolved implicit-argument hole. Printed like a
+        -- generic blank; the elaborator substitutes the resolved
+        -- dictionary term before this ever needs a richer rendering.
+        B.Recorded (B.Implicit _) -> s "_"
         B.Retain -> s "_"
       go _ (Ref r) = s "Ref(" <> shows r <> s ")"
       go _ (TermLink r) = s "TermLink(" <> shows r <> s ")"

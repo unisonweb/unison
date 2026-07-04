@@ -53,7 +53,16 @@ data SynDataDecl v = SynDataDecl
     fields :: !(Maybe [(L.Token v, Type v Ann)]),
     modifier :: !DataDeclaration.Modifier,
     name :: !(L.Token v),
-    tyvars :: ![v]
+    tyvars :: ![v],
+    -- | 'True' iff this declaration was parsed with the @class@
+    -- keyword instead of @type@. Class declarations are sugared
+    -- record types whose accessors take the record as an /implicit/
+    -- parameter (an @=>@ arrow) and emit only the getters — no
+    -- setters or modifiers — so a method call like @Monoid.op acc x@
+    -- relies on the resolver to thread the chosen 'Monoid' dictionary
+    -- in. See @generateRecordAccessors@ for the accessor-emission
+    -- split. Always 'False' for ordinary @type@ declarations.
+    isClass :: !Bool
   }
   deriving stock (Generic)
 
@@ -101,8 +110,22 @@ synDeclP = do
 
 synDataDeclP :: forall m v. (Monad m, Var v) => Maybe (L.Token UnresolvedModifier) -> P v m (SynDataDecl v)
 synDataDeclP modifier0 = do
-  typeToken <- fmap void (reserved "type") <|> openBlockWith "type"
+  -- A @class T a = { ... }@ declaration is sugared to the same
+  -- record-style data declaration as @type T a = { ... }@; downstream
+  -- accessor emission (see 'generateRecordAccessors') consults the
+  -- 'isClass' flag to emit getters with an implicit ('=>') dictionary
+  -- parameter and to omit setters/modifiers.
+  let typeKw = (False,) <$> (fmap void (reserved "type") <|> openBlockWith "type")
+      classKw = (True,) <$> (fmap void (reserved "class") <|> openBlockWith "class")
+  (classFlag, typeToken) <- typeKw <|> classKw
   (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
+  -- When the user used the @class@ keyword, record the type name in
+  -- the parser's side-channel so the @add@ / @update@ command can mark
+  -- the namespace metadata with 'classSentinel'. This makes the
+  -- @class@ keyword recoverable on the @view@ round-trip even though
+  -- the underlying data declaration is the same as if it were written
+  -- with @type@.
+  when classFlag $ recordClassDeclVar (L.payload name)
   let tyvars = L.payload <$> typeArgs
   eq <- reserved "="
   let -- go gives the type of the constructor, given the types of
@@ -138,6 +161,12 @@ synDataDeclP modifier0 = do
         pure (snd (go lastSegment (snd <$> fields)), Just fields, ann closingToken)
   optional record >>= \case
     Nothing -> do
+      -- A `class` declaration is sugar for a record type; the getters it
+      -- generates only make sense for a record body. Reject the non-record
+      -- (sum-type / positional) form rather than silently accepting a
+      -- class with no fields.
+      when classFlag $
+        fail "A `class` declaration must have a record body, e.g. `class Show a = { show : a -> Text }`."
       constructors <- sepBy (reserved "|") (go <$> prefixVar <*> many TypeParser.valueTypeLeaf)
       _ <- closeBlock
       let closingAnn :: Ann
@@ -150,7 +179,8 @@ synDataDeclP modifier0 = do
             fields = Nothing,
             modifier,
             name,
-            tyvars
+            tyvars,
+            isClass = classFlag
           }
     Just (constructor, fields, closingAnn) -> do
       _ <- closeBlock
@@ -162,7 +192,8 @@ synDataDeclP modifier0 = do
             fields,
             modifier,
             name,
-            tyvars
+            tyvars,
+            isClass = classFlag
           }
   where
     prefixVar :: P v m (L.Token v)

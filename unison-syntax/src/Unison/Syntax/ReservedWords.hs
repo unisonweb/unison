@@ -32,7 +32,21 @@ keywords =
       "use",
       "where",
       "with",
-      "∀"
+      "∀",
+      -- Implicit-parameter feature. `given` is a top-level
+      -- declaration prefix and a let-block statement opener. User
+      -- code that names a definition or local `given` must rename or
+      -- use backtick escaping (`` `given` ``). (`summon` is /not/
+      -- reserved; it is a regular builtin term reference whose type
+      -- @forall a. a => a@ already gets the right behaviour through
+      -- the normal implicit-resolution machinery.)
+      "given",
+      -- `give f` is a prefix syntactic transformation that demotes
+      -- f's leading `=>` arrows to `->`. Has to be a keyword (not a
+      -- builtin) because the type transformation cannot be expressed
+      -- as a regular polymorphic signature without the typechecker's
+      -- implicit-resolution rule firing first.
+      "give"
     ]
     <> typeModifiers
     <> typeOrAbility
@@ -43,7 +57,7 @@ typeModifiers =
 
 typeOrAbility :: Set Text
 typeOrAbility =
-  Set.fromList ["type", "ability"]
+  Set.fromList ["type", "ability", "class"]
 
 reservedOperators :: Set Text
 reservedOperators =
@@ -56,7 +70,13 @@ reservedOperators =
       "|",
       "!",
       "'",
-      "==>"
+      "==>",
+      -- Implicit-parameter constraint arrow. This set is unordered
+      -- (membership only); maximal munch between "==>" and "=>" is
+      -- enforced by the token order in 'layoutKeywords' (Lexer/Unison.hs),
+      -- where the "==>" rewrite arrow is tried before the "=>" constraint
+      -- arrow.
+      "=>"
     ]
 
 delimiters :: Set Char

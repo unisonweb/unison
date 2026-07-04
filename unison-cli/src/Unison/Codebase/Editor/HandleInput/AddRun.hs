@@ -53,6 +53,8 @@ handleAddRun input resultName = do
           (UF.effectDeclarationsId' uf0)
           ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf0)
           (UF.watchComponents uf0)
+          (UF.givenBindings' uf0)
+          (UF.classBindings' uf0)
   Cli.Env {codebase} <- ask
   currentNames <- Cli.currentNames
   let sr = Slurp.slurpFile uf resultVar currentNames

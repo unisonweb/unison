@@ -30,8 +30,57 @@ type TypeP v m = P v m (Type v Ann)
 -- Value types cannot have effects, unless those effects appear to
 -- the right of a function arrow:
 --   valueType ::= Int | Text | App valueType valueType | Arrow valueType computationType
+--              | Constraint+ '=>' valueType
 valueType :: (Monad m, Var v) => TypeP v m
-valueType = forAll type1 <|> type1
+valueType = constrainedType <|> forAll (constrainedType <|> type1) <|> type1
+
+-- | Parse the implicit-parameter constraint-arrow form:
+--
+-- > Show a => a -> Text
+-- > (Monad m, Traversable t) => (a -> m b) -> t a -> m (t b)
+-- > Functor f => (a -> b) -> f a -> f b
+--
+-- Multi-constraint signatures @(C1 a, C2 b) => T@ desugar to a
+-- right-folded chain of 'ImplicitArrow's:
+-- @ImplicitArrow C1a (ImplicitArrow C2b T)@. This distinguishes the
+-- constraint arrow @=>@ from the explicit function arrow @->@ in the
+-- type AST; the printer renders @ImplicitArrow@ chains back as @=>@
+-- tuples so signatures round-trip.
+constrainedType :: (Monad m, Var v) => TypeP v m
+constrainedType = do
+  cs <- P.try constraintContext
+  body <- forAll (constrainedType <|> type1) <|> type1
+  -- Right-fold: (C1, C2, ..., Cn) => T  ===>
+  --   ImplicitArrow C1 (ImplicitArrow C2 (... (ImplicitArrow Cn T))).
+  -- Each step preserves the source range of the constraint by combining
+  -- annotations.
+  pure $ foldr (\c t -> Type.implicitArrow (ann c <> ann t) c t) body cs
+
+-- | Parses one of:
+--
+-- > C        -- a single constraint, e.g. @Show a@
+-- > (C1, ..., Cn)  -- a parenthesised list of constraints, n >= 1
+--
+-- followed by the @=>@ arrow. Wrapped in 'P.try' at the call site so
+-- non-constrained types fall back to the regular grammar without
+-- consuming input.
+constraintContext :: (Monad m, Var v) => P v m [Type v Ann]
+constraintContext = do
+  cs <- parenthesisedConstraints <|> ((: []) <$> type2)
+  _ <- reserved "=>"
+  pure cs
+  where
+    parenthesisedConstraints = do
+      _ <- openBlockWith "("
+      -- '(' opens a layout block, so a multi-line constraint context can
+      -- have layout-inserted semicolons around the commas; tolerate them
+      -- (and any leading/trailing one) the way the tuple parser does.
+      _ <- optional semi
+      -- A constraint context cannot be empty; @() => T@ is rejected.
+      cs <- sepBy1 (P.try (optional semi *> reserved "," <* optional semi)) type2
+      _ <- optional semi
+      _ <- closeBlock
+      pure cs
 
 -- Computation
 -- computationType ::= [{effect*}] valueType

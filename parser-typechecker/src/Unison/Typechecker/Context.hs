@@ -40,6 +40,10 @@ module Unison.Typechecker.Context
     Unknown (..),
     relax,
     generalizeAndUnTypeVar,
+    -- Lexical given environment plumbing.
+    getLexicalGivens,
+    extendLexicalGiven,
+    withLexicalGivens,
   )
 where
 
@@ -88,6 +92,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.KindInference qualified as KindInference
 import Unison.Name (Name)
+import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
@@ -110,6 +115,7 @@ import Unison.Typechecker.Context.Structure hiding
     partition,
   )
 import Unison.Typechecker.Context.Structure qualified as Ctx
+import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Typechecker.Variance (Variance (..), defaultVariances)
@@ -146,8 +152,32 @@ existentialp a = existential' a B.Blank
 universal' :: (Ord v) => a -> v -> Type.Type (TypeVar v loc) a
 universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
--- The typechecking state
-data Env v loc = Env {freshId :: Word64, ctx :: Context v loc}
+-- | The typechecking state.
+--
+-- 'lexicalGivens' threads the in-scope givens (top-level @given@
+-- declarations and local @let given@ bindings) through every binding
+-- form. The keys are term references identifying the given's binding;
+-- the values are the given's full type. The map is consulted by the
+-- resolver.
+data Env v loc = Env
+  { freshId :: Word64,
+    ctx :: Context v loc,
+    -- | In-scope given references with their declared types.
+    -- Populated by 'synthesizeClosed' from the caller's top-level
+    -- given set; extended by every binding form via
+    -- 'withLexicalGivens'. Consumed by the resolver.
+    lexicalGivens :: Map Reference (Type v loc),
+    -- | Variable names that the parser recorded as originating from
+    -- the @given@ keyword. Consulted by
+    -- 'extendLexicalGivenFromBinding', 'noteGivenDeclLet', and the
+    -- letrec hook in 'annotateLetRecBindings'' to identify @given@
+    -- bindings without inspecting type shape, so premise-free
+    -- declarations like @given local : Ord a = …@ are recognised
+    -- correctly. Seeded by 'synthesizeClosed' from the caller (which
+    -- in turn is fed by the parser's side channel via
+    -- 'UF.UnisonFile.givenBindings').
+    givenBindings :: Set v
+  }
 
 type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
 
@@ -398,6 +428,102 @@ data InfoNote v loc
     VarBinding v loc (Type v loc)
   | -- | The usage of a particular variable. We report the variable and its location so we can match a given source location with a specific symbol later in the LSP.
     VarMention v loc
+  | -- | A constraint goal emitted at an 'ImplicitArrow' apply-site.
+    -- The elaborator consumes these notes, runs given-resolution, and
+    -- substitutes the chosen dictionary term back into the AST.
+    -- Mirrors the 'SolvedBlank'/'Decision'/'applyTdnrDecisions'
+    -- pattern that TDNR already uses (see
+    -- 'parser-typechecker/src/Unison/FileParsers.hs:329').
+    --
+    -- 'goalLoc' is the source location of the apply-site (the function
+    -- whose type begins with @=>@).
+    -- 'goalType' is the constraint type to resolve — the LHS of the
+    -- 'ImplicitArrow' at the moment the goal was emitted (so it carries
+    -- whatever type-information surrounding inference has pinned).
+    -- 'goalScope' is a snapshot of the lexical given environment at
+    -- the apply-site (see 'getLexicalGivens'); the resolver consults
+    -- this for local @given@ bindings introduced by enclosing scopes.
+    ConstraintGoal
+      { goalLoc :: loc,
+        goalType :: Type v loc,
+        goalScope :: Map Reference (Type v loc)
+      }
+  | -- | The result of running given-resolution
+    -- ('Unison.Typechecker.GivenResolver') on a 'ConstraintGoal'.
+    --
+    -- 'implicitGoalLoc' is the apply-site location copied from the
+    -- corresponding 'ConstraintGoal' (so the post-pass that
+    -- substitutes the resolved dictionary term back into the AST
+    -- knows where to write).
+    --
+    -- 'implicitGoalType' is the (post-substitution) constraint type
+    -- the resolver was asked to satisfy. Stored on the note so the
+    -- post-pass and error renderer do not need to re-derive it from
+    -- the surrounding context.
+    --
+    -- 'implicitDecision' records the resolver's verdict: a winning
+    -- 'GR.ResolutionTree' on success, or a structured
+    -- 'GR.ResolveError' on failure. 'Right' decisions are substituted
+    -- into the AST; 'Left' decisions are rendered alongside other
+    -- type errors.
+    --
+    -- Mirrors the 'SolvedBlank'/'Decision'/'applyTdnrDecisions' shape
+    -- used by TDNR (see 'parser-typechecker/src/Unison/FileParsers.hs:329').
+    SolvedImplicit
+      { implicitGoalLoc :: loc,
+        implicitGoalType :: Type.Type v loc,
+        implicitDecision ::
+          Either (GR.ResolveError v loc) (GR.ResolutionTree v loc)
+      }
+  | -- | A record left behind by 'applyGivenDecisions' identifying a
+    -- synthesized implicit argument. The LSP consumes these notes to
+    -- render hover and goto-definition responses for synthesized
+    -- 'App' nodes.
+    --
+    -- 'implicitArgLoc' is the source location of the function being
+    -- applied (i.e. the head of the apply chain whose type begins
+    -- with @=>@). This is the position the user can place a cursor
+    -- on; the synthesized dictionary argument itself has no source
+    -- range.
+    --
+    -- 'implicitArgRef' is the 'Reference' of the resolved given
+    -- (the root of the 'ResolutionTree'). For a derived hash, the
+    -- LSP can resolve to a name and definition location; for a
+    -- builtin given, the LSP shows a builtin marker.
+    ImplicitArgRef
+      { implicitArgLoc :: loc,
+        implicitArgRef :: Reference
+      }
+  | -- | Emitted when the typechecker validates a top-level binding
+    -- whose declared type begins (after stripping 'Forall') with one
+    -- or more 'ImplicitArrow' constructors — the shape of a @given@
+    -- declaration's signature, i.e. @C1 a, C2 b => T@. The note
+    -- records the variable, its source location, the declared type,
+    -- and the /conclusion/ type (declared type with all leading
+    -- 'ImplicitArrow' parameters stripped). 'synthesizeFile' consumes
+    -- this note to identify which top-level definitions should be
+    -- marked as givens in the namespace metadata via
+    -- 'Unison.Codebase.Givens.markGivenAt' (the actual marking
+    -- happens in the UCM command surface).
+    --
+    -- There is no global registry; the namespace is the instance
+    -- set. The note exists only to plumb a @v -> conclusion@ mapping
+    -- out of the typechecker so callers can do the marking; nothing
+    -- in the typechecker itself is sensitive to it.
+    --
+    -- Body validation: inference checks the body against the declared
+    -- type via the existing 'Term.Ann\'' path. The
+    -- @checkWanted exact want m (Type.ImplicitArrow' i conc)@ clause
+    -- recurses on the conclusion, so the body's inferred type is
+    -- already required to match the conclusion. This note is emitted
+    -- after that check has succeeded, so its presence is itself the
+    -- positive signal of a valid given declaration.
+    GivenDecl
+      { givenLoc :: loc,
+        givenVar :: v,
+        givenDeclaredType :: Type v loc,
+        givenConclusion :: Type v loc
+      }
   deriving (Show)
 
 topLevelComponent :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
@@ -423,6 +549,19 @@ substituteSolved ::
 substituteSolved ctx = \case
   (SolvedBlank b v t) -> SolvedBlank b v (apply ctx t)
   VarBinding v loc t -> VarBinding v loc (apply ctx t)
+  -- Propagate context substitution into the constraint goal's type
+  -- and into the captured given-scope so that later inference (TDNR,
+  -- additional unification) can refine the types the resolver will
+  -- eventually look at.
+  ConstraintGoal loc t scope ->
+    ConstraintGoal loc (apply ctx t) (apply ctx <$> scope)
+  -- Like 'ConstraintGoal', a given-decl note records types that may
+  -- still contain unsolved existentials at emission time; later
+  -- inference may refine them. Apply the context substitution to both
+  -- the declared type and the conclusion so consumers downstream see
+  -- fully-solved shapes.
+  GivenDecl loc v declared conc ->
+    GivenDecl loc v (apply ctx declared) (apply ctx conc)
   i -> i
 
 -- The typechecker generates synthetic type variables as part of type inference.
@@ -640,6 +779,79 @@ getContext = gets ctx
 setContext :: Context v loc -> M v loc ()
 setContext ctx = modEnv (\e -> e {ctx = ctx})
 
+-- | Read the lexical given environment. The map is keyed by the term
+-- reference of each in-scope given.
+getLexicalGivens :: M v loc (Map Reference (Type v loc))
+getLexicalGivens = gets lexicalGivens
+
+-- | Extend the lexical given environment with a single given binding.
+extendLexicalGiven :: Reference -> Type v loc -> M v loc ()
+extendLexicalGiven r ty =
+  modEnv (\e -> e {lexicalGivens = Map.insert r ty (lexicalGivens e)})
+
+-- | Run an action in a scope that may extend the lexical given
+-- environment, restoring the prior environment on exit. Wraps every
+-- binding form ('Lam', 'Let1', 'LetRec', match arm) so that lexical
+-- scoping of givens is correctly modeled. The save/restore pattern
+-- matches how 'Context' is mark/retracted in the typechecker.
+withLexicalGivens :: M v loc a -> M v loc a
+withLexicalGivens act = do
+  saved <- getLexicalGivens
+  a <- act
+  modEnv (\e -> e {lexicalGivens = saved})
+  pure a
+
+-- | Peel leading @=>@ arrows (and any intervening 'Forall' binders)
+-- off a synthesised type, emitting a 'ConstraintGoal' info note for
+-- each. The returned type is the conclusion after every implicit
+-- has been stripped, so subsequent typechecking sees the function
+-- as if its implicit arguments had been applied already. The
+-- corresponding dictionary insertions are performed by
+-- 'Unison.Typechecker.GivenApply' as a post-pass: it visits each
+-- 'Var'\'@/@'Ref'\'' leaf in the elaborated term, looks up its
+-- /original/ type, and wraps the leaf with @App leaf <dict>@ for
+-- each @=>@ found there.
+--
+-- 'goalLoc_' is the source location reported on each
+-- 'ConstraintGoal'; pass the location of the reference itself.
+peelLeadingImplicits ::
+  (Var v, Ord loc) =>
+  loc ->
+  Type v loc ->
+  M v loc (Type v loc)
+peelLeadingImplicits goalLoc_ = go
+  where
+    go ty = case ty of
+      Type.ImplicitArrow' i conc -> do
+        ctx <- getContext
+        scope_ <- getLexicalGivens
+        let goalTy = apply ctx i
+            goalScope = apply ctx <$> scope_
+        btw $ ConstraintGoal goalLoc_ goalTy goalScope
+        go conc
+      _ -> pure ty
+
+-- | Demote /every/ leading 'ImplicitArrow' to a regular 'Arrow'. Used
+-- to elaborate the @give@ keyword: writing @give f@ converts all
+-- leading @=>@ slots in f's type into plain explicit parameters, so
+-- the user can supply each dictionary positionally at the call site
+-- instead of leaving them to the resolver. Stops at the first
+-- non-@=>@ constructor. For finer-grained overrides, the user uses
+-- @let given@ shadowing instead.
+lowerLeadingImplicit :: (Ord v) => Type v loc -> Type v loc
+lowerLeadingImplicit ty = case ty of
+  Type.ImplicitArrow' i o ->
+    Type.arrow (ABT.annotation ty) i (lowerLeadingImplicit o)
+  _ -> ty
+
+-- | Ask whether a variable name was bound via the @given@ keyword.
+-- The lookup compares against 'Var.reset' of @v@ because the
+-- parser-side set holds the un-freshened names while the typechecker
+-- may pass in freshened or non-freshened variants.
+isGivenBoundVar :: (Var v) => v -> M v loc Bool
+isGivenBoundVar v =
+  gets (Set.member (Var.reset v) . givenBindings)
+
 modifyContext :: (Context v loc -> M v loc (Context v loc)) -> M v loc ()
 modifyContext f = do
   c <- getContext
@@ -746,6 +958,10 @@ wellformedType c t = case t of
   Type.Var' (TypeVar.Universal v) -> Set.member v (universals c)
   Type.Ref' _ -> True
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
+  -- 'ImplicitArrow' is well-formed iff both sides are. Falling
+  -- through to the @Match failure@ catchall would crash the
+  -- typechecker on any signature containing @=>@.
+  Type.ImplicitArrow' i o -> wellformedType c i && wellformedType c o
   Type.Ann' t' _ -> wellformedType c t'
   Type.App' x y -> wellformedType c x && wellformedType c y
   Type.Effect1' e a -> wellformedType c e && wellformedType c a
@@ -1004,7 +1220,7 @@ withEffects handled act = do
   pruneWanted [] want handled
 
 synthesizeApps ::
-  (Foldable f, Var v, Ord loc, Semigroup loc) =>
+  (Foldable f, Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   Term v loc ->
   Type v loc ->
   f (Term v loc) ->
@@ -1022,7 +1238,7 @@ synthesizeApps fun ft args =
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   Term v loc ->
   Type v loc ->
   (Term v loc, Int) ->
@@ -1053,6 +1269,23 @@ synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argN
             | Term.Apps' (Term.Var' f) _ <- fun = any (== f) defs
             | otherwise = False
       (o,) <$> checkWantedScoped exact ((Just fun,) <$> es) arg i
+    -- =>App. The user did *not* supply this argument; the elaborator
+    -- will fill it by given-resolution. We emit a 'ConstraintGoal'
+    -- info note carrying the implicit parameter's type plus a
+    -- snapshot of the in-scope givens, then recurse on the conclusion
+    -- with the *same* user argument. (Mirrors how 'Forall1App'
+    -- instantiates and recurses without consuming the surface
+    -- argument.) Multi-constraint signatures — nested 'ImplicitArrow's
+    -- — are handled by repeated recursion: each step emits one goal
+    -- and peels one arrow.
+    go (Type.ImplicitArrow' i conc) = do
+      ctx <- getContext
+      scope_ <- getLexicalGivens
+      let goalTy = apply ctx i
+          goalScope = apply ctx <$> scope_
+          goalLoc_ = loc ft
+      btw $ ConstraintGoal goalLoc_ goalTy goalScope
+      synthesizeApp fun conc argp
     go (Type.Var' (TypeVar.Existential b a)) = do
       -- a^App
       [i, e, o] <- traverse freshenVar [Var.named "i", Var.inferAbility, Var.named "o"]
@@ -1102,14 +1335,19 @@ generalizeExistentials' t =
     isExistential _ = False
 
 noteTopLevelType ::
-  (Ord loc, Var v, Semigroup loc) =>
+  (Ord loc, Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   ABT.Subst f v a ->
   Term v loc ->
   Type v loc ->
   M v loc ()
 noteTopLevelType e binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
-    inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
+    -- Redundancy-detection synthesis: discard info notes so that
+    -- 'ConstraintGoal' notes from this annotation-less pass don't
+    -- reach the resolver. Without the user's annotation '=>I' never
+    -- fires, so any goal raised here carries an incomplete
+    -- lexical-given snapshot and would spuriously fail to resolve.
+    inferred <- (Just <$> discardInfoNotes (synthesizeTop strippedBinding)) `orElse` pure Nothing
     case inferred of
       Nothing -> do
         btw $
@@ -1126,6 +1364,100 @@ noteTopLevelType e binding typ = case binding of
       topLevelComponent
         [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
 
+-- | Emit a 'GivenDecl' info note when the binding's user-provided
+-- type begins (after stripping any leading 'Forall' binders) with one
+-- or more 'ImplicitArrow' parameters.
+--
+-- A binding without an explicit type annotation cannot be a @given@
+-- declaration in the surface syntax (the parser always generates
+-- @Term.Ann'@ for @given@ decls), so the no-annotation branch is a
+-- no-op.
+--
+-- The body has just been checked against the annotated type @t@
+-- (via 'synthesizeBinding' → 'synthesize' → 'checkScoped'). The
+-- 'checkWanted' clause for 'ImplicitArrow' recurses into the
+-- conclusion type, so the body's inferred type already matches the
+-- conclusion when this function runs. The note's @declaredType@ is
+-- the user-written annotation; the @conclusion@ is that annotation
+-- with its leading 'Forall' / 'ImplicitArrow' prefix stripped.
+--
+-- 'synthesizeFile' (and downstream UCM tooling) consume these notes
+-- to identify candidates for @mark.given@ namespace tagging via
+-- 'Unison.Codebase.Givens.markGivenAt'. There is no global registry;
+-- the namespace metadata is the instance set.
+noteGivenDeclLet ::
+  (Var v, Ord loc) =>
+  ABT.Subst f v loc ->
+  Term v loc ->
+  Type v loc ->
+  M v loc ()
+noteGivenDeclLet e binding _inferredType = do
+  -- The binding is a @given@ declaration iff the parser tagged its
+  -- variable, regardless of whether the type begins with @=>@. (A
+  -- shape check on 'unImplicitArrows' would silently drop
+  -- premise-free givens such as @given local : Ord a = …@.)
+  isGiven <- isGivenBoundVar (ABT.variable e)
+  case binding of
+    Term.Ann' _stripped declared
+      | isGiven ->
+          let (_premises, conc) = Type.unImplicitArrows declared
+           in btw $
+                GivenDecl
+                  (ABT.annotation binding)
+                  (Var.reset (ABT.variable e))
+                  declared
+                  conc
+    _ -> pure ()
+
+-- | Detect a @let given@ binding and extend the lexical given
+-- environment so the body of the @let@ sees the binding as a
+-- candidate for implicit resolution.
+--
+-- A binding qualifies as a @given@ if its declared type (after
+-- stripping any leading 'Forall' binders) begins with one or more
+-- 'ImplicitArrow' parameters — exactly the test 'noteGivenDeclLet'
+-- uses to emit 'GivenDecl' info notes. This is the same shape
+-- produced by the parser's 'givenBindingBody': @let given x : T = ...@
+-- desugars to a regular type-annotated let-binding whose annotation
+-- type begins with @=>@.
+--
+-- The 'Reference' is synthesized from the bound variable. Local
+-- lexical givens never become codebase 'Reference's — they can't be
+-- referenced from outside the @let@'s scope — so a 'Reference.Builtin'
+-- tag suffices for the resolver to identify which given was chosen.
+-- The 'GivenApply' rewriter does not substitute local vars for these
+-- synthetic refs, but the 'SolvedImplicit' info note carries the
+-- correct identification.
+--
+-- Returns 'True' iff a lexical given was registered. Callers can use
+-- the return value for diagnostic logging; today only the 'when'
+-- discipline matters.
+extendLexicalGivenFromBinding ::
+  (Var v, Ord loc) =>
+  -- | Whether this binding is at file top level. Top-level givens are
+  -- already promoted to the resolver's ambient pool by 'FileParsers',
+  -- so registering them here as lexical too would tie with truly-local
+  -- givens (e.g. an inner @=>I@-injected @_implicit_*@) on the
+  -- 'Lexical 0' scope tag and surface a spurious "ambiguous" diagnostic.
+  -- Only register lexically when the binding is genuinely nested.
+  Bool ->
+  ABT.Subst f v loc ->
+  Term v loc ->
+  M v loc Bool
+extendLexicalGivenFromBinding isTop e binding = do
+  -- Register a lexical given iff the parser tagged this variable as
+  -- originating from the @given@ keyword. A predicate based on type
+  -- shape ("begins with @=>@ after stripping foralls") would silently
+  -- drop premise-free givens like @given local : Ord a = …@.
+  isGiven <- isGivenBoundVar (ABT.variable e)
+  case binding of
+    Term.Ann' _stripped declared | isGiven && not isTop -> do
+      let v = Var.reset (ABT.variable e)
+          ref = Reference.Builtin ("Local.given." <> Var.name v)
+      extendLexicalGiven ref declared
+      pure True
+    _ -> pure False
+
 -- | Take note of the types and locations of all bindings, including let bindings, letrec
 -- bindings, lambda argument bindings and top-level bindings.
 -- This information is used to provide information to the LSP after typechecking.
@@ -1137,7 +1469,7 @@ noteVarMention v loc = do
   btw $ VarMention v loc
 
 synthesizeTop ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Term v loc ->
   M v loc (Type v loc)
@@ -1156,7 +1488,7 @@ synthesizeTop tm = do
 -- the process.  Also collect wanted abilities.
 -- | Figure 11 from the paper
 synthesize ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
@@ -1189,8 +1521,9 @@ wantRequest loc ty =
 -- The return value is the synthesized type together with a list of
 -- wanted abilities.
 synthesizeWanted ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
+  (Ann.IsLoweredAnn loc) =>
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
 synthesizeWanted trm@(Term.Var' v) = do
@@ -1216,10 +1549,32 @@ synthesizeWanted trm@(Term.Var' v) = do
         -- early.
         (vs, t) <- ungeneralize' t
         vars <- getVariances
-        pure (discardCovariant vars (Set.fromList vs) t, [])
+        -- When a variable's declared type
+        -- begins with one or more @=>@ arrows, peel each one off
+        -- eagerly here and emit a 'ConstraintGoal' info note for the
+        -- elaborator. This handles the case where the user references
+        -- a function with implicit parameters in a /non-application/
+        -- context — e.g. @Monoid.zero@ used directly as a value. The
+        -- D3 'GivenApply' rewrite walks each 'Term.Var\'' leaf and
+        -- wraps it with the resolved dictionary, so the runtime sees
+        -- the dictionaries applied positionally. When the var IS in
+        -- an application context, the implicit-arrows have already
+        -- been stripped here, so 'synthesizeApp' doesn't double-emit.
+        --
+        -- If the reference is the operand of @give@ (parser wraps
+        -- its annotation with 'Ann.Lowered'), /skip/
+        -- 'peelLeadingImplicits' and instead demote leading @=>@
+        -- arrows to @->@ in the type. The resulting type behaves
+        -- like a regular function and the dictionary becomes an
+        -- ordinary positional argument supplied at the call site.
+        t' <-
+          if Ann.isLoweredAnn (ABT.annotation trm)
+            then pure (lowerLeadingImplicit t)
+            else peelLeadingImplicits (ABT.annotation trm) t
+        pure (discardCovariant vars (Set.fromList vs) t', [])
 synthesizeWanted (Term.Ref' h) =
   compilerCrash $ UnannotatedReference h
-synthesizeWanted (Term.Ann' (Term.Ref' _) t)
+synthesizeWanted trm@(Term.Ann' (Term.Ref' _) t)
   -- innermost Ref annotation assumed to be correctly provided by
   -- `synthesizeClosed`
   --
@@ -1228,6 +1583,15 @@ synthesizeWanted (Term.Ann' (Term.Ref' _) t)
       t <- existentializeArrows t
       -- See note about ungeneralizing above in the Var case.
       t <- ungeneralize t
+      -- Mirror the 'Var\'' branch: peel leading @=>@ arrows eagerly
+      -- so that a top-level reference used outside an application
+      -- gets its implicit dictionaries inserted by 'GivenApply'.
+      -- If the surface reference was wrapped with @give@, demote
+      -- leading @=>@ to @->@ instead of peeling them.
+      t <-
+        if Ann.isLoweredAnn (ABT.annotation trm)
+          then pure (lowerLeadingImplicit t)
+          else peelLeadingImplicits (ABT.annotation trm) t
       (,[]) <$> discard t
   | otherwise = compilerCrash $ FreeVarsInTypeAnnotation s
   where
@@ -1250,15 +1614,41 @@ synthesizeWanted (Term.Let1Top' top binding boundVarAnn e) = do
     -- enforce that actions in a block have type ()
     subtype tbinding (DDB.unitType (ABT.annotation binding))
   appendContext [Ann v' boundVarAnn tbinding]
-  (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
+  -- 'withLexicalGivens' opens a fresh lexical scope for the body. If
+  -- the binding is a @given@ declaration (recognised by
+  -- 'extendLexicalGivenFromBinding' via the same shape-check
+  -- 'noteGivenDeclLet' uses) we register it before synthesizing the
+  -- body, so the resolver at any 'ConstraintGoal' in the body sees
+  -- the local given as a candidate. The 'withLexicalGivens' wrapper
+  -- restores the prior environment when the body finishes,
+  -- guaranteeing lexical-only visibility.
+  (t, w) <-
+    withLexicalGivens $ do
+      _ <- extendLexicalGivenFromBinding top e binding
+      synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
   when top $ noteTopLevelType e binding tbinding
+  -- Emit a 'GivenDecl' info note for the top-level binding when its
+  -- declared type has the shape of a @given@ signature. After
+  -- 'minimize' (in 'Unison.Typechecker.Components') a singleton
+  -- non-recursive top-level letrec is rewritten as a 'singleLet'
+  -- (i.e. 'Let1Top''), so this branch is the one that fires for
+  -- parsed @given f : C => T = body@ files. The annotated type
+  -- carries the original 'ImplicitArrow's; 'tbinding' is the inferred
+  -- type after 'addAbilities' / 'existentializeArrows' and
+  -- ability-row insertion, which preserves the leading constraint
+  -- chain — we use the user-written annotation when available so the
+  -- conclusion is reported in surface shape.
+  when top $ noteGivenDeclLet e binding tbinding
   want <- coalesceWanted w wb
   -- doRetract $ Ann v' tbinding
   pure (t, want)
 synthesizeWanted (Term.LetRecNamed' [] body) = synthesizeWanted body
 synthesizeWanted (Term.LetRecAnnotatedTop' isTop letrec) = do
-  ((t, want), ctx2) <- markThenRetract (Var.named "let-rec-marker") $ do
+  -- Each letrec opens a lexical given scope; any @given@ statements
+  -- introduced inside the cycle must not leak past the surrounding
+  -- term.
+  ((t, want), ctx2) <- markThenRetract (Var.named "let-rec-marker") . withLexicalGivens $ do
     e <- annotateLetRecBindings isTop letrec
     synthesize e
   want <- substAndDefaultWanted want ctx2
@@ -1378,9 +1768,14 @@ synthesizeWanted e
         -- here's where the typechecker assumes this must be of type 'thunkArgType'
         subtype it (DDB.thunkArgType l)
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var () arg)
-      if Term.isLam body'
-        then checkWithAbilities Nothing [] body' ot
-        else checkWithAbilities Nothing [et] body' ot
+      -- A lambda body opens a fresh lexical given scope. The body
+      -- cannot currently introduce its own givens (no @given@ binder
+      -- is available in expression position), but threading the env
+      -- here keeps the shape uniform with let / letrec / match arms.
+      withLexicalGivens $
+        if Term.isLam body'
+          then checkWithAbilities Nothing [] body' ot
+          else checkWithAbilities Nothing [et] body' ot
       ctx <- getContext
       let t = apply ctx $ Type.arrow l it (Type.effect l [et] ot)
 
@@ -1451,7 +1846,7 @@ synthesizeWanted _e = compilerCrash PatternMatchFailure
 -- can be refined later. This is a bit unusual for the algorithm we
 -- use, but it seems like it should be safe.
 synthesizeBinding ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Bool ->
   Term v loc ->
@@ -1600,7 +1995,7 @@ ensurePatternCoverage theMatch _theMatchType _scrutinee scrutineeType cases = do
   checkUncovered *> checkRedundant
 
 checkCases ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Type v loc ->
   Type v loc ->
@@ -1664,7 +2059,7 @@ requestType ps =
 
 checkCase ::
   forall v loc.
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   Type v loc ->
   Type v loc ->
   Term.MatchCase loc (Term v loc) ->
@@ -1672,7 +2067,11 @@ checkCase ::
 checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   scrutineeType <- applyM scrutineeType
   outputType <- applyM outputType
-  markThenRetractWanted Var.inferOther $ do
+  -- Each match arm opens its own lexical scope for givens.
+  -- Pattern-introduced bindings are not themselves givens (@given@ is
+  -- reserved to top-level decls and let-blocks), but a future arm-body
+  -- @let given@ must not leak across arms.
+  markThenRetractWanted Var.inferOther . withLexicalGivens $ do
     let peel t = case t of
           ABT.AbsN' vars bod -> (vars, bod)
         (rhsvs, rhsbod) = peel rhs
@@ -1885,6 +2284,25 @@ resetContextAfter x a = do
   setContext ctx
   pure a
 
+-- | Run an action and discard any info notes it emits. Used to
+-- suppress notes from speculative typechecking passes that aren't
+-- part of the official typecheck (e.g. the annotation-free second
+-- pass in 'annotateLetRecBindings' used purely for redundancy
+-- detection). Without this, that pass's 'ConstraintGoal' notes
+-- carry incomplete lexical-given snapshots — '=>I' never fires when
+-- the user's annotation is ignored, so any constraint goal raised
+-- inside such a body lacks the implicit-dictionary binder that the
+-- annotated pass registered, and the resolver fails on bogus
+-- "missing given" diagnostics that have no surface cause.
+discardInfoNotes :: M v loc a -> M v loc a
+discardInfoNotes (MT m) =
+  MT $ \ppe pmc vars datas effects defs env ->
+    clear (m ppe pmc vars datas effects defs env)
+  where
+    clear (Success _ a) = Success mempty a
+    clear (TypeError e _) = TypeError e mempty
+    clear (CompilerBug c e _) = CompilerBug c e mempty
+
 type LetRecInfo v loc =
   (v -> M v loc v) -> M v loc ([((loc, v), Term v loc)], Term v loc)
 
@@ -1893,7 +2311,7 @@ type LetRecInfo v loc =
 -- their type. Also returns the freshened version of `body`.
 -- See usage in `synthesize` and `check` for `LetRec'` case.
 annotateLetRecBindings ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   Term.IsTop -> LetRecInfo v loc -> M v loc (Term v loc)
 annotateLetRecBindings isTop letrec =
   -- If this is a top-level letrec, then emit a TopLevelComponent note,
@@ -1902,13 +2320,22 @@ annotateLetRecBindings isTop letrec =
     then do
       -- First, typecheck (using annotateLetRecBindings') the bindings with any
       -- user-provided annotations.
-      (body, vts) <- annotateLetRecBindings' letrec True
+      (body, vts) <- annotateLetRecBindings' isTop letrec True
       -- Then, try typechecking again, but ignoring any user-provided annotations.
       -- This will infer whatever type.  If it altogether fails to typecheck here
       -- then, ...(1)
+      --
+      -- 'discardInfoNotes' is required: without the user's annotation
+      -- '=>I' (the introduction rule for ImplicitArrow) never fires on
+      -- a binding like @given f : C => T = body@, so any
+      -- 'ConstraintGoal' raised inside @body@ during this pass would
+      -- be emitted with an incomplete lexical-given snapshot and
+      -- silently poison the resolver. The pass exists solely to
+      -- detect whether the user's annotations were redundant; its
+      -- side-effect notes are not part of the official typecheck.
       withoutAnnotations <-
-        resetContextAfter Nothing $
-          Just <$> annotateLetRecBindings' letrec False
+        resetContextAfter Nothing . discardInfoNotes $
+          Just <$> annotateLetRecBindings' isTop letrec False
       -- convert from typechecker TypeVar back to regular `v` vars
       let unTypeVar (v, t) = (v, generalizeAndUnTypeVar t)
       case withoutAnnotations of
@@ -1922,7 +2349,7 @@ annotateLetRecBindings isTop letrec =
       pure body
     else do
       -- If this isn't a top-level letrec, then we don't have to do anything special
-      (body, _vts) <- annotateLetRecBindings' letrec True
+      (body, _vts) <- annotateLetRecBindings' isTop letrec True
       pure body
 
 -- A wrapper type for demuxed binding information in a let. Only used
@@ -1981,11 +2408,15 @@ namedBindings bs = bndVars bs `zip` bnds bs
 -- can be immediately completed to `a ->{} b ->{} c ->{E} d` instead
 -- of making up variables for the two positions that must be pure.
 annotateLetRecBindings' ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
+  -- | Whether the enclosing letrec is at file top level. See the
+  -- comment on 'extendLexicalGivenFromBinding' for why top-level
+  -- givens must not be added to the lexical pool.
+  Bool ->
   LetRecInfo v loc ->
   Bool ->
   M v loc (Term v loc, [(v, Type v loc)])
-annotateLetRecBindings' letrec useAnn = do
+annotateLetRecBindings' isTop letrec useAnn = do
   (binds, body) <- letrec freshenVar
 
   ((allbnds, abnds, ubnds), ctx) <-
@@ -2007,6 +2438,16 @@ annotateLetRecBindings' letrec useAnn = do
         when (Var.isAction v) . scope InActionRestriction $
           subtype t (DDB.unitType (ABT.annotation b))
         insideDef v $ checkScopedWith b t []
+        -- Emit a 'GivenDecl' info note for bindings whose declared
+        -- type begins with one or more 'ImplicitArrow' parameters
+        -- (after stripping any leading 'Forall'). Bindings that
+        -- landed in 'ubnds' rather than 'abnds' did so because the
+        -- type carried free existential variables introduced by
+        -- 'addAbilities' / 'existentializeArrows' (which 'prepare'
+        -- runs before its closedness check) — that does not change
+        -- the structural shape of the leading constraint chain. See
+        -- the symmetric emission below in the 'abnds' loop.
+        emitGivenDeclNote v b t
 
       pure (allbnds, abnds, ubnds)
 
@@ -2029,12 +2470,43 @@ annotateLetRecBindings' letrec useAnn = do
       when (Var.isAction v) . scope InActionRestriction $
         subtype t (DDB.unitType (ABT.annotation b))
       insideDef v $ checkScopedWith b t []
+      -- Emit a 'GivenDecl' info note when the declared type has the
+      -- shape of a @given@ signature — i.e. begins (after an optional
+      -- 'Forall' prefix) with one or more 'ImplicitArrow' parameters.
+      -- The body has just been checked against @t@; the
+      -- 'checkWanted' clause for 'ImplicitArrow' recursed into the
+      -- conclusion, so the body's inferred type already matches that
+      -- conclusion. The note exists so 'synthesizeFile' (and
+      -- ultimately the UCM command surface) can identify this
+      -- binding as a candidate for namespace-level @mark.given@
+      -- tagging via 'Unison.Codebase.Givens.markGivenAt'. There is no
+      -- global registry; we only plumb the (var, conclusion) pair.
+      emitGivenDeclNote v b t
 
   ensureGuardedCycle (namedBindings allbnds)
 
   let vTypes =
         zip (bndVars ubnds) gbndTyps
           ++ zip (bndVars abnds) (bndTyps abnds)
+
+  -- Register every binding whose variable was tagged by the parser
+  -- as a @given@ origin into the lexical given environment so the
+  -- body (synthesised by the caller after we return) sees them as
+  -- candidates. This handles both file-internal top-level @given@
+  -- declarations (the whole file becomes a top-level letrec) and
+  -- @given@ bindings inside mutually-recursive blocks. The
+  -- surrounding 'withLexicalGivens' in the caller of
+  -- 'annotateLetRecBindings'' restores the prior environment when the
+  -- letrec scope closes.
+  --
+  -- The predicate is by parser-tagged name, not by type shape, so
+  -- premise-free declarations like @given local : Ord a = …@ are
+  -- recognised.
+  Foldable.for_ vTypes \(v, t) -> do
+    isGiven <- isGivenBoundVar v
+    when (isGiven && not isTop) $ do
+      let ref = Reference.Builtin ("Local.given." <> Var.name (Var.reset v))
+      extendLexicalGiven ref t
 
   pure (body, vTypes)
   where
@@ -2063,6 +2535,36 @@ annotateLetRecBindings' letrec useAnn = do
       | otherwise = do
           vt <- extendExistential v
           pure $ Left (binding, existential' (loc binding) B.Blank vt, v, vloc)
+
+-- | Helper for 'annotateLetRecBindings''. Emit a 'GivenDecl' info
+-- note when @t@ begins (after an optional 'Forall' prefix) with one
+-- or more 'ImplicitArrow' parameters — that is, the shape of a
+-- @given@ declaration's signature. No-op for bindings whose declared
+-- type has no leading @=>@ constraints.
+--
+-- Body validation: the body has already been checked against the
+-- declared type @t@ at the call site (via 'checkScopedWith'). The
+-- 'checkWanted' clause for 'ImplicitArrow' recursed into the
+-- conclusion, so the body's inferred type already matches the
+-- stripped conclusion type when @emitGivenDeclNote@ runs. The note
+-- carries the conclusion verbatim for the convenience of
+-- 'synthesizeFile' and downstream consumers.
+emitGivenDeclNote ::
+  (Var v, Ord loc) =>
+  v ->
+  Term v loc ->
+  Type v loc ->
+  M v loc ()
+emitGivenDeclNote v b t = do
+  -- Emit the note iff the parser tagged the bound variable as a
+  -- @given@ origin. The conclusion is computed by stripping any
+  -- leading @=>@ premises (which may be absent for premise-free
+  -- givens like @given local : Ord a = …@; in that case
+  -- 'unImplicitArrows' returns @([], t)@ so @conc == t@).
+  isGiven <- isGivenBoundVar v
+  when isGiven $
+    let (_premises, conc) = Type.unImplicitArrows t
+     in btw $ GivenDecl (loc b) v t conc
 
 ensureGuardedCycle :: (Var v) => [(v, Term v loc)] -> M v loc ()
 ensureGuardedCycle bindings =
@@ -2333,7 +2835,7 @@ variableP _ = Nothing
 -- See its usage in `synthesize` and `annotateLetRecBindings`.
 checkScoped ::
   forall v loc.
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   Term v loc ->
   Type v loc ->
   M v loc (Type v loc, Wanted v loc)
@@ -2350,7 +2852,7 @@ checkScoped e t = do
   (t,) <$> check e t
 
 checkScopedWith ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Term v loc ->
   Type v loc ->
@@ -2656,7 +3158,7 @@ relax' vars nonArrow fv = rebuild True
 -- The boolean argument is for exact ability match cases explained in
 -- the documentation for `checkWanted`.
 checkWantedScoped ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Bool ->
   Wanted v loc ->
@@ -2689,13 +3191,25 @@ checkWantedScoped exact want m ty =
 -- If the Maybe is a Just, the suspicious condition emits a warning,
 -- with the given term as the problem location.
 checkWanted ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Maybe (Term v loc) ->
   Wanted v loc ->
   Term v loc ->
   Type v loc ->
   M v loc (Wanted v loc)
+-- When the parser wraps an implicit-parameter binding's body in a
+-- '\_implicit_*' lambda (see 'wrapImplicitParams') and the user has
+-- written an explicit signature, the term that reaches 'checkWanted'
+-- is @Ann (Lam _ ...) (forall .. => ..)@. After 'checkScoped' strips
+-- the Forall the type is 'ImplicitArrow'', but the term is still an
+-- 'Ann'-wrapped lambda — the downstream 'Lam' + ImplicitArrow''
+-- clause doesn't fire, so '=>I' is skipped and the goal is emitted
+-- by the 'ImplicitArrow'' fallback below with an empty lexical-given
+-- scope. Strip the redundant annotation in this specific shape so
+-- '=>I' can register the binder as a local lexical given.
+checkWanted exact want (Term.Ann' e@(Term.Lam' _ _) _) ty@(Type.ImplicitArrow' _ _) =
+  checkWanted exact want e ty
 -- ForallI
 checkWanted exact want m (Type.Forall' body) = do
   v <- ABT.freshen body freshenTypeVar
@@ -2703,11 +3217,51 @@ checkWanted exact want m (Type.Forall' body) = do
     x <- extendUniversal v
     checkWanted exact want m $
       ABT.bindInheritAnnotation body (universal' () x)
+-- =>I on the check side. When the term is a lambda whose binder
+-- corresponds to the leading 'ImplicitArrow'
+-- (i.e. the parser injected a leading lambda for an implicit
+-- dictionary; see 'Unison.Syntax.TermParser.wrapImplicitParams'), we
+-- treat this as the introduction rule for implicit parameters: bind
+-- the lambda's variable to the constraint type and register it as a
+-- local lexical given before recursing on the body against the
+-- conclusion. This makes the implicit dictionary visible to any
+-- constraint goal raised inside the body so polymorphic constraints
+-- like @Monoid m@ can be discharged against the function's own
+-- @=>@ parameter rather than relying on an ambient given that does
+-- not exist for arbitrary @m@.
+checkWanted exact want (Term.Lam' boundVarAnn body) (Type.ImplicitArrow' i conc) = do
+  x <- ABT.freshen body freshenVar
+  markThenRetract0 x . withLexicalGivens $ do
+    extendContext (Ann x boundVarAnn i)
+    -- The synthetic reference shape matches
+    -- 'extendLexicalGivenFromBinding' so that the elaborator's
+    -- 'GivenApply.buildDictionary' strips the @Local.given.@ prefix
+    -- and emits a 'Term.var' pointing at this lambda's binder.
+    let ref = Reference.Builtin ("Local.given." <> Var.name (Var.reset x))
+    extendLexicalGiven ref i
+    body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
+    checkWanted exact want body conc
+  pure want
+-- =>App on the check side. Checking a term against an
+-- 'ImplicitArrow' type doesn't ask the user to write the implicit
+-- argument; the elaborator fills it. We emit a 'ConstraintGoal' info
+-- note for the implicit slot and continue checking the term against
+-- the conclusion.
+checkWanted exact want m ty@(Type.ImplicitArrow' i conc) = do
+  ctx <- getContext
+  scope_ <- getLexicalGivens
+  let goalTy = apply ctx i
+      goalScope = apply ctx <$> scope_
+      goalLoc_ = loc ty
+  btw $ ConstraintGoal goalLoc_ goalTy goalScope
+  checkWanted exact want m conc
 -- =>I
 -- Lambdas are pure, so they add nothing to the wanted set
 checkWanted exact want (Term.Lam' boundVarAnn body) (Type.Arrow'' i es o) = do
   x <- ABT.freshen body freshenVar
-  markThenRetract0 x $ do
+  -- Lambda body opens a fresh lexical given scope; symmetric with
+  -- the synthesis path above.
+  markThenRetract0 x . withLexicalGivens $ do
     extendContext (Ann x boundVarAnn i)
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
     checkWithAbilities exact es body o
@@ -2735,7 +3289,12 @@ checkWanted exact want (Term.Let1Top' top binding boundVarAnn m) t = do
   (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
   v <- ABT.freshen m freshenVar
-  markThenRetractWanted v $ do
+  -- Open a fresh lexical given scope for the body and, when the
+  -- binding is a @given@ declaration (per
+  -- 'extendLexicalGivenFromBinding'), register it before checking the
+  -- body. Mirrors the symmetric synthesis path.
+  markThenRetractWanted v . withLexicalGivens $ do
+    _ <- extendLexicalGivenFromBinding top m binding
     when (Var.isAction (ABT.variable m)) . scope InActionRestriction $
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
@@ -2745,7 +3304,8 @@ checkWanted exact want (Term.LetRecNamed' [] m) t =
   checkWanted exact want m t
 -- letrec can't have effects, so it doesn't extend the wanted set
 checkWanted exact want (Term.LetRecAnnotatedTop' isTop lr) t =
-  markThenRetractWanted (Var.named "let-rec-marker") $ do
+  -- Opens a fresh lexical given scope for the letrec cycle.
+  markThenRetractWanted (Var.named "let-rec-marker") . withLexicalGivens $ do
     e <- annotateLetRecBindings isTop lr
     checkWanted exact want e t
 checkWanted _ want e@(Term.Match' scrut cases) t = do
@@ -2799,7 +3359,7 @@ checkWanted _ want e t = do
 -- The result specifies whether the wanted abilities are a proper
 -- subset of the specified available abilities.
 checkWithAbilities ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Maybe (Term v loc) ->
   [Type v loc] ->
@@ -2832,7 +3392,7 @@ exactAbilitiesWarning _ _ _ _ = pure ()
 --     `m` has type `t`
 -- updating the context in the process.
 check ::
-  (Var v, Semigroup loc) =>
+  (Var v, Semigroup loc, Ann.IsLoweredAnn loc) =>
   (Ord loc) =>
   Term v loc ->
   Type v loc ->
@@ -2872,6 +3432,31 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       subtype i2 i1
       ctx' <- getContext
       subtype (apply ctx' o1) (apply ctx' o2)
+    go _ (Type.ImplicitArrow' i1 o1) (Type.ImplicitArrow' i2 o2) = do
+      -- Implicit arrows behave like explicit arrows for subtyping:
+      -- contravariant input, covariant output.
+      subtype i2 i1
+      ctx' <- getContext
+      subtype (apply ctx' o1) (apply ctx' o2)
+    go _ (Type.ImplicitArrow' _ o1) o2 =
+      -- A function with a leading constraint is a subtype of its
+      -- conclusion. This only makes the *type-level* subsumption
+      -- succeed; the dictionary itself is inserted independently, by
+      -- the synthesis-side peeling of every `=>`-typed 'Var'/'Ref'
+      -- ('peelLeadingImplicits' and the `=>App` rule in
+      -- 'synthesizeApp'), which is what emits the 'ConstraintGoal'
+      -- notes 'GivenApply' consumes. 'subtype' emits no goal itself, so
+      -- it never drops a dictionary that wasn't already scheduled for
+      -- insertion elsewhere. Without this clause a recursive self-call
+      -- inside a `=>`-typed binding fails, because the body's inferred
+      -- type (post-`=>I`) doesn't structurally match the declared
+      -- signature.
+      subtype o1 o2
+    go _ o1 (Type.ImplicitArrow' _ o2) =
+      -- Symmetric: a value can satisfy a constrained expectation because
+      -- the constraint is discharged by resolution at the use site (the
+      -- `=>I` rule / apply-site goals), not by this subsumption check.
+      subtype o1 o2
     go _ (Type.App' x1 y1) (Type.App' x2 y2) = do
       -- analogue of `-->`
       subtype x1 x2
@@ -3583,16 +4168,27 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
   forM_ ctors $ \(_ctorName, typ) -> verifyClosed typ id
 
 -- | public interface to the typechecker
+--
+-- 'givens' is the initial lexical given environment seeded from the
+-- caller's top-level @given@ declarations. Every binding form
+-- ('Lam', 'Let1', 'LetRec', match arm) saves and restores it via
+-- 'withLexicalGivens'.
 synthesizeClosed ::
-  (BuiltinAnnotation loc, Var v, Ord loc, Show loc, Semigroup loc) =>
+  (BuiltinAnnotation loc, Var v, Ord loc, Show loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   PrettyPrintEnv ->
   PatternMatchCoverageCheckAndKindInferenceSwitch ->
   Map Reference [Variance] ->
   [Type v loc] ->
+  -- | Initial lexical given environment (top-level givens in scope).
+  Map Reference (Type v loc) ->
+  -- | Parser-collected names of @given@-bound variables. The letrec /
+  -- let predicates consult this instead of inspecting type shape so
+  -- premise-free givens are recognised.
+  Set v ->
   TL.TypeLookup v loc ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosed ppe pmcSwitch vars abilities lookupType term0 =
+synthesizeClosed ppe pmcSwitch vars abilities givens gbs lookupType term0 =
   let datas = TL.dataDecls lookupType
       effects = TL.effectDecls lookupType
       term = annotateRefs (TL.typeOfTerm' lookupType) term0
@@ -3600,6 +4196,10 @@ synthesizeClosed ppe pmcSwitch vars abilities lookupType term0 =
         Left missingRef ->
           compilerCrashResult (UnknownTermReference missingRef)
         Right term -> run ppe pmcSwitch vars datas effects $ do
+          -- Seed the lexical given environment from the caller before
+          -- recursing into the term. The save/restore in every binder
+          -- preserves this seed at the outermost lexical scope.
+          modEnv (\e -> e {lexicalGivens = givens, givenBindings = gbs})
           liftResult $
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
@@ -3672,10 +4272,17 @@ run ::
 run ppe pmcSwitch vars datas effects m =
   fmap fst
     . runM m ppe pmcSwitch vars datas effects []
-    $ Env 1 context0
+    -- The lexical given environment starts empty; 'synthesizeClosed'
+    -- seeds it from the caller's top-level given set before invoking
+    -- 'synthesizeClosed''. Every binding form then threads it via
+    -- 'withLexicalGivens'.
+    --
+    -- 'givenBindings' likewise starts empty and is seeded from the
+    -- parser side channel by 'synthesizeClosed'.
+    $ Env 1 context0 Map.empty Set.empty
 
 synthesizeClosed' ::
-  (Var v, Ord loc, Semigroup loc) =>
+  (Var v, Ord loc, Semigroup loc, Ann.IsLoweredAnn loc) =>
   [Type v loc] ->
   Term v loc ->
   M v loc (Type v loc)

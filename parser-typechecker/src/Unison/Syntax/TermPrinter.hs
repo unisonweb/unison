@@ -8,6 +8,7 @@ module Unison.Syntax.TermPrinter
     prettyBinding',
     prettyBindingForDiff,
     prettyBindingWithoutTypeSignature,
+    prettyGivenBinding,
     prettyDoc2,
     pretty0,
     runPretty,
@@ -78,6 +79,14 @@ type SyntaxText = S.SyntaxText' Reference
 etaReduce :: (Var v) => Term3 v a -> Term3 v a
 etaReduce (LamNamed' v (App' f (Var' v'))) | v == v' && Var.name v == "_eta" = f
 etaReduce tm = tm
+
+-- | True if the type is the 'Type.giveMarkerRef' sentinel injected
+-- by 'GivenApply.stripImplicitArgsByType' to mark an apply-chain
+-- head whose @=>@ slots were user-supplied via @give@.
+isGiveMarkerType :: Type v a -> Bool
+isGiveMarkerType ty = case ABT.out ty of
+  ABT.Tm (Type.Ref r) -> r == Type.giveMarkerRef
+  _ -> False
 
 goPretty :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Pretty SyntaxText
 goPretty ppe tm = runPretty (avoidShadowing tm ppe) $ pretty0 emptyAc $ printAnnotate ppe tm
@@ -422,6 +431,9 @@ pretty0
                         fmt S.ControlKeyword " with" `PP.hang` pbs
                       ]
                   else (fmt S.ControlKeyword "match " <> ps <> fmt S.ControlKeyword " with") `PP.hang` pbs
+          -- The @give@-marked application form is handled in
+          -- 'specialCases' (see the 'isGiveMarkerType' branch); an
+          -- ordinary application falls through to here.
           Apps' f args -> paren (p >= Application) <$> (PP.hang <$> goNormal (InfixOp Highest) f <*> PP.spacedTraverse (goNormal Application) args)
           t -> pure $ l "error: " <> l (show t)
     where
@@ -429,7 +441,20 @@ pretty0
       specialCases term go = do
         prettyDoc2_ a term >>= \case
           Just d -> pure d
-          Nothing -> notDoc go
+          Nothing -> case term of
+            -- When 'stripImplicitArgsByType' decides the leading @=>@
+            -- slot(s) of an application were user-supplied (rather
+            -- than resolver-picked), it tags the head with a
+            -- 'Type.giveMarkerRef' ascription. Render that as the
+            -- @give@ keyword so the source round-trips back to a
+            -- parse with the matching 'Ann.Lowered' annotation.
+            Apps' (Ann' inner t) args
+              | isGiveMarkerType t ->
+                  paren (p >= Application) <$> do
+                    inner' <- pretty0 (ac (InfixOp Highest) Normal im doc) inner
+                    args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
+                    pure (fmt S.ControlKeyword "give " <> PP.hang inner' args')
+            _ -> notDoc go
         where
           notDoc go = do
             env <- ask
@@ -978,6 +1003,66 @@ prettyBinding_ ::
   Pretty SyntaxText
 prettyBinding_ go ppe n tm =
   runPretty (avoidShadowing tm ppe) . fmap go $ prettyBinding0 (ac Basement Block Map.empty MaybeDoc) n tm
+
+-- | Render a top-level @given@ binding as a single declaration of
+-- the form
+--
+-- > given name : T
+-- >  = body
+--
+-- with the body soft-hung after the @=@. Mirrors how the parser
+-- accepts it: 'givenBindingBody' parses @given name : T = body@ as
+-- one stanza, so 'view' must round-trip it as one stanza too.
+--
+-- Synthetic @\\_implicit_*@ lambdas inserted by 'wrapImplicitParams'
+-- are stripped before printing the body, so the visible form
+-- matches what the user originally typed.
+prettyGivenBinding ::
+  (Var v) =>
+  PrettyPrintEnv ->
+  HQ.HashQualified Name ->
+  Term2 v at ap v a ->
+  Pretty SyntaxText
+prettyGivenBinding ppe v tm = case tm of
+  Ann' _ _ -> renderGiven
+  -- Defensive: the parser only accepts the annotated form
+  -- @given n : T = body@, so a given binding should always carry a
+  -- top-level type annotation. If somehow it doesn't, fall back to the
+  -- ordinary binding printer rather than crashing @view@ with a partial
+  -- match (at the cost of not re-emitting the @given@ keyword).
+  _ -> prettyBinding ppe v tm
+  where
+    renderGiven = runPretty (avoidShadowing tm ppe) $ case printAnnotate ppe tm of
+      Ann' inner ty -> do
+        let body = stripSyntheticImplicitLambdas inner
+            im = Map.empty
+            v' = elideFQN im v
+            renderedName =
+              parenIfInfix v' NonInfix $ styleHashQualified'' (fmt $ S.HashQualifier v') v'
+            -- Track the signature's quantified type variables so the
+            -- body's inner type annotations don't capture them.
+            avoidCapture = case ty of
+              ForallsNamed' vs _ -> addTypeVars vs
+              _ -> id
+        tp' <- TypePrinter.pretty0 im (-1) ty
+        body' <- avoidCapture (pretty0 (ac Basement Block im MaybeDoc) body)
+        let header =
+              fmt S.DataTypeKeyword "given "
+                <> renderedName
+                <> PP.hang (fmt S.TypeAscriptionColon " :") tp'
+        pure $
+          PP.group $
+            PP.group (header <> fmt S.BindingEquals " =")
+              `PP.hang` body'
+      -- 'printAnnotate' preserves the top-level 'Ann', so this is
+      -- unreachable given the guard above; render the body alone rather
+      -- than crash.
+      other -> pretty0 (ac Basement Block Map.empty MaybeDoc) other
+    stripSyntheticImplicitLambdas t = case t of
+      LamNamed' bv body
+        | "_implicit_" `Text.isPrefixOf` Var.name (Var.reset bv) ->
+            stripSyntheticImplicitLambdas body
+      _ -> t
 
 -- | Like 'prettyBinding', but uses raw strings for multiline text literals.
 -- This is useful for diff output where we want actual newlines for better diffing.

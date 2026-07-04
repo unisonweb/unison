@@ -64,6 +64,10 @@ collectVariance prev group = descend Positive
     descend pol = \case
       Arrow' i o ->
         Map.unionWith (++) (descend (inv pol) i) (descend pol o)
+      -- Implicit arrows have the same variance as ordinary arrows
+      -- (contravariant in input, covariant in output).
+      ImplicitArrow' i o ->
+        Map.unionWith (++) (descend (inv pol) i) (descend pol o)
       Effect1' e r ->
         Map.unionWith (++) (descend pol e) (descend pol r)
       Apps' f xs

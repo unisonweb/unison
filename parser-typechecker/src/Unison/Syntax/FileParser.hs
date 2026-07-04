@@ -7,6 +7,7 @@ import Control.Lens
 import Control.Monad.Reader (asks, local)
 import Data.Foldable (foldlM)
 import Data.List qualified as List
+import Data.List.NonEmpty (pattern (:|))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -14,7 +15,7 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration (..), EffectDeclaration)
 import Unison.DataDeclaration qualified as DataDeclaration
-import Unison.DataDeclaration.Records (generateRecordAccessors)
+import Unison.DataDeclaration.Records (RecordKind (..), generateRecordAccessors)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
@@ -23,6 +24,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.Reference (TypeReferenceId)
+import Unison.Reference qualified as Reference
 import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), synDeclConstructors, synDeclName, synDeclsP)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
@@ -99,6 +101,15 @@ file = do
   --
   -- we want to rename `Bar.baz` to `foo.Bar.baz`, and it seems easier to first generate un-namespaced accessors like
   -- `Bar.baz`, rather than rip off the namespace from accessors like `foo.Bar.baz` (though not by much).
+  --
+  -- For @class@ declarations we additionally wrap each accessor in a
+  -- 'Term.Ann' that declares the dictionary parameter as implicit
+  -- (an @=>@ arrow). The typechecker's @=>I@ rule then binds the
+  -- getter's leading lambda variable as a /lexical given/ for the
+  -- body, so a method call like @Monoid.op acc x@ resolves the
+  -- dictionary against any enclosing @=>@-parameter or namespace
+  -- given. See 'classAccessorType' below and the @=>I@ clause in
+  -- @Unison.Typechecker.Context.checkWanted@.
   let unNamespacedAccessors :: [(v, Ann, Term v Ann)]
       unNamespacedAccessors =
         foldMap
@@ -118,14 +129,32 @@ file = do
                     -- @forall tyvars. T1 -> T2 -> … -> Tn -> Self@;
                     -- the inputs are the field types in declaration
                     -- order.
-                    let resolvedFieldTypes = resolveFieldTypes dataDecl fields
-                     in generateRecordAccessors
-                          Var.namespaced
-                          Ann.GeneratedFrom
-                          (toTriple <$> resolvedFieldTypes)
-                          decl.tyvars
-                          decl.name.payload
-                          ref
+                    let kind = if decl.isClass then ClassRecord else TypeRecord
+                        resolvedFieldTypes = resolveFieldTypes dataDecl fields
+                        rawAccessors =
+                          generateRecordAccessors
+                            kind
+                            Var.namespaced
+                            Ann.GeneratedFrom
+                            (toTriple <$> resolvedFieldTypes)
+                            decl.tyvars
+                            decl.name.payload
+                            ref
+                     in case kind of
+                          TypeRecord -> rawAccessors
+                          ClassRecord ->
+                            -- Re-annotate the (getter-only) class
+                            -- accessor with the class's @=>@-bearing
+                            -- type so the dictionary is threaded
+                            -- implicitly by the resolver.
+                            map
+                              ( annotateClassAccessor
+                                  decl.name.payload
+                                  decl.tyvars
+                                  ref
+                                  resolvedFieldTypes
+                              )
+                              rawAccessors
               _ -> []
           )
           unNamespacedSynDecls
@@ -326,7 +355,7 @@ resolveFieldTypes dataDecl fields =
 
 -- | Final validations and sanity checks to perform before finishing parsing.
 validateUnisonFile ::
-  (Ord v) =>
+  (Monad m, Ord v) =>
   Maybe (Ann, Name.Name) ->
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
@@ -341,7 +370,7 @@ validateUnisonFile fn datas effects terms watches =
 -- constructors and verify that no duplicates exist in the file, triggering an error if needed.
 checkForDuplicateTermsAndConstructors ::
   forall m v.
-  (Ord v) =>
+  (Monad m, Ord v) =>
   Maybe (Ann, Name.Name) ->
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
@@ -356,13 +385,27 @@ checkForDuplicateTermsAndConstructors fn datas effects terms watches = do
             & fmap Set.toList
             & Map.toList
     P.customFailure (DuplicateTermNames dupeList)
+  -- Pull the parser-side @given@-keyword names out of the parser's
+  -- state side channel and stamp them onto the 'UnisonFile' so the
+  -- typechecker can recognise @given@ origins by name. Includes both
+  -- file-level @given@ decls and @let given@ bindings nested inside
+  -- term bodies (both invoke 'givenBindingBody' which calls
+  -- 'recordGivenVar').
+  gbs <- getGivenVars
+  -- Also pull the @class@-keyword names so the @add@/@update@ command
+  -- can mark them in namespace metadata via
+  -- 'Unison.Codebase.Classes.markClassAt'. Without this the
+  -- declaration round-trips through @view@ as a plain @type@.
+  cbs <- getClassDeclVars
   pure
     UnisonFileId
       { fileNamespace = fn,
         dataDeclarationsId = datas,
         effectDeclarationsId = effects,
         terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
-        watches
+        watches,
+        givenBindings = gbs,
+        classBindings = cbs
       }
   where
     effectDecls :: [DataDeclaration v Ann]
@@ -408,6 +451,54 @@ getVars = \case
   WatchExpression _ guid _ _ -> [Var.unnamedTest guid]
   Binding ((_, v), _) -> [v]
   Bindings bs -> [v | ((_, v), _) <- bs]
+
+-- | Wrap a @class@ accessor term with a 'Term.Ann' that declares the
+-- dictionary parameter as implicit. The accessor's getter body is
+-- already a lambda taking the dictionary; this annotation pins the
+-- leading parameter as an @=>@ arrow so the typechecker's @=>I@ rule
+-- registers the binder as a lexical given for the body.
+--
+-- The resulting type is
+-- @
+--   forall tyvars... . T tyvars... => FieldType
+-- @
+-- where @T@ is the class type, @tyvars@ are its parameters, and
+-- @FieldType@ is the field's declared type. The @FieldType@ is
+-- copied verbatim from the field declaration, so existing type
+-- variables continue to bind to the class's @forall@.
+annotateClassAccessor ::
+  forall v.
+  (Var v) =>
+  -- | Class type name (e.g. @Monoid@).
+  v ->
+  -- | Class type parameters (e.g. @[m]@).
+  [v] ->
+  -- | Reference of the class type, used to construct @T tyvars@.
+  Reference.Reference ->
+  -- | Class field declarations: @[(name, fieldType)]@.
+  [(L.Token v, Type v Ann)] ->
+  -- | The raw accessor produced by 'generateRecordAccessors'.
+  (v, Ann, Term v Ann) ->
+  (v, Ann, Term v Ann)
+annotateClassAccessor className tyvars classRef classFields (vname, a, body) =
+  case List.find (\(tok, _) -> matchesField (L.payload tok)) classFields of
+    Nothing -> (vname, a, body)
+    Just (_, fieldType) ->
+      let classRefT = Type.ref a classRef
+          classApp = foldl' (\acc tyv -> Type.app a acc (Type.var a tyv)) classRefT tyvars
+          implicit = Type.implicitArrow a classApp fieldType
+          quantified = Type.foralls a tyvars implicit
+       in (vname, a, Term.ann a body quantified)
+  where
+    -- The accessor's variable name is @ClassName.fieldName@. Pull
+    -- out the field name and match against the declaration's tokens.
+    matchesField :: v -> Bool
+    matchesField fieldName =
+      let target = qualifyField className fieldName
+       in vname == target
+
+    qualifyField :: v -> v -> v
+    qualifyField cn fn = Var.namespaced (cn :| [fn])
 
 stanza :: (Monad m, Var v) => P v m (Stanza v (Term v Ann))
 stanza = watchExpression <|> unexpectedAction <|> binding

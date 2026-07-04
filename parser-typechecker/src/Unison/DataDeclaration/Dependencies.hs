@@ -7,6 +7,7 @@ module Unison.DataDeclaration.Dependencies
     DD.labeledDeclDependenciesIncludingSelf,
     labeledDeclDependenciesIncludingSelfAndFieldAccessors,
     hashFieldAccessors,
+    hashClassFieldAccessors,
   )
 where
 
@@ -15,7 +16,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
 import Unison.DataDeclaration qualified as DD
-import Unison.DataDeclaration.Records (generateRecordAccessors)
+import Unison.DataDeclaration.Records (RecordKind (..), generateRecordAccessors)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
@@ -27,9 +28,11 @@ import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
 import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Term (Term)
+import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.GivenResolver qualified as GivenResolver
 import Unison.Typechecker.TypeLookup (TypeLookup (..))
 import Unison.Typechecker.Variance (defaultVariances)
 import Unison.Util.Tuple qualified as Tuple
@@ -101,7 +104,7 @@ hashFieldAccessors ppe declName vars declRef dd = do
       fields = zipWith (\v t -> (v, (), () <$ t)) vars fieldTypes
       accessors :: [(v, (), Term v ())]
       accessors =
-        generateRecordAccessors Var.namespaced id fields ddTyvars declName declRef
+        generateRecordAccessors TypeRecord Var.namespaced id fields ddTyvars declName declRef
 
   typecheckedAccessors <-
     for accessors \(v, _a, term) -> do
@@ -144,5 +147,91 @@ hashFieldAccessors ppe declName vars declRef dd = do
           termsByShortname = mempty,
           freeNameToFuzzyTermsByShortName = Map.empty,
           topLevelComponents = Map.empty,
-          variances = defaultVariances
+          variances = defaultVariances,
+          ambientGivens = GivenResolver.poolFromList [],
+          givenBindings = mempty
+        }
+
+-- | Like 'hashFieldAccessors' but for /class/ accessors: wraps each
+-- generated getter with the @=>@-bearing annotation that
+-- 'annotateClassAccessor' attaches at parse time, so the resulting
+-- hashes match what's stored in the codebase for a class declaration.
+hashClassFieldAccessors ::
+  forall v.
+  (Var.Var v) =>
+  PrettyPrintEnv ->
+  v ->
+  [v] ->
+  TypeReference ->
+  DD.DataDeclaration v () ->
+  Maybe (Map v (TermReferenceId, Term v (), Type v ()))
+hashClassFieldAccessors ppe declName vars declRef dd = do
+  -- Records (and classes) have exactly one constructor.
+  [(_, ctorType)] <- Just (DD.constructors dd)
+  let ctorBody = case ctorType of
+        Type.ForallsNamed' _ t -> t
+        t -> t
+  ts <- Type.unArrows ctorBody
+  let fieldTypes = init ts
+  guard (length fieldTypes == length vars)
+  let tyvars = DD.bound dd
+      ann = ()
+      classRefT = Type.ref ann declRef
+      classApp = foldl' (\acc tyv -> Type.app ann acc (Type.var ann tyv)) classRefT tyvars
+      annotateAccessor fieldType (v, _a, body) =
+        let implicit = Type.implicitArrow ann classApp fieldType
+            quantified = Type.foralls ann tyvars implicit
+         in (v, ann, Term.ann ann body quantified)
+      rawAccessors :: [(v, (), Term v ())]
+      rawAccessors =
+        generateRecordAccessors
+          ClassRecord
+          Var.namespaced
+          id
+          (zipWith (\v t -> (v, (), t)) vars fieldTypes)
+          tyvars
+          declName
+          declRef
+      annotated = zipWith annotateAccessor fieldTypes rawAccessors
+
+  typecheckedAccessors <-
+    for annotated \(v, _a, term) -> do
+      typ <- typecheck term
+      Just (v, (term, typ, ()))
+
+  typecheckedAccessors
+    & Map.fromList
+    & Hashing.hashTermComponents
+    & Hashing.crashOnHashingWarning
+    & Map.map Tuple.drop4th
+    & Just
+  where
+    typecheck :: Term v () -> Maybe (Type v ())
+    typecheck term = do
+      typ <-
+        Result.result
+          ( Typechecker.synthesize
+              ppe
+              Typechecker.PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled
+              typecheckingEnv
+              term
+          )
+      Just (Type.cleanup typ)
+
+    typecheckingEnv :: Typechecker.Env v ()
+    typecheckingEnv =
+      Typechecker.Env
+        { ambientAbilities = mempty,
+          typeLookup =
+            TypeLookup
+              { typeOfTerms = mempty,
+                dataDecls = Map.singleton declRef (void dd),
+                effectDecls = mempty
+              },
+          termsByShortname = mempty,
+          freeNameToFuzzyTermsByShortName = Map.empty,
+          topLevelComponents = Map.empty,
+          variances = defaultVariances,
+          ambientGivens = GivenResolver.poolFromList [],
+          givenBindings = mempty
         }

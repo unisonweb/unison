@@ -28,19 +28,23 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These
 import Data.Zip qualified as Zip
-import Language.LSP.Protocol.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
+import Language.LSP.Protocol.Lens (HasCodeAction (codeAction), HasEdit (edit), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import Language.LSP.Protocol.Lens qualified as LSPTypes
 import Language.LSP.Protocol.Types
   ( Diagnostic,
-    Position,
-    Range,
+    Position (Position),
+    Range (Range),
     TextDocumentIdentifier (TextDocumentIdentifier),
+    TextEdit (TextEdit),
     Uri (getUri),
+    WorkspaceEdit (..),
   )
 import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
+import Unison.Cli.TypeCheck qualified as Cli.TypeCheck
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
 import Unison.FileParsers (ShouldUseTndr (..))
@@ -48,7 +52,7 @@ import Unison.FileParsers qualified as FileParsers
 import Unison.KindInference.Error qualified as KindInference
 import Unison.LSP.Conversions
 import Unison.LSP.Conversions qualified as Cv
-import Unison.LSP.Diagnostics (DiagnosticSeverity (..), mkDiagnostic, reportDiagnostics)
+import Unison.LSP.Diagnostics (DiagnosticSeverity (..), mkDiagnostic, reportDiagnostics, setDiagnosticCode)
 import Unison.LSP.FileAnalysis.UnusedBindings qualified as UnusedBindings
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
@@ -66,6 +70,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrintError qualified as PrintError
+import Unison.Reference (Reference)
 import Unison.Referent qualified as Referent
 import Unison.Result (Note)
 import Unison.Result qualified as Result
@@ -77,8 +82,10 @@ import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
+import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.GivenResolver qualified as GR
 import Unison.Typechecker.TypeError qualified as TypeError
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -118,14 +125,19 @@ checkFileContents fileUri sourceName fileVersion contents = do
             maybeNamespace = Nothing,
             localNamespacePrefixedTypesAndConstructors = mempty
           }
-  (localBindingInfo, notes, parsedFile, typecheckedFile) <- do
+  -- Harvest the namespace's ambient given pool. The branch
+  -- read happens in IO above the transaction; the pool itself is built
+  -- inside the transaction so we can use the codebase's type lookup.
+  branch0 <- liftIO (Branch.head . fromMaybe Branch.empty <$> Codebase.getBranchAtProjectPath cb pp)
+  (localBindingInfo, implicitArgInfo, notes, parsedFile, typecheckedFile) <- do
     liftIO do
       Codebase.runTransaction cb do
         parseResult <- Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv
         case Result.fromParsing parseResult of
-          Result.Result parsingNotes Nothing -> pure (mempty, parsingNotes, Nothing, Nothing)
+          Result.Result parsingNotes Nothing -> pure (mempty, mempty, parsingNotes, Nothing, Nothing)
           Result.Result _ (Just parsedFile) -> do
-            typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
+            ambientGivens <- Cli.TypeCheck.ambientGivensFromBranch cb branch0
+            typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities ambientGivens parsedFile
             let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
 
             symbolInfo <-
@@ -139,22 +151,51 @@ checkFileContents fileUri sourceName fileVersion contents = do
                   _ -> mempty
                 & pure
 
+            let -- The parser-injected @\_implicit_*@ lambdas wrap the
+                -- entire body of a binding whose declared type
+                -- contains one or more @=>@ arrows (see
+                -- 'wrapImplicitParams' in
+                -- @Unison.Syntax.TermParser@). Their 'VarBinding'
+                -- notes therefore intersect every cursor position
+                -- inside the body and would shadow the real
+                -- in-scope variable on hover. Skip them.
+                isSyntheticImplicit v =
+                  "_implicit_" `Text.isPrefixOf` Var.name (Var.reset v)
             let localBindingInfo :: (IntervalMap Position (Context.Type Symbol Ann, Range)) =
                   typecheckingNotes
                     & Foldable.toList
                     & reverse -- Type notes that come later in typechecking have more information filled in.
                     & foldMap \case
-                      Result.TypeInfo (Context.VarBinding _v loc typ) -> do
-                        ( (liftA2 (,) (annToInterval loc) (annToRange loc))
-                            & foldMap \(interval, definitionSite) -> (IM.singleton interval (typ, definitionSite))
-                          )
-                      Result.TypeInfo (Context.VarMention v loc) -> do
-                        case Map.lookup v symbolInfo of
-                          Just (typ, definitionSite) ->
-                            ((annToInterval loc) & foldMap \interval -> (IM.singleton interval (typ, definitionSite)))
-                          _ -> mempty
+                      Result.TypeInfo (Context.VarBinding v loc typ)
+                        | not (isSyntheticImplicit v) -> do
+                            ( (liftA2 (,) (annToInterval loc) (annToRange loc))
+                                & foldMap \(interval, definitionSite) -> (IM.singleton interval (typ, definitionSite))
+                              )
+                      Result.TypeInfo (Context.VarMention v loc)
+                        | not (isSyntheticImplicit v) -> do
+                            case Map.lookup v symbolInfo of
+                              Just (typ, definitionSite) ->
+                                ((annToInterval loc) & foldMap \interval -> (IM.singleton interval (typ, definitionSite)))
+                              _ -> mempty
                       _ -> mempty
-            pure (localBindingInfo, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
+            -- Collect the 'ImplicitArgRef' notes emitted by
+            -- 'applyGivenDecisions', indexed by call-site interval so the
+            -- hover/goto-def handlers can detect cursors on a function
+            -- whose call has synthesized implicit args. Multiple implicit
+            -- slots at one call site each contribute a note with the same
+            -- loc, so we must *combine* their reference lists — plain
+            -- 'foldMap' over 'IM.singleton' would drop all but one, since
+            -- the 'IntervalMap' 'Semigroup' is a left-biased union.
+            -- 'fromListWith (flip (<>))' keeps them in left-to-right
+            -- emission order.
+            let implicitArgInfo :: IntervalMap Position [Reference] =
+                  IM.fromListWith
+                    (flip (<>))
+                    [ (interval, [ref])
+                    | Result.TypeInfo (Context.ImplicitArgRef loc ref) <- Foldable.toList typecheckingNotes,
+                      interval <- Foldable.toList (annToInterval loc)
+                    ]
+            pure (localBindingInfo, implicitArgInfo, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
 
   filePPED <- ppedForFileHelper parsedFile typecheckedFile
   (errDiagnostics, codeActions) <- analyseFile fileUri srcText filePPED notes
@@ -188,6 +229,7 @@ checkFileContents fileUri sourceName fileVersion contents = do
             typecheckedFile,
             notes,
             localBindingInfo,
+            implicitArgInfo,
             documentSymbols
           }
   pure fileAnalysis
@@ -377,6 +419,21 @@ analyseNotes codebase fileUri ppe src notes = do
         pure (diags, [])
       Result.UnknownSymbol _ loc ->
         pure (noteDiagnostic note (singleRange loc), [])
+      Result.UnresolvedImplicit loc goal err -> do
+        -- Surface implicit-resolution failures as categorized
+        -- diagnostics, plus per-category code actions.
+        --
+        -- The diagnostic message is rendered by
+        -- 'renderImplicitResolutionError' (via 'printNoteWithSource')
+        -- so we share text with the CLI. We additionally tag each
+        -- diagnostic with a short string code so editors can dispatch
+        -- on the category, and (for the actionable categories) emit
+        -- code actions that provide a starting point for the user.
+        let baseDiags = noteDiagnostic note (singleRange loc)
+            codeStr = resolveErrorCode err
+            diags = setDiagnosticCode codeStr <$> baseDiags
+            actions = resolveErrorCodeActions fileUri ppe diags goal err
+        pure (diags, actions)
       Result.TypeInfo {} -> pure ([], [])
       Result.CompilerBug cbug -> do
         let ranges = case cbug of
@@ -472,6 +529,81 @@ analyseNotes codebase fileUri ppe src notes = do
 toRangeMap :: (Foldable f) => f (Range, a) -> IntervalMap Position [a]
 toRangeMap vs =
   IM.fromListWith (<>) (toList vs <&> \(r, a) -> (rangeToInterval r, [a]))
+
+-- | Short, stable string code per implicit-resolution failure
+-- category. Editors and tests dispatch on these.
+resolveErrorCode :: GR.ResolveError v loc -> Text
+resolveErrorCode = \case
+  GR.NoGiven {} -> "implicit-no-given"
+  GR.Ambiguous {} -> "implicit-ambiguous"
+  GR.DepthExceeded {} -> "implicit-depth-exceeded"
+  GR.Cycle {} -> "implicit-cycle"
+  GR.UnresolvedMetavarInGoal {} -> "implicit-unresolved-metavar"
+
+-- | Per-category code actions for implicit-resolution failures. Both
+-- 'NoGiven' and 'Ambiguous' insert a top-level @given _ : <T> = todo …@
+-- skeleton the user is expected to move and fill in — for 'NoGiven' it
+-- supplies the missing instance; for 'Ambiguous' a strictly-more-specific
+-- given resolves the tie by specificity. The remaining categories get no
+-- action: 'DepthExceeded' has no automatic remedy, 'Cycle' requires
+-- breaking the cycle by hand, and 'UnresolvedMetavarInGoal' requires a
+-- type annotation at a site only the user knows.
+resolveErrorCodeActions ::
+  Uri ->
+  PrettyPrintEnv ->
+  [Diagnostic] ->
+  Type.Type Symbol Ann ->
+  GR.ResolveError Symbol Ann ->
+  [RangedCodeAction]
+resolveErrorCodeActions fileUri ppe diags goal err = case err of
+  GR.NoGiven {} ->
+    let prettyGoal = TypePrinter.prettyStr 80 ppe goal
+        title = "Define given for " <> prettyGoal
+        snippet =
+          Text.unlines
+            [ "",
+              "given _ : " <> prettyGoal <> " =",
+              "  todo \"implement given for " <> prettyGoal <> "\"",
+              ""
+            ]
+        ranges = diags ^.. folded . range
+        rca = rangedCodeAction title diags ranges
+     in [insertAtFileTop fileUri snippet rca]
+  GR.Ambiguous {} ->
+    -- A strictly-more-specific given wins by specificity and breaks the
+    -- tie, so offer the same (parseable) top-level skeleton as 'NoGiven'.
+    let prettyGoal = TypePrinter.prettyStr 80 ppe goal
+        title = "Define a more specific given for " <> prettyGoal
+        snippet =
+          Text.unlines
+            [ "",
+              "given _ : " <> prettyGoal <> " =",
+              "  todo \"implement given for " <> prettyGoal <> "\"",
+              ""
+            ]
+        ranges = diags ^.. folded . range
+        rca = rangedCodeAction title diags ranges
+     in [insertAtFileTop fileUri snippet rca]
+  -- No automatic remedy: a bare no-edit code action would be noise.
+  GR.DepthExceeded {} -> []
+  GR.Cycle {} -> []
+  GR.UnresolvedMetavarInGoal {} -> []
+
+-- | Build a code action that inserts the given text at the very top
+-- of the file (line 0, column 0). Used for the 'NoGiven' /
+-- 'Ambiguous' code actions, which are coarse skeletons the user is
+-- expected to move and edit.
+insertAtFileTop :: Uri -> Text -> RangedCodeAction -> RangedCodeAction
+insertAtFileTop fileUri txt rca =
+  let topRange = Range (Position 0 0) (Position 0 0)
+      edits = [TextEdit topRange txt]
+      workspaceEdit =
+        WorkspaceEdit
+          { _changes = Just $ Map.singleton fileUri edits,
+            _documentChanges = Nothing,
+            _changeAnnotations = Nothing
+          }
+   in rca & codeAction . edit ?~ workspaceEdit
 
 getFileAnalysis :: (Lspish m) => Uri -> MaybeT m FileAnalysis
 getFileAnalysis uri = do

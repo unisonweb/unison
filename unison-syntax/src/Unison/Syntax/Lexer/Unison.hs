@@ -581,6 +581,20 @@ lexemes eof =
             <|> wordyKw "∀"
             <|> wordyKw "termLink"
             <|> wordyKw "typeLink"
+            -- The `given` keyword introduced by the implicit-parameter
+            -- feature. Any user identifier named `given` will need to
+            -- be backtick-escaped (`` `given` ``) or renamed. The
+            -- `given` token doubles as a top-level definition prefix
+            -- and a let-block statement opener; it does not open a
+            -- layout block by itself. (`summon` is /not/ a keyword;
+            -- it is a regular builtin term reference whose declared
+            -- type @forall a. a => a@ drives implicit resolution via
+            -- the normal machinery.)
+            <|> wordyKw "given"
+            -- `give f` lowers f's leading `=>` arrows to `->`. Must
+            -- be a keyword because the type transformation can't be
+            -- encoded as a builtin's type.
+            <|> wordyKw "give"
 
         wordyKw s = separated wordySep (kw s)
         symbolyKw s = separated (not . symbolyIdChar) (kw s)
@@ -597,6 +611,11 @@ lexemes eof =
             <|> typ
             <|> arr
             <|> rewriteArr
+            -- 'constraintArr' must come after 'rewriteArr' so that "==>" wins
+            -- maximal-munch over "=>". The literals are distinguishable
+            -- byte-by-byte, but we keep this ordering to make the
+            -- precedence intent explicit and robust to future edits.
+            <|> constraintArr
             <|> eq
             <|> openKw "cases"
             <|> openKw "where"
@@ -647,7 +666,7 @@ lexemes eof =
               env <- S.get
               case topBlockName (layout env) of
                 -- '=' does not open a layout block if within a type declaration
-                Just t | t == "type" || Set.member (Text.pack t) typeModifiers -> pure [Token (Reserved "=") start end]
+                Just t | t == "type" || t == "class" || Set.member (Text.pack t) typeModifiers -> pure [Token (Reserved "=") start end]
                 Just _ -> S.put (env {opening = Just "="}) >> pure [Token (Open "=") start end]
                 _ -> err start LayoutError
 
@@ -655,6 +674,14 @@ lexemes eof =
               [Token _ start end] <- symbolyKw "==>"
               env <- S.get
               S.put (env {opening = Just "==>"}) >> pure [Token (Open "==>") start end]
+
+            -- The implicit-parameter constraint arrow "=>". Unlike
+            -- "->", "==>", and "=", it does not influence layout — it
+            -- is a plain reserved token used only inside type
+            -- signatures (see 'Unison.Syntax.TypeParser').
+            constraintArr = do
+              [Token _ start end] <- symbolyKw "=>"
+              pure [Token (Reserved "=>") start end]
 
             arr = do
               [Token _ start end] <- symbolyKw "->"

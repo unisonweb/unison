@@ -124,6 +124,27 @@ prettyRaw im p tp = go im p tp
             if p < 0 && not Settings.debugRevealForalls && all Var.universallyQuantifyIfFree vs
               then ifM (willCaptureType vs) (prettyForall p) (go im p body)
               else paren (p >= 0) <$> prettyForall (-1)
+      -- A leading chain of 'ImplicitArrow's prints as a @=>@
+      -- constraint context. Walk the spine to collect /all/ leading
+      -- constraints, then emit them as a single @=>@ tuple followed by
+      -- the conclusion. A single constraint prints bare (e.g. @Show a
+      -- => a -> Text@); two or more print as a parenthesised comma
+      -- list (e.g. @(Show a, Eq a) => [a] -> [a]@).
+      --
+      -- The conclusion is printed at precedence -1 so an inner @->@ chain
+      -- is /not/ parenthesised; the @=>@ constraint context binds looser
+      -- than @->@. The whole expression is parenthesised when the
+      -- ambient precedence is @>= 0@, mirroring the @Arrow'@ branch.
+      t@(ImplicitArrow' _ _) ->
+        let (cs, conclusion) = splitImplicitConstraints t
+            renderConstraints = case cs of
+              [c] -> go im 0 c
+              _ -> PP.parenthesizeCommas <$> traverse (go im 0) cs
+         in PP.parenthesizeIf (p >= 0)
+              <$> ( (\lhs rhs -> lhs <> " " <> fmt S.TypeOperator "=>" <> " " <> rhs)
+                      <$> renderConstraints
+                      <*> go im (-1) conclusion
+                  )
       t@(Arrow' _ _) -> case t of
         EffectfulArrows' (Ref' DD.UnitRef) rest ->
           PP.parenthesizeIf (p >= 10) <$> arrows True True rest
@@ -183,6 +204,20 @@ prettyRaw im p tp = go im p tp
 
     parenNoGroup True s = fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
     parenNoGroup False s = s
+
+-- | Walk the leading chain of 'ImplicitArrow' premises, returning the list
+-- of constraint types and the (non-implicit-arrow) conclusion. A type with
+-- no implicit arrows at the head returns @([], t)@ unchanged.
+--
+-- @(C1 a, C2 b) => T@ is encoded as
+-- @ImplicitArrow C1a (ImplicitArrow C2b T)@. This function unfolds
+-- that chain so the printer can emit it as a single @=>@ context.
+splitImplicitConstraints :: Type v a -> ([Type v a], Type v a)
+splitImplicitConstraints t = case t of
+  ImplicitArrow' c rest ->
+    let (cs, conclusion) = splitImplicitConstraints rest
+     in (c : cs, conclusion)
+  _ -> ([], t)
 
 fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax

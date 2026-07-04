@@ -166,6 +166,14 @@ instance (Var v) => Hashable1 (TermF v a p) where
                         [tag 2, Hashable.Text (Text.pack s)]
                       B.Recorded (B.MissingResultPlaceholder _) -> [tag 3]
                       B.Retain -> [tag 4]
+                      -- An unresolved implicit hole. This should never
+                      -- reach hashing — the elaborator substitutes the
+                      -- resolved dictionary term first — but the tag is
+                      -- allocated (dropping the source-location payload,
+                      -- like 'MissingResultPlaceholder' above) so that a
+                      -- stray hole yields a stable hash rather than a
+                      -- non-exhaustive-pattern crash.
+                      B.Recorded (B.Implicit _) -> [tag 5]
                   TermRef (ReferenceBuiltin name) -> [tag 2, accumulateToken name]
                   TermApp a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
                   TermAnn a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]

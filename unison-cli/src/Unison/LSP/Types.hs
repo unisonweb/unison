@@ -35,6 +35,7 @@ import Unison.Names (Names)
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
+import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Result (Note)
 import Unison.Runtime (Runtime)
@@ -150,6 +151,12 @@ data FileAnalysis = FileAnalysis
     codeActions :: IntervalMap Position [CodeAction],
     -- | The types of local variable bindings keyed by the mention's location.
     localBindingInfo :: IntervalMap Position (Context.Type Symbol Ann {- type of binding -}, Range {- binding definition site -}),
+    -- | Synthesized implicit arguments produced by
+    -- 'applyGivenDecisions'. Indexed by the source position of the
+    -- function head whose call has implicit slots; the list collects
+    -- references to the resolved givens (one per implicit slot, in
+    -- left-to-right order).
+    implicitArgInfo :: IntervalMap Position [Reference],
     typeSignatureHints :: Map Symbol TypeSignatureHint,
     fileSummary :: Maybe FileSummary,
     documentSymbols :: [UDocumentSymbol]

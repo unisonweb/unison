@@ -908,10 +908,26 @@ force = P.label "force" $ P.try do
   pure $ DD.forceTerm (ann fn <> ann close) (tok <> ann close) fn
 
 term4 :: (Monad m, Var v) => TermP v m
-term4 = f <$> some termLeaf
+term4 = do
+  func <- giveExpr <|> termLeaf
+  args <- many termLeaf
+  pure case args of
+    [] -> func
+    _ -> Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
   where
-    f (func : args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
-    f [] = error "'some' shouldn't produce an empty list"
+    -- @give f@ is a prefix syntactic transformation that demotes f's
+    -- leading `=>` arrows to `->`. The result is f with its outer
+    -- annotation wrapped in 'Ann.Lowered'; the typechecker
+    -- ('synthesizeWanted', Var/Ref clauses) checks this flag and skips
+    -- 'peelLeadingImplicits', then converts each leading
+    -- 'ImplicitArrow' to a regular 'Arrow'. Subsequent application
+    -- supplies the dictionary positionally as an ordinary explicit
+    -- argument.
+    giveExpr = do
+      kw <- reserved "give"
+      f <- termLeaf
+      let widened = Ann.Lowered (ann kw <> ann f)
+      pure (ABT.annotate widened f)
 
 data InfixParse v
   = InfixOp (L.Token (HQ.HashQualified Name)) (Term v Ann) (InfixParse v) (InfixParse v)
@@ -1043,6 +1059,40 @@ destructuringBind = do
          in Term.match a scrute [thecase t]
     )
 
+-- | When a binding's declared type begins with one or more @=>@
+-- constraint arrows (after any leading @forall@ binders), wrap the
+-- binding's body with a leading lambda for each implicit parameter
+-- so that the dictionary is accessible at runtime. Each fresh binder
+-- is also registered via 'recordGivenVar' so the typechecker's
+-- letrec wiring (@annotateLetRecBindings'@) lifts it into the lexical
+-- given environment for the body. The introduced variables are named
+-- @_implicit_<baseName>_<index>@ — the base name (typically the
+-- bound variable's name) makes diagnostics traceable, and the index
+-- distinguishes multiple constraints on the same signature.
+--
+-- The companion @=>I@ rule in @Unison.Typechecker.Context.checkWanted@
+-- recognises the injected lambda when checking against an
+-- 'ImplicitArrow' and finishes the binding by registering the binder
+-- as a local lexical given.
+wrapImplicitParams ::
+  forall m v.
+  (Monad m, Var v) =>
+  v ->
+  Type v Ann ->
+  Term v Ann ->
+  P v m (Term v Ann)
+wrapImplicitParams baseName ty body0 =
+  case Type.unImplicitArrows ty of
+    ([], _) -> pure body0
+    (implicits, _) -> do
+      let baseText = Var.name (Var.reset baseName)
+          mk i = Var.named ("_implicit_" <> baseText <> "_" <> Text.pack (show (i :: Int)))
+          vs = zipWith (\i _ -> mk i) [0 ..] implicits
+      for_ vs recordGivenVar
+      let bodyAnn = ABT.annotation body0
+          wrap v body = Term.lam bodyAnn (bodyAnn, v) body
+      pure (foldr wrap body0 vs)
+
 -- | Rules for the annotation of the resulting binding is as follows:
 -- * If the binding has a type signature, the top level scope of the annotation for the type
 -- Ann node will contain the _entire_ binding, including the type signature.
@@ -1060,49 +1110,114 @@ binding ::
       Term v Ann
     )
 binding = label "binding" do
-  typ <- optional typedecl
-  -- a ++ b = ...
-  let infixLhs = do
-        (arg1, op) <-
-          P.try $
-            (,) <$> prefixDefinitionName <*> symbolyDefinitionName
-        arg2 <- prefixDefinitionName
-        pure (ann arg1, op, [arg1, arg2])
-  let prefixLhs = do
-        v <- prefixTermName
-        vs <- many prefixTermName
-        pure (ann v, v, vs)
-  let lhs :: P v m (Ann, L.Token v, [L.Token v])
-      lhs = infixLhs <|> prefixLhs
-  case typ of
-    Nothing -> do
-      -- we haven't seen a type annotation, so lookahead to '=' before commit
-      (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
-      (_eqAnn, _bodySpanAnn, body) <- block "="
-      verifyRelativeName' (fmap Name.unsafeParseVar name)
-      let binding = mkBinding lhsLoc args body
-      -- We don't actually use the span annotation from the block (yet) because it
-      -- may contain a bunch of white-space and comments following a top-level-definition.
-      -- let spanAnn = ann lhsLoc <> ann binding
-      pure $ ((ann name, (L.payload name)), binding)
-    Just (nameT, typ) -> do
-      (lhsLoc, name, args) <- lhs
-      verifyRelativeName' (fmap Name.unsafeParseVar name)
-      when (L.payload name /= L.payload nameT) $
-        customFailure $
-          SignatureNeedsAccompanyingBody nameT
-      (_eqAnn, _bodySpanAnn, body) <- block "="
-      let binding = mkBinding lhsLoc args body
-      -- We don't actually use the span annotation from the block (yet) because it
-      -- may contain a bunch of white-space and comments following a top-level-definition.
-      let spanAnn = ann nameT <> ann binding
-      pure $ ((ann nameT, L.payload name), Term.ann spanAnn binding typ)
+  -- A `given` declaration is a one-line binding form:
+  --
+  -- > given name : T = body
+  --
+  -- We commit as soon as we see the `given` keyword (no `P.try`); a
+  -- malformed `given` is a hard parse error rather than a backtrack
+  -- to `regularBinding`, which would otherwise produce a confusing
+  -- "expected binding got `given`" message.
+  P.optional (reserved "given") >>= \case
+    Just kw -> givenBindingBody kw
+    Nothing -> regularBinding
   where
+    regularBinding = do
+      typ <- optional typedecl
+      -- a ++ b = ...
+      let infixLhs = do
+            (arg1, op) <-
+              P.try $
+                (,) <$> prefixDefinitionName <*> symbolyDefinitionName
+            arg2 <- prefixDefinitionName
+            pure (ann arg1, op, [arg1, arg2])
+      let prefixLhs = do
+            v <- prefixTermName
+            vs <- many prefixTermName
+            pure (ann v, v, vs)
+      let lhs :: P v m (Ann, L.Token v, [L.Token v])
+          lhs = infixLhs <|> prefixLhs
+      case typ of
+        Nothing -> do
+          -- we haven't seen a type annotation, so lookahead to '=' before commit
+          (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
+          (_eqAnn, _bodySpanAnn, body) <- block "="
+          verifyRelativeName' (fmap Name.unsafeParseVar name)
+          let bnd = mkBinding lhsLoc args body
+          -- We don't actually use the span annotation from the block (yet) because it
+          -- may contain a bunch of white-space and comments following a top-level-definition.
+          -- let spanAnn = ann lhsLoc <> ann bnd
+          pure $ ((ann name, (L.payload name)), bnd)
+        Just (nameT, typ') -> do
+          (lhsLoc, name, args) <- lhs
+          verifyRelativeName' (fmap Name.unsafeParseVar name)
+          when (L.payload name /= L.payload nameT) $
+            customFailure $
+              SignatureNeedsAccompanyingBody nameT
+          (_eqAnn, _bodySpanAnn, body) <- block "="
+          let bnd0 = mkBinding lhsLoc args body
+          -- If the declared type begins with one or more @=>@ arrows
+          -- (after any leading 'forall' binders), inject leading
+          -- lambdas for the implicit dictionary parameters so the
+          -- elaborator and runtime see them. The fresh binders are
+          -- also recorded as given-bound-vars so the typechecker
+          -- lifts them into the lexical given environment for the
+          -- body. See 'wrapImplicitParams'.
+          bnd <- wrapImplicitParams (L.payload name) typ' bnd0
+          -- We don't actually use the span annotation from the block (yet) because it
+          -- may contain a bunch of white-space and comments following a top-level-definition.
+          let spanAnn = ann nameT <> ann bnd
+          pure $ ((ann nameT, L.payload name), Term.ann spanAnn bnd typ')
     mkBinding :: Ann -> [L.Token v] -> Term.Term v Ann -> Term.Term v Ann
     mkBinding _lhsLoc [] body = body
     mkBinding lhsLoc args body =
       let annotatedArgs = args <&> \arg -> (ann arg, L.payload arg)
        in Term.lam' (lhsLoc <> ann body) annotatedArgs body
+
+-- | Parse the body of a `given` declaration after the leading `given`
+-- keyword has already been consumed. Used at the top level and inside
+-- block contexts (i.e., `let given name : T = body`). The remaining
+-- form is: name, `:`, type, `=`, body.
+--
+-- The parser produces an ordinary type-annotated binding. The
+-- `given` tag itself is namespace metadata, not part of the term AST.
+-- The leading-keyword source range is preserved by the binding's
+-- annotation so downstream phases can recognise the statement when
+-- wiring up implicit resolution.
+--
+-- The caller commits to this branch as soon as it sees `given`; this
+-- function does NOT use `P.try`, so a malformed body produces a
+-- targeted error (e.g., "expected `:` after `given <name>`") rather
+-- than a confusing backtrack into the regular-binding grammar.
+givenBindingBody ::
+  forall m v.
+  (Monad m, Var v) =>
+  L.Token String ->
+  P
+    v
+    m
+    ( (Ann, v),
+      Term v Ann
+    )
+givenBindingBody kw = label "given" do
+  name <- prefixTermName
+  verifyRelativeName' (fmap Name.unsafeParseVar name)
+  -- Record this variable name in the parser's given-binding side
+  -- channel so the typechecker can identify @given@ origins by name
+  -- rather than inspecting type shape. This makes the canonical
+  -- premise-free form @given local : Ord a = …@ work without relying
+  -- on the type beginning with @=>@.
+  recordGivenVar (L.payload name)
+  _ <- reserved ":"
+  ty <- TypeParser.valueType
+  (_eqAnn, _bodySpanAnn, body0) <- block "="
+  -- A @given@ binding may itself declare implicit parameters
+  -- (@given foo : C a => D a = ...@): wrap the body with leading
+  -- lambdas so the implicit dictionaries are available at runtime
+  -- exactly as in 'regularBinding'.
+  body <- wrapImplicitParams (L.payload name) ty body0
+  let spanAnn = ann kw <> ann body
+  pure ((ann kw <> ann name, L.payload name), Term.ann spanAnn body ty)
 
 customFailure :: (P.MonadParsec e s m) => e -> m a
 customFailure = P.customFailure

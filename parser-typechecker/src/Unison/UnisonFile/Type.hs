@@ -21,7 +21,20 @@ data UnisonFile v a = UnisonFileId
     dataDeclarationsId :: Map v (TypeReferenceId, DataDeclaration v a),
     effectDeclarationsId :: Map v (TypeReferenceId, EffectDeclaration v a),
     terms :: Map v (a {- ann for name of the binding -}, Term v a),
-    watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
+    watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)],
+    -- | Variable names that originated from the @given@ keyword.
+    -- Populated by the parser via the side channel in
+    -- 'Unison.Syntax.Parser' and read by the typechecker to identify
+    -- @given@ origins without inspecting type shape. Includes both
+    -- file-level @given@ declarations and @let given@ bindings inside
+    -- term bodies.
+    givenBindings :: Set v,
+    -- | Type names declared with the @class@ keyword. The @add@ /
+    -- @update@ command uses this to mark each entry in the namespace
+    -- via 'Unison.Codebase.Classes.markClassAt' so @view@ can later
+    -- recover the @class@ keyword (and record-field syntax) on
+    -- round-trip.
+    classBindings :: Set v
   }
   deriving stock (Generic, Show)
 
@@ -31,14 +44,18 @@ pattern UnisonFile ::
   Map v (TypeReference, EffectDeclaration v a) ->
   Map v (a, Term v a) ->
   Map WatchKind [(v, a, Term v a)] ->
+  Set v ->
+  Set v ->
   UnisonFile v a
-pattern UnisonFile fn ds es tms ws <-
+pattern UnisonFile fn ds es tms ws gbs cbs <-
   UnisonFileId
     fn
     (fmap (first Reference.DerivedId) -> ds)
     (fmap (first Reference.DerivedId) -> es)
     tms
     ws
+    gbs
+    cbs
 
 {-# COMPLETE UnisonFile #-}
 
@@ -50,7 +67,17 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFileId
     effectDeclarationsId' :: Map v (TypeReferenceId, EffectDeclaration v a),
     topLevelComponents' :: [[(v, a {- ann for whole binding -}, Term v a, Type v a)]],
     watchComponents :: [(WatchKind, [(v, a {- ann for whole watch -}, Term v a, Type v a)])],
-    hashTermsId :: Map v (a {- ann for whole binding -}, TermReferenceId, Maybe WatchKind, Term v a, Type v a)
+    hashTermsId :: Map v (a {- ann for whole binding -}, TermReferenceId, Maybe WatchKind, Term v a, Type v a),
+    -- | Names that the parser recorded as @given@ declarations.
+    -- Threaded through from 'UnisonFile.givenBindings' so the
+    -- @update@ / @add@ flow can mark each one as a given in the
+    -- namespace's metadata automatically.
+    givenBindings' :: Set v,
+    -- | Type names that the parser recorded as @class@ declarations.
+    -- Threaded through from 'UnisonFile.classBindings' so @add@ /
+    -- @update@ can mark each one via
+    -- 'Unison.Codebase.Classes.markClassAt'.
+    classBindings' :: Set v
   }
   deriving stock (Generic, Show)
 
@@ -79,10 +106,12 @@ pattern TypecheckedUnisonFile fn ds es tlcs wcs hts <-
     tlcs
     wcs
     (fmap (over _2 Reference.DerivedId) -> hts)
+    _
+    _
 
 instance (Ord v) => Functor (TypecheckedUnisonFile v) where
-  fmap f (TypecheckedUnisonFileId fn ds es tlcs wcs hashTerms) =
-    TypecheckedUnisonFileId fn' ds' es' tlcs' wcs' hashTerms'
+  fmap f (TypecheckedUnisonFileId fn ds es tlcs wcs hashTerms gbs cbs) =
+    TypecheckedUnisonFileId fn' ds' es' tlcs' wcs' hashTerms' gbs cbs
     where
       fn' = (fmap . first) f fn
       ds' = ds <&> \(refId, decl) -> (refId, fmap f decl)

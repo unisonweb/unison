@@ -24,6 +24,29 @@ module Unison.Merge
     TwoWayI (..),
     Unconflicts (..),
     Updated,
+
+    -- * Namespace metadata-mark merge (see "Unison.Merge.GivenSet")
+    Marks,
+    MarkConflict (..),
+    MarksMergeOutcome (..),
+    MarkSide (..),
+    MergeMode (..),
+    mergeMarks,
+    applyMarks,
+
+    -- ** Given-mark specialisation
+    GivenMarks,
+    GivenSetConflict,
+    GivenSetMergeOutcome,
+    GivenSetSide,
+    SurvivorMap,
+    applyGivenSet,
+    mergeGivenSets,
+
+    -- ** Class-mark specialisation
+    ClassMarks,
+    mergeClassSets,
+    applyClassSet,
   )
 where
 
@@ -32,6 +55,25 @@ import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Diffblob (Diffblob (..), DiffblobLog (..), emptyDiffblobLog, makeDiffblob)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
+import Unison.Merge.GivenSet
+  ( ClassMarks,
+    GivenMarks,
+    GivenSetConflict,
+    GivenSetMergeOutcome,
+    GivenSetSide,
+    MarkConflict (..),
+    MarkSide (..),
+    Marks,
+    MarksMergeOutcome (..),
+    MergeMode (..),
+    SurvivorMap,
+    applyClassSet,
+    applyGivenSet,
+    applyMarks,
+    mergeClassSets,
+    mergeGivenSets,
+    mergeMarks,
+  )
 import Unison.Merge.Libdeps (LibdepDiffOp (..))
 import Unison.Merge.Mergeblob (Mergeblob (..), MergeblobError (..), makeMergeblob)
 import Unison.Merge.Rename (Rename (..), SimpleRenames (..))

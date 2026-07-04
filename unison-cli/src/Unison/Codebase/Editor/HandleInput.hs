@@ -69,6 +69,7 @@ import Unison.Codebase.Editor.HandleInput.EditDependents (handleEditDependents)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI, handleTextFindI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
+import Unison.Codebase.Editor.HandleInput.Givens (handleGivens, handleMarkGiven, handleUnmarkGiven)
 import Unison.Codebase.Editor.HandleInput.Global qualified as Global
 import Unison.Codebase.Editor.HandleInput.History (handleHistory)
 import Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment)
@@ -112,6 +113,7 @@ import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Execute qualified as Codebase
+import Unison.Codebase.Givens qualified as Givens
 import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
 import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Path (Path, Path' (..))
@@ -547,6 +549,8 @@ loop e = do
                   (Map.fromList Builtin.builtinEffectDecls)
                   [Builtin.builtinTermsSrc Intrinsic]
                   mempty
+                  mempty
+                  mempty
           Cli.runTransaction (Codebase.addDefsToCodebase env.codebase uf)
           -- add the names; note, there are more names than definitions
           -- due to builtin terms; so we don't just reuse `uf` above.
@@ -571,6 +575,8 @@ loop e = do
                   (Map.fromList Builtin.builtinDataDecls)
                   (Map.fromList Builtin.builtinEffectDecls)
                   [Builtin.builtinTermsSrc Intrinsic]
+                  mempty
+                  mempty
                   mempty
           Cli.runTransaction do
             Codebase.addDefsToCodebase env.codebase uf
@@ -599,6 +605,9 @@ loop e = do
         MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
         MoveToI sources dest -> handleMoveTo sources dest =<< inputDescription input
         MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
+        MarkGivenI hq -> handleMarkGiven hq
+        UnmarkGivenI hq -> handleUnmarkGiven hq
+        GivensI -> handleGivens
         NamesI global queries -> mapM_ (handleNames global) queries
         RenameI src newNameSeg -> handleRename src newNameSeg =<< inputDescription input
         NamespaceDependenciesI _ ->
@@ -831,6 +840,7 @@ inputDescription input =
     EditDependentsI {} -> wat
     FindI {} -> wat
     FindShallowI {} -> wat
+    GivensI {} -> wat
     HistoryI {} -> wat
     IOTestAllI -> wat
     IOTestI {} -> wat
@@ -841,6 +851,8 @@ inputDescription input =
     ListDependentsI {} -> wat
     LoadI {} -> wat
     MakeStandaloneI {} -> wat
+    MarkGivenI {} -> wat
+    UnmarkGivenI {} -> wat
     MergeCommitI {} -> wat
     MergeI {} -> wat
     NamesI {} -> wat
@@ -960,6 +972,19 @@ handleFindI isVerbose fscope ws input = do
     searchBranch0 codebase searchBranch names =
       case ws of
         [] -> pure (List.sortBy SR.compareByName (SR.fromNames names))
+        -- given-set filter: list every term in the search branch whose
+        -- metadata carries the @##Builtin.Given@ sentinel. Consumes
+        -- 'Unison.Codebase.Givens.metadataValuesFor' through 'isGiven'.
+        -- The metadata for a referent at @ns.foo@ lives in @ns@'s
+        -- 'Star2', not in the parent's, so we must walk children and
+        -- consult 'isGiven' at each level rather than checking the
+        -- top-level branch alone.
+        [":given"] -> do
+          let givenReferents :: Set Referent
+              givenReferents = collectGivenReferents searchBranch
+          pure $
+            (if isVerbose then uniqueBy SR.toReferent else id) $
+              searchResultsFor names (Set.toList givenReferents) []
         -- type query
         ":" : ws -> do
           typ <- parseSearchType (show input) (unwords ws)
@@ -993,6 +1018,30 @@ handleFindI isVerbose fscope ws input = do
       Cli.setNumberedArgs $ fmap (SA.SearchResult searchRoot) results
       results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
       Cli.respond $ ListOfDefinitions fscope ppe isVerbose results'
+
+-- | All referents under the supplied branch (recursive) whose
+-- metadata at their containing namespace carries the given sentinel.
+-- The metadata for a referent at @ns.foo@ lives in @ns@'s 'Star2',
+-- so we walk children and consult 'Givens.isGiven' at each level
+-- rather than checking the top-level branch alone.
+collectGivenReferents :: Branch0 m -> Set Referent
+collectGivenReferents = go
+  where
+    go b0 =
+      let here :: Set Referent
+          here =
+            Set.fromList
+              [ r
+              | r <- Set.toList (R.dom (Star2.d1 (view Branch.terms_ b0))),
+                Givens.isGiven r b0
+              ]
+          there :: Set Referent
+          there =
+            Set.unions
+              [ go (Branch.head child)
+              | child <- Map.elems (view Branch.children_ b0)
+              ]
+       in Set.union here there
 
 doDisplay :: OutputLocation -> Names -> Term Symbol () -> Cli ()
 doDisplay outputLoc names tm = do
@@ -1273,6 +1322,8 @@ addWatch watchName (Just uf) = do
                 (UF.effectDeclarationsId' uf)
                 (UF.topLevelComponents' uf)
                 (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, ann, Term.var a v, ty)])])
+                (UF.givenBindings' uf)
+                (UF.classBindings' uf)
             )
     _ -> addWatch watchName Nothing
 

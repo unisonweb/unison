@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -41,6 +41,8 @@ library
       Unison.Codebase.Editor.DisplayObject
       Unison.Codebase.Editor.RemoteRepo
       Unison.Codebase.FileCodebase
+      Unison.Codebase.Classes
+      Unison.Codebase.Givens
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError
       Unison.Codebase.Init.OpenCodebaseError
@@ -137,6 +139,9 @@ library
       Unison.Typechecker.Context
       Unison.Typechecker.Context.Structure
       Unison.Typechecker.Extractor
+      Unison.Typechecker.GivenApply
+      Unison.Typechecker.GivenElaborator
+      Unison.Typechecker.GivenResolver
       Unison.Typechecker.TypeError
       Unison.Typechecker.TypeLookup
       Unison.Typechecker.TypeVar
@@ -263,19 +268,29 @@ test-suite parser-typechecker-tests
       Unison.Test.ABT
       Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
+      Unison.Test.Codebase.Givens
       Unison.Test.Codebase.Path
       Unison.Test.CodebaseInit
       Unison.Test.Common
       Unison.Test.DataDeclaration
       Unison.Test.Referent
       Unison.Test.Syntax.FileParser
+      Unison.Test.Syntax.ImplicitParser
+      Unison.Test.Syntax.ImplicitPrinter
       Unison.Test.Syntax.TermParser
+      Unison.Test.Syntax.TypeParser
       Unison.Test.Syntax.TypePrinter
       Unison.Test.Term
       Unison.Test.Type
       Unison.Test.Typechecker
       Unison.Test.Typechecker.Components
       Unison.Test.Typechecker.Context
+      Unison.Test.Typechecker.GivenApply
+      Unison.Test.Typechecker.GivenDecl
+      Unison.Test.Typechecker.GivenElaborator
+      Unison.Test.Typechecker.GivenResolver
+      Unison.Test.Typechecker.GivenResolverProperties
+      Unison.Test.Typechecker.ImplicitErrorRendering
       Unison.Test.Typechecker.TypeError
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
@@ -325,6 +340,7 @@ test-suite parser-typechecker-tests
     , raw-strings-qq
     , temporary
     , text
+    , time
     , unison-core
     , unison-core1
     , unison-hash

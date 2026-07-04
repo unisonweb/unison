@@ -10,7 +10,9 @@ import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
+import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.GivenResolver qualified as GR
 
 type Result notes = ResultT notes Identity
 
@@ -23,6 +25,19 @@ data Note v loc
   | TypeError (Context.ErrorNote v loc)
   | TypeInfo (Context.InfoNote v loc)
   | CompilerBug (CompilerBug v loc)
+  | -- | An implicit-resolution failure. Surfaced
+    -- by 'Unison.FileParsers.synthesizeFile' after running the
+    -- 'Unison.Typechecker.GivenElaborator' over the typechecker's
+    -- 'Context.ConstraintGoal' info notes. The 'GR.ResolveError'
+    -- payload is the structured failure from
+    -- 'Unison.Typechecker.GivenResolver': 'NoGiven', 'Ambiguous',
+    -- 'DepthExceeded', 'Cycle', or 'UnresolvedMetavarInGoal'.
+    --
+    -- The first 'loc' is the apply-site source location (copied from
+    -- the originating 'ConstraintGoal'); the 'Type' is the goal as
+    -- the resolver saw it (post-substitution from inference); the
+    -- 'GR.ResolveError' carries the structured reason.
+    UnresolvedImplicit loc (Type v loc) (GR.ResolveError v loc)
   deriving (Show)
 
 data CompilerBug v loc
@@ -68,6 +83,10 @@ toEither r = ExceptT (go <$> runResultT r)
 
 tell1 :: (Monad f) => note -> ResultT (Seq note) f ()
 tell1 = tell . pure
+
+-- | Like 'tell1' but accepts a sequence of notes.
+tellNotes :: (Monad f) => Seq note -> ResultT (Seq note) f ()
+tellNotes = tell
 
 fromParsing :: (Monad f) => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
 fromParsing (Left e) = do
