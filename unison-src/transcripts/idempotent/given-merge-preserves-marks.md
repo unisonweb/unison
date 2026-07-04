@@ -24,6 +24,9 @@ given Foo.nat : Foo Nat = Foo (n -> n)
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 
 scratch/main> givens
