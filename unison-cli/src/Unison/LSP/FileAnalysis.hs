@@ -330,6 +330,7 @@ analyseNotes codebase fileUri ppe src notes = do
               TypeError.RedundantPattern loc -> singleRange loc
               TypeError.UncoveredPatterns loc _pats -> singleRange loc
               TypeError.KindInferenceFailure ke -> singleRange (KindInference.lspLoc ke)
+              TypeError.RunWatchTypeMismatch _ watchSite _ -> singleRange watchSite
               -- These type errors don't have custom type error conversions, but some
               -- still have valid diagnostics.
               TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
@@ -351,6 +352,7 @@ analyseNotes codebase fileUri ppe src notes = do
                 Context.RedundantPattern loc -> singleRange loc
                 Context.InaccessiblePattern loc -> singleRange loc
                 Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
+                Context.RunWatchTypeMismatch loc _typ -> singleRange loc
             shouldHaveBeenHandled e = do
               Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
               empty

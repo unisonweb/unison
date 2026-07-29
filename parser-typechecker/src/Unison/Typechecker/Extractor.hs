@@ -267,6 +267,12 @@ kindInferenceFailure =
     C.KindInferenceFailure ke -> pure ke
     _ -> empty
 
+runWatchTypeMismatch :: ErrorExtractor v loc (loc, Type v loc)
+runWatchTypeMismatch =
+  cause >>= \case
+    C.RunWatchTypeMismatch loc typ -> pure (loc, typ)
+    _ -> mzero
+
 typeMismatch :: ErrorExtractor v loc (C.Context v loc)
 typeMismatch =
   cause >>= \case

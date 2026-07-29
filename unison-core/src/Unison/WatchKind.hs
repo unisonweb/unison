@@ -9,6 +9,7 @@ module Unison.WatchKind
   ( WatchKind,
     pattern RegularWatch,
     pattern TestWatch,
+    pattern RunWatch,
     watchKindShouldBeStoredInDatabase,
   )
 where
@@ -34,6 +35,18 @@ pattern RegularWatch = ""
 -- Note: currently test watches don't need to be named by the user, but that "feature" will be removed soon.
 pattern TestWatch :: (Eq a, IsString a) => a
 pattern TestWatch = "test"
+
+-- | A "run" watch, such as
+--
+-- @
+-- run> do printLine "hello"
+-- @
+--
+-- Unlike a regular watch, a run watch expects an expression of type
+-- @'{IO, Exception} a@, forces it (running its side effects), and is never
+-- cached — it re-evaluates on every save.
+pattern RunWatch :: (Eq a, IsString a) => a
+pattern RunWatch = "run"
 
 -- Haha terrible name. Regular terms (no ">" in sight) and test watches ("test>") should be stored in the database
 -- (the latter, if nameless, get a random name), but other watches (like regular ">" or even weird "oink>") shouldn't.

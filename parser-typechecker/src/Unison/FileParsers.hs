@@ -19,6 +19,7 @@ import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as Blank
 import Unison.Builtin qualified as Builtin
+import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -53,6 +54,7 @@ import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind)
+import Unison.WatchKind qualified as WK
 
 type Term v = Term.Term v Ann
 
@@ -319,12 +321,26 @@ synthesizeFile env0 uf = do
            in case Foldable.find hasE (Map.keys $ UF.watches uf) of
                 Nothing -> error "wat"
                 Just kind -> (kind, tlc)
+        watchTlcs = map tlcKind watches'
+    -- `run>` watches must have a type that fits `'{IO, Exception} a` (the same
+    -- type the `run` command accepts), since they are forced during evaluation.
+    -- The thunk itself typechecks as an ordinary pure binding, so we validate
+    -- the inferred type here and emit a located type error if it doesn't fit.
+    let badRunWatches =
+          [ (loc, typ)
+          | (WK.RunWatch, tlc) <- watchTlcs,
+            (_v, loc, _tm, typ) <- tlc,
+            not (Typechecker.fitsScheme typ (MainTerm.builtinMain loc))
+          ]
+    for_ badRunWatches \(loc, typ) ->
+      Result.tell1 (TypeError (Context.ErrorNote (Context.RunWatchTypeMismatch loc typ) mempty))
+    unless (null badRunWatches) empty
     pure $
       UF.typecheckedUnisonFile
         (UF.dataDeclarationsId uf)
         (UF.effectDeclarationsId uf)
         terms'
-        (map tlcKind watches')
+        watchTlcs
   where
     applyTdnrDecisions ::
       [Context.InfoNote v Ann] ->
