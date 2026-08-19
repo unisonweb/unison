@@ -43,6 +43,7 @@ lspLoc = \case
     varLoc var = ABT.annotation $ uvarType var
     solveErrLoc = \case
       Solve.MissingBuiltin loc _ -> loc
+      Solve.UnknownType loc _ -> loc
 
 -- | Errors that may arise during kind inference
 data KindError v loc

@@ -44,7 +44,7 @@ typeConstraints resultVar typ =
   flatten bottomUp <$> typeConstraintTree resultVar typ
 
 typeConstraintTree :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc (ConstraintTree v loc)
-typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
+typeConstraintTree resultVar ABT.Term {annotation, out} = do
   case out of
     ABT.Abs _ _ -> error "[typeConstraintTree] malformed type: Abs without an enclosing Forall or IntroOuter"
     ABT.Var v ->
@@ -100,7 +100,7 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
           Nothing ->
             if Reference.isBuiltin r
               then throwError $ MissingBuiltin annotation r
-              else error ("[typeConstraintTree] Ref lookup failure: " <> show term)
+              else throwError $ UnknownType annotation r
           Just x -> pure $ Constraint (Unify (Provenance ContextLookup annotation) resultVar x) (Node [])
       Type.Effect effTyp b -> do
         effKind <- freshVar effTyp

@@ -65,6 +65,7 @@ data Descriptor v loc = Descriptor
 
 data SolveError loc
   = MissingBuiltin loc Reference
+  | UnknownType loc Reference
   deriving stock (Show, Eq)
 
 newtype Solve v loc a = Solve {unSolve :: M.ReaderT Env (M.StateT (SolveState v loc) (Except (SolveError loc))) a}
@@ -85,6 +86,7 @@ liftGen (Gen action) = Solve $ do
     genErrorToSolveError :: Gen.GenError loc -> (SolveError loc)
     genErrorToSolveError = \case
       Gen.MissingBuiltin ann builtin -> MissingBuiltin ann builtin
+      Gen.UnknownType ann ref -> UnknownType ann ref
 
 -- | Helper for inteleaving constraint generation and solving
 genStateL :: Lens' (SolveState v loc) (Gen.GenState v loc)

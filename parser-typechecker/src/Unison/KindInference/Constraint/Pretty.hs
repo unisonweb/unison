@@ -207,3 +207,8 @@ prettySolveError = \case
       [ "Encountered unknown builtin when kind-checking: " <> P.shown builtin,
         "✨ Hint: Upgrading to the latest ucm may resolve this issue."
       ]
+  UnknownType _loc ref ->
+    P.lines
+      [ "Encountered a type reference that isn't in scope when kind-checking: " <> P.shown ref,
+        "This usually indicates that a type dependency is missing from the codebase."
+      ]
