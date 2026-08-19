@@ -1,0 +1,1124 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="annot"><span class="hs-comment">-- | The data model for Unison transcripts.</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html"><span class="hs-identifier">Unison.Codebase.Transcript</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#ExpectingError"><span class="hs-identifier">ExpectingError</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#HasBug"><span class="hs-identifier">HasBug</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#ScratchFileName"><span class="hs-identifier">ScratchFileName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Hidden"><span class="hs-identifier">Hidden</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmLine"><span class="hs-identifier">UcmLine</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmContext"><span class="hs-identifier">UcmContext</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#APIRequest"><span class="hs-identifier">APIRequest</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#CMarkCodeBlock"><span class="hs-identifier">CMarkCodeBlock</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Stanza"><span class="hs-identifier">Stanza</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#InfoTags"><span class="hs-identifier">InfoTags</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#getCommonInfoTags"><span class="hs-identifier">getCommonInfoTags</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Transcript"><span class="hs-identifier">Transcript</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#settings"><span class="hs-identifier">settings</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#TranscriptType"><span class="hs-identifier">TranscriptType</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier">Behaviors</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#extractBehaviors"><span class="hs-identifier">extractBehaviors</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier">Settings</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#defaultInfoTags"><span class="hs-identifier">defaultInfoTags</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#ProcessedBlock"><span class="hs-identifier">ProcessedBlock</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="hs-identifier">CMark.Node</span></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">CMark</span></span><span> </span><span class="hs-keyword">qualified</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(.:?)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.=)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson.Types</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Classes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Show1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftShowsPrec</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">showList__</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Core.Project</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ProjectBranchName</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ProjectName</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Project</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ProjectAndBranch</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | A transcript is executable Markdown, akin to a Jupyter Notebook.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--  __NB__: This is effectively the AST. It needs to preserve anything we want to be able to serialize into transcript</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--          output.</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">data</span><span> </span><span id="Transcript"><span class="annot"><a href="Unison.Codebase.Transcript.html#Transcript"><span class="hs-identifier hs-var">Transcript</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Transcript"><span class="annot"><a href="Unison.Codebase.Transcript.html#Transcript"><span class="hs-identifier hs-var">Transcript</span></a></span></span><span> </span><span class="hs-special">{</span><span id="frontmatter"><span class="annot"><span class="annottext">Transcript -&gt; Value
+</span><a href="Unison.Codebase.Transcript.html#frontmatter"><span class="hs-identifier hs-var hs-var">frontmatter</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Value</span></span><span class="hs-special">,</span><span> </span><span id="stanzas"><span class="annot"><span class="annottext">Transcript -&gt; [Stanza]
+</span><a href="Unison.Codebase.Transcript.html#stanzas"><span class="hs-identifier hs-var hs-var">stanzas</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Codebase.Transcript.html#Stanza"><span class="hs-identifier hs-type">Stanza</span></a></span><span class="hs-special">]</span><span class="hs-special">}</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681554504"><span id="local-6989586621681554513"><span id="local-6989586621681554517"><span class="annot"><span class="annottext">Int -&gt; Transcript -&gt; ShowS
+[Transcript] -&gt; ShowS
+Transcript -&gt; String
+(Int -&gt; Transcript -&gt; ShowS)
+-&gt; (Transcript -&gt; String)
+-&gt; ([Transcript] -&gt; ShowS)
+-&gt; Show Transcript
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Transcript -&gt; ShowS
+showsPrec :: Int -&gt; Transcript -&gt; ShowS
+$cshow :: Transcript -&gt; String
+show :: Transcript -&gt; String
+$cshowList :: [Transcript] -&gt; ShowS
+showList :: [Transcript] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">type</span><span> </span><span id="ExpectingError"><span class="annot"><a href="Unison.Codebase.Transcript.html#ExpectingError"><span class="hs-identifier hs-var">ExpectingError</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">type</span><span> </span><span id="HasBug"><span class="annot"><a href="Unison.Codebase.Transcript.html#HasBug"><span class="hs-identifier hs-var">HasBug</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">type</span><span> </span><span id="ScratchFileName"><span class="annot"><a href="Unison.Codebase.Transcript.html#ScratchFileName"><span class="hs-identifier hs-var">ScratchFileName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">data</span><span> </span><span id="Hidden"><span class="annot"><a href="Unison.Codebase.Transcript.html#Hidden"><span class="hs-identifier hs-var">Hidden</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Shown"><span class="annot"><a href="Unison.Codebase.Transcript.html#Shown"><span class="hs-identifier hs-var">Shown</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="HideOutput"><span class="annot"><a href="Unison.Codebase.Transcript.html#HideOutput"><span class="hs-identifier hs-var">HideOutput</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="HideAll"><span class="annot"><a href="Unison.Codebase.Transcript.html#HideAll"><span class="hs-identifier hs-var">HideAll</span></a></span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681554530"><span id="local-6989586621681554535"><span class="annot"><span class="annottext">Hidden -&gt; Hidden -&gt; Bool
+(Hidden -&gt; Hidden -&gt; Bool)
+-&gt; (Hidden -&gt; Hidden -&gt; Bool) -&gt; Eq Hidden
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Hidden -&gt; Hidden -&gt; Bool
+== :: Hidden -&gt; Hidden -&gt; Bool
+$c/= :: Hidden -&gt; Hidden -&gt; Bool
+/= :: Hidden -&gt; Hidden -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554542"><span id="local-6989586621681554546"><span id="local-6989586621681554550"><span id="local-6989586621681554554"><span id="local-6989586621681554557"><span id="local-6989586621681554560"><span id="local-6989586621681554563"><span class="annot"><span class="annottext">Eq Hidden
+Eq Hidden =&gt;
+(Hidden -&gt; Hidden -&gt; Ordering)
+-&gt; (Hidden -&gt; Hidden -&gt; Bool)
+-&gt; (Hidden -&gt; Hidden -&gt; Bool)
+-&gt; (Hidden -&gt; Hidden -&gt; Bool)
+-&gt; (Hidden -&gt; Hidden -&gt; Bool)
+-&gt; (Hidden -&gt; Hidden -&gt; Hidden)
+-&gt; (Hidden -&gt; Hidden -&gt; Hidden)
+-&gt; Ord Hidden
+Hidden -&gt; Hidden -&gt; Bool
+Hidden -&gt; Hidden -&gt; Ordering
+Hidden -&gt; Hidden -&gt; Hidden
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Hidden -&gt; Hidden -&gt; Ordering
+compare :: Hidden -&gt; Hidden -&gt; Ordering
+$c&lt; :: Hidden -&gt; Hidden -&gt; Bool
+&lt; :: Hidden -&gt; Hidden -&gt; Bool
+$c&lt;= :: Hidden -&gt; Hidden -&gt; Bool
+&lt;= :: Hidden -&gt; Hidden -&gt; Bool
+$c&gt; :: Hidden -&gt; Hidden -&gt; Bool
+&gt; :: Hidden -&gt; Hidden -&gt; Bool
+$c&gt;= :: Hidden -&gt; Hidden -&gt; Bool
+&gt;= :: Hidden -&gt; Hidden -&gt; Bool
+$cmax :: Hidden -&gt; Hidden -&gt; Hidden
+max :: Hidden -&gt; Hidden -&gt; Hidden
+$cmin :: Hidden -&gt; Hidden -&gt; Hidden
+min :: Hidden -&gt; Hidden -&gt; Hidden
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554571"><span id="local-6989586621681554575"><span id="local-6989586621681554578"><span id="local-6989586621681554584"><span class="annot"><span class="annottext">ReadPrec [Hidden]
+ReadPrec Hidden
+Int -&gt; ReadS Hidden
+ReadS [Hidden]
+(Int -&gt; ReadS Hidden)
+-&gt; ReadS [Hidden]
+-&gt; ReadPrec Hidden
+-&gt; ReadPrec [Hidden]
+-&gt; Read Hidden
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: Int -&gt; ReadS Hidden
+readsPrec :: Int -&gt; ReadS Hidden
+$creadList :: ReadS [Hidden]
+readList :: ReadS [Hidden]
+$creadPrec :: ReadPrec Hidden
+readPrec :: ReadPrec Hidden
+$creadListPrec :: ReadPrec [Hidden]
+readListPrec :: ReadPrec [Hidden]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554591"><span id="local-6989586621681554593"><span id="local-6989586621681554597"><span class="annot"><span class="annottext">Int -&gt; Hidden -&gt; ShowS
+[Hidden] -&gt; ShowS
+Hidden -&gt; String
+(Int -&gt; Hidden -&gt; ShowS)
+-&gt; (Hidden -&gt; String) -&gt; ([Hidden] -&gt; ShowS) -&gt; Show Hidden
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Hidden -&gt; ShowS
+showsPrec :: Int -&gt; Hidden -&gt; ShowS
+$cshow :: Hidden -&gt; String
+show :: Hidden -&gt; String
+$cshowList :: [Hidden] -&gt; ShowS
+showList :: [Hidden] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">data</span><span> </span><span id="UcmLine"><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmLine"><span class="hs-identifier hs-var">UcmLine</span></a></span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="UcmCommand"><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmCommand"><span class="hs-identifier hs-var">UcmCommand</span></a></span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmContext"><span class="hs-identifier hs-type">UcmContext</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Text does not include the '--' prefix.</span></span><span>
+</span><span id="line-56"></span><span>    </span><span id="UcmComment"><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmComment"><span class="hs-identifier hs-var">UcmComment</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UcmOutputLine"><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmOutputLine"><span class="hs-identifier hs-var">UcmOutputLine</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681554603"><span id="local-6989586621681554612"><span class="annot"><span class="annottext">UcmLine -&gt; UcmLine -&gt; Bool
+(UcmLine -&gt; UcmLine -&gt; Bool)
+-&gt; (UcmLine -&gt; UcmLine -&gt; Bool) -&gt; Eq UcmLine
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: UcmLine -&gt; UcmLine -&gt; Bool
+== :: UcmLine -&gt; UcmLine -&gt; Bool
+$c/= :: UcmLine -&gt; UcmLine -&gt; Bool
+/= :: UcmLine -&gt; UcmLine -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554616"><span id="local-6989586621681554627"><span id="local-6989586621681554631"><span class="annot"><span class="annottext">Int -&gt; UcmLine -&gt; ShowS
+[UcmLine] -&gt; ShowS
+UcmLine -&gt; String
+(Int -&gt; UcmLine -&gt; ShowS)
+-&gt; (UcmLine -&gt; String) -&gt; ([UcmLine] -&gt; ShowS) -&gt; Show UcmLine
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; UcmLine -&gt; ShowS
+showsPrec :: Int -&gt; UcmLine -&gt; ShowS
+$cshow :: UcmLine -&gt; String
+show :: UcmLine -&gt; String
+$cshowList :: [UcmLine] -&gt; ShowS
+showList :: [UcmLine] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><span class="hs-comment">-- | Where a command is run: a project branch (myproject/mybranch&gt;).</span></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">data</span><span> </span><span id="UcmContext"><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmContext"><span class="hs-identifier hs-var">UcmContext</span></a></span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | Use the current project &amp; branch</span></span><span>
+</span><span id="line-63"></span><span>    </span><span id="UcmContextEmpty"><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmContextEmpty"><span class="hs-identifier hs-var">UcmContextEmpty</span></a></span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Explicit project &amp; branch</span></span><span>
+</span><span id="line-65"></span><span>    </span><span id="UcmContextProject"><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmContextProject"><span class="hs-identifier hs-var">UcmContextProject</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ProjectAndBranch</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectName</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectBranchName</span></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681554636"><span id="local-6989586621681554644"><span class="annot"><span class="annottext">UcmContext -&gt; UcmContext -&gt; Bool
+(UcmContext -&gt; UcmContext -&gt; Bool)
+-&gt; (UcmContext -&gt; UcmContext -&gt; Bool) -&gt; Eq UcmContext
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: UcmContext -&gt; UcmContext -&gt; Bool
+== :: UcmContext -&gt; UcmContext -&gt; Bool
+$c/= :: UcmContext -&gt; UcmContext -&gt; Bool
+/= :: UcmContext -&gt; UcmContext -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554649"><span id="local-6989586621681554656"><span id="local-6989586621681554659"><span class="annot"><span class="annottext">Int -&gt; UcmContext -&gt; ShowS
+[UcmContext] -&gt; ShowS
+UcmContext -&gt; String
+(Int -&gt; UcmContext -&gt; ShowS)
+-&gt; (UcmContext -&gt; String)
+-&gt; ([UcmContext] -&gt; ShowS)
+-&gt; Show UcmContext
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; UcmContext -&gt; ShowS
+showsPrec :: Int -&gt; UcmContext -&gt; ShowS
+$cshow :: UcmContext -&gt; String
+show :: UcmContext -&gt; String
+$cshowList :: [UcmContext] -&gt; ShowS
+showList :: [UcmContext] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">data</span><span> </span><span id="APIRequest"><span class="annot"><a href="Unison.Codebase.Transcript.html#APIRequest"><span class="hs-identifier hs-var">APIRequest</span></a></span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">-- URL</span><span>
+</span><span id="line-70"></span><span>    </span><span id="GetRequest"><span class="annot"><a href="Unison.Codebase.Transcript.html#GetRequest"><span class="hs-identifier hs-var">GetRequest</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | URL, Body</span></span><span>
+</span><span id="line-72"></span><span>    </span><span id="PostRequest"><span class="annot"><a href="Unison.Codebase.Transcript.html#PostRequest"><span class="hs-identifier hs-var">PostRequest</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="APIComment"><span class="annot"><a href="Unison.Codebase.Transcript.html#APIComment"><span class="hs-identifier hs-var">APIComment</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="APIResponse"><span class="annot"><a href="Unison.Codebase.Transcript.html#APIResponse"><span class="hs-identifier hs-var">APIResponse</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681554668"><span id="local-6989586621681554677"><span class="annot"><span class="annottext">APIRequest -&gt; APIRequest -&gt; Bool
+(APIRequest -&gt; APIRequest -&gt; Bool)
+-&gt; (APIRequest -&gt; APIRequest -&gt; Bool) -&gt; Eq APIRequest
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: APIRequest -&gt; APIRequest -&gt; Bool
+== :: APIRequest -&gt; APIRequest -&gt; Bool
+$c/= :: APIRequest -&gt; APIRequest -&gt; Bool
+/= :: APIRequest -&gt; APIRequest -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554681"><span id="local-6989586621681554692"><span id="local-6989586621681554696"><span class="annot"><span class="annottext">Int -&gt; APIRequest -&gt; ShowS
+[APIRequest] -&gt; ShowS
+APIRequest -&gt; String
+(Int -&gt; APIRequest -&gt; ShowS)
+-&gt; (APIRequest -&gt; String)
+-&gt; ([APIRequest] -&gt; ShowS)
+-&gt; Show APIRequest
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; APIRequest -&gt; ShowS
+showsPrec :: Int -&gt; APIRequest -&gt; ShowS
+$cshow :: APIRequest -&gt; String
+show :: APIRequest -&gt; String
+$cshowList :: [APIRequest] -&gt; ShowS
+showList :: [APIRequest] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#CMarkCodeBlock"><span class="hs-identifier hs-type">CMarkCodeBlock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CMark.PosInfo</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CMark.Node</span></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">pattern</span><span> </span><span id="CMarkCodeBlock"><span id="%24mCMarkCodeBlock"><span id="%24bCMarkCodeBlock"><span class="annot"><span class="annottext">$mCMarkCodeBlock :: forall {r}.
+Node -&gt; (Maybe PosInfo -&gt; Text -&gt; Text -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCMarkCodeBlock :: Maybe PosInfo -&gt; Text -&gt; Text -&gt; Node
+</span><a href="Unison.Codebase.Transcript.html#CMarkCodeBlock"><span class="hs-identifier hs-var hs-var hs-var">CMarkCodeBlock</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621681554700"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681554701"><span class="hs-identifier hs-type">info</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681554702"><span class="hs-identifier hs-type">body</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CMark.Node</span></span><span> </span><span id="local-6989586621681554700"><span class="annot"><a href="#local-6989586621681554700"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CMark.CODE_BLOCK</span></span><span> </span><span id="local-6989586621681554701"><span class="annot"><a href="#local-6989586621681554701"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span id="local-6989586621681554702"><span class="annot"><a href="#local-6989586621681554702"><span class="hs-identifier hs-var">body</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">type</span><span> </span><span id="Stanza"><span class="annot"><a href="Unison.Codebase.Transcript.html#Stanza"><span class="hs-identifier hs-var">Stanza</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CMark.Node</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#ProcessedBlock"><span class="hs-identifier hs-type">ProcessedBlock</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">data</span><span> </span><span id="InfoTags"><span class="annot"><a href="Unison.Codebase.Transcript.html#InfoTags"><span class="hs-identifier hs-var">InfoTags</span></a></span></span><span> </span><span id="local-6989586621681554328"><span class="annot"><a href="#local-6989586621681554328"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InfoTags"><span class="annot"><a href="Unison.Codebase.Transcript.html#InfoTags"><span class="hs-identifier hs-var">InfoTags</span></a></span></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">-- | `Nothing` represents the default value, which differs depending on the `TranscriptType` and `ProcessedBlock`</span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-comment">--   tag.</span><span>
+</span><span id="line-85"></span><span>    </span><span id="hidden"><span class="annot"><span class="annottext">forall a. InfoTags a -&gt; Maybe Hidden
+</span><a href="Unison.Codebase.Transcript.html#hidden"><span class="hs-identifier hs-var hs-var">hidden</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Hidden"><span class="hs-identifier hs-type">Hidden</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-86"></span><span>    </span><span id="expectingError"><span class="annot"><span class="annottext">forall a. InfoTags a -&gt; Bool
+</span><a href="Unison.Codebase.Transcript.html#expectingError"><span class="hs-identifier hs-var hs-var">expectingError</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#ExpectingError"><span class="hs-identifier hs-type">ExpectingError</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-87"></span><span>    </span><span id="hasBug"><span class="annot"><span class="annottext">forall a. InfoTags a -&gt; Bool
+</span><a href="Unison.Codebase.Transcript.html#hasBug"><span class="hs-identifier hs-var hs-var">hasBug</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#HasBug"><span class="hs-identifier hs-type">HasBug</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-88"></span><span>    </span><span id="generated"><span class="annot"><span class="annottext">forall a. InfoTags a -&gt; Bool
+</span><a href="Unison.Codebase.Transcript.html#generated"><span class="hs-identifier hs-var hs-var">generated</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>
+</span><span id="line-89"></span><span>    </span><span id="additionalTags"><span class="annot"><span class="annottext">forall a. InfoTags a -&gt; a
+</span><a href="Unison.Codebase.Transcript.html#additionalTags"><span class="hs-identifier hs-var hs-var">additionalTags</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621681554328"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681554713"><span id="local-6989586621681554723"><span class="annot"><span class="annottext">InfoTags a -&gt; InfoTags a -&gt; Bool
+(InfoTags a -&gt; InfoTags a -&gt; Bool)
+-&gt; (InfoTags a -&gt; InfoTags a -&gt; Bool) -&gt; Eq (InfoTags a)
+forall a. Eq a =&gt; InfoTags a -&gt; InfoTags a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall a. Eq a =&gt; InfoTags a -&gt; InfoTags a -&gt; Bool
+== :: InfoTags a -&gt; InfoTags a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; InfoTags a -&gt; InfoTags a -&gt; Bool
+/= :: InfoTags a -&gt; InfoTags a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554731"><span id="local-6989586621681554741"><span id="local-6989586621681554749"><span id="local-6989586621681554753"><span id="local-6989586621681554756"><span id="local-6989586621681554759"><span id="local-6989586621681554762"><span class="annot"><span class="annottext">Eq (InfoTags a)
+Eq (InfoTags a) =&gt;
+(InfoTags a -&gt; InfoTags a -&gt; Ordering)
+-&gt; (InfoTags a -&gt; InfoTags a -&gt; Bool)
+-&gt; (InfoTags a -&gt; InfoTags a -&gt; Bool)
+-&gt; (InfoTags a -&gt; InfoTags a -&gt; Bool)
+-&gt; (InfoTags a -&gt; InfoTags a -&gt; Bool)
+-&gt; (InfoTags a -&gt; InfoTags a -&gt; InfoTags a)
+-&gt; (InfoTags a -&gt; InfoTags a -&gt; InfoTags a)
+-&gt; Ord (InfoTags a)
+InfoTags a -&gt; InfoTags a -&gt; Bool
+InfoTags a -&gt; InfoTags a -&gt; Ordering
+InfoTags a -&gt; InfoTags a -&gt; InfoTags a
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall a. Ord a =&gt; Eq (InfoTags a)
+forall a. Ord a =&gt; InfoTags a -&gt; InfoTags a -&gt; Bool
+forall a. Ord a =&gt; InfoTags a -&gt; InfoTags a -&gt; Ordering
+forall a. Ord a =&gt; InfoTags a -&gt; InfoTags a -&gt; InfoTags a
+$ccompare :: forall a. Ord a =&gt; InfoTags a -&gt; InfoTags a -&gt; Ordering
+compare :: InfoTags a -&gt; InfoTags a -&gt; Ordering
+$c&lt; :: forall a. Ord a =&gt; InfoTags a -&gt; InfoTags a -&gt; Bool
+&lt; :: InfoTags a -&gt; InfoTags a -&gt; Bool
+$c&lt;= :: forall a. Ord a =&gt; InfoTags a -&gt; InfoTags a -&gt; Bool
+&lt;= :: InfoTags a -&gt; InfoTags a -&gt; Bool
+$c&gt; :: forall a. Ord a =&gt; InfoTags a -&gt; InfoTags a -&gt; Bool
+&gt; :: InfoTags a -&gt; InfoTags a -&gt; Bool
+$c&gt;= :: forall a. Ord a =&gt; InfoTags a -&gt; InfoTags a -&gt; Bool
+&gt;= :: InfoTags a -&gt; InfoTags a -&gt; Bool
+$cmax :: forall a. Ord a =&gt; InfoTags a -&gt; InfoTags a -&gt; InfoTags a
+max :: InfoTags a -&gt; InfoTags a -&gt; InfoTags a
+$cmin :: forall a. Ord a =&gt; InfoTags a -&gt; InfoTags a -&gt; InfoTags a
+min :: InfoTags a -&gt; InfoTags a -&gt; InfoTags a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554767"><span id="local-6989586621681554771"><span id="local-6989586621681554774"><span id="local-6989586621681554797"><span class="annot"><span class="annottext">ReadPrec [InfoTags a]
+ReadPrec (InfoTags a)
+Int -&gt; ReadS (InfoTags a)
+ReadS [InfoTags a]
+(Int -&gt; ReadS (InfoTags a))
+-&gt; ReadS [InfoTags a]
+-&gt; ReadPrec (InfoTags a)
+-&gt; ReadPrec [InfoTags a]
+-&gt; Read (InfoTags a)
+forall a. Read a =&gt; ReadPrec [InfoTags a]
+forall a. Read a =&gt; ReadPrec (InfoTags a)
+forall a. Read a =&gt; Int -&gt; ReadS (InfoTags a)
+forall a. Read a =&gt; ReadS [InfoTags a]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: forall a. Read a =&gt; Int -&gt; ReadS (InfoTags a)
+readsPrec :: Int -&gt; ReadS (InfoTags a)
+$creadList :: forall a. Read a =&gt; ReadS [InfoTags a]
+readList :: ReadS [InfoTags a]
+$creadPrec :: forall a. Read a =&gt; ReadPrec (InfoTags a)
+readPrec :: ReadPrec (InfoTags a)
+$creadListPrec :: forall a. Read a =&gt; ReadPrec [InfoTags a]
+readListPrec :: ReadPrec [InfoTags a]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554801"><span id="local-6989586621681554812"><span id="local-6989586621681554816"><span class="annot"><span class="annottext">Int -&gt; InfoTags a -&gt; ShowS
+[InfoTags a] -&gt; ShowS
+InfoTags a -&gt; String
+(Int -&gt; InfoTags a -&gt; ShowS)
+-&gt; (InfoTags a -&gt; String)
+-&gt; ([InfoTags a] -&gt; ShowS)
+-&gt; Show (InfoTags a)
+forall a. Show a =&gt; Int -&gt; InfoTags a -&gt; ShowS
+forall a. Show a =&gt; [InfoTags a] -&gt; ShowS
+forall a. Show a =&gt; InfoTags a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; InfoTags a -&gt; ShowS
+showsPrec :: Int -&gt; InfoTags a -&gt; ShowS
+$cshow :: forall a. Show a =&gt; InfoTags a -&gt; String
+show :: InfoTags a -&gt; String
+$cshowList :: forall a. Show a =&gt; [InfoTags a] -&gt; ShowS
+showList :: [InfoTags a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554819"><span id="local-6989586621681554825"><span id="local-6989586621681554828"><span id="local-6989586621681554833"><span id="local-6989586621681554835"><span id="local-6989586621681554838"><span id="local-6989586621681554841"><span id="local-6989586621681554844"><span id="local-6989586621681554847"><span id="local-6989586621681554850"><span id="local-6989586621681554853"><span id="local-6989586621681554855"><span id="local-6989586621681554858"><span id="local-6989586621681554863"><span id="local-6989586621681554868"><span id="local-6989586621681554873"><span id="local-6989586621681554878"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; InfoTags m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InfoTags a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InfoTags a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; InfoTags a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; InfoTags a -&gt; a)
+-&gt; (forall a. InfoTags a -&gt; [a])
+-&gt; (forall a. InfoTags a -&gt; Bool)
+-&gt; (forall a. InfoTags a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; InfoTags a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; InfoTags a -&gt; a)
+-&gt; (forall a. Ord a =&gt; InfoTags a -&gt; a)
+-&gt; (forall a. Num a =&gt; InfoTags a -&gt; a)
+-&gt; (forall a. Num a =&gt; InfoTags a -&gt; a)
+-&gt; Foldable InfoTags
+forall a. Eq a =&gt; a -&gt; InfoTags a -&gt; Bool
+forall a. Num a =&gt; InfoTags a -&gt; a
+forall a. Ord a =&gt; InfoTags a -&gt; a
+forall m. Monoid m =&gt; InfoTags m -&gt; m
+forall a. InfoTags a -&gt; Bool
+forall a. InfoTags a -&gt; Int
+forall a. InfoTags a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; InfoTags a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InfoTags a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall m. Monoid m =&gt; InfoTags m -&gt; m
+fold :: forall m. Monoid m =&gt; InfoTags m -&gt; m
+$cfoldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InfoTags a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InfoTags a -&gt; m
+$cfoldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InfoTags a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InfoTags a -&gt; m
+$cfoldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b
+$cfoldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b
+$cfoldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b
+$cfoldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InfoTags a -&gt; b
+$cfoldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; InfoTags a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; InfoTags a -&gt; a
+$cfoldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; InfoTags a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; InfoTags a -&gt; a
+$ctoList :: forall a. InfoTags a -&gt; [a]
+toList :: forall a. InfoTags a -&gt; [a]
+$cnull :: forall a. InfoTags a -&gt; Bool
+null :: forall a. InfoTags a -&gt; Bool
+$clength :: forall a. InfoTags a -&gt; Int
+length :: forall a. InfoTags a -&gt; Int
+$celem :: forall a. Eq a =&gt; a -&gt; InfoTags a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; InfoTags a -&gt; Bool
+$cmaximum :: forall a. Ord a =&gt; InfoTags a -&gt; a
+maximum :: forall a. Ord a =&gt; InfoTags a -&gt; a
+$cminimum :: forall a. Ord a =&gt; InfoTags a -&gt; a
+minimum :: forall a. Ord a =&gt; InfoTags a -&gt; a
+$csum :: forall a. Num a =&gt; InfoTags a -&gt; a
+sum :: forall a. Num a =&gt; InfoTags a -&gt; a
+$cproduct :: forall a. Num a =&gt; InfoTags a -&gt; a
+product :: forall a. Num a =&gt; InfoTags a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554887"><span id="local-6989586621681554889"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; InfoTags a -&gt; InfoTags b)
+-&gt; (forall a b. a -&gt; InfoTags b -&gt; InfoTags a) -&gt; Functor InfoTags
+forall a b. a -&gt; InfoTags b -&gt; InfoTags a
+forall a b. (a -&gt; b) -&gt; InfoTags a -&gt; InfoTags b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; InfoTags a -&gt; InfoTags b
+fmap :: forall a b. (a -&gt; b) -&gt; InfoTags a -&gt; InfoTags b
+$c&lt;$ :: forall a b. a -&gt; InfoTags b -&gt; InfoTags a
+&lt;$ :: forall a b. a -&gt; InfoTags b -&gt; InfoTags a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681554897"><span id="local-6989586621681554902"><span id="local-6989586621681554908"><span id="local-6989586621681554913"><span class="annot"><span class="annottext">Functor InfoTags
+Foldable InfoTags
+(Functor InfoTags, Foldable InfoTags) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; InfoTags a -&gt; f (InfoTags b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    InfoTags (f a) -&gt; f (InfoTags a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; InfoTags a -&gt; m (InfoTags b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    InfoTags (m a) -&gt; m (InfoTags a))
+-&gt; Traversable InfoTags
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a. Monad m =&gt; InfoTags (m a) -&gt; m (InfoTags a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+InfoTags (f a) -&gt; f (InfoTags a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; InfoTags a -&gt; m (InfoTags b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; InfoTags a -&gt; f (InfoTags b)
+$ctraverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; InfoTags a -&gt; f (InfoTags b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; InfoTags a -&gt; f (InfoTags b)
+$csequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+InfoTags (f a) -&gt; f (InfoTags a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+InfoTags (f a) -&gt; f (InfoTags a)
+$cmapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; InfoTags a -&gt; m (InfoTags b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; InfoTags a -&gt; m (InfoTags b)
+$csequence :: forall (m :: * -&gt; *) a. Monad m =&gt; InfoTags (m a) -&gt; m (InfoTags a)
+sequence :: forall (m :: * -&gt; *) a. Monad m =&gt; InfoTags (m a) -&gt; m (InfoTags a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="annot"><span class="hs-comment">-- | A set of customizable settings for a transcript.</span></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">data</span><span> </span><span id="Settings"><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-var">Settings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Settings"><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-var">Settings</span></a></span></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="transcriptType"><span class="annot"><span class="annottext">Settings -&gt; Maybe TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#transcriptType"><span class="hs-identifier hs-var hs-var">transcriptType</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#TranscriptType"><span class="hs-identifier hs-type">TranscriptType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-96"></span><span>    </span><span id="behaviors"><span class="annot"><span class="annottext">Settings -&gt; Behaviors Maybe
+</span><a href="Unison.Codebase.Transcript.html#behaviors"><span class="hs-identifier hs-var hs-var">behaviors</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681554924"><span id="local-6989586621681554932"><span id="local-6989586621681554936"><span class="annot"><span class="annottext">Int -&gt; Settings -&gt; ShowS
+[Settings] -&gt; ShowS
+Settings -&gt; String
+(Int -&gt; Settings -&gt; ShowS)
+-&gt; (Settings -&gt; String) -&gt; ([Settings] -&gt; ShowS) -&gt; Show Settings
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Settings -&gt; ShowS
+showsPrec :: Int -&gt; Settings -&gt; ShowS
+$cshow :: Settings -&gt; String
+show :: Settings -&gt; String
+$cshowList :: [Settings] -&gt; ShowS
+showList :: [Settings] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681554942"><span id="local-6989586621681554945"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-101"></span><span>  </span><span id="local-6989586621681554972"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Settings
+</span><a href="#local-6989586621681554972"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Object</span></span><span> </span><span id="local-6989586621681554975"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681554975"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-103"></span><span>      </span><span class="annot"><span class="annottext">Maybe TranscriptType -&gt; Behaviors Maybe -&gt; Settings
+</span><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-var">Settings</span></a></span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="annottext">(Maybe TranscriptType -&gt; Behaviors Maybe -&gt; Settings)
+-&gt; Parser (Maybe TranscriptType)
+-&gt; Parser (Behaviors Maybe -&gt; Settings)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Text -&gt; Maybe TranscriptType)
+-&gt; Parser (Maybe Text) -&gt; Parser (Maybe TranscriptType)
+forall a b. (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#resolveType"><span class="hs-identifier hs-var">resolveType</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Maybe TranscriptType)
+-&gt; Maybe Text -&gt; Maybe TranscriptType
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681554975"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;type&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>        </span><span class="annot"><span class="annottext">Parser (Behaviors Maybe -&gt; Settings)
+-&gt; Parser (Behaviors Maybe) -&gt; Parser Settings
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Parser (Behaviors Maybe)
+-&gt; (Value -&gt; Parser (Behaviors Maybe))
+-&gt; Maybe Value
+-&gt; Parser (Behaviors Maybe)
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Behaviors Maybe -&gt; Parser (Behaviors Maybe)
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Maybe Bool -&gt; Behaviors Maybe)
+-&gt; Parser (Maybe Bool) -&gt; Parser (Behaviors Maybe)
+forall a b. (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Maybe Bool -&gt; Maybe (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Maybe)
+-&gt; Maybe (ProcessedBlock -&gt; Hidden)
+-&gt; Maybe Bool
+-&gt; Behaviors Maybe
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Maybe
+forall (f :: * -&gt; *).
+f Bool -&gt; f (ProcessedBlock -&gt; Hidden) -&gt; Behaviors f
+</span><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-var">Behaviors</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (ProcessedBlock -&gt; Hidden)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Parser (Maybe Bool) -&gt; Parser (Behaviors Maybe))
+-&gt; (Value -&gt; Parser (Maybe Bool))
+-&gt; Value
+-&gt; Parser (Behaviors Maybe)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser (Maybe Bool)
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.parseJSON</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe Value -&gt; Parser (Behaviors Maybe))
+-&gt; Parser (Maybe Value) -&gt; Parser (Behaviors Maybe)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681554975"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Value)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;autoupdate&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>    </span><span id="local-6989586621681554983"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621681554983"><span class="hs-identifier hs-var">invalid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Value -&gt; Parser Settings
+forall a. String -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.typeMismatch</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Settings&quot;</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621681554983"><span class="hs-identifier hs-var">invalid</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681554987"><span id="local-6989586621681554991"><span id="local-6989586621681554994"><span id="local-6989586621681554997"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-109"></span><span>  </span><span id="local-6989586621681555014"><span class="annot"><span class="annottext">toJSON :: Settings -&gt; Value
+</span><a href="#local-6989586621681555014"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681555016"><span class="annot"><span class="annottext">Maybe TranscriptType
+transcriptType :: Settings -&gt; Maybe TranscriptType
+transcriptType :: Maybe TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#transcriptType"><span class="hs-identifier hs-var hs-var">transcriptType</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681555017"><span class="annot"><span class="annottext">Behaviors Maybe
+behaviors :: Settings -&gt; Behaviors Maybe
+behaviors :: Behaviors Maybe
+</span><a href="Unison.Codebase.Transcript.html#behaviors"><span class="hs-identifier hs-var hs-var">behaviors</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-111"></span><span>      </span><span class="annot"><span class="annottext">[Maybe Pair] -&gt; [Pair]
+forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span>
+</span><span id="line-112"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;type&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; TranscriptType -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(TranscriptType -&gt; Pair) -&gt; Maybe TranscriptType -&gt; Maybe Pair
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe TranscriptType
+</span><a href="#local-6989586621681555016"><span class="hs-identifier hs-var">transcriptType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-113"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;autoupdate&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Bool -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Pair) -&gt; Maybe Bool -&gt; Maybe Pair
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe -&gt; Maybe Bool
+forall (f :: * -&gt; *). Behaviors f -&gt; f Bool
+</span><a href="Unison.Codebase.Transcript.html#autoupdate"><span class="hs-identifier hs-var">autoupdate</span></a></span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe
+</span><a href="#local-6989586621681555017"><span class="hs-identifier hs-var">behaviors</span></a></span><span>
+</span><span id="line-114"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681555023"><span id="local-6989586621681555027"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-117"></span><span>  </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span> </span><span id="local-6989586621681555035"><span class="annot"><span class="annottext">Maybe TranscriptType
+</span><a href="#local-6989586621681555035"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621681555036"><span class="annot"><span class="annottext">Behaviors Maybe
+</span><a href="#local-6989586621681555036"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621681555037"><span class="annot"><span class="annottext">&lt;&gt; :: Settings -&gt; Settings -&gt; Settings
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span> </span><span id="local-6989586621681555038"><span class="annot"><span class="annottext">Maybe TranscriptType
+</span><a href="#local-6989586621681555038"><span class="hs-identifier hs-var">t'</span></a></span></span><span> </span><span id="local-6989586621681555039"><span class="annot"><span class="annottext">Behaviors Maybe
+</span><a href="#local-6989586621681555039"><span class="hs-identifier hs-var">b'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe TranscriptType -&gt; Behaviors Maybe -&gt; Settings
+</span><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-var">Settings</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe TranscriptType
+</span><a href="#local-6989586621681555035"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe TranscriptType
+-&gt; Maybe TranscriptType -&gt; Maybe TranscriptType
+forall a. Maybe a -&gt; Maybe a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe TranscriptType
+</span><a href="#local-6989586621681555038"><span class="hs-identifier hs-var">t'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Behaviors Maybe -&gt; Settings) -&gt; Behaviors Maybe -&gt; Settings
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe
+</span><a href="#local-6989586621681555036"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe -&gt; Behaviors Maybe -&gt; Behaviors Maybe
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe
+</span><a href="#local-6989586621681555039"><span class="hs-identifier hs-var">b'</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681555045"><span id="local-6989586621681555048"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>  </span><span id="local-6989586621681555052"><span class="annot"><span class="annottext">mempty :: Settings
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe TranscriptType -&gt; Behaviors Maybe -&gt; Settings
+</span><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-var">Settings</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe TranscriptType
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="annot"><a href="Unison.Codebase.Transcript.html#settings"><span class="hs-identifier hs-type">settings</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Transcript"><span class="hs-identifier hs-type">Transcript</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span>
+</span><span id="line-123"></span><span id="settings"><span class="annot"><span class="annottext">settings :: Transcript -&gt; Settings
+</span><a href="Unison.Codebase.Transcript.html#settings"><span class="hs-identifier hs-var hs-var">settings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Settings -&gt; Settings) -&gt; Result Settings -&gt; Settings
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Result a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">Settings -&gt; Settings
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">(Result Settings -&gt; Settings)
+-&gt; (Transcript -&gt; Result Settings) -&gt; Transcript -&gt; Settings
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Result Settings
+forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">Aeson.fromJSON</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Result Settings)
+-&gt; (Transcript -&gt; Value) -&gt; Transcript -&gt; Result Settings
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Transcript -&gt; Value
+</span><a href="Unison.Codebase.Transcript.html#frontmatter"><span class="hs-identifier hs-var">frontmatter</span></a></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- | The atomic behaviors that can be controlled by settings. They may be set individually, or implied by some aggregate</span><span>
+</span><span id="line-126"></span><span class="hs-comment">--   setting.</span><span>
+</span><span id="line-127"></span><span class="hs-keyword">data</span><span> </span><span id="Behaviors"><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-var">Behaviors</span></a></span></span><span> </span><span id="local-6989586621681554415"><span class="annot"><a href="#local-6989586621681554415"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Behaviors"><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-var">Behaviors</span></a></span></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="autoupdate"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Behaviors f -&gt; f Bool
+</span><a href="Unison.Codebase.Transcript.html#autoupdate"><span class="hs-identifier hs-var hs-var">autoupdate</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621681554415"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>
+</span><span id="line-129"></span><span>    </span><span id="getHidden"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Behaviors f -&gt; f (ProcessedBlock -&gt; Hidden)
+</span><a href="Unison.Codebase.Transcript.html#getHidden"><span class="hs-identifier hs-var hs-var">getHidden</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621681554415"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#ProcessedBlock"><span class="hs-identifier hs-type">ProcessedBlock</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Hidden"><span class="hs-identifier hs-type">Hidden</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="annot"><span class="hs-comment">-- | `Behaviors` _may_ contain functions, so this instance outputs &#8220;_&#8221; in place of any functions.</span></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681554392"><span id="local-6989586621681555059"><span id="local-6989586621681555062"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show1</span></span><span> </span><span class="annot"><a href="#local-6989586621681554392"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681554392"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-134"></span><span>  </span><span id="local-6989586621681555076"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; Behaviors f -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></span></span><span> </span><span id="local-6989586621681555077"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681555077"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681555078"><span class="annot"><span class="annottext">f Bool
+autoupdate :: forall (f :: * -&gt; *). Behaviors f -&gt; f Bool
+autoupdate :: f Bool
+</span><a href="Unison.Codebase.Transcript.html#autoupdate"><span class="hs-identifier hs-var hs-var">autoupdate</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681555079"><span class="annot"><span class="annottext">f (ProcessedBlock -&gt; Hidden)
+getHidden :: forall (f :: * -&gt; *). Behaviors f -&gt; f (ProcessedBlock -&gt; Hidden)
+getHidden :: f (ProcessedBlock -&gt; Hidden)
+</span><a href="Unison.Codebase.Transcript.html#getHidden"><span class="hs-identifier hs-var hs-var">getHidden</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-135"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681555081"><span class="annot"><span class="annottext">appPrec :: Int
+</span><a href="#local-6989586621681555081"><span class="hs-identifier hs-var hs-var">appPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-136"></span><span>        </span><span id="local-6989586621681555082"><span class="annot"><span class="annottext">nextPrec :: Int
+</span><a href="#local-6989586621681555082"><span class="hs-identifier hs-var hs-var">nextPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681555081"><span class="hs-identifier hs-var">appPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-137"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><span class="hs-identifier hs-var">showParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681555082"><span class="hs-identifier hs-var">nextPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681555077"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ShowS -&gt; ShowS) -&gt; ShowS -&gt; ShowS
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-138"></span><span>          </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Behaviors&quot;</span></span><span>
+</span><span id="line-139"></span><span>            </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; f Bool -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681555082"><span class="hs-identifier hs-var">nextPrec</span></a></span><span> </span><span class="annot"><span class="annottext">f Bool
+</span><a href="#local-6989586621681555078"><span class="hs-identifier hs-var">autoupdate</span></a></span><span>
+</span><span id="line-140"></span><span>            </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span>
+</span><span id="line-141"></span><span>            </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; (ProcessedBlock -&gt; Hidden) -&gt; ShowS)
+-&gt; ([ProcessedBlock -&gt; Hidden] -&gt; ShowS)
+-&gt; Int
+-&gt; f (ProcessedBlock -&gt; Hidden)
+-&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; f a -&gt; ShowS
+forall (f :: * -&gt; *) a.
+Show1 f =&gt;
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; f a -&gt; ShowS
+</span><span class="hs-identifier hs-var">liftShowsPrec</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ProcessedBlock -&gt; Hidden
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;_&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((ProcessedBlock -&gt; Hidden) -&gt; ShowS)
+-&gt; [ProcessedBlock -&gt; Hidden] -&gt; ShowS
+forall a. (a -&gt; ShowS) -&gt; [a] -&gt; ShowS
+</span><span class="hs-identifier hs-var">showList__</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShowS -&gt; (ProcessedBlock -&gt; Hidden) -&gt; ShowS
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;_&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681555082"><span class="hs-identifier hs-var">nextPrec</span></a></span><span> </span><span class="annot"><span class="annottext">f (ProcessedBlock -&gt; Hidden)
+</span><a href="#local-6989586621681555079"><span class="hs-identifier hs-var">getHidden</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681555089"><span id="local-6989586621681555092"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-144"></span><span>  </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span id="local-6989586621681555098"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621681555098"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621681555099"><span class="annot"><span class="annottext">Maybe (ProcessedBlock -&gt; Hidden)
+</span><a href="#local-6989586621681555099"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621681555100"><span class="annot"><span class="annottext">&lt;&gt; :: Behaviors Maybe -&gt; Behaviors Maybe -&gt; Behaviors Maybe
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span id="local-6989586621681555101"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621681555101"><span class="hs-identifier hs-var">a'</span></a></span></span><span> </span><span id="local-6989586621681555102"><span class="annot"><span class="annottext">Maybe (ProcessedBlock -&gt; Hidden)
+</span><a href="#local-6989586621681555102"><span class="hs-identifier hs-var">h'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Maybe
+forall (f :: * -&gt; *).
+f Bool -&gt; f (ProcessedBlock -&gt; Hidden) -&gt; Behaviors f
+</span><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-var">Behaviors</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621681555098"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe Bool -&gt; Maybe Bool
+forall a. Maybe a -&gt; Maybe a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621681555101"><span class="hs-identifier hs-var">a'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Maybe)
+-&gt; Maybe (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Maybe
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe (ProcessedBlock -&gt; Hidden)
+</span><a href="#local-6989586621681555099"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (ProcessedBlock -&gt; Hidden)
+-&gt; Maybe (ProcessedBlock -&gt; Hidden)
+-&gt; Maybe (ProcessedBlock -&gt; Hidden)
+forall a. Maybe a -&gt; Maybe a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe (ProcessedBlock -&gt; Hidden)
+</span><a href="#local-6989586621681555102"><span class="hs-identifier hs-var">h'</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681555107"><span id="local-6989586621681555110"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>  </span><span id="local-6989586621681555112"><span class="annot"><span class="annottext">mempty :: Behaviors Maybe
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Maybe
+forall (f :: * -&gt; *).
+f Bool -&gt; f (ProcessedBlock -&gt; Hidden) -&gt; Behaviors f
+</span><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-var">Behaviors</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe (ProcessedBlock -&gt; Hidden)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="annot"><a href="Unison.Codebase.Transcript.html#extractBehaviors"><span class="hs-identifier hs-type">extractBehaviors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span>
+</span><span id="line-150"></span><span id="extractBehaviors"><span class="annot"><span class="annottext">extractBehaviors :: Settings -&gt; Behaviors Identity
+</span><a href="Unison.Codebase.Transcript.html#extractBehaviors"><span class="hs-identifier hs-var hs-var">extractBehaviors</span></a></span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681555113"><span class="annot"><span class="annottext">Maybe TranscriptType
+transcriptType :: Settings -&gt; Maybe TranscriptType
+transcriptType :: Maybe TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#transcriptType"><span class="hs-identifier hs-var hs-var">transcriptType</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681555114"><span class="annot"><span class="annottext">Behaviors Maybe
+behaviors :: Settings -&gt; Behaviors Maybe
+behaviors :: Behaviors Maybe
+</span><a href="Unison.Codebase.Transcript.html#behaviors"><span class="hs-identifier hs-var hs-var">behaviors</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681555115"><span class="annot"><span class="annottext">unified :: Behaviors Maybe
+</span><a href="#local-6989586621681555115"><span class="hs-identifier hs-var hs-var">unified</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe
+</span><a href="#local-6989586621681555114"><span class="hs-identifier hs-var">behaviors</span></a></span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe -&gt; Behaviors Maybe -&gt; Behaviors Maybe
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">TranscriptType -&gt; Behaviors Maybe
+</span><a href="Unison.Codebase.Transcript.html#transcriptBehaviors"><span class="hs-identifier hs-var">transcriptBehaviors</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TranscriptType -&gt; Maybe TranscriptType -&gt; TranscriptType
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#Standard"><span class="hs-identifier hs-var">Standard</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe TranscriptType
+</span><a href="#local-6989586621681555113"><span class="hs-identifier hs-var">transcriptType</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>      </span><span id="local-6989586621681554460"><span class="annot"><a href="#local-6989586621681555119"><span class="hs-identifier hs-type">determineBehavior</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621681554459"><span class="annot"><a href="#local-6989586621681554459"><span class="hs-identifier hs-type">f</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681554459"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681554459"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681554460"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621681554460"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-153"></span><span>      </span><span id="local-6989586621681555119"><span class="annot"><span class="annottext">determineBehavior :: forall a. (forall (f :: * -&gt; *). Behaviors f -&gt; f a) -&gt; Identity a
+</span><a href="#local-6989586621681555119"><span class="hs-identifier hs-var hs-var">determineBehavior</span></a></span></span><span> </span><span id="local-6989586621681555122"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Behaviors f -&gt; f a
+</span><a href="#local-6989586621681555122"><span class="hs-identifier hs-var">field</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity a -&gt; (a -&gt; Identity a) -&gt; Maybe a -&gt; Identity a
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Behaviors Identity -&gt; Identity a
+forall (f :: * -&gt; *). Behaviors f -&gt; f a
+</span><a href="#local-6989586621681555122"><span class="hs-identifier hs-var">field</span></a></span><span> </span><span class="annot"><span class="annottext">Behaviors Identity
+</span><a href="Unison.Codebase.Transcript.html#defaultBehaviors"><span class="hs-identifier hs-var">defaultBehaviors</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a -&gt; Identity a
+forall a. a -&gt; Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; Identity a) -&gt; Maybe a -&gt; Identity a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe -&gt; Maybe a
+forall (f :: * -&gt; *). Behaviors f -&gt; f a
+</span><a href="#local-6989586621681555122"><span class="hs-identifier hs-var">field</span></a></span><span> </span><span class="annot"><span class="annottext">Behaviors Maybe
+</span><a href="#local-6989586621681555115"><span class="hs-identifier hs-var">unified</span></a></span><span>
+</span><span id="line-154"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Identity Bool
+-&gt; Identity (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Identity
+forall (f :: * -&gt; *).
+f Bool -&gt; f (ProcessedBlock -&gt; Hidden) -&gt; Behaviors f
+</span><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-var">Behaviors</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(forall (f :: * -&gt; *). Behaviors f -&gt; f Bool) -&gt; Identity Bool
+forall a. (forall (f :: * -&gt; *). Behaviors f -&gt; f a) -&gt; Identity a
+</span><a href="#local-6989586621681555119"><span class="hs-identifier hs-var">determineBehavior</span></a></span><span> </span><span class="annot"><span class="annottext">Behaviors f -&gt; f Bool
+forall (f :: * -&gt; *). Behaviors f -&gt; f Bool
+</span><a href="Unison.Codebase.Transcript.html#autoupdate"><span class="hs-identifier hs-var">autoupdate</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Identity (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Identity)
+-&gt; Identity (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Identity
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(forall (f :: * -&gt; *). Behaviors f -&gt; f (ProcessedBlock -&gt; Hidden))
+-&gt; Identity (ProcessedBlock -&gt; Hidden)
+forall a. (forall (f :: * -&gt; *). Behaviors f -&gt; f a) -&gt; Identity a
+</span><a href="#local-6989586621681555119"><span class="hs-identifier hs-var">determineBehavior</span></a></span><span> </span><span class="annot"><span class="annottext">Behaviors f -&gt; f (ProcessedBlock -&gt; Hidden)
+forall (f :: * -&gt; *). Behaviors f -&gt; f (ProcessedBlock -&gt; Hidden)
+</span><a href="Unison.Codebase.Transcript.html#getHidden"><span class="hs-identifier hs-var">getHidden</span></a></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="annot"><a href="Unison.Codebase.Transcript.html#defaultBehaviors"><span class="hs-identifier hs-type">defaultBehaviors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span>
+</span><span id="line-157"></span><span id="defaultBehaviors"><span class="annot"><span class="annottext">defaultBehaviors :: Behaviors Identity
+</span><a href="Unison.Codebase.Transcript.html#defaultBehaviors"><span class="hs-identifier hs-var hs-var">defaultBehaviors</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity Bool
+-&gt; Identity (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Identity
+forall (f :: * -&gt; *).
+f Bool -&gt; f (ProcessedBlock -&gt; Hidden) -&gt; Behaviors f
+</span><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-var">Behaviors</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Identity Bool
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Identity (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Identity)
+-&gt; ((ProcessedBlock -&gt; Hidden)
+    -&gt; Identity (ProcessedBlock -&gt; Hidden))
+-&gt; (ProcessedBlock -&gt; Hidden)
+-&gt; Behaviors Identity
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(ProcessedBlock -&gt; Hidden) -&gt; Identity (ProcessedBlock -&gt; Hidden)
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="annot"><span class="annottext">((ProcessedBlock -&gt; Hidden) -&gt; Behaviors Identity)
+-&gt; (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Identity
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Hidden -&gt; Maybe Hidden -&gt; Hidden
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Hidden
+</span><a href="Unison.Codebase.Transcript.html#Shown"><span class="hs-identifier hs-var">Shown</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Hidden -&gt; Hidden)
+-&gt; (ProcessedBlock -&gt; Maybe Hidden) -&gt; ProcessedBlock -&gt; Hidden
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">InfoTags () -&gt; Maybe Hidden
+forall a. InfoTags a -&gt; Maybe Hidden
+</span><a href="Unison.Codebase.Transcript.html#hidden"><span class="hs-identifier hs-var">hidden</span></a></span><span> </span><span class="annot"><span class="annottext">(InfoTags () -&gt; Maybe Hidden)
+-&gt; (ProcessedBlock -&gt; InfoTags ())
+-&gt; ProcessedBlock
+-&gt; Maybe Hidden
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ProcessedBlock -&gt; InfoTags ()
+</span><a href="Unison.Codebase.Transcript.html#getCommonInfoTags"><span class="hs-identifier hs-var">getCommonInfoTags</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="annot"><span class="hs-comment">-- | Different types make various settingal changes.</span></span><span>
+</span><span id="line-160"></span><span class="hs-keyword">data</span><span> </span><span id="TranscriptType"><span class="annot"><a href="Unison.Codebase.Transcript.html#TranscriptType"><span class="hs-identifier hs-var">TranscriptType</span></a></span></span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | The default type, nothing changed from the default setting.</span></span><span>
+</span><span id="line-162"></span><span>    </span><span id="Standard"><span class="annot"><a href="Unison.Codebase.Transcript.html#Standard"><span class="hs-identifier hs-var">Standard</span></a></span></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Enables auto-update and changes the default hidden value for `Unison` blocks to `HideOutput`.</span></span><span>
+</span><span id="line-164"></span><span>    </span><span id="Tutorial"><span class="annot"><a href="Unison.Codebase.Transcript.html#Tutorial"><span class="hs-identifier hs-var">Tutorial</span></a></span></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681555128"><span id="local-6989586621681555132"><span class="annot"><span class="annottext">TranscriptType -&gt; TranscriptType -&gt; Bool
+(TranscriptType -&gt; TranscriptType -&gt; Bool)
+-&gt; (TranscriptType -&gt; TranscriptType -&gt; Bool) -&gt; Eq TranscriptType
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: TranscriptType -&gt; TranscriptType -&gt; Bool
+== :: TranscriptType -&gt; TranscriptType -&gt; Bool
+$c/= :: TranscriptType -&gt; TranscriptType -&gt; Bool
+/= :: TranscriptType -&gt; TranscriptType -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681555138"><span id="local-6989586621681555140"><span id="local-6989586621681555142"><span id="local-6989586621681555146"><span id="local-6989586621681555149"><span id="local-6989586621681555152"><span id="local-6989586621681555155"><span class="annot"><span class="annottext">Eq TranscriptType
+Eq TranscriptType =&gt;
+(TranscriptType -&gt; TranscriptType -&gt; Ordering)
+-&gt; (TranscriptType -&gt; TranscriptType -&gt; Bool)
+-&gt; (TranscriptType -&gt; TranscriptType -&gt; Bool)
+-&gt; (TranscriptType -&gt; TranscriptType -&gt; Bool)
+-&gt; (TranscriptType -&gt; TranscriptType -&gt; Bool)
+-&gt; (TranscriptType -&gt; TranscriptType -&gt; TranscriptType)
+-&gt; (TranscriptType -&gt; TranscriptType -&gt; TranscriptType)
+-&gt; Ord TranscriptType
+TranscriptType -&gt; TranscriptType -&gt; Bool
+TranscriptType -&gt; TranscriptType -&gt; Ordering
+TranscriptType -&gt; TranscriptType -&gt; TranscriptType
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: TranscriptType -&gt; TranscriptType -&gt; Ordering
+compare :: TranscriptType -&gt; TranscriptType -&gt; Ordering
+$c&lt; :: TranscriptType -&gt; TranscriptType -&gt; Bool
+&lt; :: TranscriptType -&gt; TranscriptType -&gt; Bool
+$c&lt;= :: TranscriptType -&gt; TranscriptType -&gt; Bool
+&lt;= :: TranscriptType -&gt; TranscriptType -&gt; Bool
+$c&gt; :: TranscriptType -&gt; TranscriptType -&gt; Bool
+&gt; :: TranscriptType -&gt; TranscriptType -&gt; Bool
+$c&gt;= :: TranscriptType -&gt; TranscriptType -&gt; Bool
+&gt;= :: TranscriptType -&gt; TranscriptType -&gt; Bool
+$cmax :: TranscriptType -&gt; TranscriptType -&gt; TranscriptType
+max :: TranscriptType -&gt; TranscriptType -&gt; TranscriptType
+$cmin :: TranscriptType -&gt; TranscriptType -&gt; TranscriptType
+min :: TranscriptType -&gt; TranscriptType -&gt; TranscriptType
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681555158"><span id="local-6989586621681555162"><span id="local-6989586621681555165"><span id="local-6989586621681555169"><span class="annot"><span class="annottext">ReadPrec [TranscriptType]
+ReadPrec TranscriptType
+Int -&gt; ReadS TranscriptType
+ReadS [TranscriptType]
+(Int -&gt; ReadS TranscriptType)
+-&gt; ReadS [TranscriptType]
+-&gt; ReadPrec TranscriptType
+-&gt; ReadPrec [TranscriptType]
+-&gt; Read TranscriptType
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: Int -&gt; ReadS TranscriptType
+readsPrec :: Int -&gt; ReadS TranscriptType
+$creadList :: ReadS [TranscriptType]
+readList :: ReadS [TranscriptType]
+$creadPrec :: ReadPrec TranscriptType
+readPrec :: ReadPrec TranscriptType
+$creadListPrec :: ReadPrec [TranscriptType]
+readListPrec :: ReadPrec [TranscriptType]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681555172"><span id="local-6989586621681555174"><span id="local-6989586621681555177"><span class="annot"><span class="annottext">Int -&gt; TranscriptType -&gt; ShowS
+[TranscriptType] -&gt; ShowS
+TranscriptType -&gt; String
+(Int -&gt; TranscriptType -&gt; ShowS)
+-&gt; (TranscriptType -&gt; String)
+-&gt; ([TranscriptType] -&gt; ShowS)
+-&gt; Show TranscriptType
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; TranscriptType -&gt; ShowS
+showsPrec :: Int -&gt; TranscriptType -&gt; ShowS
+$cshow :: TranscriptType -&gt; String
+show :: TranscriptType -&gt; String
+$cshowList :: [TranscriptType] -&gt; ShowS
+showList :: [TranscriptType] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span class="annot"><a href="Unison.Codebase.Transcript.html#resolveType"><span class="hs-identifier hs-type">resolveType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#TranscriptType"><span class="hs-identifier hs-type">TranscriptType</span></a></span><span>
+</span><span id="line-168"></span><span id="resolveType"><span class="annot"><span class="annottext">resolveType :: Text -&gt; Maybe TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#resolveType"><span class="hs-identifier hs-var hs-var">resolveType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-169"></span><span>  </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;standard&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TranscriptType -&gt; Maybe TranscriptType
+forall a. a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#Standard"><span class="hs-identifier hs-var">Standard</span></a></span><span>
+</span><span id="line-170"></span><span>  </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;tutorial&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TranscriptType -&gt; Maybe TranscriptType
+forall a. a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#Tutorial"><span class="hs-identifier hs-var">Tutorial</span></a></span><span>
+</span><span id="line-171"></span><span>  </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe TranscriptType
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681555181"><span id="local-6989586621681555184"><span id="local-6989586621681555187"><span id="local-6989586621681555190"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#TranscriptType"><span class="hs-identifier hs-type">TranscriptType</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-174"></span><span>  </span><span id="local-6989586621681555195"><span class="annot"><span class="annottext">toJSON :: TranscriptType -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-175"></span><span>    </span><span class="annot"><span class="annottext">TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#Standard"><span class="hs-identifier hs-var">Standard</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-string">&quot;standard&quot;</span></span><span>
+</span><span id="line-176"></span><span>    </span><span class="annot"><span class="annottext">TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#Tutorial"><span class="hs-identifier hs-var">Tutorial</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-string">&quot;tutorial&quot;</span></span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="annot"><a href="Unison.Codebase.Transcript.html#transcriptBehaviors"><span class="hs-identifier hs-type">transcriptBehaviors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#TranscriptType"><span class="hs-identifier hs-type">TranscriptType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-type">Behaviors</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span>
+</span><span id="line-179"></span><span id="transcriptBehaviors"><span class="annot"><span class="annottext">transcriptBehaviors :: TranscriptType -&gt; Behaviors Maybe
+</span><a href="Unison.Codebase.Transcript.html#transcriptBehaviors"><span class="hs-identifier hs-var hs-var">transcriptBehaviors</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><span class="annottext">TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#Standard"><span class="hs-identifier hs-var">Standard</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Maybe
+forall (f :: * -&gt; *).
+f Bool -&gt; f (ProcessedBlock -&gt; Hidden) -&gt; Behaviors f
+</span><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-var">Behaviors</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe (ProcessedBlock -&gt; Hidden)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><span class="annottext">TranscriptType
+</span><a href="Unison.Codebase.Transcript.html#Tutorial"><span class="hs-identifier hs-var">Tutorial</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; Maybe (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Maybe
+forall (f :: * -&gt; *).
+f Bool -&gt; f (ProcessedBlock -&gt; Hidden) -&gt; Behaviors f
+</span><a href="Unison.Codebase.Transcript.html#Behaviors"><span class="hs-identifier hs-var">Behaviors</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Maybe)
+-&gt; Maybe (ProcessedBlock -&gt; Hidden) -&gt; Behaviors Maybe
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(ProcessedBlock -&gt; Hidden) -&gt; Maybe (ProcessedBlock -&gt; Hidden)
+forall a. a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-182"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Unison"><span class="hs-identifier hs-type">Unison</span></a></span><span> </span><span id="local-6989586621681555196"><span class="annot"><span class="annottext">InfoTags (Maybe Text)
+</span><a href="#local-6989586621681555196"><span class="hs-identifier hs-var">tags</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Hidden -&gt; Maybe Hidden -&gt; Hidden
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Hidden
+</span><a href="Unison.Codebase.Transcript.html#HideOutput"><span class="hs-identifier hs-var">HideOutput</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Hidden -&gt; Hidden) -&gt; Maybe Hidden -&gt; Hidden
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">InfoTags (Maybe Text) -&gt; Maybe Hidden
+forall a. InfoTags a -&gt; Maybe Hidden
+</span><a href="Unison.Codebase.Transcript.html#hidden"><span class="hs-identifier hs-var">hidden</span></a></span><span> </span><span class="annot"><span class="annottext">InfoTags (Maybe Text)
+</span><a href="#local-6989586621681555196"><span class="hs-identifier hs-var">tags</span></a></span><span>
+</span><span id="line-183"></span><span>    </span><span id="local-6989586621681555197"><span class="annot"><span class="annottext">ProcessedBlock
+</span><a href="#local-6989586621681555197"><span class="hs-identifier hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Hidden -&gt; Maybe Hidden -&gt; Hidden
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Hidden
+</span><a href="Unison.Codebase.Transcript.html#Shown"><span class="hs-identifier hs-var">Shown</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Hidden -&gt; Hidden)
+-&gt; (InfoTags () -&gt; Maybe Hidden) -&gt; InfoTags () -&gt; Hidden
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">InfoTags () -&gt; Maybe Hidden
+forall a. InfoTags a -&gt; Maybe Hidden
+</span><a href="Unison.Codebase.Transcript.html#hidden"><span class="hs-identifier hs-var">hidden</span></a></span><span> </span><span class="annot"><span class="annottext">(InfoTags () -&gt; Hidden) -&gt; InfoTags () -&gt; Hidden
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ProcessedBlock -&gt; InfoTags ()
+</span><a href="Unison.Codebase.Transcript.html#getCommonInfoTags"><span class="hs-identifier hs-var">getCommonInfoTags</span></a></span><span> </span><span class="annot"><span class="annottext">ProcessedBlock
+</span><a href="#local-6989586621681555197"><span class="hs-identifier hs-var">block</span></a></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span id="local-6989586621681554464"><span class="annot"><a href="Unison.Codebase.Transcript.html#defaultInfoTags"><span class="hs-identifier hs-type">defaultInfoTags</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621681554464"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#InfoTags"><span class="hs-identifier hs-type">InfoTags</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681554464"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-186"></span><span id="defaultInfoTags"><span class="annot"><span class="annottext">defaultInfoTags :: forall a. a -&gt; InfoTags a
+</span><a href="Unison.Codebase.Transcript.html#defaultInfoTags"><span class="hs-identifier hs-var hs-var">defaultInfoTags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Hidden -&gt; Bool -&gt; Bool -&gt; Bool -&gt; a -&gt; InfoTags a
+forall a. Maybe Hidden -&gt; Bool -&gt; Bool -&gt; Bool -&gt; a -&gt; InfoTags a
+</span><a href="Unison.Codebase.Transcript.html#InfoTags"><span class="hs-identifier hs-var">InfoTags</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Hidden
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span class="hs-keyword">data</span><span> </span><span id="ProcessedBlock"><span class="annot"><a href="Unison.Codebase.Transcript.html#ProcessedBlock"><span class="hs-identifier hs-var">ProcessedBlock</span></a></span></span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Ucm"><span class="annot"><a href="Unison.Codebase.Transcript.html#Ucm"><span class="hs-identifier hs-var">Ucm</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#InfoTags"><span class="hs-identifier hs-type">InfoTags</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmLine"><span class="hs-identifier hs-type">UcmLine</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Unison"><span class="annot"><a href="Unison.Codebase.Transcript.html#Unison"><span class="hs-identifier hs-var">Unison</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#InfoTags"><span class="hs-identifier hs-type">InfoTags</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#ScratchFileName"><span class="hs-identifier hs-type">ScratchFileName</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="API"><span class="annot"><a href="Unison.Codebase.Transcript.html#API"><span class="hs-identifier hs-var">API</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#InfoTags"><span class="hs-identifier hs-type">InfoTags</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Codebase.Transcript.html#APIRequest"><span class="hs-identifier hs-type">APIRequest</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681555201"><span id="local-6989586621681555216"><span class="annot"><span class="annottext">ProcessedBlock -&gt; ProcessedBlock -&gt; Bool
+(ProcessedBlock -&gt; ProcessedBlock -&gt; Bool)
+-&gt; (ProcessedBlock -&gt; ProcessedBlock -&gt; Bool) -&gt; Eq ProcessedBlock
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ProcessedBlock -&gt; ProcessedBlock -&gt; Bool
+== :: ProcessedBlock -&gt; ProcessedBlock -&gt; Bool
+$c/= :: ProcessedBlock -&gt; ProcessedBlock -&gt; Bool
+/= :: ProcessedBlock -&gt; ProcessedBlock -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681555221"><span id="local-6989586621681555237"><span id="local-6989586621681555240"><span class="annot"><span class="annottext">Int -&gt; ProcessedBlock -&gt; ShowS
+[ProcessedBlock] -&gt; ShowS
+ProcessedBlock -&gt; String
+(Int -&gt; ProcessedBlock -&gt; ShowS)
+-&gt; (ProcessedBlock -&gt; String)
+-&gt; ([ProcessedBlock] -&gt; ShowS)
+-&gt; Show ProcessedBlock
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ProcessedBlock -&gt; ShowS
+showsPrec :: Int -&gt; ProcessedBlock -&gt; ShowS
+$cshow :: ProcessedBlock -&gt; String
+show :: ProcessedBlock -&gt; String
+$cshowList :: [ProcessedBlock] -&gt; ShowS
+showList :: [ProcessedBlock] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="annot"><a href="Unison.Codebase.Transcript.html#getCommonInfoTags"><span class="hs-identifier hs-type">getCommonInfoTags</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#ProcessedBlock"><span class="hs-identifier hs-type">ProcessedBlock</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#InfoTags"><span class="hs-identifier hs-type">InfoTags</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span id="getCommonInfoTags"><span class="annot"><span class="annottext">getCommonInfoTags :: ProcessedBlock -&gt; InfoTags ()
+</span><a href="Unison.Codebase.Transcript.html#getCommonInfoTags"><span class="hs-identifier hs-var hs-var">getCommonInfoTags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-196"></span><span>  </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Ucm"><span class="hs-identifier hs-type">Ucm</span></a></span><span> </span><span id="local-6989586621681555243"><span class="annot"><span class="annottext">InfoTags ()
+</span><a href="#local-6989586621681555243"><span class="hs-identifier hs-var">tags</span></a></span></span><span> </span><span class="annot"><span class="annottext">[UcmLine]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">InfoTags ()
+</span><a href="#local-6989586621681555243"><span class="hs-identifier hs-var">tags</span></a></span><span>
+</span><span id="line-197"></span><span>  </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Unison"><span class="hs-identifier hs-type">Unison</span></a></span><span> </span><span id="local-6989586621681555244"><span class="annot"><span class="annottext">InfoTags (Maybe Text)
+</span><a href="#local-6989586621681555244"><span class="hs-identifier hs-var">tags</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">() -&gt; InfoTags (Maybe Text) -&gt; InfoTags ()
+forall a b. a -&gt; InfoTags b -&gt; InfoTags a
+forall (f :: * -&gt; *) a b. Functor f =&gt; a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;$</span></span><span> </span><span class="annot"><span class="annottext">InfoTags (Maybe Text)
+</span><a href="#local-6989586621681555244"><span class="hs-identifier hs-var">tags</span></a></span><span>
+</span><span id="line-198"></span><span>  </span><span class="annot"><a href="Unison.Codebase.Transcript.html#API"><span class="hs-identifier hs-type">API</span></a></span><span> </span><span id="local-6989586621681555245"><span class="annot"><span class="annottext">InfoTags ()
+</span><a href="#local-6989586621681555245"><span class="hs-identifier hs-var">tags</span></a></span></span><span> </span><span class="annot"><span class="annottext">[APIRequest]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">InfoTags ()
+</span><a href="#local-6989586621681555245"><span class="hs-identifier hs-var">tags</span></a></span><span>
+</span><span id="line-199"></span></pre></body></html>

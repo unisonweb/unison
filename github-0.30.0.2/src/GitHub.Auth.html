@@ -1,0 +1,342 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679524549"><span id="local-6989586621679524550"><span id="local-6989586621679524551"><span id="local-6989586621679524552"><span id="local-6989586621679524553"></span></span></span></span></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Auth.html"><span class="hs-identifier">GitHub.Auth</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-2"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#Auth"><span class="hs-identifier">Auth</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#Token"><span class="hs-identifier">Token</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#JWTToken"><span class="hs-identifier">JWTToken</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#AuthMethod"><span class="hs-identifier">AuthMethod</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#endpoint"><span class="hs-identifier">endpoint</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#setAuthRequest"><span class="hs-identifier">setAuthRequest</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span>  </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TE</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Client</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HTTP</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">type</span><span> </span><span id="Token"><span class="annot"><a href="GitHub.Auth.html#Token"><span class="hs-identifier hs-var">Token</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">type</span><span> </span><span id="JWTToken"><span class="annot"><a href="GitHub.Auth.html#JWTToken"><span class="hs-identifier hs-var">JWTToken</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><span class="hs-comment">-- | The Github auth data type</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">data</span><span> </span><span id="Auth"><span class="annot"><a href="GitHub.Auth.html#Auth"><span class="hs-identifier hs-var">Auth</span></a></span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="BasicAuth"><span class="annot"><a href="GitHub.Auth.html#BasicAuth"><span class="hs-identifier hs-var">BasicAuth</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Username and password</span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="OAuth"><span class="annot"><a href="GitHub.Auth.html#OAuth"><span class="hs-identifier hs-var">OAuth</span></a></span></span><span> </span><span class="annot"><a href="GitHub.Auth.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span>                            </span><span class="annot"><span class="hs-comment">-- ^ OAuth token</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="JWT"><span class="annot"><a href="GitHub.Auth.html#JWT"><span class="hs-identifier hs-var">JWT</span></a></span></span><span> </span><span class="annot"><a href="GitHub.Auth.html#JWTToken"><span class="hs-identifier hs-type">JWTToken</span></a></span><span>                           </span><span class="annot"><span class="hs-comment">-- ^ JWT Token</span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="EnterpriseOAuth"><span class="annot"><a href="GitHub.Auth.html#EnterpriseOAuth"><span class="hs-identifier hs-var">EnterpriseOAuth</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="GitHub.Auth.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span>             </span><span class="annot"><span class="hs-comment">-- ^ Custom endpoint and OAuth token</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679524569"><span id="local-6989586621679524584"><span id="local-6989586621679524588"><span class="annot"><span class="annottext">Int -&gt; Auth -&gt; ShowS
+[Auth] -&gt; ShowS
+Auth -&gt; String
+(Int -&gt; Auth -&gt; ShowS)
+-&gt; (Auth -&gt; String) -&gt; ([Auth] -&gt; ShowS) -&gt; Show Auth
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Auth -&gt; ShowS
+showsPrec :: Int -&gt; Auth -&gt; ShowS
+$cshow :: Auth -&gt; String
+show :: Auth -&gt; String
+$cshowList :: [Auth] -&gt; ShowS
+showList :: [Auth] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524595"><span id="local-6989586621679524605"><span id="local-6989586621679524613"><span id="local-6989586621679524615"><span id="local-6989586621679524617"><span id="local-6989586621679524623"><span id="local-6989586621679524628"><span id="local-6989586621679524631"><span id="local-6989586621679524634"><span id="local-6989586621679524637"><span id="local-6989586621679524640"><span id="local-6989586621679524643"><span id="local-6989586621679524648"><span id="local-6989586621679524653"><span class="annot"><span class="annottext">Typeable Auth
+Typeable Auth =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Auth -&gt; c Auth)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Auth)
+-&gt; (Auth -&gt; Constr)
+-&gt; (Auth -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Auth))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Auth))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Auth -&gt; Auth)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Auth -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Auth -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Auth -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Auth -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth)
+-&gt; Data Auth
+Auth -&gt; Constr
+Auth -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Auth -&gt; Auth
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Auth -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Auth -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Auth -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Auth -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Auth
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Auth -&gt; c Auth
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Auth)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Auth)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Auth -&gt; c Auth
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Auth -&gt; c Auth
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Auth
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Auth
+$ctoConstr :: Auth -&gt; Constr
+toConstr :: Auth -&gt; Constr
+$cdataTypeOf :: Auth -&gt; DataType
+dataTypeOf :: Auth -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Auth)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Auth)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Auth)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Auth)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Auth -&gt; Auth
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Auth -&gt; Auth
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Auth -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Auth -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Auth -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Auth -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Auth -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Auth -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Auth -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Auth -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Auth -&gt; m Auth
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524663"><span id="local-6989586621679524676"><span class="annot"><span class="annottext">Auth -&gt; Auth -&gt; Bool
+(Auth -&gt; Auth -&gt; Bool) -&gt; (Auth -&gt; Auth -&gt; Bool) -&gt; Eq Auth
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Auth -&gt; Auth -&gt; Bool
+== :: Auth -&gt; Auth -&gt; Bool
+$c/= :: Auth -&gt; Auth -&gt; Bool
+/= :: Auth -&gt; Auth -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524683"><span id="local-6989586621679524693"><span id="local-6989586621679524697"><span id="local-6989586621679524700"><span id="local-6989586621679524703"><span id="local-6989586621679524706"><span id="local-6989586621679524709"><span class="annot"><span class="annottext">Eq Auth
+Eq Auth =&gt;
+(Auth -&gt; Auth -&gt; Ordering)
+-&gt; (Auth -&gt; Auth -&gt; Bool)
+-&gt; (Auth -&gt; Auth -&gt; Bool)
+-&gt; (Auth -&gt; Auth -&gt; Bool)
+-&gt; (Auth -&gt; Auth -&gt; Bool)
+-&gt; (Auth -&gt; Auth -&gt; Auth)
+-&gt; (Auth -&gt; Auth -&gt; Auth)
+-&gt; Ord Auth
+Auth -&gt; Auth -&gt; Bool
+Auth -&gt; Auth -&gt; Ordering
+Auth -&gt; Auth -&gt; Auth
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Auth -&gt; Auth -&gt; Ordering
+compare :: Auth -&gt; Auth -&gt; Ordering
+$c&lt; :: Auth -&gt; Auth -&gt; Bool
+&lt; :: Auth -&gt; Auth -&gt; Bool
+$c&lt;= :: Auth -&gt; Auth -&gt; Bool
+&lt;= :: Auth -&gt; Auth -&gt; Bool
+$c&gt; :: Auth -&gt; Auth -&gt; Bool
+&gt; :: Auth -&gt; Auth -&gt; Bool
+$c&gt;= :: Auth -&gt; Auth -&gt; Bool
+&gt;= :: Auth -&gt; Auth -&gt; Bool
+$cmax :: Auth -&gt; Auth -&gt; Auth
+max :: Auth -&gt; Auth -&gt; Auth
+$cmin :: Auth -&gt; Auth -&gt; Auth
+min :: Auth -&gt; Auth -&gt; Auth
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524714"><span id="local-6989586621679524716"><span class="annot"><span class="annottext">(forall x. Auth -&gt; Rep Auth x)
+-&gt; (forall x. Rep Auth x -&gt; Auth) -&gt; Generic Auth
+forall x. Rep Auth x -&gt; Auth
+forall x. Auth -&gt; Rep Auth x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Auth -&gt; Rep Auth x
+from :: forall x. Auth -&gt; Rep Auth x
+$cto :: forall x. Rep Auth x -&gt; Auth
+to :: forall x. Rep Auth x -&gt; Auth
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679524722"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Auth.html#Auth"><span class="hs-identifier hs-type">Auth</span></a></span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679524752"><span id="local-6989586621679524759"><span id="local-6989586621679524765"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Auth.html#Auth"><span class="hs-identifier hs-type">Auth</span></a></span></span></span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679524831"><span id="local-6989586621679524838"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><a href="GitHub.Auth.html#Auth"><span class="hs-identifier hs-type">Auth</span></a></span></span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- | A type class for different authentication methods</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- Note the '()' intance, which doee nothing, i.e. is unauthenticated.</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">class</span><span> </span><span id="AuthMethod"><span class="annot"><a href="GitHub.Auth.html#AuthMethod"><span class="hs-identifier hs-var">AuthMethod</span></a></span></span><span> </span><span id="local-6989586621679524517"><span class="annot"><a href="#local-6989586621679524517"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-comment">-- | Custom API endpoint without trailing slash</span><span>
+</span><span id="line-37"></span><span>    </span><span id="endpoint"><span class="annot"><a href="GitHub.Auth.html#endpoint"><span class="hs-identifier hs-type">endpoint</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679524517"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-comment">-- | A function which sets authorisation on an HTTP request</span><span>
+</span><span id="line-39"></span><span>    </span><span id="setAuthRequest"><span class="annot"><a href="GitHub.Auth.html#setAuthRequest"><span class="hs-identifier hs-type">setAuthRequest</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679524517"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HTTP.Request</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HTTP.Request</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GitHub.Auth.html#AuthMethod"><span class="hs-identifier hs-type">AuthMethod</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>    </span><span id="local-6989586621679524869"><span class="annot"><span class="annottext">endpoint :: () -&gt; Maybe JWTToken
+</span><a href="GitHub.Auth.html#endpoint"><span class="hs-identifier hs-var hs-var hs-var">endpoint</span></a></span></span><span> </span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe JWTToken
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-43"></span><span>    </span><span id="local-6989586621679524870"><span class="annot"><span class="annottext">setAuthRequest :: () -&gt; Request -&gt; Request
+</span><a href="GitHub.Auth.html#setAuthRequest"><span class="hs-identifier hs-var hs-var hs-var">setAuthRequest</span></a></span></span><span> </span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Request -&gt; Request
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GitHub.Auth.html#AuthMethod"><span class="hs-identifier hs-type">AuthMethod</span></a></span><span> </span><span class="annot"><a href="GitHub.Auth.html#Auth"><span class="hs-identifier hs-type">Auth</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679524875"><span class="annot"><span class="annottext">endpoint :: Auth -&gt; Maybe JWTToken
+</span><a href="GitHub.Auth.html#endpoint"><span class="hs-identifier hs-var hs-var hs-var">endpoint</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Auth.html#BasicAuth"><span class="hs-identifier hs-type">BasicAuth</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe JWTToken
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#endpoint"><span class="hs-identifier hs-var">endpoint</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Auth.html#OAuth"><span class="hs-identifier hs-type">OAuth</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe JWTToken
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#endpoint"><span class="hs-identifier hs-var">endpoint</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Auth.html#JWT"><span class="hs-identifier hs-type">JWT</span></a></span><span> </span><span class="annot"><span class="annottext">JWTToken
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe JWTToken
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#endpoint"><span class="hs-identifier hs-var">endpoint</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Auth.html#EnterpriseOAuth"><span class="hs-identifier hs-type">EnterpriseOAuth</span></a></span><span> </span><span id="local-6989586621679524876"><span class="annot"><span class="annottext">JWTToken
+</span><a href="#local-6989586621679524876"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JWTToken -&gt; Maybe JWTToken
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">JWTToken
+</span><a href="#local-6989586621679524876"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621679524884"><span class="annot"><span class="annottext">setAuthRequest :: Auth -&gt; Request -&gt; Request
+</span><a href="GitHub.Auth.html#setAuthRequest"><span class="hs-identifier hs-var hs-var hs-var">setAuthRequest</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Auth.html#BasicAuth"><span class="hs-identifier hs-type">BasicAuth</span></a></span><span> </span><span id="local-6989586621679524885"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679524885"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span id="local-6989586621679524886"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679524886"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Request -&gt; Request
+</span><span class="hs-identifier hs-var">HTTP.applyBasicAuth</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679524885"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679524886"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#setAuthRequest"><span class="hs-identifier hs-var">setAuthRequest</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Auth.html#OAuth"><span class="hs-identifier hs-type">OAuth</span></a></span><span> </span><span id="local-6989586621679524888"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679524888"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Request -&gt; Request
+</span><a href="GitHub.Auth.html#setAuthHeader"><span class="hs-identifier hs-var">setAuthHeader</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request -&gt; Request)
+-&gt; ByteString -&gt; Request -&gt; Request
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;token &quot;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679524888"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#setAuthRequest"><span class="hs-identifier hs-var">setAuthRequest</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Auth.html#JWT"><span class="hs-identifier hs-type">JWT</span></a></span><span> </span><span id="local-6989586621679524890"><span class="annot"><span class="annottext">JWTToken
+</span><a href="#local-6989586621679524890"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Request -&gt; Request
+</span><a href="GitHub.Auth.html#setAuthHeader"><span class="hs-identifier hs-var">setAuthHeader</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request -&gt; Request)
+-&gt; ByteString -&gt; Request -&gt; Request
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;Bearer &quot;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">JWTToken -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">JWTToken
+</span><a href="#local-6989586621679524890"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="GitHub.Auth.html#setAuthRequest"><span class="hs-identifier hs-var">setAuthRequest</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Auth.html#EnterpriseOAuth"><span class="hs-identifier hs-type">EnterpriseOAuth</span></a></span><span> </span><span class="annot"><span class="annottext">JWTToken
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679524892"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679524892"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Request -&gt; Request
+</span><a href="GitHub.Auth.html#setAuthHeader"><span class="hs-identifier hs-var">setAuthHeader</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request -&gt; Request)
+-&gt; ByteString -&gt; Request -&gt; Request
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;token &quot;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679524892"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><a href="GitHub.Auth.html#setAuthHeader"><span class="hs-identifier hs-type">setAuthHeader</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HTTP.Request</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HTTP.Request</span></span><span>
+</span><span id="line-57"></span><span id="setAuthHeader"><span class="annot"><span class="annottext">setAuthHeader :: ByteString -&gt; Request -&gt; Request
+</span><a href="GitHub.Auth.html#setAuthHeader"><span class="hs-identifier hs-var hs-var">setAuthHeader</span></a></span></span><span> </span><span id="local-6989586621679524893"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679524893"><span class="hs-identifier hs-var">auth</span></a></span></span><span> </span><span id="local-6989586621679524894"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679524894"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679524894"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier hs-var">HTTP.requestHeaders</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;Authorization&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679524893"><span class="hs-identifier hs-type">auth</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="hs-identifier hs-var">HTTP.requestHeaders</span></span><span> </span><span class="annot"><a href="#local-6989586621679524894"><span class="hs-identifier hs-type">req</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-59"></span></pre></body></html>

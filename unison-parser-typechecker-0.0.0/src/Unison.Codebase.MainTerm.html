@@ -1,0 +1,404 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PartialTypeSignatures #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="annot"><span class="hs-comment">-- | Find a computation of type '{IO} () in the codebase.</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Codebase.MainTerm.html"><span class="hs-identifier">Unison.Codebase.MainTerm</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Codebase.MainTerm.html#MainTerm"><span class="hs-identifier">MainTerm</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Codebase.MainTerm.html#getMainTerm"><span class="hs-identifier">getMainTerm</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Codebase.MainTerm.html#builtinIOTestTypes"><span class="hs-identifier">builtinIOTestTypes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Codebase.MainTerm.html#builtinMain"><span class="hs-identifier">builtinMain</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Codebase.MainTerm.html#builtinMainWithResultType"><span class="hs-identifier">builtinMainWithResultType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mapped</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">_1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NEList</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.NonEmpty</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NESet</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.NonEmpty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NESet</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Builtin.Decls.html"><span class="hs-identifier">Unison.Builtin.Decls</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">DD</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HashQualified</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HQ</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Name</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Names</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Parser.Ann</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Parser.Ann</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Parser.Ann</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TermReference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Referent</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Term</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Term</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Term</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Term</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Type</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Type</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Type</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Typechecker.html"><span class="hs-identifier">Unison.Typechecker</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Typechecker</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Relation</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Relation</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Var</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Var</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Var</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Var</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">data</span><span> </span><span id="MainTerm"><span class="annot"><a href="Unison.Codebase.MainTerm.html#MainTerm"><span class="hs-identifier hs-var">MainTerm</span></a></span></span><span> </span><span id="local-6989586621680676945"><span class="annot"><a href="#local-6989586621680676945"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">-- No terms were found with this name</span><span>
+</span><span id="line-39"></span><span>    </span><span id="NotFound"><span class="annot"><a href="Unison.Codebase.MainTerm.html#NotFound"><span class="hs-identifier hs-var">NotFound</span></a></span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- 1 or more terms were found with this name, but none of them have the right type</span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-comment">-- Invariant: list is not empty</span><span>
+</span><span id="line-42"></span><span>    </span><span id="BadType"><span class="annot"><a href="Unison.Codebase.MainTerm.html#BadType"><span class="hs-identifier hs-var">BadType</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HQ.HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680676945"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- 2 or more terms were found with this name, and of those, 2 or more have the right type</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-comment">-- Invariant: length of list is &gt;= 2</span><span>
+</span><span id="line-45"></span><span>    </span><span id="Ambiguous"><span class="annot"><a href="Unison.Codebase.MainTerm.html#Ambiguous"><span class="hs-identifier hs-var">Ambiguous</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HQ.HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680676945"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- 1 or more terms were found with this name, and exactly 1 has the right type</span><span>
+</span><span id="line-47"></span><span>    </span><span id="Success"><span class="annot"><a href="Unison.Codebase.MainTerm.html#Success"><span class="hs-identifier hs-var">Success</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HQ.HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><a href="#local-6989586621680676945"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680676945"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span id="local-6989586621680676878"><span id="local-6989586621680676879"><span class="annot"><a href="Unison.Codebase.MainTerm.html#getMainTerm"><span class="hs-identifier hs-type">getMainTerm</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621680676878"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621680676879"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680676878"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680676879"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Names.Names</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">HQ.HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Type.Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680676879"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><a href="#local-6989586621680676878"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.MainTerm.html#MainTerm"><span class="hs-identifier hs-type">MainTerm</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680676879"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-56"></span><span id="getMainTerm"><span class="annot"><span class="annottext">getMainTerm :: forall (m :: * -&gt; *) v.
+(Monad m, Var v) =&gt;
+(Reference -&gt; m (Maybe (Type v Ann)))
+-&gt; Names -&gt; HashQualified Name -&gt; Type v Ann -&gt; m (MainTerm v)
+</span><a href="Unison.Codebase.MainTerm.html#getMainTerm"><span class="hs-identifier hs-var hs-var">getMainTerm</span></a></span></span><span> </span><span id="local-6989586621680677057"><span class="annot"><span class="annottext">Reference -&gt; m (Maybe (Type v Ann))
+</span><a href="#local-6989586621680677057"><span class="hs-identifier hs-var">loadTypeOfTerm</span></a></span></span><span> </span><span id="local-6989586621680677058"><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621680677058"><span class="hs-identifier hs-var">parseNames</span></a></span></span><span> </span><span id="local-6989586621680677059"><span class="annot"><span class="annottext">HashQualified Name
+</span><a href="#local-6989586621680677059"><span class="hs-identifier hs-var">mainName</span></a></span></span><span> </span><span id="local-6989586621680677060"><span class="annot"><span class="annottext">Type v Ann
+</span><a href="#local-6989586621680677060"><span class="hs-identifier hs-var">mainType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-comment">-- Get all terms and constructors referred to by that name</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621680677061"><span class="hs-identifier hs-type">allReferents</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-59"></span><span>      </span><span id="local-6989586621680677061"><span class="annot"><span class="annottext">allReferents :: [(Name, Referent)]
+</span><a href="#local-6989586621680677061"><span class="hs-identifier hs-var hs-var">allReferents</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><span class="annottext">Relation Name Referent -&gt; [(Name, Referent)]
+forall a b. Relation a b -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">Relation.toList</span></span><span> </span><span class="annot"><span class="annottext">(Relation Name Referent -&gt; [(Name, Referent)])
+-&gt; Relation Name Referent -&gt; [(Name, Referent)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-61"></span><span>          </span><span class="annot"><span class="annottext">Relation Name Referent -&gt; Relation Name Referent
+forall r. Ord r =&gt; Relation Name r -&gt; Relation Name r
+</span><span class="hs-identifier hs-var">Name.keepHighestPriority</span></span><span> </span><span class="annot"><span class="annottext">(Relation Name Referent -&gt; Relation Name Referent)
+-&gt; Relation Name Referent -&gt; Relation Name Referent
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-62"></span><span>            </span><span class="annot"><span class="annottext">(Referent -&gt; ShortHash)
+-&gt; HashQualified Name
+-&gt; Relation Name Referent
+-&gt; Relation Name Referent
+forall ref.
+Ord ref =&gt;
+(ref -&gt; ShortHash)
+-&gt; HashQualified Name -&gt; Relation Name ref -&gt; Relation Name ref
+</span><span class="hs-identifier hs-var">HQ.filterBySuffix</span></span><span>
+</span><span id="line-63"></span><span>              </span><span class="annot"><span class="annottext">Referent -&gt; ShortHash
+</span><span class="hs-identifier hs-var">Referent.toShortHash</span></span><span>
+</span><span id="line-64"></span><span>              </span><span class="annot"><span class="annottext">HashQualified Name
+</span><a href="#local-6989586621680677059"><span class="hs-identifier hs-var">mainName</span></a></span><span>
+</span><span id="line-65"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Names -&gt; Relation Name Referent
+</span><span class="hs-identifier hs-var">Names.terms</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621680677058"><span class="hs-identifier hs-var">parseNames</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-comment">-- Keep only the terms (throwing away constructors)</span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621680677067"><span id="local-6989586621680677068"><span class="annot"><span class="annottext">[(Name, Reference, Type v Ann)]
+</span><a href="#local-6989586621680677068"><span class="hs-identifier hs-var">allTermReferences</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680677067"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">]</span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-69"></span><span>    </span><span class="annot"><span class="annottext">[(Name, Referent)]
+</span><a href="#local-6989586621680677061"><span class="hs-identifier hs-var">allReferents</span></a></span><span> </span><span class="annot"><span class="annottext">[(Name, Referent)]
+-&gt; ([(Name, Referent)] -&gt; m [(Name, Reference, Type v Ann)])
+-&gt; m [(Name, Reference, Type v Ann)]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">((Name, Referent) -&gt; m (Maybe (Name, Reference, Type v Ann)))
+-&gt; [(Name, Referent)] -&gt; m [(Name, Reference, Type v Ann)]
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m (Maybe b)) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapMaybeM</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-70"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621680677071"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621680677071"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent.Ref</span></span><span> </span><span id="local-6989586621680677073"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680677073"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-71"></span><span>        </span><span class="annot"><span class="annottext">Reference -&gt; m (Maybe (Type v Ann))
+</span><a href="#local-6989586621680677057"><span class="hs-identifier hs-var">loadTypeOfTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680677073"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">m (Maybe (Type v Ann))
+-&gt; (Maybe (Type v Ann) -&gt; Maybe (Name, Reference, Type v Ann))
+-&gt; m (Maybe (Name, Reference, Type v Ann))
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-72"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680677075"><span class="annot"><span class="annottext">Type v Ann
+</span><a href="#local-6989586621680677075"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Name, Reference, Type v Ann)
+-&gt; Maybe (Name, Reference, Type v Ann)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621680677071"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680677073"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Type v Ann
+</span><a href="#local-6989586621680677075"><span class="hs-identifier hs-var">ty</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>          </span><span class="hs-comment">-- this shouldn't really happen</span><span>
+</span><span id="line-74"></span><span>          </span><span class="annot"><span class="annottext">Maybe (Type v Ann)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (Name, Reference, Type v Ann)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-75"></span><span>      </span><span class="annot"><span class="annottext">(Name, Referent)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (Name, Reference, Type v Ann)
+-&gt; m (Maybe (Name, Reference, Type v Ann))
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Name, Reference, Type v Ann)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-comment">-- Keep only the terms that are of the right 'main' type</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621680677076"><span class="hs-identifier hs-type">allTermReferencesThatCouldBeRun</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680677067"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-79"></span><span>      </span><span id="local-6989586621680677076"><span class="annot"><span class="annottext">allTermReferencesThatCouldBeRun :: [(Name, Reference, Type v Ann)]
+</span><a href="#local-6989586621680677076"><span class="hs-identifier hs-var hs-var">allTermReferencesThatCouldBeRun</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-80"></span><span>        </span><span class="annot"><span class="annottext">((Name, Reference, Type v Ann) -&gt; Bool)
+-&gt; [(Name, Reference, Type v Ann)]
+-&gt; [(Name, Reference, Type v Ann)]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span>
+</span><span id="line-81"></span><span>          </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Reference
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680677077"><span class="annot"><span class="annottext">Type v Ann
+</span><a href="#local-6989586621680677077"><span class="hs-identifier hs-var">ty</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Type v Ann -&gt; Type v Ann -&gt; Bool
+forall v loc. Var v =&gt; Type v loc -&gt; Type v loc -&gt; Bool
+</span><a href="Unison.Typechecker.html#fitsScheme"><span class="hs-identifier hs-var">Typechecker.fitsScheme</span></a></span><span> </span><span class="annot"><span class="annottext">Type v Ann
+</span><a href="#local-6989586621680677077"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">Type v Ann
+</span><a href="#local-6989586621680677060"><span class="hs-identifier hs-var">mainType</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>          </span><span class="annot"><span class="annottext">[(Name, Reference, Type v Ann)]
+</span><a href="#local-6989586621680677068"><span class="hs-identifier hs-var">allTermReferences</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="annottext">MainTerm v -&gt; m (MainTerm v)
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[(Name, Reference, Type v Ann)]
+</span><a href="#local-6989586621680677076"><span class="hs-identifier hs-var">allTermReferencesThatCouldBeRun</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">(</span><span id="local-6989586621680677079"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621680677079"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680677080"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680677080"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680677081"><span class="annot"><span class="annottext">Type v Ann
+</span><a href="#local-6989586621680677081"><span class="hs-identifier hs-var">ty</span></a></span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-86"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680677082"><span class="annot"><span class="annottext">a :: Ann
+</span><a href="#local-6989586621680677082"><span class="hs-identifier hs-var hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier hs-var">Parser.Ann.External</span></span><span>
+</span><span id="line-87"></span><span>          </span><span id="local-6989586621680677084"><span class="annot"><span class="annottext">tm :: Term v Ann
+</span><a href="#local-6989586621680677084"><span class="hs-identifier hs-var hs-var">tm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Ann -&gt; Term v Ann -&gt; Term v Ann
+forall v a. Var v =&gt; a -&gt; a -&gt; Term v a -&gt; Term v a
+</span><a href="Unison.Builtin.Decls.html#forceTerm"><span class="hs-identifier hs-var">DD.forceTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621680677082"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621680677082"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ann -&gt; Reference -&gt; Term v Ann
+forall v a vt at ap. Ord v =&gt; a -&gt; Reference -&gt; Term2 vt at ap v a
+</span><span class="hs-identifier hs-var">Term.ref</span></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621680677082"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680677080"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">HashQualified Name
+-&gt; Reference -&gt; Term v Ann -&gt; Type v Ann -&gt; MainTerm v
+forall v.
+HashQualified Name
+-&gt; Reference -&gt; Term v Ann -&gt; Type v Ann -&gt; MainTerm v
+</span><a href="Unison.Codebase.MainTerm.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HashQualified Name
+</span><a href="#local-6989586621680677059"><span class="hs-identifier hs-var">mainName</span></a></span><span> </span><span class="annot"><span class="annottext">HashQualified Name -&gt; Name -&gt; HashQualified Name
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; b -&gt; f b
+</span><span class="hs-operator hs-var">$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621680677079"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680677080"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Term v Ann
+</span><a href="#local-6989586621680677084"><span class="hs-identifier hs-var">tm</span></a></span><span> </span><span class="annot"><span class="annottext">Type v Ann
+</span><a href="#local-6989586621680677081"><span class="hs-identifier hs-var">ty</span></a></span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-90"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[(Name, Reference, Type v Ann)]
+</span><a href="#local-6989586621680677068"><span class="hs-identifier hs-var">allTermReferences</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-91"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MainTerm v
+forall v. MainTerm v
+</span><a href="Unison.Codebase.MainTerm.html#NotFound"><span class="hs-identifier hs-var">NotFound</span></a></span><span>
+</span><span id="line-92"></span><span>        </span><span class="annot"><span class="annottext">[(Name, Reference, Type v Ann)]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[(HashQualified Name, Reference, Type v Ann)] -&gt; MainTerm v
+forall v.
+[(HashQualified Name, Reference, Type v Ann)] -&gt; MainTerm v
+</span><a href="Unison.Codebase.MainTerm.html#BadType"><span class="hs-identifier hs-var">BadType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASetter
+  [(Name, Reference, Type v Ann)]
+  [(HashQualified Name, Reference, Type v Ann)]
+  Name
+  (HashQualified Name)
+-&gt; (Name -&gt; HashQualified Name)
+-&gt; [(Name, Reference, Type v Ann)]
+-&gt; [(HashQualified Name, Reference, Type v Ann)]
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((Name, Reference, Type v Ann)
+ -&gt; Identity (HashQualified Name, Reference, Type v Ann))
+-&gt; [(Name, Reference, Type v Ann)]
+-&gt; Identity [(HashQualified Name, Reference, Type v Ann)]
+Setter
+  [(Name, Reference, Type v Ann)]
+  [(HashQualified Name, Reference, Type v Ann)]
+  (Name, Reference, Type v Ann)
+  (HashQualified Name, Reference, Type v Ann)
+forall (f :: * -&gt; *) a b. Functor f =&gt; Setter (f a) (f b) a b
+</span><span class="hs-identifier hs-var">mapped</span></span><span> </span><span class="annot"><span class="annottext">(((Name, Reference, Type v Ann)
+  -&gt; Identity (HashQualified Name, Reference, Type v Ann))
+ -&gt; [(Name, Reference, Type v Ann)]
+ -&gt; Identity [(HashQualified Name, Reference, Type v Ann)])
+-&gt; ((Name -&gt; Identity (HashQualified Name))
+    -&gt; (Name, Reference, Type v Ann)
+    -&gt; Identity (HashQualified Name, Reference, Type v Ann))
+-&gt; ASetter
+     [(Name, Reference, Type v Ann)]
+     [(HashQualified Name, Reference, Type v Ann)]
+     Name
+     (HashQualified Name)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; Identity (HashQualified Name))
+-&gt; (Name, Reference, Type v Ann)
+-&gt; Identity (HashQualified Name, Reference, Type v Ann)
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens
+  (Name, Reference, Type v Ann)
+  (HashQualified Name, Reference, Type v Ann)
+  Name
+  (HashQualified Name)
+</span><span class="hs-identifier hs-var">_1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HashQualified Name
+</span><a href="#local-6989586621680677059"><span class="hs-identifier hs-var">mainName</span></a></span><span> </span><span class="annot"><span class="annottext">HashQualified Name -&gt; Name -&gt; HashQualified Name
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; b -&gt; f b
+</span><span class="hs-operator hs-var">$&gt;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(Name, Reference, Type v Ann)]
+</span><a href="#local-6989586621680677068"><span class="hs-identifier hs-var">allTermReferences</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>    </span><span class="annot"><span class="annottext">[(Name, Reference, Type v Ann)]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[(HashQualified Name, Reference, Type v Ann)] -&gt; MainTerm v
+forall v.
+[(HashQualified Name, Reference, Type v Ann)] -&gt; MainTerm v
+</span><a href="Unison.Codebase.MainTerm.html#Ambiguous"><span class="hs-identifier hs-var">Ambiguous</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASetter
+  [(Name, Reference, Type v Ann)]
+  [(HashQualified Name, Reference, Type v Ann)]
+  Name
+  (HashQualified Name)
+-&gt; (Name -&gt; HashQualified Name)
+-&gt; [(Name, Reference, Type v Ann)]
+-&gt; [(HashQualified Name, Reference, Type v Ann)]
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((Name, Reference, Type v Ann)
+ -&gt; Identity (HashQualified Name, Reference, Type v Ann))
+-&gt; [(Name, Reference, Type v Ann)]
+-&gt; Identity [(HashQualified Name, Reference, Type v Ann)]
+Setter
+  [(Name, Reference, Type v Ann)]
+  [(HashQualified Name, Reference, Type v Ann)]
+  (Name, Reference, Type v Ann)
+  (HashQualified Name, Reference, Type v Ann)
+forall (f :: * -&gt; *) a b. Functor f =&gt; Setter (f a) (f b) a b
+</span><span class="hs-identifier hs-var">mapped</span></span><span> </span><span class="annot"><span class="annottext">(((Name, Reference, Type v Ann)
+  -&gt; Identity (HashQualified Name, Reference, Type v Ann))
+ -&gt; [(Name, Reference, Type v Ann)]
+ -&gt; Identity [(HashQualified Name, Reference, Type v Ann)])
+-&gt; ((Name -&gt; Identity (HashQualified Name))
+    -&gt; (Name, Reference, Type v Ann)
+    -&gt; Identity (HashQualified Name, Reference, Type v Ann))
+-&gt; ASetter
+     [(Name, Reference, Type v Ann)]
+     [(HashQualified Name, Reference, Type v Ann)]
+     Name
+     (HashQualified Name)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; Identity (HashQualified Name))
+-&gt; (Name, Reference, Type v Ann)
+-&gt; Identity (HashQualified Name, Reference, Type v Ann)
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens
+  (Name, Reference, Type v Ann)
+  (HashQualified Name, Reference, Type v Ann)
+  Name
+  (HashQualified Name)
+</span><span class="hs-identifier hs-var">_1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HashQualified Name
+</span><a href="#local-6989586621680677059"><span class="hs-identifier hs-var">mainName</span></a></span><span> </span><span class="annot"><span class="annottext">HashQualified Name -&gt; Name -&gt; HashQualified Name
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; b -&gt; f b
+</span><span class="hs-operator hs-var">$&gt;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(Name, Reference, Type v Ann)]
+</span><a href="#local-6989586621680677076"><span class="hs-identifier hs-var">allTermReferencesThatCouldBeRun</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- forall x. '{ io2.IO, Exception } x</span><span>
+</span><span id="line-96"></span><span id="local-6989586621680676966"><span id="local-6989586621680676967"><span class="annot"><a href="Unison.Codebase.MainTerm.html#builtinMain"><span class="hs-identifier hs-type">builtinMain</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621680676966"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680676967"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type.Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680676966"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680676967"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-97"></span><span id="builtinMain"><span class="annot"><span class="annottext">builtinMain :: forall v a. Var v =&gt; a -&gt; Type v a
+</span><a href="Unison.Codebase.MainTerm.html#builtinMain"><span class="hs-identifier hs-var hs-var">builtinMain</span></a></span></span><span> </span><span id="local-6989586621680677100"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677100"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680677108"><span class="annot"><span class="annottext">result :: v
+</span><a href="#local-6989586621680677108"><span class="hs-identifier hs-var hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; v
+forall v. Var v =&gt; Text -&gt; v
+</span><span class="hs-identifier hs-var">Var.named</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;result&quot;</span></span><span>
+</span><span id="line-99"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">a -&gt; v -&gt; Type v a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; v -&gt; Type v a -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.forAll</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677100"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680677108"><span class="hs-identifier hs-var">result</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Type v a -&gt; Type v a
+forall v a. Var v =&gt; a -&gt; Type v a -&gt; Type v a
+</span><a href="Unison.Codebase.MainTerm.html#builtinMainWithResultType"><span class="hs-identifier hs-var">builtinMainWithResultType</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677100"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; v -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; v -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.var</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677100"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680677108"><span class="hs-identifier hs-var">result</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- '{io2.IO, Exception} res</span><span>
+</span><span id="line-102"></span><span id="local-6989586621680676975"><span id="local-6989586621680676976"><span class="annot"><a href="Unison.Codebase.MainTerm.html#builtinMainWithResultType"><span class="hs-identifier hs-type">builtinMainWithResultType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621680676975"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680676976"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type.Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680676975"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680676976"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type.Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680676975"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680676976"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-103"></span><span id="builtinMainWithResultType"><span class="annot"><span class="annottext">builtinMainWithResultType :: forall v a. Var v =&gt; a -&gt; Type v a -&gt; Type v a
+</span><a href="Unison.Codebase.MainTerm.html#builtinMainWithResultType"><span class="hs-identifier hs-var hs-var">builtinMainWithResultType</span></a></span></span><span> </span><span id="local-6989586621680677120"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677120"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621680677121"><span class="annot"><span class="annottext">Type v a
+</span><a href="#local-6989586621680677121"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Type v a -&gt; Type v a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; Type v a -&gt; Type v a -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.arrow</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677120"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Reference -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; Reference -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.ref</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677120"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="Unison.Builtin.Decls.html#unitRef"><span class="hs-identifier hs-var">DD.unitRef</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Type v a
+</span><a href="#local-6989586621680677125"><span class="hs-identifier hs-var">io</span></a></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-105"></span><span>    </span><span id="local-6989586621680677125"><span class="annot"><span class="annottext">io :: Type v a
+</span><a href="#local-6989586621680677125"><span class="hs-identifier hs-var hs-var">io</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; [Type v a] -&gt; Type v a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; [Type v a] -&gt; Type v a -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.effect</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677120"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.builtinIO</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677120"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; Type v a
+</span><a href="Unison.Builtin.Decls.html#exceptionType"><span class="hs-identifier hs-var">DD.exceptionType</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677120"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Type v a
+</span><a href="#local-6989586621680677121"><span class="hs-identifier hs-var">res</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- | All possible IO'ish test types, e.g.</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- '{IO, Exception} [Result]</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- '{IO} [Result]</span><span>
+</span><span id="line-110"></span><span class="annot"><a href="Unison.Codebase.MainTerm.html#builtinIOTestTypes"><span class="hs-identifier hs-type">builtinIOTestTypes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680676989"><span class="annot"><a href="#local-6989586621680676989"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621680676990"><span class="annot"><a href="#local-6989586621680676990"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680676989"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621680676989"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680676990"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NESet</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Type.Type</span></span><span> </span><span class="annot"><a href="#local-6989586621680676989"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680676990"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span id="builtinIOTestTypes"><span class="annot"><span class="annottext">builtinIOTestTypes :: forall v a. (Ord v, Var v) =&gt; a -&gt; NESet (Type v a)
+</span><a href="Unison.Codebase.MainTerm.html#builtinIOTestTypes"><span class="hs-identifier hs-var hs-var">builtinIOTestTypes</span></a></span></span><span> </span><span id="local-6989586621680677147"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677147"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-112"></span><span>  </span><span class="annot"><span class="annottext">NonEmpty (Type v a) -&gt; NESet (Type v a)
+forall a. Ord a =&gt; NonEmpty a -&gt; NESet a
+</span><span class="hs-identifier hs-var">NESet.fromList</span></span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">[Type v a] -&gt; Type v a
+</span><a href="#local-6989586621680677149"><span class="hs-identifier hs-var">delayedResultWithEffects</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="annottext">a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.builtinIO</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677147"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; Type v a
+</span><a href="Unison.Builtin.Decls.html#exceptionType"><span class="hs-identifier hs-var">DD.exceptionType</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677147"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>        </span><span class="annot"><span class="annottext">Type v a -&gt; [Type v a] -&gt; NonEmpty (Type v a)
+forall a. a -&gt; [a] -&gt; NonEmpty a
+</span><span class="hs-operator hs-var">NEList.:|</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">[Type v a] -&gt; Type v a
+</span><a href="#local-6989586621680677149"><span class="hs-identifier hs-var">delayedResultWithEffects</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="annottext">a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.builtinIO</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677147"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-117"></span><span>    </span><span id="local-6989586621680677151"><span class="annot"><span class="annottext">delayed :: Type v a -&gt; Type v a
+</span><a href="#local-6989586621680677151"><span class="hs-identifier hs-var hs-var">delayed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Type v a -&gt; Type v a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; Type v a -&gt; Type v a -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.arrow</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677147"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Reference -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; Reference -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.ref</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677147"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="Unison.Builtin.Decls.html#unitRef"><span class="hs-identifier hs-var">DD.unitRef</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621680677149"><span class="annot"><span class="annottext">delayedResultWithEffects :: [Type v a] -&gt; Type v a
+</span><a href="#local-6989586621680677149"><span class="hs-identifier hs-var hs-var">delayedResultWithEffects</span></a></span></span><span> </span><span id="local-6989586621680677152"><span class="annot"><span class="annottext">[Type v a]
+</span><a href="#local-6989586621680677152"><span class="hs-identifier hs-var">es</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Type v a -&gt; Type v a
+</span><a href="#local-6989586621680677151"><span class="hs-identifier hs-var">delayed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; [Type v a] -&gt; Type v a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; [Type v a] -&gt; Type v a -&gt; Type v a
+</span><span class="hs-identifier hs-var">Type.effect</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677147"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[Type v a]
+</span><a href="#local-6989586621680677152"><span class="hs-identifier hs-var">es</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Type v a
+forall v a. Ord v =&gt; a -&gt; Type v a
+</span><a href="Unison.Builtin.Decls.html#testResultListType"><span class="hs-identifier hs-var">DD.testResultListType</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680677147"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span></pre></body></html>

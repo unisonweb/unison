@@ -1,0 +1,448 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- Copyright (c) 2016-present, Facebook, Inc.</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- All rights reserved.</span><span>
+</span><span id="line-3"></span><span class="hs-comment">--</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- This source code is licensed under the BSD-style license found in</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- the LICENSE file in the root directory of this source tree. An</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- additional grant of patent rights can be found in the PATENTS file</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- in the same directory.</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Module      : Codec.Compression.Zstd.Efficient</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Copyright   : (c) 2016-present, Facebook, Inc. All rights reserved.</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License     : BSD3</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Maintainer  : bryano@fb.com</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Portability : GHC</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- These functions allow for pre-allocation and reuse of relatively</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- expensive data structures, such as compression and decompression</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- contexts and dictionaries.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- If your application mostly deals with small payloads and is</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- particularly sensitive to latency or throughput, using these</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- pre-allocated structures may make a noticeable difference to</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- performance.</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html"><span class="hs-identifier">Codec.Compression.Zstd.Efficient</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Basic entry points</span></span><span>
+</span><span id="line-30"></span><span>      </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Decompress"><span class="hs-identifier">Decompress</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#decompressedSize"><span class="hs-identifier">decompressedSize</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.FFI.html#maxCLevel"><span class="hs-identifier">C.maxCLevel</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Cheaper operations using contexts</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Compression</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#CCtx"><span class="hs-identifier">CCtx</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#withCCtx"><span class="hs-identifier">withCCtx</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#compressCCtx"><span class="hs-identifier">compressCCtx</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Decompression</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#DCtx"><span class="hs-identifier">DCtx</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#withDCtx"><span class="hs-identifier">withDCtx</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#decompressDCtx"><span class="hs-identifier">decompressDCtx</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Dictionary-based compression</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier">Dict</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#mkDict"><span class="hs-identifier">mkDict</span></a></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#fromDict"><span class="hs-identifier">fromDict</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#trainFromSamples"><span class="hs-identifier">trainFromSamples</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#getDictID"><span class="hs-identifier">getDictID</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Basic pure API</span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#compressUsingDict"><span class="hs-identifier">compressUsingDict</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#decompressUsingDict"><span class="hs-identifier">decompressUsingDict</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Pre-digested dictionaries</span></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#CDict"><span class="hs-identifier">Base.CDict</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#createCDict"><span class="hs-identifier">createCDict</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#compressUsingCDict"><span class="hs-identifier">compressUsingCDict</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#DDict"><span class="hs-identifier">Base.DDict</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#createDDict"><span class="hs-identifier">createDDict</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#decompressUsingDDict"><span class="hs-identifier">decompressUsingDDict</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html"><span class="hs-identifier">Codec.Compression.Zstd.Internal</span></a></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html"><span class="hs-identifier">Codec.Compression.Zstd.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Decompress"><span class="hs-identifier">Decompress</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier">Dict</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#mkDict"><span class="hs-identifier">mkDict</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html"><span class="hs-identifier">Codec.Compression.Zstd.Base.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#CDict"><span class="hs-identifier">CDict</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#DDict"><span class="hs-identifier">DDict</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Internal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.ForeignPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">withForeignPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafePerformIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.FFI.html"><span class="hs-identifier">Codec.Compression.Zstd.FFI</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C</span></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.html"><span class="hs-identifier">Codec.Compression.Zstd.Base</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Base</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="annot"><span class="hs-comment">-- | Compress the given data as a single zstd compressed frame.</span></span><span>
+</span><span id="line-76"></span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#compressCCtx"><span class="hs-identifier hs-type">compressCCtx</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#CCtx"><span class="hs-identifier hs-type">CCtx</span></a></span><span>
+</span><span id="line-77"></span><span>             </span><span class="annot"><span class="hs-comment">-- ^ Compression context.</span></span><span>
+</span><span id="line-78"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-79"></span><span>             </span><span class="annot"><span class="hs-comment">-- ^ Compression level. Must be &gt;= 1 and &lt;= 'C.maxCLevel'.</span></span><span>
+</span><span id="line-80"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-81"></span><span>             </span><span class="annot"><span class="hs-comment">-- ^ Payload to compress.</span></span><span>
+</span><span id="line-82"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-83"></span><span id="compressCCtx"><span class="annot"><span class="annottext">compressCCtx :: CCtx -&gt; Int -&gt; ByteString -&gt; IO ByteString
+</span><a href="Codec.Compression.Zstd.Efficient.html#compressCCtx"><span class="hs-identifier hs-var hs-var">compressCCtx</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#CCtx"><span class="hs-identifier hs-type">CCtx</span></a></span><span> </span><span id="local-6989586621679056411"><span class="annot"><span class="annottext">Ptr CCtx
+</span><a href="#local-6989586621679056411"><span class="hs-identifier hs-var">cc</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679056412"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679056412"><span class="hs-identifier hs-var">level</span></a></span></span><span> </span><span id="local-6989586621679056413"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056413"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="annottext">String
+-&gt; (Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; CInt -&gt; IO CSize)
+-&gt; Int
+-&gt; ByteString
+-&gt; IO ByteString
+</span><a href="Codec.Compression.Zstd.Internal.html#compressWith"><span class="hs-identifier hs-var">compressWith</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;compressCCtx&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr CCtx
+-&gt; Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; CInt -&gt; IO CSize
+forall dst src.
+Ptr CCtx
+-&gt; Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; CInt -&gt; IO CSize
+</span><a href="Codec.Compression.Zstd.FFI.html#compressCCtx"><span class="hs-identifier hs-var">C.compressCCtx</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CCtx
+</span><a href="#local-6989586621679056411"><span class="hs-identifier hs-var">cc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679056412"><span class="hs-identifier hs-var">level</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056413"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- | Decompress a single-frame payload of known size.  Typically this</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- will be a payload that was compressed with 'compress'.</span><span>
+</span><span id="line-88"></span><span class="hs-comment">--</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- /Note:/ This function is not capable of decompressing a payload</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- generated by the streaming or lazy compression APIs.</span><span>
+</span><span id="line-91"></span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#decompressDCtx"><span class="hs-identifier hs-type">decompressDCtx</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#DCtx"><span class="hs-identifier hs-type">DCtx</span></a></span><span>
+</span><span id="line-92"></span><span>               </span><span class="annot"><span class="hs-comment">-- ^ Decompression context.</span></span><span>
+</span><span id="line-93"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-94"></span><span>               </span><span class="annot"><span class="hs-comment">-- ^ Compressed payload.</span></span><span>
+</span><span id="line-95"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Decompress"><span class="hs-identifier hs-type">Decompress</span></a></span><span>
+</span><span id="line-96"></span><span id="decompressDCtx"><span class="annot"><span class="annottext">decompressDCtx :: DCtx -&gt; ByteString -&gt; IO Decompress
+</span><a href="Codec.Compression.Zstd.Efficient.html#decompressDCtx"><span class="hs-identifier hs-var hs-var">decompressDCtx</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#DCtx"><span class="hs-identifier hs-type">DCtx</span></a></span><span> </span><span id="local-6989586621679056417"><span class="annot"><span class="annottext">Ptr DCtx
+</span><a href="#local-6989586621679056417"><span class="hs-identifier hs-var">cc</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679056418"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056418"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; IO CSize)
+-&gt; ByteString -&gt; IO Decompress
+</span><a href="Codec.Compression.Zstd.Internal.html#decompressWith"><span class="hs-identifier hs-var">decompressWith</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr DCtx -&gt; Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; IO CSize
+forall dst src.
+Ptr DCtx -&gt; Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; IO CSize
+</span><a href="Codec.Compression.Zstd.FFI.html#decompressDCtx"><span class="hs-identifier hs-var">C.decompressDCtx</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr DCtx
+</span><a href="#local-6989586621679056417"><span class="hs-identifier hs-var">cc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056418"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- | Compress the given data as a single zstd compressed frame, using</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- a prebuilt dictionary.</span><span>
+</span><span id="line-100"></span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#compressUsingDict"><span class="hs-identifier hs-type">compressUsingDict</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-type">Dict</span></a></span><span>
+</span><span id="line-101"></span><span>                  </span><span class="annot"><span class="hs-comment">-- ^ Compression dictionary.</span></span><span>
+</span><span id="line-102"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-103"></span><span>                  </span><span class="annot"><span class="hs-comment">-- ^ Compression level. Must be &gt;= 1 and &lt;= 'C.maxCLevel'.</span></span><span>
+</span><span id="line-104"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-105"></span><span>                  </span><span class="annot"><span class="hs-comment">-- ^ Payload to compress.</span></span><span>
+</span><span id="line-106"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-107"></span><span id="compressUsingDict"><span class="annot"><span class="annottext">compressUsingDict :: Dict -&gt; Int -&gt; ByteString -&gt; ByteString
+</span><a href="Codec.Compression.Zstd.Efficient.html#compressUsingDict"><span class="hs-identifier hs-var hs-var">compressUsingDict</span></a></span></span><span> </span><span id="local-6989586621679056421"><span class="annot"><span class="annottext">Dict
+</span><a href="#local-6989586621679056421"><span class="hs-identifier hs-var">dict</span></a></span></span><span> </span><span id="local-6989586621679056422"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679056422"><span class="hs-identifier hs-var">level</span></a></span></span><span> </span><span id="local-6989586621679056423"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056423"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><span class="annottext">IO ByteString -&gt; ByteString
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO ByteString -&gt; ByteString)
+-&gt; ((CCtx -&gt; IO ByteString) -&gt; IO ByteString)
+-&gt; (CCtx -&gt; IO ByteString)
+-&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(CCtx -&gt; IO ByteString) -&gt; IO ByteString
+forall a. (CCtx -&gt; IO a) -&gt; IO a
+</span><a href="Codec.Compression.Zstd.Internal.html#withCCtx"><span class="hs-identifier hs-var">withCCtx</span></a></span><span> </span><span class="annot"><span class="annottext">((CCtx -&gt; IO ByteString) -&gt; ByteString)
+-&gt; (CCtx -&gt; IO ByteString) -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#CCtx"><span class="hs-identifier hs-type">CCtx</span></a></span><span> </span><span id="local-6989586621679056425"><span class="annot"><span class="annottext">Ptr CCtx
+</span><a href="#local-6989586621679056425"><span class="hs-identifier hs-var">ctx</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><span class="annottext">Dict
+-&gt; (Ptr (ZonkAny 3) -&gt; CSize -&gt; IO ByteString) -&gt; IO ByteString
+forall dict a. Dict -&gt; (Ptr dict -&gt; CSize -&gt; IO a) -&gt; IO a
+</span><a href="Codec.Compression.Zstd.Internal.html#withDict"><span class="hs-identifier hs-var">withDict</span></a></span><span> </span><span class="annot"><span class="annottext">Dict
+</span><a href="#local-6989586621679056421"><span class="hs-identifier hs-var">dict</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr (ZonkAny 3) -&gt; CSize -&gt; IO ByteString) -&gt; IO ByteString)
+-&gt; (Ptr (ZonkAny 3) -&gt; CSize -&gt; IO ByteString) -&gt; IO ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679056427"><span class="annot"><span class="annottext">Ptr (ZonkAny 3)
+</span><a href="#local-6989586621679056427"><span class="hs-identifier hs-var">dictPtr</span></a></span></span><span> </span><span id="local-6989586621679056428"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056428"><span class="hs-identifier hs-var">dictLen</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-110"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679056429"><span class="annot"><span class="annottext">compressor :: Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; CInt -&gt; IO CSize
+</span><a href="#local-6989586621679056429"><span class="hs-identifier hs-var hs-var">compressor</span></a></span></span><span> </span><span id="local-6989586621679056430"><span class="annot"><span class="annottext">Ptr dst
+</span><a href="#local-6989586621679056430"><span class="hs-identifier hs-var">dp</span></a></span></span><span> </span><span id="local-6989586621679056431"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056431"><span class="hs-identifier hs-var">dl</span></a></span></span><span> </span><span id="local-6989586621679056432"><span class="annot"><span class="annottext">Ptr src
+</span><a href="#local-6989586621679056432"><span class="hs-identifier hs-var">sp</span></a></span></span><span> </span><span id="local-6989586621679056433"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056433"><span class="hs-identifier hs-var">sl</span></a></span></span><span> </span><span id="local-6989586621679056434"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679056434"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-111"></span><span>            </span><span class="annot"><span class="annottext">Ptr CCtx
+-&gt; Ptr dst
+-&gt; CSize
+-&gt; Ptr src
+-&gt; CSize
+-&gt; Ptr (ZonkAny 3)
+-&gt; CSize
+-&gt; CInt
+-&gt; IO CSize
+forall dst src dict.
+Ptr CCtx
+-&gt; Ptr dst
+-&gt; CSize
+-&gt; Ptr src
+-&gt; CSize
+-&gt; Ptr dict
+-&gt; CSize
+-&gt; CInt
+-&gt; IO CSize
+</span><a href="Codec.Compression.Zstd.FFI.html#compressUsingDict"><span class="hs-identifier hs-var">C.compressUsingDict</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CCtx
+</span><a href="#local-6989586621679056425"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr dst
+</span><a href="#local-6989586621679056430"><span class="hs-identifier hs-var">dp</span></a></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056431"><span class="hs-identifier hs-var">dl</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr src
+</span><a href="#local-6989586621679056432"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056433"><span class="hs-identifier hs-var">sl</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (ZonkAny 3)
+</span><a href="#local-6989586621679056427"><span class="hs-identifier hs-var">dictPtr</span></a></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056428"><span class="hs-identifier hs-var">dictLen</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679056434"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-112"></span><span>      </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; CInt -&gt; IO CSize)
+-&gt; Int
+-&gt; ByteString
+-&gt; IO ByteString
+</span><a href="Codec.Compression.Zstd.Internal.html#compressWith"><span class="hs-identifier hs-var">compressWith</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;compressUsingDict&quot;</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; CInt -&gt; IO CSize
+forall {dst} {src}.
+Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; CInt -&gt; IO CSize
+</span><a href="#local-6989586621679056429"><span class="hs-identifier hs-var">compressor</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679056422"><span class="hs-identifier hs-var">level</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056423"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- | Decompress a single-frame payload of known size, using a prebuilt</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- dictionary.  Typically this will be a payload that was compressed</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- with 'compressUsingDict'.</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- /Note:/ This function is not capable of decompressing a payload</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- generated by the streaming or lazy compression APIs.</span><span>
+</span><span id="line-120"></span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#decompressUsingDict"><span class="hs-identifier hs-type">decompressUsingDict</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-type">Dict</span></a></span><span>
+</span><span id="line-121"></span><span>                    </span><span class="annot"><span class="hs-comment">-- ^ Dictionary.</span></span><span>
+</span><span id="line-122"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-123"></span><span>                    </span><span class="annot"><span class="hs-comment">-- ^ Payload to decompress.</span></span><span>
+</span><span id="line-124"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Decompress"><span class="hs-identifier hs-type">Decompress</span></a></span><span>
+</span><span id="line-125"></span><span id="decompressUsingDict"><span class="annot"><span class="annottext">decompressUsingDict :: Dict -&gt; ByteString -&gt; Decompress
+</span><a href="Codec.Compression.Zstd.Efficient.html#decompressUsingDict"><span class="hs-identifier hs-var hs-var">decompressUsingDict</span></a></span></span><span> </span><span id="local-6989586621679056436"><span class="annot"><span class="annottext">Dict
+</span><a href="#local-6989586621679056436"><span class="hs-identifier hs-var">dict</span></a></span></span><span> </span><span id="local-6989586621679056437"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056437"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-126"></span><span>  </span><span class="annot"><span class="annottext">IO Decompress -&gt; Decompress
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO Decompress -&gt; Decompress)
+-&gt; ((DCtx -&gt; IO Decompress) -&gt; IO Decompress)
+-&gt; (DCtx -&gt; IO Decompress)
+-&gt; Decompress
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(DCtx -&gt; IO Decompress) -&gt; IO Decompress
+forall a. (DCtx -&gt; IO a) -&gt; IO a
+</span><a href="Codec.Compression.Zstd.Internal.html#withDCtx"><span class="hs-identifier hs-var">withDCtx</span></a></span><span> </span><span class="annot"><span class="annottext">((DCtx -&gt; IO Decompress) -&gt; Decompress)
+-&gt; (DCtx -&gt; IO Decompress) -&gt; Decompress
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#DCtx"><span class="hs-identifier hs-type">DCtx</span></a></span><span> </span><span id="local-6989586621679056438"><span class="annot"><span class="annottext">Ptr DCtx
+</span><a href="#local-6989586621679056438"><span class="hs-identifier hs-var">ctx</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><span class="annottext">Dict
+-&gt; (Ptr (ZonkAny 2) -&gt; CSize -&gt; IO Decompress) -&gt; IO Decompress
+forall dict a. Dict -&gt; (Ptr dict -&gt; CSize -&gt; IO a) -&gt; IO a
+</span><a href="Codec.Compression.Zstd.Internal.html#withDict"><span class="hs-identifier hs-var">withDict</span></a></span><span> </span><span class="annot"><span class="annottext">Dict
+</span><a href="#local-6989586621679056436"><span class="hs-identifier hs-var">dict</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr (ZonkAny 2) -&gt; CSize -&gt; IO Decompress) -&gt; IO Decompress)
+-&gt; (Ptr (ZonkAny 2) -&gt; CSize -&gt; IO Decompress) -&gt; IO Decompress
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679056439"><span class="annot"><span class="annottext">Ptr (ZonkAny 2)
+</span><a href="#local-6989586621679056439"><span class="hs-identifier hs-var">dictPtr</span></a></span></span><span> </span><span id="local-6989586621679056440"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056440"><span class="hs-identifier hs-var">dictLen</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-128"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679056441"><span class="annot"><span class="annottext">decompressor :: Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; IO CSize
+</span><a href="#local-6989586621679056441"><span class="hs-identifier hs-var hs-var">decompressor</span></a></span></span><span> </span><span id="local-6989586621679056442"><span class="annot"><span class="annottext">Ptr dst
+</span><a href="#local-6989586621679056442"><span class="hs-identifier hs-var">dp</span></a></span></span><span> </span><span id="local-6989586621679056443"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056443"><span class="hs-identifier hs-var">dl</span></a></span></span><span> </span><span id="local-6989586621679056444"><span class="annot"><span class="annottext">Ptr src
+</span><a href="#local-6989586621679056444"><span class="hs-identifier hs-var">sp</span></a></span></span><span> </span><span id="local-6989586621679056445"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056445"><span class="hs-identifier hs-var">sl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-129"></span><span>            </span><span class="annot"><span class="annottext">Ptr DCtx
+-&gt; Ptr dst
+-&gt; CSize
+-&gt; Ptr src
+-&gt; CSize
+-&gt; Ptr (ZonkAny 2)
+-&gt; CSize
+-&gt; IO CSize
+forall dst src dict.
+Ptr DCtx
+-&gt; Ptr dst
+-&gt; CSize
+-&gt; Ptr src
+-&gt; CSize
+-&gt; Ptr dict
+-&gt; CSize
+-&gt; IO CSize
+</span><a href="Codec.Compression.Zstd.FFI.html#decompressUsingDict"><span class="hs-identifier hs-var">C.decompressUsingDict</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr DCtx
+</span><a href="#local-6989586621679056438"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr dst
+</span><a href="#local-6989586621679056442"><span class="hs-identifier hs-var">dp</span></a></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056443"><span class="hs-identifier hs-var">dl</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr src
+</span><a href="#local-6989586621679056444"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056445"><span class="hs-identifier hs-var">sl</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (ZonkAny 2)
+</span><a href="#local-6989586621679056439"><span class="hs-identifier hs-var">dictPtr</span></a></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056440"><span class="hs-identifier hs-var">dictLen</span></a></span><span>
+</span><span id="line-130"></span><span>      </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; IO CSize)
+-&gt; ByteString -&gt; IO Decompress
+</span><a href="Codec.Compression.Zstd.Internal.html#decompressWith"><span class="hs-identifier hs-var">decompressWith</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; IO CSize
+forall {dst} {src}.
+Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; IO CSize
+</span><a href="#local-6989586621679056441"><span class="hs-identifier hs-var">decompressor</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056437"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="annot"><span class="hs-comment">-- | Create a pre-digested compression dictionary.</span></span><span>
+</span><span id="line-133"></span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#createCDict"><span class="hs-identifier hs-type">createCDict</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>              </span><span class="annot"><span class="hs-comment">-- ^ Compression level.</span></span><span>
+</span><span id="line-134"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-type">Dict</span></a></span><span>             </span><span class="annot"><span class="hs-comment">-- ^ Dictionary.</span></span><span>
+</span><span id="line-135"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#CDict"><span class="hs-identifier hs-type">CDict</span></a></span><span>
+</span><span id="line-136"></span><span id="createCDict"><span class="annot"><span class="annottext">createCDict :: Int -&gt; Dict -&gt; CDict
+</span><a href="Codec.Compression.Zstd.Efficient.html#createCDict"><span class="hs-identifier hs-var hs-var">createCDict</span></a></span></span><span> </span><span id="local-6989586621679056447"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679056447"><span class="hs-identifier hs-var">level</span></a></span></span><span> </span><span id="local-6989586621679056448"><span class="annot"><span class="annottext">Dict
+</span><a href="#local-6989586621679056448"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO CDict -&gt; CDict
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO CDict -&gt; CDict) -&gt; IO CDict -&gt; CDict
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><span class="annottext">Dict -&gt; (Ptr (ZonkAny 1) -&gt; CSize -&gt; IO CDict) -&gt; IO CDict
+forall dict a. Dict -&gt; (Ptr dict -&gt; CSize -&gt; IO a) -&gt; IO a
+</span><a href="Codec.Compression.Zstd.Internal.html#withDict"><span class="hs-identifier hs-var">withDict</span></a></span><span> </span><span class="annot"><span class="annottext">Dict
+</span><a href="#local-6989586621679056448"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr (ZonkAny 1) -&gt; CSize -&gt; IO CDict) -&gt; IO CDict)
+-&gt; (Ptr (ZonkAny 1) -&gt; CSize -&gt; IO CDict) -&gt; IO CDict
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679056449"><span class="annot"><span class="annottext">Ptr (ZonkAny 1)
+</span><a href="#local-6989586621679056449"><span class="hs-identifier hs-var">dict</span></a></span></span><span> </span><span id="local-6989586621679056450"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056450"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr (ZonkAny 1) -&gt; Int -&gt; Int -&gt; IO CDict
+forall dict. Ptr dict -&gt; Int -&gt; Int -&gt; IO CDict
+</span><a href="Codec.Compression.Zstd.Base.html#createCDict"><span class="hs-identifier hs-var">Base.createCDict</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (ZonkAny 1)
+</span><a href="#local-6989586621679056449"><span class="hs-identifier hs-var">dict</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CSize -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056450"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679056447"><span class="hs-identifier hs-var">level</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- | Compress the given data as a single zstd compressed frame, using</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- a pre-built, pre-digested dictionary.</span><span>
+</span><span id="line-141"></span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#compressUsingCDict"><span class="hs-identifier hs-type">compressUsingCDict</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#CCtx"><span class="hs-identifier hs-type">CCtx</span></a></span><span>
+</span><span id="line-142"></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Compression context.</span></span><span>
+</span><span id="line-143"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#CDict"><span class="hs-identifier hs-type">CDict</span></a></span><span>
+</span><span id="line-144"></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Compression dictionary.</span></span><span>
+</span><span id="line-145"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-146"></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Payload to compress.</span></span><span>
+</span><span id="line-147"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-148"></span><span id="compressUsingCDict"><span class="annot"><span class="annottext">compressUsingCDict :: CCtx -&gt; CDict -&gt; ByteString -&gt; IO ByteString
+</span><a href="Codec.Compression.Zstd.Efficient.html#compressUsingCDict"><span class="hs-identifier hs-var hs-var">compressUsingCDict</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#CCtx"><span class="hs-identifier hs-type">CCtx</span></a></span><span> </span><span id="local-6989586621679056452"><span class="annot"><span class="annottext">Ptr CCtx
+</span><a href="#local-6989586621679056452"><span class="hs-identifier hs-var">ctx</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#CD"><span class="hs-identifier hs-type">CD</span></a></span><span> </span><span id="local-6989586621679056454"><span class="annot"><span class="annottext">ForeignPtr CDict
+</span><a href="#local-6989586621679056454"><span class="hs-identifier hs-var">fp</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679056455"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056455"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-149"></span><span>  </span><span class="annot"><span class="annottext">ForeignPtr CDict -&gt; (Ptr CDict -&gt; IO ByteString) -&gt; IO ByteString
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr CDict
+</span><a href="#local-6989586621679056454"><span class="hs-identifier hs-var">fp</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr CDict -&gt; IO ByteString) -&gt; IO ByteString)
+-&gt; (Ptr CDict -&gt; IO ByteString) -&gt; IO ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679056456"><span class="annot"><span class="annottext">Ptr CDict
+</span><a href="#local-6989586621679056456"><span class="hs-identifier hs-var">dict</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-150"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679056457"><span class="annot"><span class="annottext">compressor :: Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; p -&gt; IO CSize
+</span><a href="#local-6989586621679056457"><span class="hs-identifier hs-var hs-var">compressor</span></a></span></span><span> </span><span id="local-6989586621679056458"><span class="annot"><span class="annottext">Ptr dst
+</span><a href="#local-6989586621679056458"><span class="hs-identifier hs-var">dp</span></a></span></span><span> </span><span id="local-6989586621679056459"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056459"><span class="hs-identifier hs-var">dl</span></a></span></span><span> </span><span id="local-6989586621679056460"><span class="annot"><span class="annottext">Ptr src
+</span><a href="#local-6989586621679056460"><span class="hs-identifier hs-var">sp</span></a></span></span><span> </span><span id="local-6989586621679056461"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056461"><span class="hs-identifier hs-var">sl</span></a></span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CCtx
+-&gt; Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; Ptr CDict -&gt; IO CSize
+forall dst src.
+Ptr CCtx
+-&gt; Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; Ptr CDict -&gt; IO CSize
+</span><a href="Codec.Compression.Zstd.FFI.html#compressUsingCDict"><span class="hs-identifier hs-var">C.compressUsingCDict</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CCtx
+</span><a href="#local-6989586621679056452"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr dst
+</span><a href="#local-6989586621679056458"><span class="hs-identifier hs-var">dp</span></a></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056459"><span class="hs-identifier hs-var">dl</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr src
+</span><a href="#local-6989586621679056460"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056461"><span class="hs-identifier hs-var">sl</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CDict
+</span><a href="#local-6989586621679056456"><span class="hs-identifier hs-var">dict</span></a></span><span>
+</span><span id="line-151"></span><span>    </span><span class="annot"><span class="annottext">String
+-&gt; (Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; CInt -&gt; IO CSize)
+-&gt; Int
+-&gt; ByteString
+-&gt; IO ByteString
+</span><a href="Codec.Compression.Zstd.Internal.html#compressWith"><span class="hs-identifier hs-var">compressWith</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;compressUsingCDict&quot;</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; CInt -&gt; IO CSize
+forall {dst} {src} {p}.
+Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; p -&gt; IO CSize
+</span><a href="#local-6989586621679056457"><span class="hs-identifier hs-var">compressor</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056455"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span class="annot"><span class="hs-comment">-- | Create a pre-digested compression dictionary.</span></span><span>
+</span><span id="line-154"></span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#createDDict"><span class="hs-identifier hs-type">createDDict</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-type">Dict</span></a></span><span>             </span><span class="annot"><span class="hs-comment">-- ^ Dictionary.</span></span><span>
+</span><span id="line-155"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#DDict"><span class="hs-identifier hs-type">DDict</span></a></span><span>
+</span><span id="line-156"></span><span id="createDDict"><span class="annot"><span class="annottext">createDDict :: Dict -&gt; DDict
+</span><a href="Codec.Compression.Zstd.Efficient.html#createDDict"><span class="hs-identifier hs-var hs-var">createDDict</span></a></span></span><span> </span><span id="local-6989586621679056463"><span class="annot"><span class="annottext">Dict
+</span><a href="#local-6989586621679056463"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO DDict -&gt; DDict
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO DDict -&gt; DDict) -&gt; IO DDict -&gt; DDict
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-157"></span><span>  </span><span class="annot"><span class="annottext">Dict -&gt; (Ptr (ZonkAny 0) -&gt; CSize -&gt; IO DDict) -&gt; IO DDict
+forall dict a. Dict -&gt; (Ptr dict -&gt; CSize -&gt; IO a) -&gt; IO a
+</span><a href="Codec.Compression.Zstd.Internal.html#withDict"><span class="hs-identifier hs-var">withDict</span></a></span><span> </span><span class="annot"><span class="annottext">Dict
+</span><a href="#local-6989586621679056463"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr (ZonkAny 0) -&gt; CSize -&gt; IO DDict) -&gt; IO DDict)
+-&gt; (Ptr (ZonkAny 0) -&gt; CSize -&gt; IO DDict) -&gt; IO DDict
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679056464"><span class="annot"><span class="annottext">Ptr (ZonkAny 0)
+</span><a href="#local-6989586621679056464"><span class="hs-identifier hs-var">dict</span></a></span></span><span> </span><span id="local-6989586621679056465"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056465"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr (ZonkAny 0) -&gt; Int -&gt; IO DDict
+forall dict. Ptr dict -&gt; Int -&gt; IO DDict
+</span><a href="Codec.Compression.Zstd.Base.html#createDDict"><span class="hs-identifier hs-var">Base.createDDict</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (ZonkAny 0)
+</span><a href="#local-6989586621679056464"><span class="hs-identifier hs-var">dict</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CSize -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056465"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- | Decompress a single-frame payload of known size, using a</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- pre-built, pre-digested dictionary.  Typically this will be a</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- payload that was compressed with 'compressUsingCDict'.</span><span>
+</span><span id="line-162"></span><span class="hs-comment">--</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- /Note:/ This function is not capable of decompressing a payload</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- generated by the streaming or lazy compression APIs.</span><span>
+</span><span id="line-165"></span><span class="annot"><a href="Codec.Compression.Zstd.Efficient.html#decompressUsingDDict"><span class="hs-identifier hs-type">decompressUsingDDict</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#DCtx"><span class="hs-identifier hs-type">DCtx</span></a></span><span>
+</span><span id="line-166"></span><span>                     </span><span class="annot"><span class="hs-comment">-- ^ Decompression context.</span></span><span>
+</span><span id="line-167"></span><span>                     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#DDict"><span class="hs-identifier hs-type">DDict</span></a></span><span>
+</span><span id="line-168"></span><span>                     </span><span class="annot"><span class="hs-comment">-- ^ Decompression dictionary.</span></span><span>
+</span><span id="line-169"></span><span>                     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-170"></span><span>                     </span><span class="annot"><span class="hs-comment">-- ^ Payload to compress.</span></span><span>
+</span><span id="line-171"></span><span>                     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Decompress"><span class="hs-identifier hs-type">Decompress</span></a></span><span>
+</span><span id="line-172"></span><span id="decompressUsingDDict"><span class="annot"><span class="annottext">decompressUsingDDict :: DCtx -&gt; DDict -&gt; ByteString -&gt; IO Decompress
+</span><a href="Codec.Compression.Zstd.Efficient.html#decompressUsingDDict"><span class="hs-identifier hs-var hs-var">decompressUsingDDict</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Internal.html#DCtx"><span class="hs-identifier hs-type">DCtx</span></a></span><span> </span><span id="local-6989586621679056467"><span class="annot"><span class="annottext">Ptr DCtx
+</span><a href="#local-6989586621679056467"><span class="hs-identifier hs-var">ctx</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#DD"><span class="hs-identifier hs-type">DD</span></a></span><span> </span><span id="local-6989586621679056469"><span class="annot"><span class="annottext">ForeignPtr DDict
+</span><a href="#local-6989586621679056469"><span class="hs-identifier hs-var">fp</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679056470"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056470"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-173"></span><span>  </span><span class="annot"><span class="annottext">ForeignPtr DDict -&gt; (Ptr DDict -&gt; IO Decompress) -&gt; IO Decompress
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr DDict
+</span><a href="#local-6989586621679056469"><span class="hs-identifier hs-var">fp</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr DDict -&gt; IO Decompress) -&gt; IO Decompress)
+-&gt; (Ptr DDict -&gt; IO Decompress) -&gt; IO Decompress
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679056471"><span class="annot"><span class="annottext">Ptr DDict
+</span><a href="#local-6989586621679056471"><span class="hs-identifier hs-var">dict</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-174"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679056472"><span class="annot"><span class="annottext">decompressor :: Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; IO CSize
+</span><a href="#local-6989586621679056472"><span class="hs-identifier hs-var hs-var">decompressor</span></a></span></span><span> </span><span id="local-6989586621679056473"><span class="annot"><span class="annottext">Ptr dst
+</span><a href="#local-6989586621679056473"><span class="hs-identifier hs-var">dp</span></a></span></span><span> </span><span id="local-6989586621679056474"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056474"><span class="hs-identifier hs-var">dl</span></a></span></span><span> </span><span id="local-6989586621679056475"><span class="annot"><span class="annottext">Ptr src
+</span><a href="#local-6989586621679056475"><span class="hs-identifier hs-var">sp</span></a></span></span><span> </span><span id="local-6989586621679056476"><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056476"><span class="hs-identifier hs-var">sl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr DCtx
+-&gt; Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; Ptr DDict -&gt; IO CSize
+forall dst src.
+Ptr DCtx
+-&gt; Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; Ptr DDict -&gt; IO CSize
+</span><a href="Codec.Compression.Zstd.FFI.html#decompressUsingDDict"><span class="hs-identifier hs-var">C.decompressUsingDDict</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr DCtx
+</span><a href="#local-6989586621679056467"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr dst
+</span><a href="#local-6989586621679056473"><span class="hs-identifier hs-var">dp</span></a></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056474"><span class="hs-identifier hs-var">dl</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr src
+</span><a href="#local-6989586621679056475"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">CSize
+</span><a href="#local-6989586621679056476"><span class="hs-identifier hs-var">sl</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr DDict
+</span><a href="#local-6989586621679056471"><span class="hs-identifier hs-var">dict</span></a></span><span>
+</span><span id="line-175"></span><span>    </span><span class="annot"><span class="annottext">(Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; IO CSize)
+-&gt; ByteString -&gt; IO Decompress
+</span><a href="Codec.Compression.Zstd.Internal.html#decompressWith"><span class="hs-identifier hs-var">decompressWith</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; CSize -&gt; Ptr Word8 -&gt; CSize -&gt; IO CSize
+forall {dst} {src}.
+Ptr dst -&gt; CSize -&gt; Ptr src -&gt; CSize -&gt; IO CSize
+</span><a href="#local-6989586621679056472"><span class="hs-identifier hs-var">decompressor</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056470"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-176"></span></pre></body></html>

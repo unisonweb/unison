@@ -1,0 +1,1198 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP                        #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE BangPatterns               #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric              #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE MagicHash                  #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes                 #-}</span><span class="hs-cpp">
+
+#ifndef BITVEC_THREADSAFE
+</span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html"><span class="hs-identifier">Data.Bit.F2Poly</span></a></span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.Bit.F2PolyTS</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier">F2Poly</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#unF2Poly"><span class="hs-identifier">unF2Poly</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#toF2Poly"><span class="hs-identifier">toF2Poly</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#gcdExt"><span class="hs-identifier">gcdExt</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.ST</span></span><span class="hs-cpp">
+#ifndef BITVEC_THREADSAFE
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Bit.Immutable.html"><span class="hs-identifier">Data.Bit.Immutable</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Bit.Internal.html"><span class="hs-identifier">Data.Bit.Internal</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Bit.Mutable.html"><span class="hs-identifier">Data.Bit.Mutable</span></a></span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Bit.ImmutableTS</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Bit.InternalTS</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Bit.MutableTS</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Bit.Utils.html"><span class="hs-identifier">Data.Bit.Utils</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Coerce</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Primitive.ByteArray</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Primitive</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Unboxed</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">U</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Unboxed.Mutable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MU</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Num.BigNat</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Num.Integer</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Numeric</span></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- | Binary polynomials of one variable, backed</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- by an unboxed 'Data.Vector.Unboxed.Vector' t'Bit'.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- Polynomials are stored normalized, without leading zero coefficients.</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- The 'Ord' instance does not make much sense mathematically,</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- it is defined only for the sake of 'Data.Set.Set', 'Data.Map.Map', etc.</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- &gt;&gt;&gt; :set -XBinaryLiterals</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- &gt;&gt;&gt; -- (1 + x) * (1 + x + x^2) = 1 + x^3 (mod 2)</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- &gt;&gt;&gt; 0b11 * 0b111 :: F2Poly</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- 0b1001</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- @since 1.0.1.0</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">newtype</span><span> </span><span id="F2Poly"><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-var">F2Poly</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="F2Poly"><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-var">F2Poly</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-62"></span><span>  </span><span id="unF2Poly"><span class="annot"><span class="annottext">F2Poly -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#unF2Poly"><span class="hs-identifier hs-var hs-var">unF2Poly</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-comment">-- ^ Convert an t'F2Poly' to a vector of coefficients</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-comment">-- (first element corresponds to a constant term).</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-comment">-- &gt;&gt;&gt; :set -XBinaryLiterals</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-comment">-- &gt;&gt;&gt; unF2Poly 0b1101</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-comment">-- [1,0,1,1]</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-comment">-- @since 1.0.1.0</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679101793"><span id="local-6989586621679101797"><span class="annot"><span class="annottext">F2Poly -&gt; F2Poly -&gt; Bool
+(F2Poly -&gt; F2Poly -&gt; Bool)
+-&gt; (F2Poly -&gt; F2Poly -&gt; Bool) -&gt; Eq F2Poly
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: F2Poly -&gt; F2Poly -&gt; Bool
+== :: F2Poly -&gt; F2Poly -&gt; Bool
+$c/= :: F2Poly -&gt; F2Poly -&gt; Bool
+/= :: F2Poly -&gt; F2Poly -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679101806"><span id="local-6989586621679101812"><span id="local-6989586621679101817"><span id="local-6989586621679101822"><span id="local-6989586621679101827"><span id="local-6989586621679101832"><span id="local-6989586621679101837"><span class="annot"><span class="annottext">Eq F2Poly
+Eq F2Poly =&gt;
+(F2Poly -&gt; F2Poly -&gt; Ordering)
+-&gt; (F2Poly -&gt; F2Poly -&gt; Bool)
+-&gt; (F2Poly -&gt; F2Poly -&gt; Bool)
+-&gt; (F2Poly -&gt; F2Poly -&gt; Bool)
+-&gt; (F2Poly -&gt; F2Poly -&gt; Bool)
+-&gt; (F2Poly -&gt; F2Poly -&gt; F2Poly)
+-&gt; (F2Poly -&gt; F2Poly -&gt; F2Poly)
+-&gt; Ord F2Poly
+F2Poly -&gt; F2Poly -&gt; Bool
+F2Poly -&gt; F2Poly -&gt; Ordering
+F2Poly -&gt; F2Poly -&gt; F2Poly
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: F2Poly -&gt; F2Poly -&gt; Ordering
+compare :: F2Poly -&gt; F2Poly -&gt; Ordering
+$c&lt; :: F2Poly -&gt; F2Poly -&gt; Bool
+&lt; :: F2Poly -&gt; F2Poly -&gt; Bool
+$c&lt;= :: F2Poly -&gt; F2Poly -&gt; Bool
+&lt;= :: F2Poly -&gt; F2Poly -&gt; Bool
+$c&gt; :: F2Poly -&gt; F2Poly -&gt; Bool
+&gt; :: F2Poly -&gt; F2Poly -&gt; Bool
+$c&gt;= :: F2Poly -&gt; F2Poly -&gt; Bool
+&gt;= :: F2Poly -&gt; F2Poly -&gt; Bool
+$cmax :: F2Poly -&gt; F2Poly -&gt; F2Poly
+max :: F2Poly -&gt; F2Poly -&gt; F2Poly
+$cmin :: F2Poly -&gt; F2Poly -&gt; F2Poly
+min :: F2Poly -&gt; F2Poly -&gt; F2Poly
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679101851"><span id="local-6989586621679101853"><span class="annot"><span class="annottext">(forall x. F2Poly -&gt; Rep F2Poly x)
+-&gt; (forall x. Rep F2Poly x -&gt; F2Poly) -&gt; Generic F2Poly
+forall x. Rep F2Poly x -&gt; F2Poly
+forall x. F2Poly -&gt; Rep F2Poly x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. F2Poly -&gt; Rep F2Poly x
+from :: forall x. F2Poly -&gt; Rep F2Poly x
+$cto :: forall x. Rep F2Poly x -&gt; F2Poly
+to :: forall x. Rep F2Poly x -&gt; F2Poly
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679101859"><span class="annot"><span class="annottext">F2Poly -&gt; ()
+(F2Poly -&gt; ()) -&gt; NFData F2Poly
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: F2Poly -&gt; ()
+rnf :: F2Poly -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- | Make an t'F2Poly' from a list of coefficients</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- (first element corresponds to a constant term).</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- &gt;&gt;&gt; :set -XOverloadedLists</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- &gt;&gt;&gt; toF2Poly [1,0,1,1,0,0]</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- 0b1101</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- @since 1.0.1.0</span><span>
+</span><span id="line-82"></span><span class="annot"><a href="Data.Bit.F2Poly.html#toF2Poly"><span class="hs-identifier hs-type">toF2Poly</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span>
+</span><span id="line-83"></span><span id="toF2Poly"><span class="annot"><span class="annottext">toF2Poly :: Vector Bit -&gt; F2Poly
+</span><a href="Data.Bit.F2Poly.html#toF2Poly"><span class="hs-identifier hs-var hs-var">toF2Poly</span></a></span></span><span> </span><span id="local-6989586621679101866"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679101866"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; F2Poly
+</span><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-var">F2Poly</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; F2Poly) -&gt; Vector Bit -&gt; F2Poly
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#dropWhileEnd"><span class="hs-identifier hs-var">dropWhileEnd</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; Vector Bit) -&gt; Vector Bit -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Vector Word -&gt; Vector Bit
+</span><a href="Data.Bit.Immutable.html#castFromWords"><span class="hs-identifier hs-var">castFromWords</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Word -&gt; Vector Bit) -&gt; Vector Word -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Word
+</span><a href="Data.Bit.Immutable.html#cloneToWords"><span class="hs-identifier hs-var">cloneToWords</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679101866"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="annot"><a href="Data.Bit.F2Poly.html#zero"><span class="hs-identifier hs-type">zero</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span>
+</span><span id="line-86"></span><span id="zero"><span class="annot"><span class="annottext">zero :: F2Poly
+</span><a href="Data.Bit.F2Poly.html#zero"><span class="hs-identifier hs-var hs-var">zero</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; F2Poly
+</span><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-var">F2Poly</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; F2Poly) -&gt; Vector Bit -&gt; F2Poly
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; ByteArray -&gt; Vector Bit
+</span><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-var">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">(ByteArray -&gt; Vector Bit) -&gt; ByteArray -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><span class="annottext">ByteArray# -&gt; ByteArray
+</span><span class="hs-identifier hs-var">ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigNat -&gt; ByteArray#
+</span><span class="hs-identifier hs-var">unBigNat</span></span><span> </span><span class="annot"><span class="annottext">BigNat
+</span><span class="hs-identifier hs-var">bigNatZero</span></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="annot"><a href="Data.Bit.F2Poly.html#one"><span class="hs-identifier hs-type">one</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span>
+</span><span id="line-90"></span><span id="one"><span class="annot"><span class="annottext">one :: F2Poly
+</span><a href="Data.Bit.F2Poly.html#one"><span class="hs-identifier hs-var hs-var">one</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; F2Poly
+</span><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-var">F2Poly</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; F2Poly) -&gt; Vector Bit -&gt; F2Poly
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; ByteArray -&gt; Vector Bit
+</span><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-var">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">(ByteArray -&gt; Vector Bit) -&gt; ByteArray -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><span class="annottext">ByteArray# -&gt; ByteArray
+</span><span class="hs-identifier hs-var">ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigNat -&gt; ByteArray#
+</span><span class="hs-identifier hs-var">unBigNat</span></span><span> </span><span class="annot"><span class="annottext">BigNat
+</span><span class="hs-identifier hs-var">bigNatOne</span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- -- | A valid t'F2Poly' has offset 0 and no trailing garbage.</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- _isValid :: F2Poly -&gt; Bool</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- _isValid (F2Poly (BitVec o l arr)) = o == 0 &amp;&amp; l == l'</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--   where</span><span>
+</span><span id="line-97"></span><span class="hs-comment">--     l' = U.length $ dropWhileEnd $ BitVec 0 (sizeofByteArray arr `shiftL` 3) arr</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- | Addition and multiplication are evaluated modulo 2.</span><span>
+</span><span id="line-100"></span><span class="hs-comment">--</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- 'abs' = 'id' and 'signum' = 'const' 1.</span><span>
+</span><span id="line-102"></span><span class="hs-comment">--</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- 'fromInteger' converts a binary polynomial, encoded as 'Integer',</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- to t'F2Poly' encoding.</span><span>
+</span><span id="line-105"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-106"></span><span>  </span><span id="local-6989586621679101891"><span class="annot"><span class="annottext">+ :: F2Poly -&gt; F2Poly -&gt; F2Poly
+</span><a href="#local-6989586621679101891"><span class="hs-operator hs-var hs-var hs-var">(+)</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; Vector Bit -&gt; Vector Bit)
+-&gt; F2Poly -&gt; F2Poly -&gt; F2Poly
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#xorBits"><span class="hs-identifier hs-var">xorBits</span></a></span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621679101895"><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-special">)</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; Vector Bit -&gt; Vector Bit)
+-&gt; F2Poly -&gt; F2Poly -&gt; F2Poly
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#xorBits"><span class="hs-identifier hs-var">xorBits</span></a></span><span>
+</span><span id="line-108"></span><span>  </span><span id="local-6989586621679101896"><span class="annot"><span class="annottext">negate :: F2Poly -&gt; F2Poly
+</span><span class="hs-identifier hs-var hs-var hs-var">negate</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">F2Poly -&gt; F2Poly
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-109"></span><span>  </span><span id="local-6989586621679101897"><span class="annot"><span class="annottext">abs :: F2Poly -&gt; F2Poly
+</span><span class="hs-identifier hs-var hs-var hs-var">abs</span></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">F2Poly -&gt; F2Poly
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-110"></span><span>  </span><span id="local-6989586621679101898"><span class="annot"><span class="annottext">signum :: F2Poly -&gt; F2Poly
+</span><span class="hs-identifier hs-var hs-var hs-var">signum</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">F2Poly -&gt; F2Poly -&gt; F2Poly
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">F2Poly
+</span><a href="Data.Bit.F2Poly.html#one"><span class="hs-identifier hs-var">one</span></a></span><span>
+</span><span id="line-111"></span><span>  </span><span id="local-6989586621679101900"><span class="annot"><span class="annottext">* :: F2Poly -&gt; F2Poly -&gt; F2Poly
+</span><a href="#local-6989586621679101900"><span class="hs-operator hs-var hs-var hs-var">(*)</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; Vector Bit -&gt; Vector Bit)
+-&gt; F2Poly -&gt; F2Poly -&gt; F2Poly
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#dropWhileEnd"><span class="hs-identifier hs-var">dropWhileEnd</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; Vector Bit)
+-&gt; (Vector Bit -&gt; Vector Bit) -&gt; Vector Bit -&gt; Vector Bit
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Vector Bit -&gt; Vector Bit) -&gt; Vector Bit -&gt; Vector Bit)
+-&gt; (Vector Bit -&gt; Vector Bit -&gt; Vector Bit)
+-&gt; Vector Bit
+-&gt; Vector Bit
+-&gt; Vector Bit
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#karatsuba"><span class="hs-identifier hs-var">karatsuba</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>  </span><span id="local-6989586621679101917"><span class="annot"><span class="annottext">fromInteger :: Integer -&gt; F2Poly
+</span><span class="hs-identifier hs-var hs-var hs-var">fromInteger</span></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679101918"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679101918"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679101918"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">IS</span></span><span> </span><span id="local-6989586621679101919"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101919"><span class="hs-identifier hs-var">i#</span></a></span></span><span>
+</span><span id="line-114"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679101918"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ArithException -&gt; F2Poly
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">ArithException
+</span><span class="hs-identifier hs-var">Underflow</span></span><span>
+</span><span id="line-115"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; F2Poly
+</span><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-var">F2Poly</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; F2Poly) -&gt; Vector Bit -&gt; F2Poly
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; ByteArray -&gt; Vector Bit
+</span><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-var">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.Utils.html#wordSize"><span class="hs-identifier hs-var">wordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><span class="hs-identifier hs-var">word2Int#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Word#
+</span><span class="hs-identifier hs-var">clz#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Word#
+</span><span class="hs-identifier hs-var">int2Word#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101919"><span class="hs-identifier hs-var">i#</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>                     </span><span class="annot"><span class="annottext">(ByteArray -&gt; Vector Bit) -&gt; ByteArray -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteArray# -&gt; ByteArray
+</span><span class="hs-identifier hs-var">ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; ByteArray#
+</span><span class="hs-identifier hs-var">bigNatFromWord#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Word#
+</span><span class="hs-identifier hs-var">int2Word#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101919"><span class="hs-identifier hs-var">i#</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">IP</span></span><span> </span><span id="local-6989586621679101924"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679101924"><span class="hs-identifier hs-var">bn#</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; F2Poly
+</span><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-var">F2Poly</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; F2Poly) -&gt; Vector Bit -&gt; F2Poly
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; ByteArray -&gt; Vector Bit
+</span><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-var">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><span class="hs-identifier hs-var">word2Int#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Word#
+</span><span class="hs-identifier hs-var">integerLog2#</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679101918"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ByteArray -&gt; Vector Bit) -&gt; ByteArray -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteArray# -&gt; ByteArray
+</span><span class="hs-identifier hs-var">ByteArray</span></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679101924"><span class="hs-identifier hs-var">bn#</span></a></span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">IN</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ArithException -&gt; F2Poly
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">ArithException
+</span><span class="hs-identifier hs-var">Underflow</span></span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fromInteger</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">+</span><span class="hs-pragma">)</span><span>         </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">-</span><span class="hs-pragma">)</span><span>         </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">negate</span></span><span>      </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">abs</span></span><span>         </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">signum</span></span><span>      </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">*</span><span class="hs-pragma">)</span><span>         </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679101927"><span id="local-6989586621679101931"><span id="local-6989586621679101936"><span id="local-6989586621679101939"><span id="local-6989586621679101942"><span id="local-6989586621679101945"><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-129"></span><span>  </span><span id="local-6989586621679101950"><span class="annot"><span class="annottext">fromEnum :: F2Poly -&gt; Int
+</span><a href="#local-6989586621679101950"><span class="hs-identifier hs-var hs-var hs-var">fromEnum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">F2Poly -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621679101953"><span class="annot"><span class="annottext">toEnum :: Int -&gt; F2Poly
+</span><a href="#local-6989586621679101953"><span class="hs-identifier hs-var hs-var hs-var">toEnum</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679101955"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101955"><span class="hs-identifier hs-var">i#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; F2Poly
+</span><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-var">F2Poly</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; F2Poly) -&gt; Vector Bit -&gt; F2Poly
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; ByteArray -&gt; Vector Bit
+</span><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-var">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.Utils.html#wordSize"><span class="hs-identifier hs-var">wordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Int#
+</span><span class="hs-identifier hs-var">word2Int#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Word#
+</span><span class="hs-identifier hs-var">clz#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Word#
+</span><span class="hs-identifier hs-var">int2Word#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101955"><span class="hs-identifier hs-var">i#</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>                           </span><span class="annot"><span class="annottext">(ByteArray -&gt; Vector Bit) -&gt; ByteArray -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteArray# -&gt; ByteArray
+</span><span class="hs-identifier hs-var">ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; ByteArray#
+</span><span class="hs-identifier hs-var">bigNatFromWord#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Word#
+</span><span class="hs-identifier hs-var">int2Word#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679101955"><span class="hs-identifier hs-var">i#</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Real</span></span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-134"></span><span>  </span><span id="local-6989586621679101968"><span class="annot"><span class="annottext">toRational :: F2Poly -&gt; Rational
+</span><span class="hs-identifier hs-var hs-var hs-var">toRational</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">F2Poly -&gt; Rational
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- | 'toInteger' converts a binary polynomial, encoded as t'F2Poly',</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- to an 'Integer' encoding.</span><span>
+</span><span id="line-138"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679101974"><span id="local-6989586621679101977"><span id="local-6989586621679101980"><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-139"></span><span>  </span><span id="local-6989586621679101987"><span class="annot"><span class="annottext">toInteger :: F2Poly -&gt; Integer
+</span><span class="hs-identifier hs-var hs-var hs-var">toInteger</span></span></span><span> </span><span id="local-6989586621679101988"><span class="annot"><span class="annottext">F2Poly
+</span><a href="#local-6989586621679101988"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteArray# -&gt; Integer
+</span><span class="hs-identifier hs-var">integerFromBigNat#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit -&gt; ByteArray#
+</span><a href="Data.Bit.F2Poly.html#bitsToByteArray"><span class="hs-identifier hs-var">bitsToByteArray</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">F2Poly -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#unF2Poly"><span class="hs-identifier hs-var">unF2Poly</span></a></span><span> </span><span class="annot"><span class="annottext">F2Poly
+</span><a href="#local-6989586621679101988"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>  </span><span id="local-6989586621679101991"><span class="annot"><span class="annottext">quotRem :: F2Poly -&gt; F2Poly -&gt; (F2Poly, F2Poly)
+</span><a href="#local-6989586621679101991"><span class="hs-identifier hs-var hs-var hs-var">quotRem</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span> </span><span id="local-6989586621679101993"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679101993"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span> </span><span id="local-6989586621679101994"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679101994"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit -&gt; F2Poly
+</span><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-var">F2Poly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#dropWhileEnd"><span class="hs-identifier hs-var">dropWhileEnd</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679101995"><span class="hs-identifier hs-var">qs</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; F2Poly
+</span><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-var">F2Poly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#dropWhileEnd"><span class="hs-identifier hs-var">dropWhileEnd</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679101996"><span class="hs-identifier hs-var">rs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-142"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679101995"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679101995"><span class="hs-identifier hs-var">qs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679101996"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679101996"><span class="hs-identifier hs-var">rs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; (Vector Bit, Vector Bit)
+</span><a href="Data.Bit.F2Poly.html#quotRemBits"><span class="hs-identifier hs-var">quotRemBits</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679101993"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679101994"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span id="local-6989586621679101999"><span class="annot"><span class="annottext">divMod :: F2Poly -&gt; F2Poly -&gt; (F2Poly, F2Poly)
+</span><a href="#local-6989586621679101999"><span class="hs-identifier hs-var hs-var hs-var">divMod</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">F2Poly -&gt; F2Poly -&gt; (F2Poly, F2Poly)
+forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">quotRem</span></span><span>
+</span><span id="line-144"></span><span>  </span><span id="local-6989586621679102002"><span class="annot"><span class="annottext">mod :: F2Poly -&gt; F2Poly -&gt; F2Poly
+</span><a href="#local-6989586621679102002"><span class="hs-identifier hs-var hs-var hs-var">mod</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">F2Poly -&gt; F2Poly -&gt; F2Poly
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">rem</span></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679102006"><span id="local-6989586621679102011"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>  </span><span id="local-6989586621679102017"><span class="annot"><span class="annottext">show :: F2Poly -&gt; String
+</span><a href="#local-6989586621679102017"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'0'</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; (F2Poly -&gt; String) -&gt; F2Poly -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'b'</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; (F2Poly -&gt; String) -&gt; F2Poly -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; ShowS) -&gt; String -&gt; Integer -&gt; String
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; (Int -&gt; Char) -&gt; Integer -&gt; ShowS
+forall a. Integral a =&gt; a -&gt; (Int -&gt; Char) -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showIntAtBase</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Char
+</span><span class="hs-identifier hs-var">intToDigit</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; String) -&gt; (F2Poly -&gt; Integer) -&gt; F2Poly -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">F2Poly -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="annot"><span class="hs-comment">-- | Inputs must be valid for wrapping into F2Poly: no trailing garbage is allowed.</span></span><span>
+</span><span id="line-150"></span><span class="annot"><a href="Data.Bit.F2Poly.html#xorBits"><span class="hs-identifier hs-type">xorBits</span></a></span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span>
+</span><span id="line-154"></span><span id="xorBits"><span class="annot"><span class="annottext">xorBits :: Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#xorBits"><span class="hs-identifier hs-var hs-var">xorBits</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-type">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679102022"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102022"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102022"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-155"></span><span class="annot"><a href="Data.Bit.F2Poly.html#xorBits"><span class="hs-identifier hs-var">xorBits</span></a></span><span> </span><span id="local-6989586621679102023"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102023"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-type">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102023"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- GMP has platform-dependent ASM implementations for mpn_xor_n,</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- which are impossible to beat by native Haskell.</span><span>
+</span><span id="line-158"></span><span class="annot"><a href="Data.Bit.F2Poly.html#xorBits"><span class="hs-identifier hs-var">xorBits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-type">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span id="local-6989586621679102024"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102024"><span class="hs-identifier hs-var">lx</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span id="local-6989586621679102025"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679102025"><span class="hs-identifier hs-var">xarr</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-type">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span id="local-6989586621679102026"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102026"><span class="hs-identifier hs-var">ly</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span id="local-6989586621679102027"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679102027"><span class="hs-identifier hs-var">yarr</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102024"><span class="hs-identifier hs-var">lx</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-operator hs-var">`compare`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102026"><span class="hs-identifier hs-var">ly</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; ByteArray -&gt; Vector Bit
+</span><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-var">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102026"><span class="hs-identifier hs-var">ly</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679102028"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#dropWhileEnd"><span class="hs-identifier hs-var">dropWhileEnd</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; Vector Bit) -&gt; Vector Bit -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; ByteArray -&gt; Vector Bit
+</span><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-var">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102024"><span class="hs-identifier hs-var">lx</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`min`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray -&gt; Int
+</span><span class="hs-identifier hs-var">sizeofByteArray</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679102028"><span class="hs-identifier hs-var">zs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679102028"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; ByteArray -&gt; Vector Bit
+</span><a href="Data.Bit.Internal.html#BitVec"><span class="hs-identifier hs-var">BitVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102024"><span class="hs-identifier hs-var">lx</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679102028"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-163"></span><span>    </span><span id="local-6989586621679102028"><span class="annot"><span class="annottext">zs :: ByteArray
+</span><a href="#local-6989586621679102028"><span class="hs-identifier hs-var hs-var">zs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteArray# -&gt; ByteArray
+</span><span class="hs-identifier hs-var">ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679102025"><span class="hs-identifier hs-var">xarr</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray# -&gt; ByteArray# -&gt; ByteArray#
+</span><span class="hs-operator hs-var">`bigNatXor`</span></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679102027"><span class="hs-identifier hs-var">yarr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span class="annot"><a href="Data.Bit.F2Poly.html#xorBits"><span class="hs-identifier hs-var">xorBits</span></a></span><span> </span><span id="local-6989586621679102032"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102032"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679102033"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102033"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#dropWhileEnd"><span class="hs-identifier hs-var">dropWhileEnd</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Bit -&gt; Vector Bit) -&gt; Vector Bit -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(forall s. ST s (Vector Bit)) -&gt; Vector Bit
+forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">((forall s. ST s (Vector Bit)) -&gt; Vector Bit)
+-&gt; (forall s. ST s (Vector Bit)) -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679102059"><span class="annot"><span class="annottext">lx :: Int
+</span><a href="#local-6989586621679102059"><span class="hs-identifier hs-var hs-var hs-var">lx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102032"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-166"></span><span>      </span><span id="local-6989586621679102062"><span class="annot"><span class="annottext">ly :: Int
+</span><a href="#local-6989586621679102062"><span class="hs-identifier hs-var hs-var hs-var">ly</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102033"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-167"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679102064"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102064"><span class="hs-identifier hs-var hs-var">shorterLen</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679102065"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102065"><span class="hs-identifier hs-var hs-var">longerLen</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679102066"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102066"><span class="hs-identifier hs-var hs-var">longer</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102059"><span class="hs-identifier hs-var">lx</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102062"><span class="hs-identifier hs-var">ly</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102062"><span class="hs-identifier hs-var">ly</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102059"><span class="hs-identifier hs-var">lx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102032"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102059"><span class="hs-identifier hs-var">lx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102062"><span class="hs-identifier hs-var">ly</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102033"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span>  </span><span id="local-6989586621679102067"><span class="annot"><a href="#local-6989586621679102067"><span class="hs-identifier hs-var">zs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bit -&gt; ST s (MVector (PrimState (ST s)) Bit)
+forall (m :: * -&gt; *) a.
+(PrimMonad m, Unbox a) =&gt;
+Int -&gt; a -&gt; m (MVector (PrimState m) a)
+</span><span class="hs-identifier hs-var">MU.replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102065"><span class="hs-identifier hs-var">longerLen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bit
+</span><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-var">Bit</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">forM_</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bit.Utils.html#wordSize"><span class="hs-identifier hs-type">wordSize</span></a></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><a href="#local-6989586621679102064"><span class="hs-identifier hs-type">shorterLen</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679102070"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102070"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-170"></span><span>    </span><span class="annot"><span class="annottext">MVector (PrimState (ST s)) Bit -&gt; Int -&gt; Word -&gt; ST s ()
+forall (m :: * -&gt; *).
+PrimMonad m =&gt;
+MVector (PrimState m) Bit -&gt; Int -&gt; Word -&gt; m ()
+</span><a href="Data.Bit.Internal.html#writeWord"><span class="hs-identifier hs-var">writeWord</span></a></span><span> </span><span class="annot"><span class="annottext">MVector s Bit
+MVector (PrimState (ST s)) Bit
+</span><a href="#local-6989586621679102067"><span class="hs-identifier hs-var">zs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102070"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.Internal.html#indexWord"><span class="hs-identifier hs-var">indexWord</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102032"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102070"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.Internal.html#indexWord"><span class="hs-identifier hs-var">indexWord</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102033"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102070"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">U.unsafeCopy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MU.drop</span></span><span> </span><span class="annot"><a href="#local-6989586621679102064"><span class="hs-identifier hs-type">shorterLen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679102067"><span class="hs-identifier hs-type">zs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">U.drop</span></span><span> </span><span class="annot"><a href="#local-6989586621679102064"><span class="hs-identifier hs-type">shorterLen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679102066"><span class="hs-identifier hs-type">longer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">U.unsafeFreeze</span></span><span> </span><span class="annot"><a href="#local-6989586621679102067"><span class="hs-identifier hs-type">zs</span></a></span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="annot"><span class="hs-comment">-- | Must be &gt;= 2 * wordSize.</span></span><span>
+</span><span id="line-175"></span><span class="annot"><a href="Data.Bit.F2Poly.html#karatsubaThreshold"><span class="hs-identifier hs-type">karatsubaThreshold</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-176"></span><span id="karatsubaThreshold"><span class="annot"><span class="annottext">karatsubaThreshold :: Int
+</span><a href="Data.Bit.F2Poly.html#karatsubaThreshold"><span class="hs-identifier hs-var hs-var">karatsubaThreshold</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2048</span></span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="annot"><a href="Data.Bit.F2Poly.html#karatsuba"><span class="hs-identifier hs-type">karatsuba</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span>
+</span><span id="line-179"></span><span id="karatsuba"><span class="annot"><span class="annottext">karatsuba :: Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#karatsuba"><span class="hs-identifier hs-var hs-var">karatsuba</span></a></span></span><span> </span><span id="local-6989586621679102079"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102079"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679102080"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102080"><span class="hs-identifier hs-var">ys</span></a></span></span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102079"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102080"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#sqrBits"><span class="hs-identifier hs-var">sqrBits</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102079"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102082"><span class="hs-identifier hs-var">lenXs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.F2Poly.html#karatsubaThreshold"><span class="hs-identifier hs-var">karatsubaThreshold</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102084"><span class="hs-identifier hs-var">lenYs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.F2Poly.html#karatsubaThreshold"><span class="hs-identifier hs-var">karatsubaThreshold</span></a></span><span>
+</span><span id="line-182"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#mulBits"><span class="hs-identifier hs-var">mulBits</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102079"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102080"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-183"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s. ST s (Vector Bit)) -&gt; Vector Bit
+forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">((forall s. ST s (Vector Bit)) -&gt; Vector Bit)
+-&gt; (forall s. ST s (Vector Bit)) -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-184"></span><span>    </span><span id="local-6989586621679102105"><span class="annot"><a href="#local-6989586621679102105"><span class="hs-identifier hs-var">zs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ST s (MVector (PrimState (ST s)) Bit)
+forall (m :: * -&gt; *) a.
+(PrimMonad m, Unbox a) =&gt;
+Int -&gt; m (MVector (PrimState m) a)
+</span><span class="hs-identifier hs-var">MU.unsafeNew</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102107"><span class="hs-identifier hs-var">lenZs</span></a></span><span>
+</span><span id="line-185"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">forM_</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><a href="Data.Bit.Utils.html#divWordSize"><span class="hs-identifier hs-type">divWordSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679102107"><span class="hs-identifier hs-type">lenZs</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679102109"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102109"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-186"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679102110"><span class="annot"><span class="annottext">z0 :: Word
+</span><a href="#local-6989586621679102110"><span class="hs-identifier hs-var hs-var">z0</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.F2Poly.html#indexWord0"><span class="hs-identifier hs-var">indexWord0</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102112"><span class="hs-identifier hs-var">zs0</span></a></span><span>   </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102109"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-187"></span><span>          </span><span id="local-6989586621679102114"><span class="annot"><span class="annottext">z11 :: Word
+</span><a href="#local-6989586621679102114"><span class="hs-identifier hs-var hs-var">z11</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.F2Poly.html#indexWord0"><span class="hs-identifier hs-var">indexWord0</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102115"><span class="hs-identifier hs-var">zs11</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102109"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102116"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>          </span><span id="local-6989586621679102118"><span class="annot"><span class="annottext">z10 :: Word
+</span><a href="#local-6989586621679102118"><span class="hs-identifier hs-var hs-var">z10</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.F2Poly.html#indexWord0"><span class="hs-identifier hs-var">indexWord0</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102112"><span class="hs-identifier hs-var">zs0</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102109"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102116"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span>          </span><span id="local-6989586621679102120"><span class="annot"><span class="annottext">z12 :: Word
+</span><a href="#local-6989586621679102120"><span class="hs-identifier hs-var hs-var">z12</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.F2Poly.html#indexWord0"><span class="hs-identifier hs-var">indexWord0</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102121"><span class="hs-identifier hs-var">zs2</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102109"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102116"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-190"></span><span>          </span><span id="local-6989586621679102125"><span class="annot"><span class="annottext">z2 :: Word
+</span><a href="#local-6989586621679102125"><span class="hs-identifier hs-var hs-var">z2</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.F2Poly.html#indexWord0"><span class="hs-identifier hs-var">indexWord0</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102121"><span class="hs-identifier hs-var">zs2</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102109"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102116"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-191"></span><span>      </span><span class="annot"><span class="annottext">MVector (PrimState (ST s)) Bit -&gt; Int -&gt; Word -&gt; ST s ()
+forall (m :: * -&gt; *).
+PrimMonad m =&gt;
+MVector (PrimState m) Bit -&gt; Int -&gt; Word -&gt; m ()
+</span><a href="Data.Bit.Internal.html#writeWord"><span class="hs-identifier hs-var">writeWord</span></a></span><span> </span><span class="annot"><span class="annottext">MVector s Bit
+MVector (PrimState (ST s)) Bit
+</span><a href="#local-6989586621679102105"><span class="hs-identifier hs-var">zs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; a
+</span><a href="Data.Bit.Utils.html#mulWordSize"><span class="hs-identifier hs-var">mulWordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102109"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102110"><span class="hs-identifier hs-var">z0</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102114"><span class="hs-identifier hs-var">z11</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102118"><span class="hs-identifier hs-var">z10</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102120"><span class="hs-identifier hs-var">z12</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102125"><span class="hs-identifier hs-var">z2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">U.unsafeFreeze</span></span><span> </span><span class="annot"><a href="#local-6989586621679102105"><span class="hs-identifier hs-type">zs</span></a></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-194"></span><span>    </span><span id="local-6989586621679102082"><span class="annot"><span class="annottext">lenXs :: Int
+</span><a href="#local-6989586621679102082"><span class="hs-identifier hs-var hs-var">lenXs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102079"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-195"></span><span>    </span><span id="local-6989586621679102084"><span class="annot"><span class="annottext">lenYs :: Int
+</span><a href="#local-6989586621679102084"><span class="hs-identifier hs-var hs-var">lenYs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102080"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-196"></span><span>    </span><span id="local-6989586621679102107"><span class="annot"><span class="annottext">lenZs :: Int
+</span><a href="#local-6989586621679102107"><span class="hs-identifier hs-var hs-var">lenZs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102082"><span class="hs-identifier hs-var">lenXs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102084"><span class="hs-identifier hs-var">lenYs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span>    </span><span id="local-6989586621679102116"><span class="annot"><span class="annottext">m :: Int
+</span><a href="#local-6989586621679102116"><span class="hs-identifier hs-var hs-var">m</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">min</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102082"><span class="hs-identifier hs-var">lenXs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102084"><span class="hs-identifier hs-var">lenYs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftR`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.Utils.html#lgWordSize"><span class="hs-identifier hs-var">lgWordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-199"></span><span>    </span><span id="local-6989586621679102141"><span class="annot"><span class="annottext">m' :: Int
+</span><a href="#local-6989586621679102141"><span class="hs-identifier hs-var hs-var">m'</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; a
+</span><a href="Data.Bit.Utils.html#mulWordSize"><span class="hs-identifier hs-var">mulWordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102116"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span>    </span><span id="local-6989586621679102143"><span class="annot"><span class="annottext">xs0 :: Vector Bit
+</span><a href="#local-6989586621679102143"><span class="hs-identifier hs-var hs-var">xs0</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Vector Bit -&gt; Vector Bit
+forall a. Unbox a =&gt; Int -&gt; Int -&gt; Vector a -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.unsafeSlice</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102141"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102079"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-202"></span><span>    </span><span id="local-6989586621679102147"><span class="annot"><span class="annottext">xs1 :: Vector Bit
+</span><a href="#local-6989586621679102147"><span class="hs-identifier hs-var hs-var">xs1</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Vector Bit -&gt; Vector Bit
+forall a. Unbox a =&gt; Int -&gt; Int -&gt; Vector a -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.unsafeSlice</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102141"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102082"><span class="hs-identifier hs-var">lenXs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102141"><span class="hs-identifier hs-var">m'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102079"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-203"></span><span>    </span><span id="local-6989586621679102149"><span class="annot"><span class="annottext">ys0 :: Vector Bit
+</span><a href="#local-6989586621679102149"><span class="hs-identifier hs-var hs-var">ys0</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Vector Bit -&gt; Vector Bit
+forall a. Unbox a =&gt; Int -&gt; Int -&gt; Vector a -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.unsafeSlice</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102141"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102080"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-204"></span><span>    </span><span id="local-6989586621679102152"><span class="annot"><span class="annottext">ys1 :: Vector Bit
+</span><a href="#local-6989586621679102152"><span class="hs-identifier hs-var hs-var">ys1</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Vector Bit -&gt; Vector Bit
+forall a. Unbox a =&gt; Int -&gt; Int -&gt; Vector a -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.unsafeSlice</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102141"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102084"><span class="hs-identifier hs-var">lenYs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102141"><span class="hs-identifier hs-var">m'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102080"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span>    </span><span id="local-6989586621679102153"><span class="annot"><span class="annottext">xs01 :: Vector Bit
+</span><a href="#local-6989586621679102153"><span class="hs-identifier hs-var hs-var">xs01</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#xorBits"><span class="hs-identifier hs-var">xorBits</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102143"><span class="hs-identifier hs-var">xs0</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102147"><span class="hs-identifier hs-var">xs1</span></a></span><span>
+</span><span id="line-207"></span><span>    </span><span id="local-6989586621679102154"><span class="annot"><span class="annottext">ys01 :: Vector Bit
+</span><a href="#local-6989586621679102154"><span class="hs-identifier hs-var hs-var">ys01</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#xorBits"><span class="hs-identifier hs-var">xorBits</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102149"><span class="hs-identifier hs-var">ys0</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102152"><span class="hs-identifier hs-var">ys1</span></a></span><span>
+</span><span id="line-208"></span><span>    </span><span id="local-6989586621679102112"><span class="annot"><span class="annottext">zs0 :: Vector Bit
+</span><a href="#local-6989586621679102112"><span class="hs-identifier hs-var hs-var">zs0</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#karatsuba"><span class="hs-identifier hs-var">karatsuba</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102143"><span class="hs-identifier hs-var">xs0</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102149"><span class="hs-identifier hs-var">ys0</span></a></span><span>
+</span><span id="line-209"></span><span>    </span><span id="local-6989586621679102121"><span class="annot"><span class="annottext">zs2 :: Vector Bit
+</span><a href="#local-6989586621679102121"><span class="hs-identifier hs-var hs-var">zs2</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#karatsuba"><span class="hs-identifier hs-var">karatsuba</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102147"><span class="hs-identifier hs-var">xs1</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102152"><span class="hs-identifier hs-var">ys1</span></a></span><span>
+</span><span id="line-210"></span><span>    </span><span id="local-6989586621679102115"><span class="annot"><span class="annottext">zs11 :: Vector Bit
+</span><a href="#local-6989586621679102115"><span class="hs-identifier hs-var hs-var">zs11</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#karatsuba"><span class="hs-identifier hs-var">karatsuba</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102153"><span class="hs-identifier hs-var">xs01</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102154"><span class="hs-identifier hs-var">ys01</span></a></span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="annot"><a href="Data.Bit.F2Poly.html#indexWord0"><span class="hs-identifier hs-type">indexWord0</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-213"></span><span id="indexWord0"><span class="annot"><span class="annottext">indexWord0 :: Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.F2Poly.html#indexWord0"><span class="hs-identifier hs-var hs-var">indexWord0</span></a></span></span><span> </span><span id="local-6989586621679102155"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102155"><span class="hs-identifier hs-var">bv</span></a></span></span><span> </span><span id="local-6989586621679102156"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102156"><span class="hs-identifier hs-var">i'</span></a></span></span><span>
+</span><span id="line-214"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102157"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102158"><span class="hs-identifier hs-var">lenI</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-215"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102158"><span class="hs-identifier hs-var">lenI</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.Utils.html#wordSize"><span class="hs-identifier hs-var">wordSize</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102159"><span class="hs-identifier hs-var">word</span></a></span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102159"><span class="hs-identifier hs-var">word</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word
+</span><a href="Data.Bit.Utils.html#loMask"><span class="hs-identifier hs-var">loMask</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102158"><span class="hs-identifier hs-var">lenI</span></a></span><span>
+</span><span id="line-217"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-218"></span><span>    </span><span id="local-6989586621679102157"><span class="annot"><span class="annottext">i :: Int
+</span><a href="#local-6989586621679102157"><span class="hs-identifier hs-var hs-var">i</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; a
+</span><a href="Data.Bit.Utils.html#mulWordSize"><span class="hs-identifier hs-var">mulWordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102156"><span class="hs-identifier hs-var">i'</span></a></span><span>
+</span><span id="line-219"></span><span>    </span><span id="local-6989586621679102158"><span class="annot"><span class="annottext">lenI :: Int
+</span><a href="#local-6989586621679102158"><span class="hs-identifier hs-var hs-var">lenI</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102155"><span class="hs-identifier hs-var">bv</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102157"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-220"></span><span>    </span><span id="local-6989586621679102159"><span class="annot"><span class="annottext">word :: Word
+</span><a href="#local-6989586621679102159"><span class="hs-identifier hs-var hs-var">word</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.Internal.html#indexWord"><span class="hs-identifier hs-var">indexWord</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102155"><span class="hs-identifier hs-var">bv</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102157"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span class="annot"><a href="Data.Bit.F2Poly.html#mulBits"><span class="hs-identifier hs-type">mulBits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span>
+</span><span id="line-223"></span><span id="mulBits"><span class="annot"><span class="annottext">mulBits :: Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#mulBits"><span class="hs-identifier hs-var hs-var">mulBits</span></a></span></span><span> </span><span id="local-6989586621679102165"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102165"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679102166"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102166"><span class="hs-identifier hs-var">ys</span></a></span></span><span>
+</span><span id="line-224"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102167"><span class="hs-identifier hs-var">lenXs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102168"><span class="hs-identifier hs-var">lenYs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit
+forall a. Unbox a =&gt; Vector a
+</span><span class="hs-identifier hs-var">U.empty</span></span><span>
+</span><span id="line-225"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102167"><span class="hs-identifier hs-var">lenXs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102168"><span class="hs-identifier hs-var">lenYs</span></a></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#mulBits%27"><span class="hs-identifier hs-var">mulBits'</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102165"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102166"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-226"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#mulBits%27"><span class="hs-identifier hs-var">mulBits'</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102166"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102165"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-227"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-228"></span><span>    </span><span id="local-6989586621679102167"><span class="annot"><span class="annottext">lenXs :: Int
+</span><a href="#local-6989586621679102167"><span class="hs-identifier hs-var hs-var">lenXs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102165"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-229"></span><span>    </span><span id="local-6989586621679102168"><span class="annot"><span class="annottext">lenYs :: Int
+</span><a href="#local-6989586621679102168"><span class="hs-identifier hs-var hs-var">lenYs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102166"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-230"></span><span>
+</span><span id="line-231"></span><span class="annot"><a href="Data.Bit.F2Poly.html#mulBits%27"><span class="hs-identifier hs-type">mulBits'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span>
+</span><span id="line-232"></span><span id="mulBits%27"><span class="annot"><span class="annottext">mulBits' :: Vector Bit -&gt; Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#mulBits%27"><span class="hs-identifier hs-var hs-var">mulBits'</span></a></span></span><span> </span><span id="local-6989586621679102173"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102173"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679102174"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102174"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s. ST s (Vector Bit)) -&gt; Vector Bit
+forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">((forall s. ST s (Vector Bit)) -&gt; Vector Bit)
+-&gt; (forall s. ST s (Vector Bit)) -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-233"></span><span>  </span><span id="local-6989586621679102193"><span class="annot"><a href="#local-6989586621679102193"><span class="hs-identifier hs-var">zs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bit -&gt; ST s (MVector (PrimState (ST s)) Bit)
+forall (m :: * -&gt; *) a.
+(PrimMonad m, Unbox a) =&gt;
+Int -&gt; a -&gt; m (MVector (PrimState m) a)
+</span><span class="hs-identifier hs-var">MU.replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102194"><span class="hs-identifier hs-var">lenZs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bit
+</span><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-var">Bit</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-234"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">forM_</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><a href="#local-6989586621679102195"><span class="hs-identifier hs-type">lenYs</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679102196"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102196"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-235"></span><span>    </span><span class="annot"><span class="annottext">Bool -&gt; ST s () -&gt; ST s ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bit -&gt; Bool
+</span><a href="Data.Bit.Internal.html#unBit"><span class="hs-identifier hs-var">unBit</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Bit
+forall a. Unbox a =&gt; Vector a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">U.unsafeIndex</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102174"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102196"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ST s () -&gt; ST s ()) -&gt; ST s () -&gt; ST s ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-236"></span><span>      </span><span class="annot"><span class="annottext">(forall a. Bits a =&gt; a -&gt; a -&gt; a)
+-&gt; Vector Bit -&gt; MVector (PrimState (ST s)) Bit -&gt; ST s ()
+forall (m :: * -&gt; *).
+PrimMonad m =&gt;
+(forall a. Bits a =&gt; a -&gt; a -&gt; a)
+-&gt; Vector Bit -&gt; MVector (PrimState m) Bit -&gt; m ()
+</span><a href="Data.Bit.Mutable.html#zipInPlace"><span class="hs-identifier hs-var">zipInPlace</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">xor</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102173"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; MVector s Bit -&gt; MVector s Bit
+forall a s. Unbox a =&gt; Int -&gt; Int -&gt; MVector s a -&gt; MVector s a
+</span><span class="hs-identifier hs-var">MU.unsafeSlice</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102196"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102194"><span class="hs-identifier hs-var">lenZs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102196"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">MVector s Bit
+</span><a href="#local-6989586621679102193"><span class="hs-identifier hs-var">zs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-237"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">U.unsafeFreeze</span></span><span> </span><span class="annot"><a href="#local-6989586621679102193"><span class="hs-identifier hs-type">zs</span></a></span><span>
+</span><span id="line-238"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-239"></span><span>    </span><span id="local-6989586621679102205"><span class="annot"><span class="annottext">lenXs :: Int
+</span><a href="#local-6989586621679102205"><span class="hs-identifier hs-var hs-var">lenXs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102173"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-240"></span><span>    </span><span id="local-6989586621679102195"><span class="annot"><span class="annottext">lenYs :: Int
+</span><a href="#local-6989586621679102195"><span class="hs-identifier hs-var hs-var">lenYs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102174"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-241"></span><span>    </span><span id="local-6989586621679102194"><span class="annot"><span class="annottext">lenZs :: Int
+</span><a href="#local-6989586621679102194"><span class="hs-identifier hs-var hs-var">lenZs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102205"><span class="hs-identifier hs-var">lenXs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102195"><span class="hs-identifier hs-var">lenYs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="annot"><a href="Data.Bit.F2Poly.html#sqrBits"><span class="hs-identifier hs-type">sqrBits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span>
+</span><span id="line-244"></span><span id="sqrBits"><span class="annot"><span class="annottext">sqrBits :: Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#sqrBits"><span class="hs-identifier hs-var hs-var">sqrBits</span></a></span></span><span> </span><span id="local-6989586621679102210"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102210"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s. ST s (Vector Bit)) -&gt; Vector Bit
+forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">((forall s. ST s (Vector Bit)) -&gt; Vector Bit)
+-&gt; (forall s. ST s (Vector Bit)) -&gt; Vector Bit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-245"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679102232"><span class="annot"><span class="annottext">lenXs :: Int
+</span><a href="#local-6989586621679102232"><span class="hs-identifier hs-var hs-var hs-var">lenXs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102210"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-246"></span><span>  </span><span id="local-6989586621679102233"><span class="annot"><a href="#local-6989586621679102233"><span class="hs-identifier hs-var">zs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bit -&gt; ST s (MVector (PrimState (ST s)) Bit)
+forall (m :: * -&gt; *) a.
+(PrimMonad m, Unbox a) =&gt;
+Int -&gt; a -&gt; m (MVector (PrimState m) a)
+</span><span class="hs-identifier hs-var">MU.replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; a
+</span><a href="Data.Bit.Utils.html#mulWordSize"><span class="hs-identifier hs-var">mulWordSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="Data.Bit.Utils.html#nWords"><span class="hs-identifier hs-var">nWords</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102232"><span class="hs-identifier hs-var">lenXs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bit
+</span><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-var">Bit</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-247"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">forM_</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bit.Utils.html#wordSize"><span class="hs-identifier hs-type">wordSize</span></a></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><a href="#local-6989586621679102232"><span class="hs-identifier hs-type">lenXs</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679102235"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102235"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-248"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679102236"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102236"><span class="hs-identifier hs-var hs-var">z0</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679102237"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102237"><span class="hs-identifier hs-var hs-var">z1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; (Word, Word)
+</span><a href="Data.Bit.Utils.html#sparseBits"><span class="hs-identifier hs-var">sparseBits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.Internal.html#indexWord"><span class="hs-identifier hs-var">indexWord</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102210"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102235"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-249"></span><span>    </span><span class="annot"><span class="annottext">MVector (PrimState (ST s)) Bit -&gt; Int -&gt; Word -&gt; ST s ()
+forall (m :: * -&gt; *).
+PrimMonad m =&gt;
+MVector (PrimState m) Bit -&gt; Int -&gt; Word -&gt; m ()
+</span><a href="Data.Bit.Internal.html#writeWord"><span class="hs-identifier hs-var">writeWord</span></a></span><span> </span><span class="annot"><span class="annottext">MVector s Bit
+MVector (PrimState (ST s)) Bit
+</span><a href="#local-6989586621679102233"><span class="hs-identifier hs-var">zs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102235"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102236"><span class="hs-identifier hs-var">z0</span></a></span><span>
+</span><span id="line-250"></span><span>    </span><span class="annot"><span class="annottext">MVector (PrimState (ST s)) Bit -&gt; Int -&gt; Word -&gt; ST s ()
+forall (m :: * -&gt; *).
+PrimMonad m =&gt;
+MVector (PrimState m) Bit -&gt; Int -&gt; Word -&gt; m ()
+</span><a href="Data.Bit.Internal.html#writeWord"><span class="hs-identifier hs-var">writeWord</span></a></span><span> </span><span class="annot"><span class="annottext">MVector s Bit
+MVector (PrimState (ST s)) Bit
+</span><a href="#local-6989586621679102233"><span class="hs-identifier hs-var">zs</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102235"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.Utils.html#wordSize"><span class="hs-identifier hs-var">wordSize</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102237"><span class="hs-identifier hs-var">z1</span></a></span><span>
+</span><span id="line-251"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">U.unsafeFreeze</span></span><span> </span><span class="annot"><a href="#local-6989586621679102233"><span class="hs-identifier hs-type">zs</span></a></span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span class="annot"><a href="Data.Bit.F2Poly.html#quotRemBits"><span class="hs-identifier hs-type">quotRemBits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-254"></span><span id="quotRemBits"><span class="annot"><span class="annottext">quotRemBits :: Vector Bit -&gt; Vector Bit -&gt; (Vector Bit, Vector Bit)
+</span><a href="Data.Bit.F2Poly.html#quotRemBits"><span class="hs-identifier hs-var hs-var">quotRemBits</span></a></span></span><span> </span><span id="local-6989586621679102239"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102239"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679102240"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102240"><span class="hs-identifier hs-var">ys</span></a></span></span><span>
+</span><span id="line-255"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Bool
+forall a. Unbox a =&gt; Vector a -&gt; Bool
+</span><span class="hs-identifier hs-var">U.null</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102240"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ArithException -&gt; (Vector Bit, Vector Bit)
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">ArithException
+</span><span class="hs-identifier hs-var">DivideByZero</span></span><span>
+</span><span id="line-256"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102239"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102240"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit
+forall a. Unbox a =&gt; Vector a
+</span><span class="hs-identifier hs-var">U.empty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102239"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-257"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s. ST s (Vector Bit, Vector Bit))
+-&gt; (Vector Bit, Vector Bit)
+forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">((forall s. ST s (Vector Bit, Vector Bit))
+ -&gt; (Vector Bit, Vector Bit))
+-&gt; (forall s. ST s (Vector Bit, Vector Bit))
+-&gt; (Vector Bit, Vector Bit)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-258"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679102281"><span class="annot"><span class="annottext">lenXs :: Int
+</span><a href="#local-6989586621679102281"><span class="hs-identifier hs-var hs-var hs-var">lenXs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102239"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-259"></span><span>        </span><span id="local-6989586621679102283"><span class="annot"><span class="annottext">lenYs :: Int
+</span><a href="#local-6989586621679102283"><span class="hs-identifier hs-var hs-var hs-var">lenYs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102240"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-260"></span><span>        </span><span id="local-6989586621679102287"><span class="annot"><span class="annottext">lenQs :: Int
+</span><a href="#local-6989586621679102287"><span class="hs-identifier hs-var hs-var hs-var">lenQs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102281"><span class="hs-identifier hs-var">lenXs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102283"><span class="hs-identifier hs-var">lenYs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-261"></span><span>    </span><span id="local-6989586621679102288"><span class="annot"><a href="#local-6989586621679102288"><span class="hs-identifier hs-var">qs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bit -&gt; ST s (MVector (PrimState (ST s)) Bit)
+forall (m :: * -&gt; *) a.
+(PrimMonad m, Unbox a) =&gt;
+Int -&gt; a -&gt; m (MVector (PrimState m) a)
+</span><span class="hs-identifier hs-var">MU.replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102287"><span class="hs-identifier hs-var">lenQs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bit
+</span><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-var">Bit</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-262"></span><span>    </span><span id="local-6989586621679102289"><span class="annot"><a href="#local-6989586621679102289"><span class="hs-identifier hs-var">rs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MU.replicate</span></span><span> </span><span class="annot"><a href="#local-6989586621679102281"><span class="hs-identifier hs-type">lenXs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-263"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">U.unsafeCopy</span></span><span> </span><span class="annot"><a href="#local-6989586621679102289"><span class="hs-identifier hs-type">rs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679102239"><span class="hs-identifier hs-type">xs</span></a></span><span>
+</span><span id="line-264"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">forM_</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679102287"><span class="hs-identifier hs-type">lenQs</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679102287"><span class="hs-identifier hs-type">lenQs</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679102290"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102290"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-265"></span><span>      </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span id="local-6989586621679102291"><span class="annot"><a href="#local-6989586621679102291"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVector (PrimState (ST s)) Bit -&gt; Int -&gt; ST s Bit
+forall (m :: * -&gt; *) a.
+(PrimMonad m, Unbox a) =&gt;
+MVector (PrimState m) a -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">MU.unsafeRead</span></span><span> </span><span class="annot"><span class="annottext">MVector s Bit
+MVector (PrimState (ST s)) Bit
+</span><a href="#local-6989586621679102289"><span class="hs-identifier hs-var">rs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102283"><span class="hs-identifier hs-var">lenYs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102290"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-266"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="annot"><a href="#local-6989586621679102291"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-267"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">MU.unsafeWrite</span></span><span> </span><span class="annot"><a href="#local-6989586621679102288"><span class="hs-identifier hs-type">qs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679102290"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-268"></span><span>        </span><span class="annot"><a href="Data.Bit.Mutable.html#zipInPlace"><span class="hs-identifier hs-type">zipInPlace</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">xor</span></span><span> </span><span class="annot"><a href="#local-6989586621679102240"><span class="hs-identifier hs-type">ys</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MU.drop</span></span><span> </span><span class="annot"><a href="#local-6989586621679102290"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679102289"><span class="hs-identifier hs-type">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-269"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679102297"><span class="annot"><a href="#local-6989586621679102297"><span class="hs-identifier hs-var hs-var">rs'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; MVector s Bit -&gt; MVector s Bit
+forall a s. Unbox a =&gt; Int -&gt; Int -&gt; MVector s a -&gt; MVector s a
+</span><span class="hs-identifier hs-var">MU.unsafeSlice</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102283"><span class="hs-identifier hs-var">lenYs</span></a></span><span> </span><span class="annot"><span class="annottext">MVector s Bit
+</span><a href="#local-6989586621679102289"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><span id="line-270"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.unsafeFreeze</span></span><span> </span><span class="annot"><a href="#local-6989586621679102288"><span class="hs-identifier hs-type">qs</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.unsafeFreeze</span></span><span> </span><span class="annot"><a href="#local-6989586621679102297"><span class="hs-identifier hs-type">rs'</span></a></span><span>
+</span><span id="line-271"></span><span>
+</span><span id="line-272"></span><span class="annot"><a href="Data.Bit.F2Poly.html#dropWhileEnd"><span class="hs-identifier hs-type">dropWhileEnd</span></a></span><span>
+</span><span id="line-273"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span>
+</span><span id="line-274"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span>
+</span><span id="line-275"></span><span id="dropWhileEnd"><span class="annot"><span class="annottext">dropWhileEnd :: Vector Bit -&gt; Vector Bit
+</span><a href="Data.Bit.F2Poly.html#dropWhileEnd"><span class="hs-identifier hs-var hs-var">dropWhileEnd</span></a></span></span><span> </span><span id="local-6989586621679102299"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102299"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Vector Bit -&gt; Vector Bit
+forall a. Unbox a =&gt; Int -&gt; Int -&gt; Vector a -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.unsafeSlice</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="#local-6989586621679102300"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">U.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102299"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102299"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-276"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-277"></span><span>    </span><span id="local-6989586621679102300"><span class="annot"><span class="annottext">go :: Int -&gt; Int
+</span><a href="#local-6989586621679102300"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679102314"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102314"><span class="hs-identifier hs-var">n</span></a></span></span><span>
+</span><span id="line-278"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102314"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.Utils.html#wordSize"><span class="hs-identifier hs-var">wordSize</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.Utils.html#wordSize"><span class="hs-identifier hs-var">wordSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Int
+forall b. FiniteBits b =&gt; b -&gt; Int
+</span><span class="hs-identifier hs-var">countLeadingZeros</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.Internal.html#indexWord"><span class="hs-identifier hs-var">indexWord</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102299"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word
+</span><a href="Data.Bit.Utils.html#loMask"><span class="hs-identifier hs-var">loMask</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102314"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-279"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Int -&gt; Word
+</span><a href="Data.Bit.Internal.html#indexWord"><span class="hs-identifier hs-var">indexWord</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102299"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102314"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.Utils.html#wordSize"><span class="hs-identifier hs-var">wordSize</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-280"></span><span>        </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="#local-6989586621679102300"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102314"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Data.Bit.Utils.html#wordSize"><span class="hs-identifier hs-var">wordSize</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-281"></span><span>        </span><span id="local-6989586621679102316"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102316"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679102314"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Int
+forall b. FiniteBits b =&gt; b -&gt; Int
+</span><span class="hs-identifier hs-var">countLeadingZeros</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679102316"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-282"></span><span>
+</span><span id="line-283"></span><span class="annot"><a href="Data.Bit.F2Poly.html#bitsToByteArray"><span class="hs-identifier hs-type">bitsToByteArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="Data.Bit.Internal.html#Bit"><span class="hs-identifier hs-type">Bit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray#</span></span><span>
+</span><span id="line-284"></span><span id="bitsToByteArray"><span class="annot"><span class="annottext">bitsToByteArray :: Vector Bit -&gt; ByteArray#
+</span><a href="Data.Bit.F2Poly.html#bitsToByteArray"><span class="hs-identifier hs-var hs-var">bitsToByteArray</span></a></span></span><span> </span><span id="local-6989586621679102317"><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102317"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679102318"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-285"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-286"></span><span>    </span><span id="local-6989586621679102322"><span class="annot"><span class="annottext">ys :: Vector Word
+</span><a href="#local-6989586621679102322"><span class="hs-identifier hs-var hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Bool
+forall a. Unbox a =&gt; Vector a -&gt; Bool
+</span><span class="hs-identifier hs-var">U.null</span></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102317"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Vector Word
+forall a. Unbox a =&gt; a -&gt; Vector a
+</span><span class="hs-identifier hs-var">U.singleton</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Vector Bit -&gt; Vector Word
+</span><a href="Data.Bit.Immutable.html#cloneToWords"><span class="hs-identifier hs-var">cloneToWords</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Bit
+</span><a href="#local-6989586621679102317"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-287"></span><span>    </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">P.Vector</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span id="local-6989586621679102318"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679102318"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Word -&gt; Vector Word
+</span><a href="Data.Bit.Utils.html#toPrimVector"><span class="hs-identifier hs-var">toPrimVector</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Word
+</span><a href="#local-6989586621679102322"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-288"></span><span>
+</span><span id="line-289"></span><span class="hs-comment">-- | Execute the extended Euclidean algorithm.</span><span>
+</span><span id="line-290"></span><span class="hs-comment">-- For polynomials @a@ and @b@, compute their unique greatest common divisor @g@</span><span>
+</span><span id="line-291"></span><span class="hs-comment">-- and the unique coefficient polynomial @s@ satisfying \( a \cdot s + b \cdot t = g \).</span><span>
+</span><span id="line-292"></span><span class="hs-comment">--</span><span>
+</span><span id="line-293"></span><span class="hs-comment">-- &gt;&gt;&gt; :set -XBinaryLiterals</span><span>
+</span><span id="line-294"></span><span class="hs-comment">-- &gt;&gt;&gt; gcdExt 0b101 0b0101</span><span>
+</span><span id="line-295"></span><span class="hs-comment">-- (0b101,0b0)</span><span>
+</span><span id="line-296"></span><span class="hs-comment">-- &gt;&gt;&gt; gcdExt 0b11 0b111</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- (0b1,0b10)</span><span>
+</span><span id="line-298"></span><span class="hs-comment">--</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- @since 1.0.2.0</span><span>
+</span><span id="line-300"></span><span class="annot"><a href="Data.Bit.F2Poly.html#gcdExt"><span class="hs-identifier hs-type">gcdExt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bit.F2Poly.html#F2Poly"><span class="hs-identifier hs-type">F2Poly</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-301"></span><span id="gcdExt"><span class="annot"><span class="annottext">gcdExt :: F2Poly -&gt; F2Poly -&gt; (F2Poly, F2Poly)
+</span><a href="Data.Bit.F2Poly.html#gcdExt"><span class="hs-identifier hs-var hs-var">gcdExt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">F2Poly -&gt; F2Poly -&gt; F2Poly -&gt; F2Poly -&gt; (F2Poly, F2Poly)
+forall {t}. Integral t =&gt; t -&gt; t -&gt; t -&gt; t -&gt; (t, t)
+</span><a href="#local-6989586621679102326"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">F2Poly
+</span><a href="Data.Bit.F2Poly.html#one"><span class="hs-identifier hs-var">one</span></a></span><span> </span><span class="annot"><span class="annottext">F2Poly
+</span><a href="Data.Bit.F2Poly.html#zero"><span class="hs-identifier hs-var">zero</span></a></span><span>
+</span><span id="line-302"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-303"></span><span>    </span><span id="local-6989586621679102326"><span class="annot"><span class="annottext">go :: t -&gt; t -&gt; t -&gt; t -&gt; (t, t)
+</span><a href="#local-6989586621679102326"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679102348"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102348"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679102349"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102349"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span id="local-6989586621679102350"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102350"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679102351"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102351"><span class="hs-identifier hs-var">r'</span></a></span></span><span>
+</span><span id="line-304"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102351"><span class="hs-identifier hs-var">r'</span></a></span><span> </span><span class="annot"><span class="annottext">t -&gt; t -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><span class="hs-number">0</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102350"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102348"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-305"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">t -&gt; t -&gt; (t, t)
+forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">quotRem</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102350"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102351"><span class="hs-identifier hs-var">r'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-306"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679102352"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102352"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679102353"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102353"><span class="hs-identifier hs-var">r''</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">t -&gt; t -&gt; t -&gt; t -&gt; (t, t)
+</span><a href="#local-6989586621679102326"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102349"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102348"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">t -&gt; t -&gt; t
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102352"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">t -&gt; t -&gt; t
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102349"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102351"><span class="hs-identifier hs-var">r'</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679102353"><span class="hs-identifier hs-var">r''</span></a></span><span>
+</span><span id="line-307"></span></pre></body></html>

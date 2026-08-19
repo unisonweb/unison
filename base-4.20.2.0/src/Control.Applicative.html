@@ -1,0 +1,394 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679127933"><span id="local-6989586621679127934"><span id="local-6989586621679127935"><span id="local-6989586621679127936"></span></span></span></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE StandaloneDeriving #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Module      :  Control.Applicative</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Copyright   :  Conor McBride and Ross Paterson 2005</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License     :  BSD-style (see the LICENSE file in the distribution)</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Stability   :  stable</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- This module describes a structure intermediate between a functor and</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- a monad (technically, a strong lax monoidal functor).  Compared with</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- monads, this interface lacks the full power of the binding operation</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- '&gt;&gt;=', but</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- * it has more instances.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- * it is sufficient for many uses, e.g. context-free parsing, or the</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--   'Data.Traversable.Traversable' class.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- * instances can perform analysis of computations before they are</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--   executed, and thus produce shared optimizations.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- This interface was introduced for parsers by Niklas R&amp;#xF6;jemo, because</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- it admits more sharing than the monadic interface.  The names here are</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- mostly based on parsing work by Doaitse Swierstra.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- For more details, see</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- &lt;http://www.soi.city.ac.uk/~ross/papers/Applicative.html Applicative Programming with Effects&gt;,</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- by Conor McBride and Ross Paterson.</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Applicative.html"><span class="hs-identifier">Control.Applicative</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Applicative functors</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Applicative"><span class="hs-identifier">Applicative</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Alternatives</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Alternative"><span class="hs-identifier">Alternative</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Instances</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Functor.Const.html#Const"><span class="hs-identifier">Const</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Applicative.html#WrappedMonad"><span class="hs-identifier">WrappedMonad</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Applicative.html#WrappedArrow"><span class="hs-identifier">WrappedArrow</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Functor.ZipList.html#ZipList"><span class="hs-identifier">ZipList</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Utility functions</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator">(&lt;$&gt;)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%3C%24"><span class="hs-operator">(&lt;$)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%3C%2A%2A%3E"><span class="hs-operator">(&lt;**&gt;)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#liftA"><span class="hs-identifier">liftA</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#liftA3"><span class="hs-identifier">liftA3</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><a href="Control.Applicative.html#optional"><span class="hs-identifier">optional</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#asum"><span class="hs-identifier">asum</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Category.html"><span class="hs-identifier">GHC.Internal.Control.Category</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Category.html#."><span class="hs-operator">(.)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Category.html#id"><span class="hs-identifier">id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html"><span class="hs-identifier">GHC.Internal.Control.Arrow</span></a></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Maybe.html"><span class="hs-identifier">GHC.Internal.Data.Maybe</span></a></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Tuple.html"><span class="hs-identifier">GHC.Internal.Data.Tuple</span></a></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html"><span class="hs-identifier">GHC.Internal.Data.Foldable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#asum"><span class="hs-identifier">asum</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Functor.html"><span class="hs-identifier">GHC.Internal.Data.Functor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator">(&lt;$&gt;)</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Functor.Const.html"><span class="hs-identifier">GHC.Internal.Data.Functor.Const</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Functor.Const.html#Const"><span class="hs-identifier">Const</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html"><span class="hs-identifier">GHC.Internal.Data.Typeable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#Typeable"><span class="hs-identifier">Typeable</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html"><span class="hs-identifier">GHC.Internal.Data.Data</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#Data"><span class="hs-identifier">Data</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Functor.ZipList.html"><span class="hs-identifier">GHC.Internal.Functor.ZipList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Functor.ZipList.html#ZipList"><span class="hs-identifier">ZipList</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- &gt;&gt;&gt; import Prelude</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">newtype</span><span> </span><span id="WrappedMonad"><span class="annot"><a href="Control.Applicative.html#WrappedMonad"><span class="hs-identifier hs-var">WrappedMonad</span></a></span></span><span> </span><span id="local-6989586621679127681"><span class="annot"><a href="#local-6989586621679127681"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679127682"><span class="annot"><a href="#local-6989586621679127682"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="WrapMonad"><span class="annot"><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-var">WrapMonad</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unwrapMonad"><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. WrappedMonad m a -&gt; m a
+</span><a href="Control.Applicative.html#unwrapMonad"><span class="hs-identifier hs-var hs-var">unwrapMonad</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679127681"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127682"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-72"></span><span>                         </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679127951"><span id="local-6989586621679127953"><span class="annot"><span class="annottext">(forall x. WrappedMonad m a -&gt; Rep (WrappedMonad m a) x)
+-&gt; (forall x. Rep (WrappedMonad m a) x -&gt; WrappedMonad m a)
+-&gt; Generic (WrappedMonad m a)
+forall x. Rep (WrappedMonad m a) x -&gt; WrappedMonad m a
+forall x. WrappedMonad m a -&gt; Rep (WrappedMonad m a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall (m :: * -&gt; *) a x.
+Rep (WrappedMonad m a) x -&gt; WrappedMonad m a
+forall (m :: * -&gt; *) a x.
+WrappedMonad m a -&gt; Rep (WrappedMonad m a) x
+$cfrom :: forall (m :: * -&gt; *) a x.
+WrappedMonad m a -&gt; Rep (WrappedMonad m a) x
+from :: forall x. WrappedMonad m a -&gt; Rep (WrappedMonad m a) x
+$cto :: forall (m :: * -&gt; *) a x.
+Rep (WrappedMonad m a) x -&gt; WrappedMonad m a
+to :: forall x. Rep (WrappedMonad m a) x -&gt; WrappedMonad m a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ @since 4.7.0.0</span></span><span>
+</span><span id="line-73"></span><span>                                  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679127959"><span id="local-6989586621679127961"><span class="annot"><span class="annottext">(forall a. WrappedMonad m a -&gt; Rep1 (WrappedMonad m) a)
+-&gt; (forall a. Rep1 (WrappedMonad m) a -&gt; WrappedMonad m a)
+-&gt; Generic1 (WrappedMonad m)
+forall a. Rep1 (WrappedMonad m) a -&gt; WrappedMonad m a
+forall a. WrappedMonad m a -&gt; Rep1 (WrappedMonad m) a
+forall k (f :: k -&gt; *).
+(forall (a :: k). f a -&gt; Rep1 f a)
+-&gt; (forall (a :: k). Rep1 f a -&gt; f a) -&gt; Generic1 f
+forall (m :: * -&gt; *) a. Rep1 (WrappedMonad m) a -&gt; WrappedMonad m a
+forall (m :: * -&gt; *) a. WrappedMonad m a -&gt; Rep1 (WrappedMonad m) a
+$cfrom1 :: forall (m :: * -&gt; *) a. WrappedMonad m a -&gt; Rep1 (WrappedMonad m) a
+from1 :: forall a. WrappedMonad m a -&gt; Rep1 (WrappedMonad m) a
+$cto1 :: forall (m :: * -&gt; *) a. Rep1 (WrappedMonad m) a -&gt; WrappedMonad m a
+to1 :: forall a. Rep1 (WrappedMonad m) a -&gt; WrappedMonad m a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Generic1"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic1</span></a></span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @since 4.7.0.0</span></span><span>
+</span><span id="line-74"></span><span>                                  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679127971"><span id="local-6989586621679127975"><span id="local-6989586621679127979"><span class="annot"><span class="annottext">Applicative (WrappedMonad m)
+Applicative (WrappedMonad m) =&gt;
+(forall a b.
+ WrappedMonad m a -&gt; (a -&gt; WrappedMonad m b) -&gt; WrappedMonad m b)
+-&gt; (forall a b.
+    WrappedMonad m a -&gt; WrappedMonad m b -&gt; WrappedMonad m b)
+-&gt; (forall a. a -&gt; WrappedMonad m a)
+-&gt; Monad (WrappedMonad m)
+forall a. a -&gt; WrappedMonad m a
+forall a b.
+WrappedMonad m a -&gt; WrappedMonad m b -&gt; WrappedMonad m b
+forall a b.
+WrappedMonad m a -&gt; (a -&gt; WrappedMonad m b) -&gt; WrappedMonad m b
+forall (m :: * -&gt; *). Monad m =&gt; Applicative (WrappedMonad m)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; WrappedMonad m a
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+WrappedMonad m a -&gt; WrappedMonad m b -&gt; WrappedMonad m b
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+WrappedMonad m a -&gt; (a -&gt; WrappedMonad m b) -&gt; WrappedMonad m b
+forall (m :: * -&gt; *).
+Applicative m =&gt;
+(forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+$c&gt;&gt;= :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+WrappedMonad m a -&gt; (a -&gt; WrappedMonad m b) -&gt; WrappedMonad m b
+&gt;&gt;= :: forall a b.
+WrappedMonad m a -&gt; (a -&gt; WrappedMonad m b) -&gt; WrappedMonad m b
+$c&gt;&gt; :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+WrappedMonad m a -&gt; WrappedMonad m b -&gt; WrappedMonad m b
+&gt;&gt; :: forall a b.
+WrappedMonad m a -&gt; WrappedMonad m b -&gt; WrappedMonad m b
+$creturn :: forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; WrappedMonad m a
+return :: forall a. a -&gt; WrappedMonad m a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Monad"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></a></span></span></span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ @since 4.7.0.0</span></span><span>
+</span><span id="line-75"></span><span>                                  </span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="annot"><span class="hs-comment">-- | @since 2.01</span></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679127721"><span id="local-6989586621679127987"><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Monad"><span class="hs-identifier hs-type">Monad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127721"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Functor"><span class="hs-identifier hs-type">Functor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrappedMonad"><span class="hs-identifier hs-type">WrappedMonad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127721"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679127992"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; WrappedMonad m a -&gt; WrappedMonad m b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#fmap"><span class="hs-identifier hs-var hs-var hs-var">fmap</span></a></span></span><span> </span><span id="local-6989586621679127993"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679127993"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-type">WrapMonad</span></a></span><span> </span><span id="local-6989586621679127994"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679127994"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m b -&gt; WrappedMonad m b
+forall (m :: * -&gt; *) a. m a -&gt; WrappedMonad m a
+</span><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-var">WrapMonad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; m a -&gt; m b
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#liftM"><span class="hs-identifier hs-var">liftM</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679127993"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679127994"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="annot"><span class="hs-comment">-- | @since 2.01</span></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679127996"><span id="local-6989586621679128004"><span id="local-6989586621679128007"><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Monad"><span class="hs-identifier hs-type">Monad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127996"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Applicative"><span class="hs-identifier hs-type">Applicative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrappedMonad"><span class="hs-identifier hs-type">WrappedMonad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127996"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679128013"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; WrappedMonad m a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var hs-var hs-var">pure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; WrappedMonad m a
+forall (m :: * -&gt; *) a. m a -&gt; WrappedMonad m a
+</span><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-var">WrapMonad</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; WrappedMonad m a) -&gt; (a -&gt; m a) -&gt; a -&gt; WrappedMonad m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; m a
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-type">WrapMonad</span></a></span><span> </span><span id="local-6989586621679128016"><span class="annot"><span class="annottext">m (a -&gt; b)
+</span><a href="#local-6989586621679128016"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679128017"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b.
+WrappedMonad m (a -&gt; b) -&gt; WrappedMonad m a -&gt; WrappedMonad m b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%3C%2A%3E"><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></a></span></span><span> </span><span class="annot"><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-type">WrapMonad</span></a></span><span> </span><span id="local-6989586621679128018"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679128018"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m b -&gt; WrappedMonad m b
+forall (m :: * -&gt; *) a. m a -&gt; WrappedMonad m a
+</span><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-var">WrapMonad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m (a -&gt; b)
+</span><a href="#local-6989586621679128016"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">m (a -&gt; b) -&gt; m a -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m (a -&gt; b) -&gt; m a -&gt; m b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#ap"><span class="hs-operator hs-var">`ap`</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679128018"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621679128021"><span class="annot"><span class="annottext">liftA2 :: forall a b c.
+(a -&gt; b -&gt; c)
+-&gt; WrappedMonad m a -&gt; WrappedMonad m b -&gt; WrappedMonad m c
+</span><a href="#local-6989586621679128021"><span class="hs-identifier hs-var hs-var hs-var">liftA2</span></a></span></span><span> </span><span id="local-6989586621679128023"><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679128023"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-type">WrapMonad</span></a></span><span> </span><span id="local-6989586621679128024"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679128024"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-type">WrapMonad</span></a></span><span> </span><span id="local-6989586621679128025"><span class="annot"><span class="annottext">m b
+</span><a href="#local-6989586621679128025"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m c -&gt; WrappedMonad m c
+forall (m :: * -&gt; *) a. m a -&gt; WrappedMonad m a
+</span><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-var">WrapMonad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b -&gt; c) -&gt; m a -&gt; m b -&gt; m c
+forall (m :: * -&gt; *) a1 a2 r.
+Monad m =&gt;
+(a1 -&gt; a2 -&gt; r) -&gt; m a1 -&gt; m a2 -&gt; m r
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#liftM2"><span class="hs-identifier hs-var">liftM2</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679128023"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679128024"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">m b
+</span><a href="#local-6989586621679128025"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="annot"><span class="hs-comment">-- | @since 2.01</span></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679127763"><span id="local-6989586621679128034"><span id="local-6989586621679128038"><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#MonadPlus"><span class="hs-identifier hs-type">MonadPlus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127763"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Alternative"><span class="hs-identifier hs-type">Alternative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrappedMonad"><span class="hs-identifier hs-type">WrappedMonad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127763"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621679128043"><span class="annot"><span class="annottext">empty :: forall a. WrappedMonad m a
+</span><a href="#local-6989586621679128043"><span class="hs-identifier hs-var hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; WrappedMonad m a
+forall (m :: * -&gt; *) a. m a -&gt; WrappedMonad m a
+</span><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-var">WrapMonad</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+forall a. m a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#mzero"><span class="hs-identifier hs-var">mzero</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-type">WrapMonad</span></a></span><span> </span><span id="local-6989586621679128047"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679128047"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span id="local-6989586621679128048"><span class="annot"><span class="annottext">&lt;|&gt; :: forall a. WrappedMonad m a -&gt; WrappedMonad m a -&gt; WrappedMonad m a
+</span><a href="#local-6989586621679128048"><span class="hs-operator hs-var hs-var hs-var">&lt;|&gt;</span></a></span></span><span> </span><span class="annot"><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-type">WrapMonad</span></a></span><span> </span><span id="local-6989586621679128050"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679128050"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; WrappedMonad m a
+forall (m :: * -&gt; *) a. m a -&gt; WrappedMonad m a
+</span><a href="Control.Applicative.html#WrapMonad"><span class="hs-identifier hs-var">WrapMonad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679128047"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; m a -&gt; m a
+forall a. m a -&gt; m a -&gt; m a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m a -&gt; m a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#mplus"><span class="hs-operator hs-var">`mplus`</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679128050"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><span class="hs-comment">-- | @since 4.14.0.0</span></span><span>
+</span><span id="line-93"></span><span id="local-6989586621679127806"><span id="local-6989586621679127807"><span id="local-6989586621679128059"><span id="local-6989586621679128062"><span id="local-6989586621679128065"><span id="local-6989586621679128067"><span id="local-6989586621679128069"><span id="local-6989586621679128075"><span id="local-6989586621679128080"><span id="local-6989586621679128083"><span id="local-6989586621679128086"><span id="local-6989586621679128089"><span id="local-6989586621679128092"><span id="local-6989586621679128095"><span id="local-6989586621679128100"><span id="local-6989586621679128105"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#Typeable"><span class="hs-identifier hs-type">Typeable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679127806"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#Typeable"><span class="hs-identifier hs-type">Typeable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127807"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#Data"><span class="hs-identifier hs-type">Data</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679127806"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127807"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>         </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#Data"><span class="hs-identifier hs-type">Data</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrappedMonad"><span class="hs-identifier hs-type">WrappedMonad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127806"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127807"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-keyword">newtype</span><span> </span><span id="WrappedArrow"><span class="annot"><a href="Control.Applicative.html#WrappedArrow"><span class="hs-identifier hs-var">WrappedArrow</span></a></span></span><span> </span><span id="local-6989586621679127808"><span class="annot"><a href="#local-6989586621679127808"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679127809"><span class="annot"><a href="#local-6989586621679127809"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span id="local-6989586621679127810"><span class="annot"><a href="#local-6989586621679127810"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="WrapArrow"><span class="annot"><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-var">WrapArrow</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unwrapArrow"><span class="annot"><span class="annottext">forall (a :: * -&gt; * -&gt; *) b c. WrappedArrow a b c -&gt; a b c
+</span><a href="Control.Applicative.html#unwrapArrow"><span class="hs-identifier hs-var hs-var">unwrapArrow</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679127808"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127809"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127810"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-97"></span><span>                           </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679128118"><span id="local-6989586621679128120"><span class="annot"><span class="annottext">(forall x. WrappedArrow a b c -&gt; Rep (WrappedArrow a b c) x)
+-&gt; (forall x. Rep (WrappedArrow a b c) x -&gt; WrappedArrow a b c)
+-&gt; Generic (WrappedArrow a b c)
+forall x. Rep (WrappedArrow a b c) x -&gt; WrappedArrow a b c
+forall x. WrappedArrow a b c -&gt; Rep (WrappedArrow a b c) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall (a :: * -&gt; * -&gt; *) b c x.
+Rep (WrappedArrow a b c) x -&gt; WrappedArrow a b c
+forall (a :: * -&gt; * -&gt; *) b c x.
+WrappedArrow a b c -&gt; Rep (WrappedArrow a b c) x
+$cfrom :: forall (a :: * -&gt; * -&gt; *) b c x.
+WrappedArrow a b c -&gt; Rep (WrappedArrow a b c) x
+from :: forall x. WrappedArrow a b c -&gt; Rep (WrappedArrow a b c) x
+$cto :: forall (a :: * -&gt; * -&gt; *) b c x.
+Rep (WrappedArrow a b c) x -&gt; WrappedArrow a b c
+to :: forall x. Rep (WrappedArrow a b c) x -&gt; WrappedArrow a b c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ @since 4.7.0.0</span></span><span>
+</span><span id="line-98"></span><span>                                    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679128123"><span id="local-6989586621679128125"><span class="annot"><span class="annottext">(forall a. WrappedArrow a b a -&gt; Rep1 (WrappedArrow a b) a)
+-&gt; (forall a. Rep1 (WrappedArrow a b) a -&gt; WrappedArrow a b a)
+-&gt; Generic1 (WrappedArrow a b)
+forall a. Rep1 (WrappedArrow a b) a -&gt; WrappedArrow a b a
+forall a. WrappedArrow a b a -&gt; Rep1 (WrappedArrow a b) a
+forall k (f :: k -&gt; *).
+(forall (a :: k). f a -&gt; Rep1 f a)
+-&gt; (forall (a :: k). Rep1 f a -&gt; f a) -&gt; Generic1 f
+forall (a :: * -&gt; * -&gt; *) b a.
+Rep1 (WrappedArrow a b) a -&gt; WrappedArrow a b a
+forall (a :: * -&gt; * -&gt; *) b a.
+WrappedArrow a b a -&gt; Rep1 (WrappedArrow a b) a
+$cfrom1 :: forall (a :: * -&gt; * -&gt; *) b a.
+WrappedArrow a b a -&gt; Rep1 (WrappedArrow a b) a
+from1 :: forall a. WrappedArrow a b a -&gt; Rep1 (WrappedArrow a b) a
+$cto1 :: forall (a :: * -&gt; * -&gt; *) b a.
+Rep1 (WrappedArrow a b) a -&gt; WrappedArrow a b a
+to1 :: forall a. Rep1 (WrappedArrow a b) a -&gt; WrappedArrow a b a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Generic1"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic1</span></a></span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @since 4.7.0.0</span></span><span>
+</span><span id="line-99"></span><span>                                    </span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="annot"><span class="hs-comment">-- | @since 2.01</span></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679127830"><span id="local-6989586621679127831"><span id="local-6989586621679128130"><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html#Arrow"><span class="hs-identifier hs-type">Arrow</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127830"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Functor"><span class="hs-identifier hs-type">Functor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrappedArrow"><span class="hs-identifier hs-type">WrappedArrow</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127830"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127831"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679128137"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; WrappedArrow a b a -&gt; WrappedArrow a b b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#fmap"><span class="hs-identifier hs-var hs-var hs-var">fmap</span></a></span></span><span> </span><span id="local-6989586621679128138"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679128138"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-type">WrapArrow</span></a></span><span> </span><span id="local-6989586621679128139"><span class="annot"><span class="annottext">a b a
+</span><a href="#local-6989586621679128139"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a b b -&gt; WrappedArrow a b b
+forall (a :: * -&gt; * -&gt; *) b c. a b c -&gt; WrappedArrow a b c
+</span><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-var">WrapArrow</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a b a
+</span><a href="#local-6989586621679128139"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a b a -&gt; a a b -&gt; a b b
+forall {k} (cat :: k -&gt; k -&gt; *) (a :: k) (b :: k) (c :: k).
+Category cat =&gt;
+cat a b -&gt; cat b c -&gt; cat a c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Category.html#%3E%3E%3E"><span class="hs-operator hs-var">&gt;&gt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; a a b
+forall b c. (b -&gt; c) -&gt; a b c
+forall (a :: * -&gt; * -&gt; *) b c. Arrow a =&gt; (b -&gt; c) -&gt; a b c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html#arr"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679128138"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="annot"><span class="hs-comment">-- | @since 2.01</span></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679127843"><span id="local-6989586621679127844"><span id="local-6989586621679128146"><span id="local-6989586621679128151"><span id="local-6989586621679128154"><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html#Arrow"><span class="hs-identifier hs-type">Arrow</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127843"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Applicative"><span class="hs-identifier hs-type">Applicative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrappedArrow"><span class="hs-identifier hs-type">WrappedArrow</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127843"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127844"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621679128158"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; WrappedArrow a b a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var hs-var hs-var">pure</span></a></span></span><span> </span><span id="local-6989586621679128159"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679128159"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a b a -&gt; WrappedArrow a b a
+forall (a :: * -&gt; * -&gt; *) b c. a b c -&gt; WrappedArrow a b c
+</span><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-var">WrapArrow</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(b -&gt; a) -&gt; a b a
+forall b c. (b -&gt; c) -&gt; a b c
+forall (a :: * -&gt; * -&gt; *) b c. Arrow a =&gt; (b -&gt; c) -&gt; a b c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html#arr"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; a
+forall a b. a -&gt; b -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#const"><span class="hs-identifier hs-var">const</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679128159"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679128164"><span class="annot"><span class="annottext">liftA2 :: forall a b c.
+(a -&gt; b -&gt; c)
+-&gt; WrappedArrow a b a -&gt; WrappedArrow a b b -&gt; WrappedArrow a b c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#liftA2"><span class="hs-identifier hs-var hs-var hs-var">liftA2</span></a></span></span><span> </span><span id="local-6989586621679128165"><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679128165"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-type">WrapArrow</span></a></span><span> </span><span id="local-6989586621679128166"><span class="annot"><span class="annottext">a b a
+</span><a href="#local-6989586621679128166"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-type">WrapArrow</span></a></span><span> </span><span id="local-6989586621679128167"><span class="annot"><span class="annottext">a b b
+</span><a href="#local-6989586621679128167"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-109"></span><span>      </span><span class="annot"><span class="annottext">a b c -&gt; WrappedArrow a b c
+forall (a :: * -&gt; * -&gt; *) b c. a b c -&gt; WrappedArrow a b c
+</span><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-var">WrapArrow</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a b a
+</span><a href="#local-6989586621679128166"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">a b a -&gt; a b b -&gt; a b (a, b)
+forall b c c'. a b c -&gt; a b c' -&gt; a b (c, c')
+forall (a :: * -&gt; * -&gt; *) b c c'.
+Arrow a =&gt;
+a b c -&gt; a b c' -&gt; a b (c, c')
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html#%26%26%26"><span class="hs-operator hs-var">&amp;&amp;&amp;</span></a></span><span> </span><span class="annot"><span class="annottext">a b b
+</span><a href="#local-6989586621679128167"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">a b (a, b) -&gt; a (a, b) c -&gt; a b c
+forall {k} (cat :: k -&gt; k -&gt; *) (a :: k) (b :: k) (c :: k).
+Category cat =&gt;
+cat a b -&gt; cat b c -&gt; cat a c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Category.html#%3E%3E%3E"><span class="hs-operator hs-var">&gt;&gt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">((a, b) -&gt; c) -&gt; a (a, b) c
+forall b c. (b -&gt; c) -&gt; a b c
+forall (a :: * -&gt; * -&gt; *) b c. Arrow a =&gt; (b -&gt; c) -&gt; a b c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html#arr"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Tuple.html#uncurry"><span class="hs-identifier hs-var">uncurry</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679128165"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="annot"><span class="hs-comment">-- | @since 2.01</span></span><span>
+</span><span id="line-112"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679127862"><span id="local-6989586621679127863"><span id="local-6989586621679128178"><span id="local-6989586621679128182"><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html#ArrowZero"><span class="hs-identifier hs-type">ArrowZero</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127862"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html#ArrowPlus"><span class="hs-identifier hs-type">ArrowPlus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127862"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Alternative"><span class="hs-identifier hs-type">Alternative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrappedArrow"><span class="hs-identifier hs-type">WrappedArrow</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127862"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127863"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621679128186"><span class="annot"><span class="annottext">empty :: forall a. WrappedArrow a b a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#empty"><span class="hs-identifier hs-var hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a b a -&gt; WrappedArrow a b a
+forall (a :: * -&gt; * -&gt; *) b c. a b c -&gt; WrappedArrow a b c
+</span><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-var">WrapArrow</span></a></span><span> </span><span class="annot"><span class="annottext">a b a
+forall b c. a b c
+forall (a :: * -&gt; * -&gt; *) b c. ArrowZero a =&gt; a b c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html#zeroArrow"><span class="hs-identifier hs-var">zeroArrow</span></a></span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-type">WrapArrow</span></a></span><span> </span><span id="local-6989586621679128189"><span class="annot"><span class="annottext">a b a
+</span><a href="#local-6989586621679128189"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span id="local-6989586621679128190"><span class="annot"><span class="annottext">&lt;|&gt; :: forall a.
+WrappedArrow a b a -&gt; WrappedArrow a b a -&gt; WrappedArrow a b a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%3C%7C%3E"><span class="hs-operator hs-var hs-var hs-var">&lt;|&gt;</span></a></span></span><span> </span><span class="annot"><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-type">WrapArrow</span></a></span><span> </span><span id="local-6989586621679128191"><span class="annot"><span class="annottext">a b a
+</span><a href="#local-6989586621679128191"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a b a -&gt; WrappedArrow a b a
+forall (a :: * -&gt; * -&gt; *) b c. a b c -&gt; WrappedArrow a b c
+</span><a href="Control.Applicative.html#WrapArrow"><span class="hs-identifier hs-var">WrapArrow</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a b a
+</span><a href="#local-6989586621679128189"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">a b a -&gt; a b a -&gt; a b a
+forall b c. a b c -&gt; a b c -&gt; a b c
+forall (a :: * -&gt; * -&gt; *) b c.
+ArrowPlus a =&gt;
+a b c -&gt; a b c -&gt; a b c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Arrow.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a b a
+</span><a href="#local-6989586621679128191"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><span class="hs-comment">-- | @since 4.14.0.0</span></span><span>
+</span><span id="line-117"></span><span id="local-6989586621679127879"><span id="local-6989586621679127880"><span id="local-6989586621679127881"><span id="local-6989586621679128201"><span id="local-6989586621679128204"><span id="local-6989586621679128207"><span id="local-6989586621679128209"><span id="local-6989586621679128211"><span id="local-6989586621679128217"><span id="local-6989586621679128222"><span id="local-6989586621679128225"><span id="local-6989586621679128228"><span id="local-6989586621679128231"><span id="local-6989586621679128234"><span id="local-6989586621679128237"><span id="local-6989586621679128242"><span id="local-6989586621679128247"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#Typeable"><span class="hs-identifier hs-type">Typeable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679127879"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#Typeable"><span class="hs-identifier hs-type">Typeable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127880"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#Typeable"><span class="hs-identifier hs-type">Typeable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127881"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-118"></span><span>                   </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#Data"><span class="hs-identifier hs-type">Data</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679127879"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127880"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127881"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>         </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#Data"><span class="hs-identifier hs-type">Data</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Applicative.html#WrappedArrow"><span class="hs-identifier hs-type">WrappedArrow</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127879"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127880"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127881"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- extra functions</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | One or none.</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- It is useful for modelling any computation that is allowed to fail.</span><span>
+</span><span id="line-126"></span><span class="hs-comment">--</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-128"></span><span class="hs-comment">--</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- Using the 'Alternative' instance of &quot;Control.Monad.Except&quot;, the following functions:</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- &gt;&gt;&gt; import Control.Monad.Except</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- &gt;&gt;&gt; canFail = throwError &quot;it failed&quot; :: Except String Int</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- &gt;&gt;&gt; final = return 42                :: Except String Int</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- Can be combined by allowing the first function to fail:</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- &gt;&gt;&gt; runExcept $ canFail *&gt; final</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- Left &quot;it failed&quot;</span><span>
+</span><span id="line-140"></span><span class="hs-comment">--</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- &gt;&gt;&gt; runExcept $ optional canFail *&gt; final</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- Right 42</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span id="local-6989586621679127882"><span id="local-6989586621679127883"><span class="annot"><a href="Control.Applicative.html#optional"><span class="hs-identifier hs-type">optional</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Alternative"><span class="hs-identifier hs-type">Alternative</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127882"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679127882"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127883"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679127882"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127883"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-145"></span><span id="optional"><span class="annot"><span class="annottext">optional :: forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f (Maybe a)
+</span><a href="Control.Applicative.html#optional"><span class="hs-identifier hs-var hs-var">optional</span></a></span></span><span> </span><span id="local-6989586621679128261"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679128261"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Maybe a) -&gt; f a -&gt; f (Maybe a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679128261"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">f (Maybe a) -&gt; f (Maybe a) -&gt; f (Maybe a)
+forall a. f a -&gt; f a -&gt; f a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%3C%7C%3E"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; f (Maybe a)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-146"></span></pre></body></html>

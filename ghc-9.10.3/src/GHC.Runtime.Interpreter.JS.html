@@ -1,0 +1,930 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TupleSections #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE BlockArguments #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- | JavaScript interpreter</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- See Note [The JS interpreter]</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html"><span class="hs-identifier">GHC.Runtime.Interpreter.JS</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#spawnJSInterp"><span class="hs-identifier">spawnJSInterp</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkRts"><span class="hs-identifier">jsLinkRts</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkInterp"><span class="hs-identifier">jsLinkInterp</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkObject"><span class="hs-identifier">jsLinkObject</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkObjects"><span class="hs-identifier">jsLinkObjects</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLoadFile"><span class="hs-identifier">jsLoadFile</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsRunServer"><span class="hs-identifier">jsRunServer</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Reexported for convenience</span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#mkExportedModFuns"><span class="hs-identifier">mkExportedModFuns</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html"><span class="hs-identifier">GHC.Runtime.Interpreter.Types</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Process.html"><span class="hs-identifier">GHC.Runtime.Interpreter.Process</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Runtime.Utils.html"><span class="hs-identifier">GHC.Runtime.Utils</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.Message.html"><span class="hs-identifier">GHCi.Message</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Types.html"><span class="hs-identifier">GHC.StgToJS.Linker.Types</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html"><span class="hs-identifier">GHC.StgToJS.Linker.Linker</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html"><span class="hs-identifier">GHC.StgToJS.Types</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Object.html"><span class="hs-identifier">GHC.StgToJS.Object</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Env.html"><span class="hs-identifier">GHC.Unit.Env</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html"><span class="hs-identifier">GHC.Unit.Types</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.State.html"><span class="hs-identifier">GHC.Unit.State</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html"><span class="hs-identifier">GHC.Utils.Logger</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html"><span class="hs-identifier">GHC.Utils.TmpFs</span></a></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Error.html"><span class="hs-identifier">GHC.Utils.Error</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Error.html#logInfo"><span class="hs-identifier">logInfo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier">text</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Concurrent.html"><span class="hs-identifier">Control.Concurrent</span></a></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../process-1.6.26.1-461e/src/System.Process.html"><span class="hs-identifier">System.Process</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/System.IO.html"><span class="hs-identifier">System.IO</span></a></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../template-haskell-2.22.0.0-d1cb/src/System.FilePath.html"><span class="hs-identifier">System.FilePath</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.IORef.html"><span class="hs-identifier">Data.IORef</span></a></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Set.html"><span class="hs-identifier">Data.Set</span></a></span><span>    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html"><span class="hs-identifier">Data.ByteString</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Foreign.C.String.html"><span class="hs-identifier">Foreign.C.String</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- Note [The JS interpreter]</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- ~~~~~~~~~~~~~~~~~~~~~~~~~</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- The JS interpreter works as follows:</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- ghc-interp.js is a simple JS script used to bootstrap the external</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- interpreter server (iserv) that is written in Haskell. This script waits for</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- commands on stdin:</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--      LOAD foo.js</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--        load a JS file in the current JS environment</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--      RUN_SERVER ghci_unit_id</span><span>
+</span><span id="line-73"></span><span class="hs-comment">--</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--        execute h$main(h$ghci_unit_idZCGHCiziServerzidefaultServer),</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--        the entry point of the interpreter server</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- On the GHC side, when we need the interpreter we do the following:</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- 1. spawn nodejs with $topdir/ghc-interp.js script</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- 2. link the JS rts and send a LOAD command to load it</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- 3. link iserv (i.e. use GHCi.Server.defaultServer as root) and LOAD it</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- 4. send a RUN_SERVER command to execute the JS iserv</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- From this moment on, everything happens as with the native iserv, using a</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- pipe for communication, with the following differences:</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--  - the JS iserv only supports the LoadObj linking command which has been</span><span>
+</span><span id="line-88"></span><span class="hs-comment">--  repurposed to load a JS source file. The JS iserv doesn't deal with</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--  libraries (.a) and with object files (.o). The linker state is maintained on</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--  the GHC side and GHC only sends the appropriate chunks of JS code to link.</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--  - the JS iserv doesn't support ByteCode (i.e. it doesn't support CreateBCOs</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--  messages). JS iserv clients should use the usual JS compilation pipeline and</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--  send JS code instead. See GHC.Driver.Main.hscCompileCoreExpr for an example.</span><span>
+</span><span id="line-95"></span><span class="hs-comment">--</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- GHC keeps track of JS blocks (JS unit of linking corresponding to top-level</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- binding groups) that have already been linked by the JS interpreter. It only</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- links new ones when necessary.</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- Note that the JS interpreter isn't subject to staging issues: we can use it</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- in a Stage1 GHC.</span><span>
+</span><span id="line-102"></span><span class="hs-comment">--</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">---------------------------------------------------------</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- Running node</span><span>
+</span><span id="line-106"></span><span class="hs-comment">---------------------------------------------------------</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="annot"><span class="hs-comment">-- | Start NodeJS interactively with &quot;ghc-interp.js&quot; script loaded in</span></span><span>
+</span><span id="line-109"></span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#startTHRunnerProcess"><span class="hs-identifier hs-type">startTHRunnerProcess</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#NodeJsSettings"><span class="hs-identifier hs-type">NodeJsSettings</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span class="hs-special">,</span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#InterpProcess"><span class="hs-identifier hs-type">InterpProcess</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span id="startTHRunnerProcess"><span class="annot"><span class="annottext">startTHRunnerProcess :: FilePath -&gt; NodeJsSettings -&gt; IO (Handle, InterpProcess)
+</span><a href="GHC.Runtime.Interpreter.JS.html#startTHRunnerProcess"><span class="hs-identifier hs-var hs-var">startTHRunnerProcess</span></a></span></span><span> </span><span id="local-6989586621682767815"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682767815"><span class="hs-identifier hs-var">interp_js</span></a></span></span><span> </span><span id="local-6989586621682767816"><span class="annot"><span class="annottext">NodeJsSettings
+</span><a href="#local-6989586621682767816"><span class="hs-identifier hs-var">settings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-111"></span><span>  </span><span id="local-6989586621682767817"><span class="annot"><a href="#local-6989586621682767817"><span class="hs-identifier hs-var">interp_in</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO (IORef Handle)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">Handle
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767820"><span class="annot"><a href="#local-6989586621682767820"><span class="hs-identifier hs-var hs-var">createProc</span></a></span></span><span> </span><span id="local-6989586621682767821"><span class="annot"><span class="annottext">CreateProcess
+</span><a href="#local-6989586621682767821"><span class="hs-identifier hs-var">cp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-114"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767822"><span class="annot"><span class="annottext">cp' :: CreateProcess
+</span><a href="#local-6989586621682767822"><span class="hs-identifier hs-var hs-var hs-var">cp'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CreateProcess
+</span><a href="#local-6989586621682767821"><span class="hs-identifier hs-var">cp</span></a></span><span>
+</span><span id="line-115"></span><span>                      </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="../../process-1.6.26.1-461e/src/System.Process.Common.html#std_in"><span class="hs-identifier hs-var">std_in</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../../process-1.6.26.1-461e/src/System.Process.Common.html#CreatePipe"><span class="hs-identifier hs-type">CreatePipe</span></a></span><span>
+</span><span id="line-116"></span><span>                      </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../process-1.6.26.1-461e/src/System.Process.Common.html#std_out"><span class="hs-identifier hs-var">std_out</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../../process-1.6.26.1-461e/src/System.Process.Common.html#Inherit"><span class="hs-identifier hs-type">Inherit</span></a></span><span>
+</span><span id="line-117"></span><span>                      </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../process-1.6.26.1-461e/src/System.Process.Common.html#std_err"><span class="hs-identifier hs-var">std_err</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../../process-1.6.26.1-461e/src/System.Process.Common.html#Inherit"><span class="hs-identifier hs-type">Inherit</span></a></span><span>
+</span><span id="line-118"></span><span>                      </span><span class="hs-special">}</span><span>
+</span><span id="line-119"></span><span>          </span><span class="hs-special">(</span><span id="local-6989586621682767828"><span class="annot"><a href="#local-6989586621682767828"><span class="hs-identifier hs-var">mb_in</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682767829"><span class="annot"><a href="#local-6989586621682767829"><span class="hs-identifier hs-var">_mb_out</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682767830"><span class="annot"><a href="#local-6989586621682767830"><span class="hs-identifier hs-var">_mb_err</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682767831"><span class="annot"><a href="#local-6989586621682767831"><span class="hs-identifier hs-var">hdl</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CreateProcess
+-&gt; IO (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
+</span><a href="../../process-1.6.26.1-461e/src/System.Process.html#createProcess"><span class="hs-identifier hs-var">createProcess</span></a></span><span> </span><span class="annot"><span class="annottext">CreateProcess
+</span><a href="#local-6989586621682767822"><span class="hs-identifier hs-var">cp'</span></a></span><span>
+</span><span id="line-120"></span><span>          </span><span class="hs-comment">-- we can't directly return stdin for the process given the current</span><span>
+</span><span id="line-121"></span><span>          </span><span class="hs-comment">-- implementation of runWithPipes. So we just use an IORef for this...</span><span>
+</span><span id="line-122"></span><span>          </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621682767828"><span class="hs-identifier hs-type">mb_in</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-123"></span><span>            </span><span class="annot"><span class="annottext">Maybe Handle
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO ()
+forall a. HasCallStack =&gt; FilePath -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;startTHRunnerProcess: expected stdin for interpreter&quot;</span></span><span>
+</span><span id="line-124"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682767834"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682767834"><span class="hs-identifier hs-var">i</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IORef Handle -&gt; Handle -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef Handle
+</span><a href="#local-6989586621682767817"><span class="hs-identifier hs-var">interp_in</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682767834"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-125"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621682767831"><span class="hs-identifier hs-type">hdl</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621682767836"><span class="annot"><a href="#local-6989586621682767836"><span class="hs-identifier hs-var">hdl</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682767837"><span class="annot"><a href="#local-6989586621682767837"><span class="hs-identifier hs-var">rh</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682767838"><span class="annot"><a href="#local-6989586621682767838"><span class="hs-identifier hs-var">wh</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Runtime.Utils.html#runWithPipes"><span class="hs-identifier hs-type">runWithPipes</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767820"><span class="hs-identifier hs-type">createProc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#nodeProgram"><span class="hs-identifier hs-var">nodeProgram</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767816"><span class="hs-identifier hs-type">settings</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>                                           </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682767815"><span class="hs-identifier hs-type">interp_js</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-129"></span><span>                                           </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#nodeExtraArgs"><span class="hs-identifier hs-var">nodeExtraArgs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767816"><span class="hs-identifier hs-type">settings</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621682767842"><span class="annot"><a href="#local-6989586621682767842"><span class="hs-identifier hs-var">std_in</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">readIORef</span></span><span> </span><span class="annot"><a href="#local-6989586621682767817"><span class="hs-identifier hs-type">interp_in</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span>  </span><span id="local-6989586621682767844"><span class="annot"><a href="#local-6989586621682767844"><span class="hs-identifier hs-var">lo_ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">newIORef</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767845"><span class="annot"><a href="#local-6989586621682767845"><span class="hs-identifier hs-var hs-var">pipe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.Message.html#Pipe"><span class="hs-identifier hs-type">Pipe</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">pipeRead :: Handle
+</span><a href="#local-6989586621682767847"><span class="hs-identifier hs-var">pipeRead</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682767837"><span class="hs-identifier hs-var">rh</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pipeWrite :: Handle
+</span><a href="#local-6989586621682767848"><span class="hs-identifier hs-var">pipeWrite</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682767838"><span class="hs-identifier hs-var">wh</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pipeLeftovers :: IORef (Maybe ByteString)
+</span><a href="#local-6989586621682767849"><span class="hs-identifier hs-var">pipeLeftovers</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IORef (Maybe ByteString)
+</span><a href="#local-6989586621682767844"><span class="hs-identifier hs-var">lo_ref</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767850"><span class="annot"><a href="#local-6989586621682767850"><span class="hs-identifier hs-var hs-var">proc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#InterpProcess"><span class="hs-identifier hs-type">InterpProcess</span></a></span><span>
+</span><span id="line-135"></span><span>              </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">interpHandle :: ProcessHandle
+</span><a href="#local-6989586621682767852"><span class="hs-identifier hs-var">interpHandle</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProcessHandle
+</span><a href="#local-6989586621682767836"><span class="hs-identifier hs-var">hdl</span></a></span><span>
+</span><span id="line-136"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">interpPipe :: Pipe
+</span><a href="#local-6989586621682767853"><span class="hs-identifier hs-var">interpPipe</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pipe
+</span><a href="#local-6989586621682767845"><span class="hs-identifier hs-var">pipe</span></a></span><span>
+</span><span id="line-137"></span><span>              </span><span class="hs-special">}</span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682767842"><span class="hs-identifier hs-type">std_in</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682767850"><span class="hs-identifier hs-type">proc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- | Spawn a JS interpreter</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- Run NodeJS with &quot;ghc-interp.js&quot; loaded in. Then load GHCi.Server and its deps</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- (including the rts) and run GHCi.Server.defaultServer.</span><span>
+</span><span id="line-144"></span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#spawnJSInterp"><span class="hs-identifier hs-type">spawnJSInterp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpConfig"><span class="hs-identifier hs-type">JSInterpConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#ExtInterpInstance"><span class="hs-identifier hs-type">ExtInterpInstance</span></a></span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpExtra"><span class="hs-identifier hs-type">JSInterpExtra</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span id="spawnJSInterp"><span class="annot"><span class="annottext">spawnJSInterp :: JSInterpConfig -&gt; IO (ExtInterpInstance JSInterpExtra)
+</span><a href="GHC.Runtime.Interpreter.JS.html#spawnJSInterp"><span class="hs-identifier hs-var hs-var">spawnJSInterp</span></a></span></span><span> </span><span id="local-6989586621682767854"><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767855"><span class="annot"><span class="annottext">logger :: Logger
+</span><a href="#local-6989586621682767855"><span class="hs-identifier hs-var hs-var hs-var">logger</span></a></span></span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpConfig -&gt; Logger
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsInterpLogger"><span class="hs-identifier hs-var">jsInterpLogger</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span><span>
+</span><span id="line-147"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Logger -&gt; Int -&gt; Bool
+</span><a href="GHC.Utils.Logger.html#logVerbAtLeast"><span class="hs-identifier hs-var">logVerbAtLeast</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682767855"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-148"></span><span>    </span><span class="annot"><span class="annottext">Logger -&gt; SDoc -&gt; IO ()
+</span><a href="GHC.Utils.Error.html#logInfo"><span class="hs-identifier hs-var">logInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682767855"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Spawning JS interpreter&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767859"><span class="annot"><span class="annottext">tmpfs :: TmpFs
+</span><a href="#local-6989586621682767859"><span class="hs-identifier hs-var hs-var hs-var">tmpfs</span></a></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpConfig -&gt; TmpFs
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsInterpTmpFs"><span class="hs-identifier hs-var">jsInterpTmpFs</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span><span>
+</span><span id="line-151"></span><span>      </span><span id="local-6989586621682767861"><span class="annot"><span class="annottext">tmp_dir :: TempDir
+</span><a href="#local-6989586621682767861"><span class="hs-identifier hs-var hs-var hs-var">tmp_dir</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpConfig -&gt; TempDir
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsInterpTmpDir"><span class="hs-identifier hs-var">jsInterpTmpDir</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span><span>
+</span><span id="line-152"></span><span>      </span><span id="local-6989586621682767863"><span class="annot"><span class="annottext">logger :: Logger
+</span><a href="#local-6989586621682767863"><span class="hs-identifier hs-var hs-var hs-var">logger</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpConfig -&gt; Logger
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsInterpLogger"><span class="hs-identifier hs-var">jsInterpLogger</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span><span>
+</span><span id="line-153"></span><span>      </span><span id="local-6989586621682767864"><span class="annot"><span class="annottext">codegen_cfg :: StgToJSConfig
+</span><a href="#local-6989586621682767864"><span class="hs-identifier hs-var hs-var hs-var">codegen_cfg</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpConfig -&gt; StgToJSConfig
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsInterpCodegenCfg"><span class="hs-identifier hs-var">jsInterpCodegenCfg</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span><span>
+</span><span id="line-154"></span><span>      </span><span id="local-6989586621682767866"><span class="annot"><span class="annottext">unit_env :: UnitEnv
+</span><a href="#local-6989586621682767866"><span class="hs-identifier hs-var hs-var hs-var">unit_env</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpConfig -&gt; UnitEnv
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsInterpUnitEnv"><span class="hs-identifier hs-var">jsInterpUnitEnv</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span><span>
+</span><span id="line-155"></span><span>      </span><span id="local-6989586621682767868"><span class="annot"><span class="annottext">finder_opts :: FinderOpts
+</span><a href="#local-6989586621682767868"><span class="hs-identifier hs-var hs-var hs-var">finder_opts</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpConfig -&gt; FinderOpts
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsInterpFinderOpts"><span class="hs-identifier hs-var">jsInterpFinderOpts</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span><span>
+</span><span id="line-156"></span><span>      </span><span id="local-6989586621682767870"><span class="annot"><span class="annottext">finder_cache :: FinderCache
+</span><a href="#local-6989586621682767870"><span class="hs-identifier hs-var hs-var hs-var">finder_cache</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpConfig -&gt; FinderCache
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsInterpFinderCache"><span class="hs-identifier hs-var">jsInterpFinderCache</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621682767872"><span class="annot"><a href="#local-6989586621682767872"><span class="hs-identifier hs-var">std_in</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682767873"><span class="annot"><a href="#local-6989586621682767873"><span class="hs-identifier hs-var">proc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; NodeJsSettings -&gt; IO (Handle, InterpProcess)
+</span><a href="GHC.Runtime.Interpreter.JS.html#startTHRunnerProcess"><span class="hs-identifier hs-var">startTHRunnerProcess</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JSInterpConfig -&gt; FilePath
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsInterpScript"><span class="hs-identifier hs-var">jsInterpScript</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JSInterpConfig -&gt; NodeJsSettings
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsInterpNodeConfig"><span class="hs-identifier hs-var">jsInterpNodeConfig</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpConfig
+</span><a href="#local-6989586621682767854"><span class="hs-identifier hs-var">cfg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span>  </span><span id="local-6989586621682767876"><span class="annot"><a href="#local-6989586621682767876"><span class="hs-identifier hs-var">js_state</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">newMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSState"><span class="hs-identifier hs-type">JSState</span></a></span><span>
+</span><span id="line-161"></span><span>                </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#jsLinkState"><span class="hs-identifier hs-var">jsLinkState</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#emptyLinkPlan"><span class="hs-identifier hs-type">emptyLinkPlan</span></a></span><span>
+</span><span id="line-162"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#jsServerStarted"><span class="hs-identifier hs-var">jsServerStarted</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span>
+</span><span id="line-163"></span><span>                </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-comment">-- get the unit-id of the ghci package. We need this to load the</span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-comment">-- interpreter code.</span><span>
+</span><span id="line-167"></span><span>  </span><span id="local-6989586621682767882"><span class="annot"><a href="#local-6989586621682767882"><span class="hs-identifier hs-var">ghci_unit_id</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="GHC.Unit.State.html#lookupPackageName"><span class="hs-identifier hs-type">lookupPackageName</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Env.html#ue_units"><span class="hs-identifier hs-type">ue_units</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767866"><span class="hs-identifier hs-type">unit_env</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Info.html#PackageName"><span class="hs-identifier hs-type">PackageName</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FastString.html#fsLit"><span class="hs-identifier hs-type">fsLit</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;ghci&quot;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-168"></span><span>    </span><span class="annot"><span class="annottext">Maybe UnitId
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO UnitId
+forall a. FilePath -&gt; IO a
+</span><a href="GHC.Utils.Panic.Plain.html#cmdLineErrorIO"><span class="hs-identifier hs-var">cmdLineErrorIO</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;JS interpreter: couldn't find \&quot;ghci\&quot; package&quot;</span></span><span>
+</span><span id="line-169"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682767888"><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682767888"><span class="hs-identifier hs-var">i</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UnitId -&gt; IO UnitId
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682767888"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767889"><span class="annot"><a href="#local-6989586621682767889"><span class="hs-identifier hs-var hs-var">extra</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpExtra"><span class="hs-identifier hs-type">JSInterpExtra</span></a></span><span>
+</span><span id="line-172"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">instStdIn :: Handle
+</span><a href="GHC.Runtime.Interpreter.Types.html#instStdIn"><span class="hs-identifier hs-var">instStdIn</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682767872"><span class="hs-identifier hs-var">std_in</span></a></span><span>
+</span><span id="line-173"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">instJSState :: MVar JSState
+</span><a href="GHC.Runtime.Interpreter.Types.html#instJSState"><span class="hs-identifier hs-var">instJSState</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MVar JSState
+</span><a href="#local-6989586621682767876"><span class="hs-identifier hs-var">js_state</span></a></span><span>
+</span><span id="line-174"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">instFinderCache :: FinderCache
+</span><a href="GHC.Runtime.Interpreter.Types.html#instFinderCache"><span class="hs-identifier hs-var">instFinderCache</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FinderCache
+</span><a href="#local-6989586621682767870"><span class="hs-identifier hs-var">finder_cache</span></a></span><span>
+</span><span id="line-175"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">instFinderOpts :: FinderOpts
+</span><a href="GHC.Runtime.Interpreter.Types.html#instFinderOpts"><span class="hs-identifier hs-var">instFinderOpts</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FinderOpts
+</span><a href="#local-6989586621682767868"><span class="hs-identifier hs-var">finder_opts</span></a></span><span>
+</span><span id="line-176"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">instGhciUnitId :: UnitId
+</span><a href="GHC.Runtime.Interpreter.Types.html#instGhciUnitId"><span class="hs-identifier hs-var">instGhciUnitId</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682767882"><span class="hs-identifier hs-var">ghci_unit_id</span></a></span><span>
+</span><span id="line-177"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span>  </span><span id="local-6989586621682767896"><span class="annot"><a href="#local-6989586621682767896"><span class="hs-identifier hs-var">pending_frees</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">newMVar</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767897"><span class="annot"><a href="#local-6989586621682767897"><span class="hs-identifier hs-var hs-var">inst</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#ExtInterpInstance"><span class="hs-identifier hs-type">ExtInterpInstance</span></a></span><span>
+</span><span id="line-181"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">instProcess :: InterpProcess
+</span><a href="#local-6989586621682767899"><span class="hs-identifier hs-var">instProcess</span></a></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InterpProcess
+</span><a href="#local-6989586621682767873"><span class="hs-identifier hs-var">proc</span></a></span><span>
+</span><span id="line-182"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">instPendingFrees :: MVar [HValueRef]
+</span><a href="#local-6989586621682767900"><span class="hs-identifier hs-var">instPendingFrees</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MVar [HValueRef]
+</span><a href="#local-6989586621682767896"><span class="hs-identifier hs-var">pending_frees</span></a></span><span>
+</span><span id="line-183"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">instExtra :: JSInterpExtra
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpExtra
+</span><a href="#local-6989586621682767889"><span class="hs-identifier hs-var">extra</span></a></span><span>
+</span><span id="line-184"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span>  </span><span class="hs-comment">-- TODO: to support incremental linking of wasm modules (e.g. produced from C</span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-comment">-- sources), we should:</span><span>
+</span><span id="line-188"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-comment">-- 1. link the emcc rts without trimming dead code as we don't know what might</span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-comment">-- be needed later by the Wasm modules we will dynamically load (cf</span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-comment">-- -sMAIN_MODULE).</span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-comment">-- 2. make the RUN_SERVER command wait for the emcc rts to be loaded.</span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-comment">-- 3. link wasm modules with -sSIDE_MODULE</span><span>
+</span><span id="line-194"></span><span>  </span><span class="hs-comment">-- 4. add a new command to load side modules with Emscripten's dlopen</span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-comment">-- cf https://emscripten.org/docs/compiling/Dynamic-Linking.html</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span>  </span><span class="hs-comment">-- link rts and its deps</span><span>
+</span><span id="line-199"></span><span>  </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkRts"><span class="hs-identifier hs-type">jsLinkRts</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767863"><span class="hs-identifier hs-type">logger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767859"><span class="hs-identifier hs-type">tmpfs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767861"><span class="hs-identifier hs-type">tmp_dir</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767864"><span class="hs-identifier hs-type">codegen_cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767866"><span class="hs-identifier hs-type">unit_env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767897"><span class="hs-identifier hs-type">inst</span></a></span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-comment">-- link interpreter and its deps</span><span>
+</span><span id="line-202"></span><span>  </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkInterp"><span class="hs-identifier hs-type">jsLinkInterp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767863"><span class="hs-identifier hs-type">logger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767859"><span class="hs-identifier hs-type">tmpfs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767861"><span class="hs-identifier hs-type">tmp_dir</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767864"><span class="hs-identifier hs-type">codegen_cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767866"><span class="hs-identifier hs-type">unit_env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767897"><span class="hs-identifier hs-type">inst</span></a></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-comment">-- run interpreter main loop</span><span>
+</span><span id="line-205"></span><span>  </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsRunServer"><span class="hs-identifier hs-type">jsRunServer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767897"><span class="hs-identifier hs-type">inst</span></a></span><span>
+</span><span id="line-206"></span><span>
+</span><span id="line-207"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621682767897"><span class="hs-identifier hs-type">inst</span></a></span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="hs-comment">---------------------------------------------------------</span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- Interpreter commands</span><span>
+</span><span id="line-213"></span><span class="hs-comment">---------------------------------------------------------</span><span>
+</span><span id="line-214"></span><span>
+</span><span id="line-215"></span><span class="annot"><span class="hs-comment">-- | Link JS RTS</span></span><span>
+</span><span id="line-216"></span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkRts"><span class="hs-identifier hs-type">jsLinkRts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TmpFs"><span class="hs-identifier hs-type">TmpFs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TempDir"><span class="hs-identifier hs-type">TempDir</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#StgToJSConfig"><span class="hs-identifier hs-type">StgToJSConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Env.html#UnitEnv"><span class="hs-identifier hs-type">UnitEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#ExtInterpInstance"><span class="hs-identifier hs-type">ExtInterpInstance</span></a></span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpExtra"><span class="hs-identifier hs-type">JSInterpExtra</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span id="jsLinkRts"><span class="annot"><span class="annottext">jsLinkRts :: Logger
+-&gt; TmpFs
+-&gt; TempDir
+-&gt; StgToJSConfig
+-&gt; UnitEnv
+-&gt; ExtInterpInstance JSInterpExtra
+-&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsLinkRts"><span class="hs-identifier hs-var hs-var">jsLinkRts</span></a></span></span><span> </span><span id="local-6989586621682767902"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682767902"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682767903"><span class="annot"><span class="annottext">TmpFs
+</span><a href="#local-6989586621682767903"><span class="hs-identifier hs-var">tmpfs</span></a></span></span><span> </span><span id="local-6989586621682767904"><span class="annot"><span class="annottext">TempDir
+</span><a href="#local-6989586621682767904"><span class="hs-identifier hs-var">tmp_dir</span></a></span></span><span> </span><span id="local-6989586621682767905"><span class="annot"><span class="annottext">StgToJSConfig
+</span><a href="#local-6989586621682767905"><span class="hs-identifier hs-var">cfg</span></a></span></span><span> </span><span id="local-6989586621682767906"><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682767906"><span class="hs-identifier hs-var">unit_env</span></a></span></span><span> </span><span id="local-6989586621682767907"><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767907"><span class="hs-identifier hs-var">inst</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-218"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767908"><span class="annot"><span class="annottext">link_cfg :: JSLinkConfig
+</span><a href="#local-6989586621682767908"><span class="hs-identifier hs-var hs-var hs-var">link_cfg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#JSLinkConfig"><span class="hs-identifier hs-type">JSLinkConfig</span></a></span><span>
+</span><span id="line-219"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">lcNoStats :: Bool
+</span><a href="#local-6989586621682767910"><span class="hs-identifier hs-var">lcNoStats</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- we don't need the stats</span><span>
+</span><span id="line-220"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcNoRts :: Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcNoRts"><span class="hs-identifier hs-var">lcNoRts</span></a></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- we need the RTS</span><span>
+</span><span id="line-221"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcCombineAll :: Bool
+</span><a href="#local-6989586621682767912"><span class="hs-identifier hs-var">lcCombineAll</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- we don't need the combined all.js, we'll link each part independently below</span><span>
+</span><span id="line-222"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcForeignRefs :: Bool
+</span><a href="#local-6989586621682767913"><span class="hs-identifier hs-var">lcForeignRefs</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- we don't need foreign references</span><span>
+</span><span id="line-223"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcNoJSExecutables :: Bool
+</span><a href="#local-6989586621682767914"><span class="hs-identifier hs-var">lcNoJSExecutables</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- we don't need executables</span><span>
+</span><span id="line-224"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcNoHsMain :: Bool
+</span><a href="#local-6989586621682767915"><span class="hs-identifier hs-var">lcNoHsMain</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- nor HsMain</span><span>
+</span><span id="line-225"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcForceEmccRts :: Bool
+</span><a href="#local-6989586621682767916"><span class="hs-identifier hs-var">lcForceEmccRts</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- nor the emcc rts</span><span>
+</span><span id="line-226"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcLinkCsources :: Bool
+</span><a href="#local-6989586621682767917"><span class="hs-identifier hs-var">lcLinkCsources</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- we know that there are no C sources to load for the RTS</span><span>
+</span><span id="line-227"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-228"></span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-comment">-- link the RTS and its dependencies (things it uses from `base`, etc.)</span><span>
+</span><span id="line-230"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767923"><span class="annot"><span class="annottext">link_spec :: LinkSpec
+</span><a href="#local-6989586621682767923"><span class="hs-identifier hs-var hs-var hs-var">link_spec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#LinkSpec"><span class="hs-identifier hs-type">LinkSpec</span></a></span><span>
+</span><span id="line-231"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">lks_unit_ids :: [UnitId]
+</span><a href="#local-6989586621682767925"><span class="hs-identifier hs-var">lks_unit_ids</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">UnitId
+</span><a href="GHC.Unit.Types.html#rtsUnitId"><span class="hs-identifier hs-var">rtsUnitId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="GHC.Unit.Types.html#ghcInternalUnitId"><span class="hs-identifier hs-var">ghcInternalUnitId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="GHC.Unit.Types.html#primUnitId"><span class="hs-identifier hs-var">primUnitId</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-232"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_obj_root_filter :: ExportedFun -&gt; Bool
+</span><a href="#local-6989586621682767929"><span class="hs-identifier hs-var">lks_obj_root_filter</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ExportedFun -&gt; Bool
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-233"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_extra_roots :: Set ExportedFun
+</span><a href="#local-6989586621682767931"><span class="hs-identifier hs-var">lks_extra_roots</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set ExportedFun
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-234"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_objs_hs :: [FilePath]
+</span><a href="#local-6989586621682767932"><span class="hs-identifier hs-var">lks_objs_hs</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-235"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_objs_js :: [FilePath]
+</span><a href="#local-6989586621682767933"><span class="hs-identifier hs-var">lks_objs_js</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-236"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_objs_cc :: [FilePath]
+</span><a href="#local-6989586621682767934"><span class="hs-identifier hs-var">lks_objs_cc</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-237"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767935"><span class="annot"><span class="annottext">finder_opts :: FinderOpts
+</span><a href="#local-6989586621682767935"><span class="hs-identifier hs-var hs-var hs-var">finder_opts</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpExtra -&gt; FinderOpts
+</span><a href="GHC.Runtime.Interpreter.Types.html#instFinderOpts"><span class="hs-identifier hs-var">instFinderOpts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767907"><span class="hs-identifier hs-var">inst</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-240"></span><span>      </span><span id="local-6989586621682767936"><span class="annot"><span class="annottext">finder_cache :: FinderCache
+</span><a href="#local-6989586621682767936"><span class="hs-identifier hs-var hs-var hs-var">finder_cache</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpExtra -&gt; FinderCache
+</span><a href="GHC.Runtime.Interpreter.Types.html#instFinderCache"><span class="hs-identifier hs-var">instFinderCache</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767907"><span class="hs-identifier hs-var">inst</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-241"></span><span>
+</span><span id="line-242"></span><span>  </span><span id="local-6989586621682767937"><span class="annot"><a href="#local-6989586621682767937"><span class="hs-identifier hs-var">ar_cache</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ArchiveCache
+</span><a href="GHC.StgToJS.Linker.Linker.html#newArchiveCache"><span class="hs-identifier hs-var">newArchiveCache</span></a></span><span>
+</span><span id="line-243"></span><span>  </span><span id="local-6989586621682767939"><span class="annot"><a href="#local-6989586621682767939"><span class="hs-identifier hs-var">link_plan</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#computeLinkDependencies"><span class="hs-identifier hs-type">computeLinkDependencies</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767905"><span class="hs-identifier hs-type">cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767906"><span class="hs-identifier hs-type">unit_env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767923"><span class="hs-identifier hs-type">link_spec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767935"><span class="hs-identifier hs-type">finder_opts</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767936"><span class="hs-identifier hs-type">finder_cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767937"><span class="hs-identifier hs-type">ar_cache</span></a></span><span>
+</span><span id="line-244"></span><span>  </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkPlan"><span class="hs-identifier hs-type">jsLinkPlan</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767902"><span class="hs-identifier hs-type">logger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767903"><span class="hs-identifier hs-type">tmpfs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767904"><span class="hs-identifier hs-type">tmp_dir</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767937"><span class="hs-identifier hs-type">ar_cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767908"><span class="hs-identifier hs-type">link_cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767905"><span class="hs-identifier hs-type">cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767907"><span class="hs-identifier hs-type">inst</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767939"><span class="hs-identifier hs-type">link_plan</span></a></span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span class="annot"><span class="hs-comment">-- | Link JS interpreter</span></span><span>
+</span><span id="line-247"></span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkInterp"><span class="hs-identifier hs-type">jsLinkInterp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TmpFs"><span class="hs-identifier hs-type">TmpFs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TempDir"><span class="hs-identifier hs-type">TempDir</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#StgToJSConfig"><span class="hs-identifier hs-type">StgToJSConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Env.html#UnitEnv"><span class="hs-identifier hs-type">UnitEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#ExtInterpInstance"><span class="hs-identifier hs-type">ExtInterpInstance</span></a></span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpExtra"><span class="hs-identifier hs-type">JSInterpExtra</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-248"></span><span id="jsLinkInterp"><span class="annot"><span class="annottext">jsLinkInterp :: Logger
+-&gt; TmpFs
+-&gt; TempDir
+-&gt; StgToJSConfig
+-&gt; UnitEnv
+-&gt; ExtInterpInstance JSInterpExtra
+-&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsLinkInterp"><span class="hs-identifier hs-var hs-var">jsLinkInterp</span></a></span></span><span> </span><span id="local-6989586621682767942"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682767942"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682767943"><span class="annot"><span class="annottext">TmpFs
+</span><a href="#local-6989586621682767943"><span class="hs-identifier hs-var">tmpfs</span></a></span></span><span> </span><span id="local-6989586621682767944"><span class="annot"><span class="annottext">TempDir
+</span><a href="#local-6989586621682767944"><span class="hs-identifier hs-var">tmp_dir</span></a></span></span><span> </span><span id="local-6989586621682767945"><span class="annot"><span class="annottext">StgToJSConfig
+</span><a href="#local-6989586621682767945"><span class="hs-identifier hs-var">cfg</span></a></span></span><span> </span><span id="local-6989586621682767946"><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682767946"><span class="hs-identifier hs-var">unit_env</span></a></span></span><span> </span><span id="local-6989586621682767947"><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767947"><span class="hs-identifier hs-var">inst</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-249"></span><span>
+</span><span id="line-250"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767948"><span class="annot"><span class="annottext">link_cfg :: JSLinkConfig
+</span><a href="#local-6989586621682767948"><span class="hs-identifier hs-var hs-var hs-var">link_cfg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#JSLinkConfig"><span class="hs-identifier hs-type">JSLinkConfig</span></a></span><span>
+</span><span id="line-251"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">lcNoStats :: Bool
+</span><a href="#local-6989586621682767910"><span class="hs-identifier hs-var">lcNoStats</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- we don't need the stats</span><span>
+</span><span id="line-252"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcNoRts :: Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcNoRts"><span class="hs-identifier hs-var">lcNoRts</span></a></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- we don't need the RTS</span><span>
+</span><span id="line-253"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcCombineAll :: Bool
+</span><a href="#local-6989586621682767912"><span class="hs-identifier hs-var">lcCombineAll</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- we don't need the combined all.js, we'll link each part independently below</span><span>
+</span><span id="line-254"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcForeignRefs :: Bool
+</span><a href="#local-6989586621682767913"><span class="hs-identifier hs-var">lcForeignRefs</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- we don't need foreign references</span><span>
+</span><span id="line-255"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcNoJSExecutables :: Bool
+</span><a href="#local-6989586621682767914"><span class="hs-identifier hs-var">lcNoJSExecutables</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- we don't need executables</span><span>
+</span><span id="line-256"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcNoHsMain :: Bool
+</span><a href="#local-6989586621682767915"><span class="hs-identifier hs-var">lcNoHsMain</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- nor HsMain</span><span>
+</span><span id="line-257"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcForceEmccRts :: Bool
+</span><a href="#local-6989586621682767916"><span class="hs-identifier hs-var">lcForceEmccRts</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- nor the emcc rts</span><span>
+</span><span id="line-258"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcLinkCsources :: Bool
+</span><a href="#local-6989586621682767917"><span class="hs-identifier hs-var">lcLinkCsources</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- enable C sources, if any</span><span>
+</span><span id="line-259"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767949"><span class="annot"><span class="annottext">is_root :: p -&gt; Bool
+</span><a href="#local-6989586621682767949"><span class="hs-identifier hs-var hs-var hs-var">is_root</span></a></span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-comment">-- FIXME: we shouldn't consider every function as a root</span><span>
+</span><span id="line-262"></span><span>
+</span><span id="line-263"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767950"><span class="annot"><span class="annottext">ghci_unit_id :: UnitId
+</span><a href="#local-6989586621682767950"><span class="hs-identifier hs-var hs-var hs-var">ghci_unit_id</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpExtra -&gt; UnitId
+</span><a href="GHC.Runtime.Interpreter.Types.html#instGhciUnitId"><span class="hs-identifier hs-var">instGhciUnitId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767947"><span class="hs-identifier hs-var">inst</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-264"></span><span>
+</span><span id="line-265"></span><span>  </span><span class="hs-comment">-- compute unit dependencies of ghc_unit_id</span><span>
+</span><span id="line-266"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767951"><span class="annot"><span class="annottext">unit_map :: UnitInfoMap
+</span><a href="#local-6989586621682767951"><span class="hs-identifier hs-var hs-var hs-var">unit_map</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnitState -&gt; UnitInfoMap
+</span><a href="GHC.Unit.State.html#unitInfoMap"><span class="hs-identifier hs-var">unitInfoMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; UnitEnv -&gt; UnitState
+UnitEnv -&gt; UnitState
+</span><a href="GHC.Unit.Env.html#ue_units"><span class="hs-identifier hs-var">ue_units</span></a></span><span> </span><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682767946"><span class="hs-identifier hs-var">unit_env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-267"></span><span>  </span><span id="local-6989586621682767953"><span class="annot"><a href="#local-6989586621682767953"><span class="hs-identifier hs-var">dep_units</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MaybeErr UnitErr [UnitId] -&gt; IO [UnitId]
+forall a. MaybeErr UnitErr a -&gt; IO a
+</span><a href="GHC.Unit.State.html#mayThrowUnitErr"><span class="hs-identifier hs-var">mayThrowUnitErr</span></a></span><span> </span><span class="annot"><span class="annottext">(MaybeErr UnitErr [UnitId] -&gt; IO [UnitId])
+-&gt; MaybeErr UnitErr [UnitId] -&gt; IO [UnitId]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">UnitInfoMap
+-&gt; [(UnitId, Maybe UnitId)] -&gt; MaybeErr UnitErr [UnitId]
+</span><a href="GHC.Unit.State.html#closeUnitDeps"><span class="hs-identifier hs-var">closeUnitDeps</span></a></span><span> </span><span class="annot"><span class="annottext">UnitInfoMap
+</span><a href="#local-6989586621682767951"><span class="hs-identifier hs-var">unit_map</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682767950"><span class="hs-identifier hs-var">ghci_unit_id</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Maybe UnitId
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-268"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767956"><span class="annot"><a href="#local-6989586621682767956"><span class="hs-identifier hs-var hs-var">units</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[UnitId]
+</span><a href="#local-6989586621682767953"><span class="hs-identifier hs-var">dep_units</span></a></span><span> </span><span class="annot"><span class="annottext">[UnitId] -&gt; [UnitId] -&gt; [UnitId]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682767950"><span class="hs-identifier hs-var">ghci_unit_id</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span>  </span><span class="hs-comment">-- indicate that our root function is GHCi.Server.defaultServer</span><span>
+</span><span id="line-271"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767957"><span class="annot"><a href="#local-6989586621682767957"><span class="hs-identifier hs-var hs-var">root_deps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ExportedFun] -&gt; Set ExportedFun
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#fromList"><span class="hs-identifier hs-var">Set.fromList</span></a></span><span> </span><span class="annot"><span class="annottext">([ExportedFun] -&gt; Set ExportedFun)
+-&gt; [ExportedFun] -&gt; Set ExportedFun
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">UnitId -&gt; FastString -&gt; [FastString] -&gt; [ExportedFun]
+</span><a href="GHC.StgToJS.Linker.Linker.html#mkExportedFuns"><span class="hs-identifier hs-var">mkExportedFuns</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682767950"><span class="hs-identifier hs-var">ghci_unit_id</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; FastString
+</span><a href="GHC.Data.FastString.html#fsLit"><span class="hs-identifier hs-var">fsLit</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;GHCi.Server&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FilePath -&gt; FastString
+</span><a href="GHC.Data.FastString.html#fsLit"><span class="hs-identifier hs-var">fsLit</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;defaultServer&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-272"></span><span>
+</span><span id="line-273"></span><span>  </span><span class="hs-comment">-- link the interpreter and its dependencies</span><span>
+</span><span id="line-274"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767960"><span class="annot"><a href="#local-6989586621682767960"><span class="hs-identifier hs-var hs-var">link_spec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#LinkSpec"><span class="hs-identifier hs-type">LinkSpec</span></a></span><span>
+</span><span id="line-275"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">lks_unit_ids :: [UnitId]
+</span><a href="#local-6989586621682767925"><span class="hs-identifier hs-var">lks_unit_ids</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[UnitId]
+</span><a href="#local-6989586621682767956"><span class="hs-identifier hs-var">units</span></a></span><span>
+</span><span id="line-276"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_obj_root_filter :: ExportedFun -&gt; Bool
+</span><a href="#local-6989586621682767929"><span class="hs-identifier hs-var">lks_obj_root_filter</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExportedFun -&gt; Bool
+forall {p}. p -&gt; Bool
+</span><a href="#local-6989586621682767949"><span class="hs-identifier hs-var">is_root</span></a></span><span>
+</span><span id="line-277"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_extra_roots :: Set ExportedFun
+</span><a href="#local-6989586621682767931"><span class="hs-identifier hs-var">lks_extra_roots</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set ExportedFun
+</span><a href="#local-6989586621682767957"><span class="hs-identifier hs-var">root_deps</span></a></span><span>
+</span><span id="line-278"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_objs_hs :: [FilePath]
+</span><a href="#local-6989586621682767932"><span class="hs-identifier hs-var">lks_objs_hs</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-279"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_objs_js :: [FilePath]
+</span><a href="#local-6989586621682767933"><span class="hs-identifier hs-var">lks_objs_js</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-280"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_objs_cc :: [FilePath]
+</span><a href="#local-6989586621682767934"><span class="hs-identifier hs-var">lks_objs_cc</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-281"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-282"></span><span>
+</span><span id="line-283"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767961"><span class="annot"><a href="#local-6989586621682767961"><span class="hs-identifier hs-var hs-var">finder_cache</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpExtra -&gt; FinderCache
+</span><a href="GHC.Runtime.Interpreter.Types.html#instFinderCache"><span class="hs-identifier hs-var">instFinderCache</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767947"><span class="hs-identifier hs-var">inst</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-284"></span><span>      </span><span id="local-6989586621682767962"><span class="annot"><a href="#local-6989586621682767962"><span class="hs-identifier hs-var hs-var">finder_opts</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpExtra -&gt; FinderOpts
+</span><a href="GHC.Runtime.Interpreter.Types.html#instFinderOpts"><span class="hs-identifier hs-var">instFinderOpts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767947"><span class="hs-identifier hs-var">inst</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-285"></span><span>
+</span><span id="line-286"></span><span>  </span><span id="local-6989586621682767963"><span class="annot"><a href="#local-6989586621682767963"><span class="hs-identifier hs-var">ar_cache</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#newArchiveCache"><span class="hs-identifier hs-type">newArchiveCache</span></a></span><span>
+</span><span id="line-287"></span><span>  </span><span id="local-6989586621682767964"><span class="annot"><a href="#local-6989586621682767964"><span class="hs-identifier hs-var">link_plan</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#computeLinkDependencies"><span class="hs-identifier hs-type">computeLinkDependencies</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767945"><span class="hs-identifier hs-type">cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767946"><span class="hs-identifier hs-type">unit_env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767960"><span class="hs-identifier hs-type">link_spec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767962"><span class="hs-identifier hs-type">finder_opts</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767961"><span class="hs-identifier hs-type">finder_cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767963"><span class="hs-identifier hs-type">ar_cache</span></a></span><span>
+</span><span id="line-288"></span><span>  </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkPlan"><span class="hs-identifier hs-type">jsLinkPlan</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767942"><span class="hs-identifier hs-type">logger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767943"><span class="hs-identifier hs-type">tmpfs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767944"><span class="hs-identifier hs-type">tmp_dir</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767963"><span class="hs-identifier hs-type">ar_cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767948"><span class="hs-identifier hs-type">link_cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767945"><span class="hs-identifier hs-type">cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767947"><span class="hs-identifier hs-type">inst</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767964"><span class="hs-identifier hs-type">link_plan</span></a></span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span>
+</span><span id="line-291"></span><span class="annot"><span class="hs-comment">-- | Link object files</span></span><span>
+</span><span id="line-292"></span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkObjects"><span class="hs-identifier hs-type">jsLinkObjects</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TmpFs"><span class="hs-identifier hs-type">TmpFs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TempDir"><span class="hs-identifier hs-type">TempDir</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#StgToJSConfig"><span class="hs-identifier hs-type">StgToJSConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Env.html#UnitEnv"><span class="hs-identifier hs-type">UnitEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#ExtInterpInstance"><span class="hs-identifier hs-type">ExtInterpInstance</span></a></span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpExtra"><span class="hs-identifier hs-type">JSInterpExtra</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.StgToJS.Object.html#ExportedFun"><span class="hs-identifier hs-type">ExportedFun</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-293"></span><span id="jsLinkObjects"><span class="annot"><span class="annottext">jsLinkObjects :: Logger
+-&gt; TmpFs
+-&gt; TempDir
+-&gt; StgToJSConfig
+-&gt; UnitEnv
+-&gt; ExtInterpInstance JSInterpExtra
+-&gt; [FilePath]
+-&gt; (ExportedFun -&gt; Bool)
+-&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsLinkObjects"><span class="hs-identifier hs-var hs-var">jsLinkObjects</span></a></span></span><span> </span><span id="local-6989586621682767965"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682767965"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682767966"><span class="annot"><span class="annottext">TmpFs
+</span><a href="#local-6989586621682767966"><span class="hs-identifier hs-var">tmpfs</span></a></span></span><span> </span><span id="local-6989586621682767967"><span class="annot"><span class="annottext">TempDir
+</span><a href="#local-6989586621682767967"><span class="hs-identifier hs-var">tmp_dir</span></a></span></span><span> </span><span id="local-6989586621682767968"><span class="annot"><span class="annottext">StgToJSConfig
+</span><a href="#local-6989586621682767968"><span class="hs-identifier hs-var">cfg</span></a></span></span><span> </span><span id="local-6989586621682767969"><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682767969"><span class="hs-identifier hs-var">unit_env</span></a></span></span><span> </span><span id="local-6989586621682767970"><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767970"><span class="hs-identifier hs-var">inst</span></a></span></span><span> </span><span id="local-6989586621682767971"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621682767971"><span class="hs-identifier hs-var">objs</span></a></span></span><span> </span><span id="local-6989586621682767972"><span class="annot"><span class="annottext">ExportedFun -&gt; Bool
+</span><a href="#local-6989586621682767972"><span class="hs-identifier hs-var">is_root</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-294"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767973"><span class="annot"><span class="annottext">link_cfg :: JSLinkConfig
+</span><a href="#local-6989586621682767973"><span class="hs-identifier hs-var hs-var hs-var">link_cfg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#JSLinkConfig"><span class="hs-identifier hs-type">JSLinkConfig</span></a></span><span>
+</span><span id="line-295"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">lcNoStats :: Bool
+</span><a href="#local-6989586621682767910"><span class="hs-identifier hs-var">lcNoStats</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- we don't need the stats</span><span>
+</span><span id="line-296"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcNoRts :: Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcNoRts"><span class="hs-identifier hs-var">lcNoRts</span></a></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- we don't need the RTS (already linked)</span><span>
+</span><span id="line-297"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcCombineAll :: Bool
+</span><a href="#local-6989586621682767912"><span class="hs-identifier hs-var">lcCombineAll</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- we don't need the combined all.js, we'll link each part independently below</span><span>
+</span><span id="line-298"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcForeignRefs :: Bool
+</span><a href="#local-6989586621682767913"><span class="hs-identifier hs-var">lcForeignRefs</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- we don't need foreign references</span><span>
+</span><span id="line-299"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcNoJSExecutables :: Bool
+</span><a href="#local-6989586621682767914"><span class="hs-identifier hs-var">lcNoJSExecutables</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- we don't need executables</span><span>
+</span><span id="line-300"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcNoHsMain :: Bool
+</span><a href="#local-6989586621682767915"><span class="hs-identifier hs-var">lcNoHsMain</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- nor HsMain</span><span>
+</span><span id="line-301"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcForceEmccRts :: Bool
+</span><a href="#local-6989586621682767916"><span class="hs-identifier hs-var">lcForceEmccRts</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- nor the emcc rts</span><span>
+</span><span id="line-302"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lcLinkCsources :: Bool
+</span><a href="#local-6989586621682767917"><span class="hs-identifier hs-var">lcLinkCsources</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- enable C sources, if any</span><span>
+</span><span id="line-303"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-304"></span><span>
+</span><span id="line-305"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767974"><span class="annot"><span class="annottext">units :: [UnitId]
+</span><a href="#local-6989586621682767974"><span class="hs-identifier hs-var hs-var hs-var">units</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnitState -&gt; [UnitId]
+</span><a href="GHC.Unit.State.html#preloadUnits"><span class="hs-identifier hs-var">preloadUnits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; UnitEnv -&gt; UnitState
+UnitEnv -&gt; UnitState
+</span><a href="GHC.Unit.Env.html#ue_units"><span class="hs-identifier hs-var">ue_units</span></a></span><span> </span><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682767969"><span class="hs-identifier hs-var">unit_env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-306"></span><span>              </span><span class="annot"><span class="annottext">[UnitId] -&gt; [UnitId] -&gt; [UnitId]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">UnitId
+</span><a href="GHC.Unit.Types.html#thUnitId"><span class="hs-identifier hs-var">thUnitId</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-comment">-- don't forget TH which is an implicit dep</span><span>
+</span><span id="line-307"></span><span>
+</span><span id="line-308"></span><span>  </span><span class="hs-comment">-- compute dependencies</span><span>
+</span><span id="line-309"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767977"><span class="annot"><span class="annottext">link_spec :: LinkSpec
+</span><a href="#local-6989586621682767977"><span class="hs-identifier hs-var hs-var hs-var">link_spec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#LinkSpec"><span class="hs-identifier hs-type">LinkSpec</span></a></span><span>
+</span><span id="line-310"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">lks_unit_ids :: [UnitId]
+</span><a href="#local-6989586621682767925"><span class="hs-identifier hs-var">lks_unit_ids</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[UnitId]
+</span><a href="#local-6989586621682767974"><span class="hs-identifier hs-var">units</span></a></span><span>
+</span><span id="line-311"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_obj_root_filter :: ExportedFun -&gt; Bool
+</span><a href="#local-6989586621682767929"><span class="hs-identifier hs-var">lks_obj_root_filter</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExportedFun -&gt; Bool
+</span><a href="#local-6989586621682767972"><span class="hs-identifier hs-var">is_root</span></a></span><span>
+</span><span id="line-312"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_extra_roots :: Set ExportedFun
+</span><a href="#local-6989586621682767931"><span class="hs-identifier hs-var">lks_extra_roots</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set ExportedFun
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-313"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_objs_hs :: [FilePath]
+</span><a href="#local-6989586621682767932"><span class="hs-identifier hs-var">lks_objs_hs</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621682767971"><span class="hs-identifier hs-var">objs</span></a></span><span>
+</span><span id="line-314"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_objs_js :: [FilePath]
+</span><a href="#local-6989586621682767933"><span class="hs-identifier hs-var">lks_objs_js</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-315"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lks_objs_cc :: [FilePath]
+</span><a href="#local-6989586621682767934"><span class="hs-identifier hs-var">lks_objs_cc</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-316"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-317"></span><span>
+</span><span id="line-318"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767978"><span class="annot"><span class="annottext">finder_opts :: FinderOpts
+</span><a href="#local-6989586621682767978"><span class="hs-identifier hs-var hs-var hs-var">finder_opts</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpExtra -&gt; FinderOpts
+</span><a href="GHC.Runtime.Interpreter.Types.html#instFinderOpts"><span class="hs-identifier hs-var">instFinderOpts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767970"><span class="hs-identifier hs-var">inst</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-319"></span><span>      </span><span id="local-6989586621682767979"><span class="annot"><span class="annottext">finder_cache :: FinderCache
+</span><a href="#local-6989586621682767979"><span class="hs-identifier hs-var hs-var hs-var">finder_cache</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpExtra -&gt; FinderCache
+</span><a href="GHC.Runtime.Interpreter.Types.html#instFinderCache"><span class="hs-identifier hs-var">instFinderCache</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767970"><span class="hs-identifier hs-var">inst</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-320"></span><span>
+</span><span id="line-321"></span><span>  </span><span id="local-6989586621682767980"><span class="annot"><a href="#local-6989586621682767980"><span class="hs-identifier hs-var">ar_cache</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ArchiveCache
+</span><a href="GHC.StgToJS.Linker.Linker.html#newArchiveCache"><span class="hs-identifier hs-var">newArchiveCache</span></a></span><span>
+</span><span id="line-322"></span><span>  </span><span id="local-6989586621682767981"><span class="annot"><a href="#local-6989586621682767981"><span class="hs-identifier hs-var">link_plan</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#computeLinkDependencies"><span class="hs-identifier hs-type">computeLinkDependencies</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767968"><span class="hs-identifier hs-type">cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767969"><span class="hs-identifier hs-type">unit_env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767977"><span class="hs-identifier hs-type">link_spec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767978"><span class="hs-identifier hs-type">finder_opts</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767979"><span class="hs-identifier hs-type">finder_cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767980"><span class="hs-identifier hs-type">ar_cache</span></a></span><span>
+</span><span id="line-323"></span><span>  </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkPlan"><span class="hs-identifier hs-type">jsLinkPlan</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767965"><span class="hs-identifier hs-type">logger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767966"><span class="hs-identifier hs-type">tmpfs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767967"><span class="hs-identifier hs-type">tmp_dir</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767980"><span class="hs-identifier hs-type">ar_cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767973"><span class="hs-identifier hs-type">link_cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767968"><span class="hs-identifier hs-type">cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767970"><span class="hs-identifier hs-type">inst</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767981"><span class="hs-identifier hs-type">link_plan</span></a></span><span>
+</span><span id="line-324"></span><span>
+</span><span id="line-325"></span><span>
+</span><span id="line-326"></span><span>
+</span><span id="line-327"></span><span class="annot"><span class="hs-comment">-- | Link an object file using the given functions as roots</span></span><span>
+</span><span id="line-328"></span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkObject"><span class="hs-identifier hs-type">jsLinkObject</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TmpFs"><span class="hs-identifier hs-type">TmpFs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TempDir"><span class="hs-identifier hs-type">TempDir</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#StgToJSConfig"><span class="hs-identifier hs-type">StgToJSConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Env.html#UnitEnv"><span class="hs-identifier hs-type">UnitEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#ExtInterpInstance"><span class="hs-identifier hs-type">ExtInterpInstance</span></a></span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpExtra"><span class="hs-identifier hs-type">JSInterpExtra</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.StgToJS.Object.html#ExportedFun"><span class="hs-identifier hs-type">ExportedFun</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-329"></span><span id="jsLinkObject"><span class="annot"><span class="annottext">jsLinkObject :: Logger
+-&gt; TmpFs
+-&gt; TempDir
+-&gt; StgToJSConfig
+-&gt; UnitEnv
+-&gt; ExtInterpInstance JSInterpExtra
+-&gt; FilePath
+-&gt; [ExportedFun]
+-&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsLinkObject"><span class="hs-identifier hs-var hs-var">jsLinkObject</span></a></span></span><span> </span><span id="local-6989586621682767982"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682767982"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682767983"><span class="annot"><span class="annottext">TmpFs
+</span><a href="#local-6989586621682767983"><span class="hs-identifier hs-var">tmpfs</span></a></span></span><span> </span><span id="local-6989586621682767984"><span class="annot"><span class="annottext">TempDir
+</span><a href="#local-6989586621682767984"><span class="hs-identifier hs-var">tmp_dir</span></a></span></span><span> </span><span id="local-6989586621682767985"><span class="annot"><span class="annottext">StgToJSConfig
+</span><a href="#local-6989586621682767985"><span class="hs-identifier hs-var">cfg</span></a></span></span><span> </span><span id="local-6989586621682767986"><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682767986"><span class="hs-identifier hs-var">unit_env</span></a></span></span><span> </span><span id="local-6989586621682767987"><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767987"><span class="hs-identifier hs-var">inst</span></a></span></span><span> </span><span id="local-6989586621682767988"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682767988"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span id="local-6989586621682767989"><span class="annot"><span class="annottext">[ExportedFun]
+</span><a href="#local-6989586621682767989"><span class="hs-identifier hs-var">roots</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-330"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767990"><span class="annot"><span class="annottext">is_root :: ExportedFun -&gt; Bool
+</span><a href="#local-6989586621682767990"><span class="hs-identifier hs-var hs-var hs-var">is_root</span></a></span></span><span> </span><span id="local-6989586621682767991"><span class="annot"><span class="annottext">ExportedFun
+</span><a href="#local-6989586621682767991"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExportedFun -&gt; Set ExportedFun -&gt; Bool
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Bool
+</span><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#member"><span class="hs-identifier hs-var">Set.member</span></a></span><span> </span><span class="annot"><span class="annottext">ExportedFun
+</span><a href="#local-6989586621682767991"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[ExportedFun] -&gt; Set ExportedFun
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#fromList"><span class="hs-identifier hs-var">Set.fromList</span></a></span><span> </span><span class="annot"><span class="annottext">[ExportedFun]
+</span><a href="#local-6989586621682767989"><span class="hs-identifier hs-var">roots</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-331"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682767993"><span class="annot"><span class="annottext">objs :: [FilePath]
+</span><a href="#local-6989586621682767993"><span class="hs-identifier hs-var hs-var">objs</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682767988"><span class="hs-identifier hs-var">obj</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-332"></span><span>  </span><span class="annot"><span class="annottext">Logger
+-&gt; TmpFs
+-&gt; TempDir
+-&gt; StgToJSConfig
+-&gt; UnitEnv
+-&gt; ExtInterpInstance JSInterpExtra
+-&gt; [FilePath]
+-&gt; (ExportedFun -&gt; Bool)
+-&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsLinkObjects"><span class="hs-identifier hs-var">jsLinkObjects</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682767982"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">TmpFs
+</span><a href="#local-6989586621682767983"><span class="hs-identifier hs-var">tmpfs</span></a></span><span> </span><span class="annot"><span class="annottext">TempDir
+</span><a href="#local-6989586621682767984"><span class="hs-identifier hs-var">tmp_dir</span></a></span><span> </span><span class="annot"><span class="annottext">StgToJSConfig
+</span><a href="#local-6989586621682767985"><span class="hs-identifier hs-var">cfg</span></a></span><span> </span><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682767986"><span class="hs-identifier hs-var">unit_env</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682767987"><span class="hs-identifier hs-var">inst</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621682767993"><span class="hs-identifier hs-var">objs</span></a></span><span> </span><span class="annot"><span class="annottext">ExportedFun -&gt; Bool
+</span><a href="#local-6989586621682767990"><span class="hs-identifier hs-var">is_root</span></a></span><span>
+</span><span id="line-333"></span><span>
+</span><span id="line-334"></span><span>
+</span><span id="line-335"></span><span class="hs-comment">-- | Link the given link plan</span><span>
+</span><span id="line-336"></span><span class="hs-comment">--</span><span>
+</span><span id="line-337"></span><span class="hs-comment">-- Perform incremental linking by removing what is already linked from the plan</span><span>
+</span><span id="line-338"></span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLinkPlan"><span class="hs-identifier hs-type">jsLinkPlan</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TmpFs"><span class="hs-identifier hs-type">TmpFs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TempDir"><span class="hs-identifier hs-type">TempDir</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#ArchiveCache"><span class="hs-identifier hs-type">ArchiveCache</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#JSLinkConfig"><span class="hs-identifier hs-type">JSLinkConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#StgToJSConfig"><span class="hs-identifier hs-type">StgToJSConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#ExtInterpInstance"><span class="hs-identifier hs-type">ExtInterpInstance</span></a></span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpExtra"><span class="hs-identifier hs-type">JSInterpExtra</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#LinkPlan"><span class="hs-identifier hs-type">LinkPlan</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-339"></span><span id="jsLinkPlan"><span class="annot"><span class="annottext">jsLinkPlan :: Logger
+-&gt; TmpFs
+-&gt; TempDir
+-&gt; ArchiveCache
+-&gt; JSLinkConfig
+-&gt; StgToJSConfig
+-&gt; ExtInterpInstance JSInterpExtra
+-&gt; LinkPlan
+-&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsLinkPlan"><span class="hs-identifier hs-var hs-var">jsLinkPlan</span></a></span></span><span> </span><span id="local-6989586621682767994"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682767994"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682767995"><span class="annot"><span class="annottext">TmpFs
+</span><a href="#local-6989586621682767995"><span class="hs-identifier hs-var">tmpfs</span></a></span></span><span> </span><span id="local-6989586621682767996"><span class="annot"><span class="annottext">TempDir
+</span><a href="#local-6989586621682767996"><span class="hs-identifier hs-var">tmp_dir</span></a></span></span><span> </span><span id="local-6989586621682767997"><span class="annot"><span class="annottext">ArchiveCache
+</span><a href="#local-6989586621682767997"><span class="hs-identifier hs-var">ar_cache</span></a></span></span><span> </span><span id="local-6989586621682767998"><span class="annot"><span class="annottext">JSLinkConfig
+</span><a href="#local-6989586621682767998"><span class="hs-identifier hs-var">link_cfg</span></a></span></span><span> </span><span id="local-6989586621682767999"><span class="annot"><span class="annottext">StgToJSConfig
+</span><a href="#local-6989586621682767999"><span class="hs-identifier hs-var">cfg</span></a></span></span><span> </span><span id="local-6989586621682768000"><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682768000"><span class="hs-identifier hs-var">inst</span></a></span></span><span> </span><span id="local-6989586621682768001"><span class="annot"><span class="annottext">LinkPlan
+</span><a href="#local-6989586621682768001"><span class="hs-identifier hs-var">link_plan</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-340"></span><span>  </span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-341"></span><span>  </span><span class="hs-comment">-- Get already linked stuff and compute incremental plan</span><span>
+</span><span id="line-342"></span><span>  </span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-343"></span><span>
+</span><span id="line-344"></span><span>  </span><span id="local-6989586621682768002"><span class="annot"><a href="#local-6989586621682768002"><span class="hs-identifier hs-var">old_plan</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JSState -&gt; LinkPlan
+</span><a href="GHC.Runtime.Interpreter.Types.html#jsLinkState"><span class="hs-identifier hs-var">jsLinkState</span></a></span><span> </span><span class="annot"><span class="annottext">(JSState -&gt; LinkPlan) -&gt; IO JSState -&gt; IO LinkPlan
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">MVar JSState -&gt; IO JSState
+forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JSInterpExtra -&gt; MVar JSState
+</span><a href="GHC.Runtime.Interpreter.Types.html#instJSState"><span class="hs-identifier hs-var">instJSState</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682768000"><span class="hs-identifier hs-var">inst</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-345"></span><span>
+</span><span id="line-346"></span><span>  </span><span class="hs-comment">-- compute new plan discarding what's already linked</span><span>
+</span><span id="line-347"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682768005"><span class="annot"><a href="#local-6989586621682768005"><span class="hs-identifier hs-var">diff_plan</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682768006"><span class="annot"><a href="#local-6989586621682768006"><span class="hs-identifier hs-var">total_plan</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#incrementLinkPlan"><span class="hs-identifier hs-type">incrementLinkPlan</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682768002"><span class="hs-identifier hs-type">old_plan</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682768001"><span class="hs-identifier hs-type">link_plan</span></a></span><span>
+</span><span id="line-348"></span><span>
+</span><span id="line-349"></span><span>  </span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-350"></span><span>  </span><span class="hs-comment">-- Generate JS code for the incremental plan</span><span>
+</span><span id="line-351"></span><span>  </span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-352"></span><span>
+</span><span id="line-353"></span><span>  </span><span id="local-6989586621682768008"><span class="annot"><a href="#local-6989586621682768008"><span class="hs-identifier hs-var">tmp_out</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#newTempSubDir"><span class="hs-identifier hs-type">newTempSubDir</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767994"><span class="hs-identifier hs-type">logger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767995"><span class="hs-identifier hs-type">tmpfs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767996"><span class="hs-identifier hs-type">tmp_dir</span></a></span><span>
+</span><span id="line-354"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">void</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Linker.html#jsLink"><span class="hs-identifier hs-type">jsLink</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767998"><span class="hs-identifier hs-type">link_cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767999"><span class="hs-identifier hs-type">cfg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767994"><span class="hs-identifier hs-type">logger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767995"><span class="hs-identifier hs-type">tmpfs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767997"><span class="hs-identifier hs-type">ar_cache</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682768008"><span class="hs-identifier hs-type">tmp_out</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682768005"><span class="hs-identifier hs-type">diff_plan</span></a></span><span>
+</span><span id="line-355"></span><span>
+</span><span id="line-356"></span><span>  </span><span class="hs-comment">-- Code has been linked into the following files:</span><span>
+</span><span id="line-357"></span><span>  </span><span class="hs-comment">--  - generated rts from tmp_out/rts.js (depends on link options)</span><span>
+</span><span id="line-358"></span><span>  </span><span class="hs-comment">--  - raw js files from tmp_out/lib.js</span><span>
+</span><span id="line-359"></span><span>  </span><span class="hs-comment">--  - Haskell generated JS from tmp_out/out.js</span><span>
+</span><span id="line-360"></span><span>
+</span><span id="line-361"></span><span>  </span><span class="hs-comment">-- We need to combine at least rts.js and lib.js for the RTS because they</span><span>
+</span><span id="line-362"></span><span>  </span><span class="hs-comment">-- depend on each other. We might as well combine them all, so that's what we</span><span>
+</span><span id="line-363"></span><span>  </span><span class="hs-comment">-- do.</span><span>
+</span><span id="line-364"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682768012"><span class="annot"><a href="#local-6989586621682768012"><span class="hs-identifier hs-var hs-var">filenames</span></a></span></span><span>
+</span><span id="line-365"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">JSLinkConfig -&gt; Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcNoRts"><span class="hs-identifier hs-var">lcNoRts</span></a></span><span> </span><span class="annot"><span class="annottext">JSLinkConfig
+</span><a href="#local-6989586621682767998"><span class="hs-identifier hs-var">link_cfg</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;lib.js&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;out.js&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-366"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;rts.js&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;lib.js&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;out.js&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-367"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682768013"><span class="annot"><a href="#local-6989586621682768013"><span class="hs-identifier hs-var hs-var">files</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(FilePath -&gt; FilePath) -&gt; [FilePath] -&gt; [FilePath]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768008"><span class="hs-identifier hs-var">tmp_out</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><a href="../../filepath-1.5.4.0-8591/src/System.FilePath.Posix.html#%3C%2F%3E"><span class="hs-operator hs-var">&lt;/&gt;</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621682768012"><span class="hs-identifier hs-var">filenames</span></a></span><span>
+</span><span id="line-368"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682768015"><span class="annot"><a href="#local-6989586621682768015"><span class="hs-identifier hs-var hs-var">all_js</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768008"><span class="hs-identifier hs-var">tmp_out</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><a href="../../filepath-1.5.4.0-8591/src/System.FilePath.Posix.html#%3C%2F%3E"><span class="hs-operator hs-var">&lt;/&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;all.js&quot;</span></span><span>
+</span><span id="line-369"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682768016"><span class="annot"><a href="#local-6989586621682768016"><span class="hs-identifier hs-var hs-var">all_files</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768015"><span class="hs-identifier hs-var">all_js</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; [FilePath] -&gt; [FilePath]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621682768013"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-370"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">withBinaryFile</span></span><span> </span><span class="annot"><a href="#local-6989586621682768015"><span class="hs-identifier hs-type">all_js</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">WriteMode</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682768019"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682768019"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-371"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682768020"><span class="annot"><span class="annottext">cpy :: FilePath -&gt; IO ()
+</span><a href="#local-6989586621682768020"><span class="hs-identifier hs-var hs-var">cpy</span></a></span></span><span> </span><span id="local-6989586621682768021"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768021"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO ByteString
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html#readFile"><span class="hs-identifier hs-var">B.readFile</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768021"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">IO ByteString -&gt; (ByteString -&gt; IO ()) -&gt; IO ()
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Handle -&gt; ByteString -&gt; IO ()
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html#hPut"><span class="hs-identifier hs-var">B.hPut</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682768019"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-372"></span><span>    </span><span class="annot"><span class="annottext">(FilePath -&gt; IO ()) -&gt; [FilePath] -&gt; IO ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO ()
+</span><a href="#local-6989586621682768020"><span class="hs-identifier hs-var">cpy</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621682768013"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-373"></span><span>
+</span><span id="line-374"></span><span>  </span><span class="hs-comment">-- add files to clean</span><span>
+</span><span id="line-375"></span><span>  </span><span class="annot"><a href="GHC.Utils.TmpFs.html#addFilesToClean"><span class="hs-identifier hs-type">addFilesToClean</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682767995"><span class="hs-identifier hs-type">tmpfs</span></a></span><span> </span><span class="annot"><a href="GHC.Utils.TmpFs.html#TFL_CurrentModule"><span class="hs-identifier hs-type">TFL_CurrentModule</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682768016"><span class="hs-identifier hs-type">all_files</span></a></span><span>
+</span><span id="line-376"></span><span>
+</span><span id="line-377"></span><span>  </span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-378"></span><span>  </span><span class="hs-comment">-- Link JS code</span><span>
+</span><span id="line-379"></span><span>  </span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-380"></span><span>
+</span><span id="line-381"></span><span>  </span><span class="hs-comment">-- linking JS code depends on the phase we're in:</span><span>
+</span><span id="line-382"></span><span>  </span><span class="hs-comment">-- - during in the initialization phase, we send a LoadFile message to the</span><span>
+</span><span id="line-383"></span><span>  </span><span class="hs-comment">--   JS server;</span><span>
+</span><span id="line-384"></span><span>  </span><span class="hs-comment">-- - once the Haskell server is started, we send a LoadObj message to the</span><span>
+</span><span id="line-385"></span><span>  </span><span class="hs-comment">--   Haskell server.</span><span>
+</span><span id="line-386"></span><span>  </span><span id="local-6989586621682768027"><span class="annot"><a href="#local-6989586621682768027"><span class="hs-identifier hs-var">server_started</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#jsServerStarted"><span class="hs-identifier hs-var">jsServerStarted</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">readMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#instJSState"><span class="hs-identifier hs-var">instJSState</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682768000"><span class="hs-identifier hs-type">inst</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-387"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621682768027"><span class="hs-identifier hs-type">server_started</span></a></span><span>
+</span><span id="line-388"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Process.html#sendMessageNoResponse"><span class="hs-identifier hs-type">sendMessageNoResponse</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682768000"><span class="hs-identifier hs-type">inst</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.Message.html#LoadObj"><span class="hs-identifier hs-type">LoadObj</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682768015"><span class="hs-identifier hs-type">all_js</span></a></span><span>
+</span><span id="line-389"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLoadFile"><span class="hs-identifier hs-type">jsLoadFile</span></a></span><span>            </span><span class="annot"><a href="#local-6989586621682768000"><span class="hs-identifier hs-type">inst</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682768015"><span class="hs-identifier hs-type">all_js</span></a></span><span>
+</span><span id="line-390"></span><span>
+</span><span id="line-391"></span><span>  </span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-392"></span><span>  </span><span class="hs-comment">-- update linker state</span><span>
+</span><span id="line-393"></span><span>  </span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-394"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">modifyMVar_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#instJSState"><span class="hs-identifier hs-var">instJSState</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682768000"><span class="hs-identifier hs-type">inst</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682768031"><span class="annot"><span class="annottext">JSState
+</span><a href="#local-6989586621682768031"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">JSState -&gt; IO JSState
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">JSState
+</span><a href="#local-6989586621682768031"><span class="hs-identifier hs-var">state</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#jsLinkState"><span class="hs-identifier hs-var">jsLinkState</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621682768006"><span class="hs-identifier hs-type">total_plan</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-395"></span><span>
+</span><span id="line-396"></span><span>
+</span><span id="line-397"></span><span class="annot"><span class="hs-comment">-- | Send a command to the JS interpreter</span></span><span>
+</span><span id="line-398"></span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsSendCommand"><span class="hs-identifier hs-type">jsSendCommand</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#ExtInterpInstance"><span class="hs-identifier hs-type">ExtInterpInstance</span></a></span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpExtra"><span class="hs-identifier hs-type">JSInterpExtra</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-399"></span><span id="jsSendCommand"><span class="annot"><span class="annottext">jsSendCommand :: ExtInterpInstance JSInterpExtra -&gt; FilePath -&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsSendCommand"><span class="hs-identifier hs-var hs-var">jsSendCommand</span></a></span></span><span> </span><span id="local-6989586621682768033"><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682768033"><span class="hs-identifier hs-var">inst</span></a></span></span><span> </span><span id="local-6989586621682768034"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768034"><span class="hs-identifier hs-var">cmd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO ()
+</span><a href="#local-6989586621682768035"><span class="hs-identifier hs-var">send_cmd</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768034"><span class="hs-identifier hs-var">cmd</span></a></span><span>
+</span><span id="line-400"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-401"></span><span>    </span><span id="local-6989586621682768036"><span class="annot"><span class="annottext">extra :: JSInterpExtra
+</span><a href="#local-6989586621682768036"><span class="hs-identifier hs-var hs-var">extra</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682768033"><span class="hs-identifier hs-var">inst</span></a></span><span>
+</span><span id="line-402"></span><span>    </span><span id="local-6989586621682768037"><span class="annot"><span class="annottext">handle :: Handle
+</span><a href="#local-6989586621682768037"><span class="hs-identifier hs-var hs-var">handle</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpExtra -&gt; Handle
+</span><a href="GHC.Runtime.Interpreter.Types.html#instStdIn"><span class="hs-identifier hs-var">instStdIn</span></a></span><span> </span><span class="annot"><span class="annottext">JSInterpExtra
+</span><a href="#local-6989586621682768036"><span class="hs-identifier hs-var">extra</span></a></span><span>
+</span><span id="line-403"></span><span>    </span><span id="local-6989586621682768035"><span class="annot"><span class="annottext">send_cmd :: FilePath -&gt; IO ()
+</span><a href="#local-6989586621682768035"><span class="hs-identifier hs-var hs-var">send_cmd</span></a></span></span><span> </span><span id="local-6989586621682768038"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768038"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-404"></span><span>      </span><span class="annot"><span class="annottext">FilePath -&gt; (CStringLen -&gt; IO ()) -&gt; IO ()
+forall a. FilePath -&gt; (CStringLen -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withCStringLen</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768038"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621682768040"><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621682768040"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621682768041"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682768041"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; Ptr CChar -&gt; Int -&gt; IO ()
+forall a. Handle -&gt; Ptr a -&gt; Int -&gt; IO ()
+</span><span class="hs-identifier hs-var">hPutBuf</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682768037"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621682768040"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682768041"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-405"></span><span>      </span><span class="annot"><span class="annottext">Handle -&gt; IO ()
+</span><span class="hs-identifier hs-var">hFlush</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682768037"><span class="hs-identifier hs-var">handle</span></a></span><span>
+</span><span id="line-406"></span><span>
+</span><span id="line-407"></span><span class="annot"><span class="hs-comment">-- | Load a JS file in the interpreter</span></span><span>
+</span><span id="line-408"></span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsLoadFile"><span class="hs-identifier hs-type">jsLoadFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#ExtInterpInstance"><span class="hs-identifier hs-type">ExtInterpInstance</span></a></span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpExtra"><span class="hs-identifier hs-type">JSInterpExtra</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-409"></span><span id="jsLoadFile"><span class="annot"><span class="annottext">jsLoadFile :: ExtInterpInstance JSInterpExtra -&gt; FilePath -&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsLoadFile"><span class="hs-identifier hs-var hs-var">jsLoadFile</span></a></span></span><span> </span><span id="local-6989586621682768044"><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682768044"><span class="hs-identifier hs-var">inst</span></a></span></span><span> </span><span id="local-6989586621682768045"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768045"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; FilePath -&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsSendCommand"><span class="hs-identifier hs-var">jsSendCommand</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682768044"><span class="hs-identifier hs-var">inst</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;LOAD &quot;</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768045"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;\n&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-410"></span><span>
+</span><span id="line-411"></span><span class="annot"><span class="hs-comment">-- | Run JS server</span></span><span>
+</span><span id="line-412"></span><span class="annot"><a href="GHC.Runtime.Interpreter.JS.html#jsRunServer"><span class="hs-identifier hs-type">jsRunServer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#ExtInterpInstance"><span class="hs-identifier hs-type">ExtInterpInstance</span></a></span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#JSInterpExtra"><span class="hs-identifier hs-type">JSInterpExtra</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-413"></span><span id="jsRunServer"><span class="annot"><span class="annottext">jsRunServer :: ExtInterpInstance JSInterpExtra -&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsRunServer"><span class="hs-identifier hs-var hs-var">jsRunServer</span></a></span></span><span> </span><span id="local-6989586621682768046"><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682768046"><span class="hs-identifier hs-var">inst</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-414"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682768047"><span class="annot"><span class="annottext">ghci_unit_id :: UnitId
+</span><a href="#local-6989586621682768047"><span class="hs-identifier hs-var hs-var hs-var">ghci_unit_id</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JSInterpExtra -&gt; UnitId
+</span><a href="GHC.Runtime.Interpreter.Types.html#instGhciUnitId"><span class="hs-identifier hs-var">instGhciUnitId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682768046"><span class="hs-identifier hs-var">inst</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-415"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682768048"><span class="annot"><span class="annottext">zghci_unit_id :: FilePath
+</span><a href="#local-6989586621682768048"><span class="hs-identifier hs-var hs-var hs-var">zghci_unit_id</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastZString -&gt; FilePath
+</span><a href="GHC.Data.FastString.html#zString"><span class="hs-identifier hs-var">zString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString -&gt; FastZString
+</span><a href="GHC.Data.FastString.html#zEncodeFS"><span class="hs-identifier hs-var">zEncodeFS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UnitId -&gt; FastString
+</span><a href="GHC.Unit.Types.html#unitIdFS"><span class="hs-identifier hs-var">unitIdFS</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682768047"><span class="hs-identifier hs-var">ghci_unit_id</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-416"></span><span>
+</span><span id="line-417"></span><span>  </span><span class="hs-comment">-- Run `GHCi.Server.defaultServer`</span><span>
+</span><span id="line-418"></span><span>  </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; FilePath -&gt; IO ()
+</span><a href="GHC.Runtime.Interpreter.JS.html#jsSendCommand"><span class="hs-identifier hs-var">jsSendCommand</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682768046"><span class="hs-identifier hs-var">inst</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;RUN_SERVER &quot;</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682768048"><span class="hs-identifier hs-var">zghci_unit_id</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;\n&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-419"></span><span>
+</span><span id="line-420"></span><span>  </span><span class="hs-comment">-- indicate that the Haskell server is now started</span><span>
+</span><span id="line-421"></span><span>  </span><span class="annot"><span class="annottext">MVar JSState -&gt; (JSState -&gt; IO JSState) -&gt; IO ()
+forall a. MVar a -&gt; (a -&gt; IO a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyMVar_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JSInterpExtra -&gt; MVar JSState
+</span><a href="GHC.Runtime.Interpreter.Types.html#instJSState"><span class="hs-identifier hs-var">instJSState</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra -&gt; JSInterpExtra
+forall c. ExtInterpInstance c -&gt; c
+</span><a href="GHC.Runtime.Interpreter.Types.html#instExtra"><span class="hs-identifier hs-var">instExtra</span></a></span><span> </span><span class="annot"><span class="annottext">ExtInterpInstance JSInterpExtra
+</span><a href="#local-6989586621682768046"><span class="hs-identifier hs-var">inst</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((JSState -&gt; IO JSState) -&gt; IO ())
+-&gt; (JSState -&gt; IO JSState) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682768052"><span class="annot"><span class="annottext">JSState
+</span><a href="#local-6989586621682768052"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">JSState -&gt; IO JSState
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">JSState
+</span><a href="#local-6989586621682768052"><span class="hs-identifier hs-var">state</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Runtime.Interpreter.Types.html#jsServerStarted"><span class="hs-identifier hs-var">jsServerStarted</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-422"></span></pre></body></html>

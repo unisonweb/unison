@@ -1,0 +1,780 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html"><span class="hs-identifier">Unison.HashQualifiedPrime</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier">HashQualified</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HQSegment"><span class="hs-identifier">HQSegment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#toHQ"><span class="hs-identifier">toHQ</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashOrHQ"><span class="hs-identifier">HashOrHQ</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#fromHQ"><span class="hs-identifier">fromHQ</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#toName"><span class="hs-identifier">toName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#nameLength"><span class="hs-identifier">nameLength</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#take"><span class="hs-identifier">take</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#toHash"><span class="hs-identifier">toHash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#toTextWith"><span class="hs-identifier">toTextWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#fromNamedReferent"><span class="hs-identifier">fromNamedReferent</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#fromNamedReference"><span class="hs-identifier">fromNamedReference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#fromName"><span class="hs-identifier">fromName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#matchesNamedReferent"><span class="hs-identifier">matchesNamedReferent</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#matchesNamedReference"><span class="hs-identifier">matchesNamedReference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#requalify"><span class="hs-identifier">requalify</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#searchBySuffix"><span class="hs-identifier">searchBySuffix</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#filterBySuffix"><span class="hs-identifier">filterBySuffix</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#searchUnconflictedBySuffix"><span class="hs-identifier">searchUnconflictedBySuffix</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#filterUnconflictedBySuffix"><span class="hs-identifier">filterUnconflictedBySuffix</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.HashQualified.html"><span class="hs-identifier">Unison.HashQualified</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HQ</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Name.html"><span class="hs-identifier">Unison.Name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier">Name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Name.html"><span class="hs-identifier">Unison.Name</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Name</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.NameSegment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NameSegment</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Reference.html"><span class="hs-identifier">Unison.Reference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Reference.html"><span class="hs-identifier">Unison.Reference</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Reference</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Referent.html"><span class="hs-identifier">Unison.Referent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Referent.html#Referent"><span class="hs-identifier">Referent</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Referent.html"><span class="hs-identifier">Unison.Referent</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ShortHash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ShortHash</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ShortHash</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SH</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Relation</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Relation</span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">take</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><span class="hs-comment">-- | Like Unison.HashQualified, but doesn't support a HashOnly variant</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">data</span><span> </span><span id="HashQualified"><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-var">HashQualified</span></a></span></span><span> </span><span id="local-6989586621679325739"><span class="annot"><a href="#local-6989586621679325739"><span class="hs-identifier hs-type">n</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="NameOnly"><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-var">NameOnly</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679325739"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HashQualified"><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-var">HashQualified</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679325739"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortHash</span></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679325833"><span id="local-6989586621679325844"><span class="annot"><span class="annottext">HashQualified n -&gt; HashQualified n -&gt; Bool
+(HashQualified n -&gt; HashQualified n -&gt; Bool)
+-&gt; (HashQualified n -&gt; HashQualified n -&gt; Bool)
+-&gt; Eq (HashQualified n)
+forall n. Eq n =&gt; HashQualified n -&gt; HashQualified n -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall n. Eq n =&gt; HashQualified n -&gt; HashQualified n -&gt; Bool
+== :: HashQualified n -&gt; HashQualified n -&gt; Bool
+$c/= :: forall n. Eq n =&gt; HashQualified n -&gt; HashQualified n -&gt; Bool
+/= :: HashQualified n -&gt; HashQualified n -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679325851"><span id="local-6989586621679325853"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; HashQualified a -&gt; HashQualified b)
+-&gt; (forall a b. a -&gt; HashQualified b -&gt; HashQualified a)
+-&gt; Functor HashQualified
+forall a b. a -&gt; HashQualified b -&gt; HashQualified a
+forall a b. (a -&gt; b) -&gt; HashQualified a -&gt; HashQualified b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; HashQualified a -&gt; HashQualified b
+fmap :: forall a b. (a -&gt; b) -&gt; HashQualified a -&gt; HashQualified b
+$c&lt;$ :: forall a b. a -&gt; HashQualified b -&gt; HashQualified a
+&lt;$ :: forall a b. a -&gt; HashQualified b -&gt; HashQualified a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679325858"><span id="local-6989586621679325860"><span class="annot"><span class="annottext">(forall x. HashQualified n -&gt; Rep (HashQualified n) x)
+-&gt; (forall x. Rep (HashQualified n) x -&gt; HashQualified n)
+-&gt; Generic (HashQualified n)
+forall x. Rep (HashQualified n) x -&gt; HashQualified n
+forall x. HashQualified n -&gt; Rep (HashQualified n) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall n x. Rep (HashQualified n) x -&gt; HashQualified n
+forall n x. HashQualified n -&gt; Rep (HashQualified n) x
+$cfrom :: forall n x. HashQualified n -&gt; Rep (HashQualified n) x
+from :: forall x. HashQualified n -&gt; Rep (HashQualified n) x
+$cto :: forall n x. Rep (HashQualified n) x -&gt; HashQualified n
+to :: forall x. Rep (HashQualified n) x -&gt; HashQualified n
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679325866"><span id="local-6989586621679325872"><span id="local-6989586621679325875"><span id="local-6989586621679325880"><span id="local-6989586621679325882"><span id="local-6989586621679325885"><span id="local-6989586621679325888"><span id="local-6989586621679325891"><span id="local-6989586621679325894"><span id="local-6989586621679325897"><span id="local-6989586621679325900"><span id="local-6989586621679325902"><span id="local-6989586621679325905"><span id="local-6989586621679325910"><span id="local-6989586621679325915"><span id="local-6989586621679325920"><span id="local-6989586621679325925"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; HashQualified m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; HashQualified a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; HashQualified a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; HashQualified a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; HashQualified a -&gt; a)
+-&gt; (forall a. HashQualified a -&gt; [a])
+-&gt; (forall a. HashQualified a -&gt; Bool)
+-&gt; (forall a. HashQualified a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; HashQualified a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; HashQualified a -&gt; a)
+-&gt; (forall a. Ord a =&gt; HashQualified a -&gt; a)
+-&gt; (forall a. Num a =&gt; HashQualified a -&gt; a)
+-&gt; (forall a. Num a =&gt; HashQualified a -&gt; a)
+-&gt; Foldable HashQualified
+forall a. Eq a =&gt; a -&gt; HashQualified a -&gt; Bool
+forall a. Num a =&gt; HashQualified a -&gt; a
+forall a. Ord a =&gt; HashQualified a -&gt; a
+forall m. Monoid m =&gt; HashQualified m -&gt; m
+forall a. HashQualified a -&gt; Bool
+forall a. HashQualified a -&gt; Int
+forall a. HashQualified a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; HashQualified a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; HashQualified a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall m. Monoid m =&gt; HashQualified m -&gt; m
+fold :: forall m. Monoid m =&gt; HashQualified m -&gt; m
+$cfoldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; HashQualified a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; HashQualified a -&gt; m
+$cfoldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; HashQualified a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; HashQualified a -&gt; m
+$cfoldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b
+$cfoldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b
+$cfoldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b
+$cfoldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; HashQualified a -&gt; b
+$cfoldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; HashQualified a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; HashQualified a -&gt; a
+$cfoldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; HashQualified a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; HashQualified a -&gt; a
+$ctoList :: forall a. HashQualified a -&gt; [a]
+toList :: forall a. HashQualified a -&gt; [a]
+$cnull :: forall a. HashQualified a -&gt; Bool
+null :: forall a. HashQualified a -&gt; Bool
+$clength :: forall a. HashQualified a -&gt; Int
+length :: forall a. HashQualified a -&gt; Int
+$celem :: forall a. Eq a =&gt; a -&gt; HashQualified a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; HashQualified a -&gt; Bool
+$cmaximum :: forall a. Ord a =&gt; HashQualified a -&gt; a
+maximum :: forall a. Ord a =&gt; HashQualified a -&gt; a
+$cminimum :: forall a. Ord a =&gt; HashQualified a -&gt; a
+minimum :: forall a. Ord a =&gt; HashQualified a -&gt; a
+$csum :: forall a. Num a =&gt; HashQualified a -&gt; a
+sum :: forall a. Num a =&gt; HashQualified a -&gt; a
+$cproduct :: forall a. Num a =&gt; HashQualified a -&gt; a
+product :: forall a. Num a =&gt; HashQualified a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679325938"><span id="local-6989586621679325946"><span id="local-6989586621679325953"><span id="local-6989586621679325957"><span id="local-6989586621679325960"><span id="local-6989586621679325963"><span id="local-6989586621679325966"><span class="annot"><span class="annottext">Eq (HashQualified n)
+Eq (HashQualified n) =&gt;
+(HashQualified n -&gt; HashQualified n -&gt; Ordering)
+-&gt; (HashQualified n -&gt; HashQualified n -&gt; Bool)
+-&gt; (HashQualified n -&gt; HashQualified n -&gt; Bool)
+-&gt; (HashQualified n -&gt; HashQualified n -&gt; Bool)
+-&gt; (HashQualified n -&gt; HashQualified n -&gt; Bool)
+-&gt; (HashQualified n -&gt; HashQualified n -&gt; HashQualified n)
+-&gt; (HashQualified n -&gt; HashQualified n -&gt; HashQualified n)
+-&gt; Ord (HashQualified n)
+HashQualified n -&gt; HashQualified n -&gt; Bool
+HashQualified n -&gt; HashQualified n -&gt; Ordering
+HashQualified n -&gt; HashQualified n -&gt; HashQualified n
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall n. Ord n =&gt; Eq (HashQualified n)
+forall n. Ord n =&gt; HashQualified n -&gt; HashQualified n -&gt; Bool
+forall n. Ord n =&gt; HashQualified n -&gt; HashQualified n -&gt; Ordering
+forall n.
+Ord n =&gt;
+HashQualified n -&gt; HashQualified n -&gt; HashQualified n
+$ccompare :: forall n. Ord n =&gt; HashQualified n -&gt; HashQualified n -&gt; Ordering
+compare :: HashQualified n -&gt; HashQualified n -&gt; Ordering
+$c&lt; :: forall n. Ord n =&gt; HashQualified n -&gt; HashQualified n -&gt; Bool
+&lt; :: HashQualified n -&gt; HashQualified n -&gt; Bool
+$c&lt;= :: forall n. Ord n =&gt; HashQualified n -&gt; HashQualified n -&gt; Bool
+&lt;= :: HashQualified n -&gt; HashQualified n -&gt; Bool
+$c&gt; :: forall n. Ord n =&gt; HashQualified n -&gt; HashQualified n -&gt; Bool
+&gt; :: HashQualified n -&gt; HashQualified n -&gt; Bool
+$c&gt;= :: forall n. Ord n =&gt; HashQualified n -&gt; HashQualified n -&gt; Bool
+&gt;= :: HashQualified n -&gt; HashQualified n -&gt; Bool
+$cmax :: forall n.
+Ord n =&gt;
+HashQualified n -&gt; HashQualified n -&gt; HashQualified n
+max :: HashQualified n -&gt; HashQualified n -&gt; HashQualified n
+$cmin :: forall n.
+Ord n =&gt;
+HashQualified n -&gt; HashQualified n -&gt; HashQualified n
+min :: HashQualified n -&gt; HashQualified n -&gt; HashQualified n
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679325978"><span id="local-6989586621679325989"><span id="local-6989586621679325993"><span class="annot"><span class="annottext">Int -&gt; HashQualified n -&gt; ShowS
+[HashQualified n] -&gt; ShowS
+HashQualified n -&gt; String
+(Int -&gt; HashQualified n -&gt; ShowS)
+-&gt; (HashQualified n -&gt; String)
+-&gt; ([HashQualified n] -&gt; ShowS)
+-&gt; Show (HashQualified n)
+forall n. Show n =&gt; Int -&gt; HashQualified n -&gt; ShowS
+forall n. Show n =&gt; [HashQualified n] -&gt; ShowS
+forall n. Show n =&gt; HashQualified n -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall n. Show n =&gt; Int -&gt; HashQualified n -&gt; ShowS
+showsPrec :: Int -&gt; HashQualified n -&gt; ShowS
+$cshow :: forall n. Show n =&gt; HashQualified n -&gt; String
+show :: HashQualified n -&gt; String
+$cshowList :: forall n. Show n =&gt; [HashQualified n] -&gt; ShowS
+showList :: [HashQualified n] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679326004"><span id="local-6989586621679326010"><span id="local-6989586621679326016"><span id="local-6989586621679326021"><span class="annot"><span class="annottext">Functor HashQualified
+Foldable HashQualified
+(Functor HashQualified, Foldable HashQualified) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; HashQualified a -&gt; f (HashQualified b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    HashQualified (f a) -&gt; f (HashQualified a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; HashQualified a -&gt; m (HashQualified b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    HashQualified (m a) -&gt; m (HashQualified a))
+-&gt; Traversable HashQualified
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+HashQualified (m a) -&gt; m (HashQualified a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+HashQualified (f a) -&gt; f (HashQualified a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; HashQualified a -&gt; m (HashQualified b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; HashQualified a -&gt; f (HashQualified b)
+$ctraverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; HashQualified a -&gt; f (HashQualified b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; HashQualified a -&gt; f (HashQualified b)
+$csequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+HashQualified (f a) -&gt; f (HashQualified a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+HashQualified (f a) -&gt; f (HashQualified a)
+$cmapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; HashQualified a -&gt; m (HashQualified b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; HashQualified a -&gt; m (HashQualified b)
+$csequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+HashQualified (m a) -&gt; m (HashQualified a)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+HashQualified (m a) -&gt; m (HashQualified a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">type</span><span> </span><span id="HQSegment"><span class="annot"><a href="Unison.HashQualifiedPrime.html#HQSegment"><span class="hs-identifier hs-var">HQSegment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span id="local-6989586621679325726"><span class="annot"><a href="Unison.HashQualifiedPrime.html#toHQ"><span class="hs-identifier hs-type">toHQ</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325726"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualified.html#HashQualified"><span class="hs-identifier hs-type">HQ.HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325726"><span class="hs-identifier hs-type">n</span></a></span></span><span>
+</span><span id="line-52"></span><span id="toHQ"><span class="annot"><span class="annottext">toHQ :: forall n. HashQualified n -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#toHQ"><span class="hs-identifier hs-var hs-var">toHQ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span id="local-6989586621679326028"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326028"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">n -&gt; HashQualified n
+forall n. n -&gt; HashQualified n
+</span><a href="Unison.HashQualified.html#NameOnly"><span class="hs-identifier hs-var">HQ.NameOnly</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326028"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326030"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326030"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679326031"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326031"><span class="hs-identifier hs-var">sh</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">n -&gt; ShortHash -&gt; HashQualified n
+forall n. n -&gt; ShortHash -&gt; HashQualified n
+</span><a href="Unison.HashQualified.html#HashQualified"><span class="hs-identifier hs-var">HQ.HashQualified</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326030"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326031"><span class="hs-identifier hs-var">sh</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">type</span><span> </span><span id="HashOrHQ"><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashOrHQ"><span class="hs-identifier hs-var">HashOrHQ</span></a></span></span><span> </span><span id="local-6989586621679326033"><span class="annot"><a href="#local-6989586621679326033"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortHash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679326033"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | If the 'HQ.HashQualified' is just a 'ShortHash', return it on the 'Left', otherwise return a `HashQualified` on the</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--  `Right`.</span><span>
+</span><span id="line-60"></span><span id="local-6989586621679325730"><span class="annot"><a href="Unison.HashQualifiedPrime.html#fromHQ"><span class="hs-identifier hs-type">fromHQ</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.HashQualified.html#HashQualified"><span class="hs-identifier hs-type">HQ.HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325730"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashOrHQ"><span class="hs-identifier hs-type">HashOrHQ</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325730"><span class="hs-identifier hs-type">n</span></a></span></span><span>
+</span><span id="line-61"></span><span id="fromHQ"><span class="annot"><span class="annottext">fromHQ :: forall n. HashQualified n -&gt; HashOrHQ n
+</span><a href="Unison.HashQualifiedPrime.html#fromHQ"><span class="hs-identifier hs-var hs-var">fromHQ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Unison.HashQualified.html#NameOnly"><span class="hs-identifier hs-type">HQ.NameOnly</span></a></span><span> </span><span id="local-6989586621679326034"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326034"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HashQualified n -&gt; HashOrHQ n
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(HashQualified n -&gt; HashOrHQ n) -&gt; HashQualified n -&gt; HashOrHQ n
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">n -&gt; HashQualified n
+forall n. n -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-var">NameOnly</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326034"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="Unison.HashQualified.html#HashQualified"><span class="hs-identifier hs-type">HQ.HashQualified</span></a></span><span> </span><span id="local-6989586621679326035"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326035"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679326036"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326036"><span class="hs-identifier hs-var">sh</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HashQualified n -&gt; HashOrHQ n
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(HashQualified n -&gt; HashOrHQ n) -&gt; HashQualified n -&gt; HashOrHQ n
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">n -&gt; ShortHash -&gt; HashQualified n
+forall n. n -&gt; ShortHash -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-var">HashQualified</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326035"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326036"><span class="hs-identifier hs-var">sh</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="Unison.HashQualified.html#HashOnly"><span class="hs-identifier hs-type">HQ.HashOnly</span></a></span><span> </span><span id="local-6989586621679326038"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326038"><span class="hs-identifier hs-var">sh</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; HashOrHQ n
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326038"><span class="hs-identifier hs-var">sh</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span id="local-6989586621679325740"><span class="annot"><a href="Unison.HashQualifiedPrime.html#toName"><span class="hs-identifier hs-type">toName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325740"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679325740"><span class="hs-identifier hs-type">n</span></a></span></span><span>
+</span><span id="line-67"></span><span id="toName"><span class="annot"><span class="annottext">toName :: forall n. HashQualified n -&gt; n
+</span><a href="Unison.HashQualifiedPrime.html#toName"><span class="hs-identifier hs-var hs-var">toName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span id="local-6989586621679326039"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326039"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326039"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326040"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326040"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326040"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="annot"><a href="Unison.HashQualifiedPrime.html#nameLength"><span class="hs-identifier hs-type">nameLength</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-72"></span><span id="nameLength"><span class="annot"><span class="annottext">nameLength :: (Name -&gt; Text) -&gt; HashQualified Name -&gt; Int
+</span><a href="Unison.HashQualifiedPrime.html#nameLength"><span class="hs-identifier hs-var hs-var">nameLength</span></a></span></span><span> </span><span id="local-6989586621679326041"><span class="annot"><span class="annottext">Name -&gt; Text
+</span><a href="#local-6989586621679326041"><span class="hs-identifier hs-var">nameToText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">Text.length</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Int)
+-&gt; (HashQualified Name -&gt; Text) -&gt; HashQualified Name -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; Text) -&gt; HashQualified Name -&gt; Text
+forall n. (n -&gt; Text) -&gt; HashQualified n -&gt; Text
+</span><a href="Unison.HashQualifiedPrime.html#toTextWith"><span class="hs-identifier hs-var">toTextWith</span></a></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Text
+</span><a href="#local-6989586621679326041"><span class="hs-identifier hs-var">nameToText</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span id="local-6989586621679325747"><span class="annot"><a href="Unison.HashQualifiedPrime.html#take"><span class="hs-identifier hs-type">take</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325747"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325747"><span class="hs-identifier hs-type">n</span></a></span></span><span>
+</span><span id="line-75"></span><span id="take"><span class="annot"><span class="annottext">take :: forall n. Int -&gt; HashQualified n -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#take"><span class="hs-identifier hs-var hs-var">take</span></a></span></span><span> </span><span id="local-6989586621679326048"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679326048"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621679326049"><span class="annot"><span class="annottext">n :: HashQualified n
+</span><a href="#local-6989586621679326049"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HashQualified n
+</span><a href="#local-6989586621679326049"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326050"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326050"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679326051"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326051"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679326048"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">n -&gt; HashQualified n
+forall n. n -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-var">NameOnly</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326050"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">n -&gt; ShortHash -&gt; HashQualified n
+forall n. n -&gt; ShortHash -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-var">HashQualified</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326050"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ShortHash -&gt; ShortHash
+</span><span class="hs-identifier hs-var">SH.shortenTo</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679326048"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326051"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span id="local-6989586621679325750"><span class="annot"><a href="Unison.HashQualifiedPrime.html#toHash"><span class="hs-identifier hs-type">toHash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325750"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortHash</span></span></span><span>
+</span><span id="line-80"></span><span id="toHash"><span class="annot"><span class="annottext">toHash :: forall n. HashQualified n -&gt; Maybe ShortHash
+</span><a href="Unison.HashQualifiedPrime.html#toHash"><span class="hs-identifier hs-var hs-var">toHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ShortHash
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679326053"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326053"><span class="hs-identifier hs-var">sh</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; Maybe ShortHash
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326053"><span class="hs-identifier hs-var">sh</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span id="local-6989586621679325746"><span class="annot"><a href="Unison.HashQualifiedPrime.html#toTextWith"><span class="hs-identifier hs-type">toTextWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679325746"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325746"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span></span><span>
+</span><span id="line-85"></span><span id="toTextWith"><span class="annot"><span class="annottext">toTextWith :: forall n. (n -&gt; Text) -&gt; HashQualified n -&gt; Text
+</span><a href="Unison.HashQualifiedPrime.html#toTextWith"><span class="hs-identifier hs-var hs-var">toTextWith</span></a></span></span><span> </span><span id="local-6989586621679326056"><span class="annot"><span class="annottext">n -&gt; Text
+</span><a href="#local-6989586621679326056"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span id="local-6989586621679326057"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326057"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">n -&gt; Text
+</span><a href="#local-6989586621679326056"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326057"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326058"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326058"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679326059"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326059"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">n -&gt; Text
+</span><a href="#local-6989586621679326056"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326058"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; Text
+</span><span class="hs-identifier hs-var">SH.toText</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326059"><span class="hs-identifier hs-var">hash</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- Returns the full referent in the hash.  Use HQ.take to just get a prefix</span><span>
+</span><span id="line-90"></span><span id="local-6989586621679325755"><span class="annot"><a href="Unison.HashQualifiedPrime.html#fromNamedReferent"><span class="hs-identifier hs-type">fromNamedReferent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679325755"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Referent.html#Referent"><span class="hs-identifier hs-type">Referent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325755"><span class="hs-identifier hs-type">n</span></a></span></span><span>
+</span><span id="line-91"></span><span id="fromNamedReferent"><span class="annot"><span class="annottext">fromNamedReferent :: forall n. n -&gt; Referent -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#fromNamedReferent"><span class="hs-identifier hs-var hs-var">fromNamedReferent</span></a></span></span><span> </span><span id="local-6989586621679326061"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326061"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679326062"><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621679326062"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">n -&gt; ShortHash -&gt; HashQualified n
+forall n. n -&gt; ShortHash -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-var">HashQualified</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326061"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Referent -&gt; ShortHash
+</span><a href="Unison.Referent.html#toShortHash"><span class="hs-identifier hs-var">Referent.toShortHash</span></a></span><span> </span><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621679326062"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- Returns the full reference in the hash.  Use HQ.take to just get a prefix</span><span>
+</span><span id="line-94"></span><span id="local-6989586621679325758"><span class="annot"><a href="Unison.HashQualifiedPrime.html#fromNamedReference"><span class="hs-identifier hs-type">fromNamedReference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679325758"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325758"><span class="hs-identifier hs-type">n</span></a></span></span><span>
+</span><span id="line-95"></span><span id="fromNamedReference"><span class="annot"><span class="annottext">fromNamedReference :: forall n. n -&gt; Reference -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#fromNamedReference"><span class="hs-identifier hs-var hs-var">fromNamedReference</span></a></span></span><span> </span><span id="local-6989586621679326064"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326064"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679326065"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679326065"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">n -&gt; ShortHash -&gt; HashQualified n
+forall n. n -&gt; ShortHash -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-var">HashQualified</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326064"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reference -&gt; ShortHash
+</span><span class="hs-identifier hs-var">Reference.toShortHash</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679326065"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span id="local-6989586621679326067"><span class="annot"><a href="Unison.HashQualifiedPrime.html#fromName"><span class="hs-identifier hs-type">fromName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679326067"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679326067"><span class="hs-identifier hs-type">n</span></a></span></span><span>
+</span><span id="line-98"></span><span id="fromName"><span class="annot"><span class="annottext">fromName :: forall n. n -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#fromName"><span class="hs-identifier hs-var hs-var">fromName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">n -&gt; HashQualified n
+forall n. n -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-var">NameOnly</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span id="local-6989586621679325762"><span class="annot"><a href="Unison.HashQualifiedPrime.html#matchesNamedReferent"><span class="hs-identifier hs-type">matchesNamedReferent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679325762"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679325762"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Referent.html#Referent"><span class="hs-identifier hs-type">Referent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325762"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-101"></span><span id="matchesNamedReferent"><span class="annot"><span class="annottext">matchesNamedReferent :: forall n. Eq n =&gt; n -&gt; Referent -&gt; HashQualified n -&gt; Bool
+</span><a href="Unison.HashQualifiedPrime.html#matchesNamedReferent"><span class="hs-identifier hs-var hs-var">matchesNamedReferent</span></a></span></span><span> </span><span id="local-6989586621679326071"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326071"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679326072"><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621679326072"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span id="local-6989586621679326073"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326073"><span class="hs-identifier hs-var">n'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326073"><span class="hs-identifier hs-var">n'</span></a></span><span> </span><span class="annot"><span class="annottext">n -&gt; n -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326071"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-103"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326074"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326074"><span class="hs-identifier hs-var">n'</span></a></span></span><span> </span><span id="local-6989586621679326075"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326075"><span class="hs-identifier hs-var">sh</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326074"><span class="hs-identifier hs-var">n'</span></a></span><span> </span><span class="annot"><span class="annottext">n -&gt; n -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326071"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326075"><span class="hs-identifier hs-var">sh</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; ShortHash -&gt; Bool
+</span><span class="hs-operator hs-var">`SH.isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">Referent -&gt; ShortHash
+</span><a href="Unison.Referent.html#toShortHash"><span class="hs-identifier hs-var">Referent.toShortHash</span></a></span><span> </span><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621679326072"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span id="local-6989586621679325764"><span class="annot"><a href="Unison.HashQualifiedPrime.html#matchesNamedReference"><span class="hs-identifier hs-type">matchesNamedReference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679325764"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679325764"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325764"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-106"></span><span id="matchesNamedReference"><span class="annot"><span class="annottext">matchesNamedReference :: forall n. Eq n =&gt; n -&gt; Reference -&gt; HashQualified n -&gt; Bool
+</span><a href="Unison.HashQualifiedPrime.html#matchesNamedReference"><span class="hs-identifier hs-var hs-var">matchesNamedReference</span></a></span></span><span> </span><span id="local-6989586621679326081"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326081"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679326082"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679326082"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span id="local-6989586621679326083"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326083"><span class="hs-identifier hs-var">n'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326083"><span class="hs-identifier hs-var">n'</span></a></span><span> </span><span class="annot"><span class="annottext">n -&gt; n -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326081"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326084"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326084"><span class="hs-identifier hs-var">n'</span></a></span></span><span> </span><span id="local-6989586621679326085"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326085"><span class="hs-identifier hs-var">sh</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326084"><span class="hs-identifier hs-var">n'</span></a></span><span> </span><span class="annot"><span class="annottext">n -&gt; n -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326081"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326085"><span class="hs-identifier hs-var">sh</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; Reference -&gt; Bool
+</span><a href="Unison.Reference.html#isPrefixOf"><span class="hs-operator hs-var">`Reference.isPrefixOf`</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679326082"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- Use `requalify hq . Referent.Ref` if you want to pass in a `Reference`.</span><span>
+</span><span id="line-111"></span><span class="annot"><a href="Unison.HashQualifiedPrime.html#requalify"><span class="hs-identifier hs-type">requalify</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Referent.html#Referent"><span class="hs-identifier hs-type">Referent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>
+</span><span id="line-112"></span><span id="requalify"><span class="annot"><span class="annottext">requalify :: HashQualified Name -&gt; Referent -&gt; HashQualified Name
+</span><a href="Unison.HashQualifiedPrime.html#requalify"><span class="hs-identifier hs-var hs-var">requalify</span></a></span></span><span> </span><span id="local-6989586621679326087"><span class="annot"><span class="annottext">HashQualified Name
+</span><a href="#local-6989586621679326087"><span class="hs-identifier hs-var">hq</span></a></span></span><span> </span><span id="local-6989586621679326088"><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621679326088"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">HashQualified Name
+</span><a href="#local-6989586621679326087"><span class="hs-identifier hs-var">hq</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-113"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span id="local-6989586621679326089"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326089"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Referent -&gt; HashQualified Name
+forall n. n -&gt; Referent -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#fromNamedReferent"><span class="hs-identifier hs-var">fromNamedReferent</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326089"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621679326088"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-114"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326090"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326090"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Referent -&gt; HashQualified Name
+forall n. n -&gt; Referent -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#fromNamedReferent"><span class="hs-identifier hs-var">fromNamedReferent</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326090"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621679326088"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><span class="hs-comment">-- | Like 'Name.searchBySuffix', but uses a hash-qualified name to search instead.</span></span><span>
+</span><span id="line-117"></span><span class="annot"><a href="Unison.HashQualifiedPrime.html#searchBySuffix"><span class="hs-identifier hs-type">searchBySuffix</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679325766"><span class="annot"><a href="#local-6989586621679325766"><span class="hs-identifier hs-type">ref</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679325766"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679325766"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortHash</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Relation</span></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325766"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679325766"><span class="hs-identifier hs-type">ref</span></a></span><span>
+</span><span id="line-118"></span><span id="searchBySuffix"><span class="annot"><span class="annottext">searchBySuffix :: forall ref.
+Ord ref =&gt;
+(ref -&gt; ShortHash)
+-&gt; HashQualified Name -&gt; Relation Name ref -&gt; Set ref
+</span><a href="Unison.HashQualifiedPrime.html#searchBySuffix"><span class="hs-identifier hs-var hs-var">searchBySuffix</span></a></span></span><span> </span><span id="local-6989586621679326094"><span class="annot"><span class="annottext">ref -&gt; ShortHash
+</span><a href="#local-6989586621679326094"><span class="hs-identifier hs-var">refHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><span class="annottext">(ref -&gt; ShortHash)
+-&gt; HashQualified Name -&gt; Relation Name ref -&gt; Set ref
+forall ref.
+Ord ref =&gt;
+(ref -&gt; ShortHash)
+-&gt; HashQualified Name -&gt; Relation Name ref -&gt; Set ref
+</span><a href="Unison.HashQualified.html#searchBySuffix"><span class="hs-identifier hs-var">HQ.searchBySuffix</span></a></span><span> </span><span class="annot"><span class="annottext">ref -&gt; ShortHash
+</span><a href="#local-6989586621679326094"><span class="hs-identifier hs-var">refHash</span></a></span><span> </span><span class="annot"><span class="annottext">(HashQualified Name -&gt; Relation Name ref -&gt; Set ref)
+-&gt; (HashQualified Name -&gt; HashQualified Name)
+-&gt; HashQualified Name
+-&gt; Relation Name ref
+-&gt; Set ref
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">HashQualified Name -&gt; HashQualified Name
+forall n. HashQualified n -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#toHQ"><span class="hs-identifier hs-var">toHQ</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="annot"><span class="hs-comment">-- | Like 'searchBySuffix', but also keeps the names around.</span></span><span>
+</span><span id="line-122"></span><span class="annot"><a href="Unison.HashQualifiedPrime.html#filterBySuffix"><span class="hs-identifier hs-type">filterBySuffix</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679325771"><span class="annot"><a href="#local-6989586621679325771"><span class="hs-identifier hs-type">ref</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679325771"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679325771"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortHash</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-126"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Relation</span></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325771"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-128"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Relation</span></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325771"><span class="hs-identifier hs-type">ref</span></a></span><span>
+</span><span id="line-129"></span><span id="filterBySuffix"><span class="annot"><span class="annottext">filterBySuffix :: forall ref.
+Ord ref =&gt;
+(ref -&gt; ShortHash)
+-&gt; HashQualified Name -&gt; Relation Name ref -&gt; Relation Name ref
+</span><a href="Unison.HashQualifiedPrime.html#filterBySuffix"><span class="hs-identifier hs-var hs-var">filterBySuffix</span></a></span></span><span> </span><span id="local-6989586621679326098"><span class="annot"><span class="annottext">ref -&gt; ShortHash
+</span><a href="#local-6989586621679326098"><span class="hs-identifier hs-var">refHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-130"></span><span>  </span><span class="annot"><span class="annottext">(ref -&gt; ShortHash)
+-&gt; HashQualified Name -&gt; Relation Name ref -&gt; Relation Name ref
+forall ref.
+Ord ref =&gt;
+(ref -&gt; ShortHash)
+-&gt; HashQualified Name -&gt; Relation Name ref -&gt; Relation Name ref
+</span><a href="Unison.HashQualified.html#filterBySuffix"><span class="hs-identifier hs-var">HQ.filterBySuffix</span></a></span><span> </span><span class="annot"><span class="annottext">ref -&gt; ShortHash
+</span><a href="#local-6989586621679326098"><span class="hs-identifier hs-var">refHash</span></a></span><span> </span><span class="annot"><span class="annottext">(HashQualified Name -&gt; Relation Name ref -&gt; Relation Name ref)
+-&gt; (HashQualified Name -&gt; HashQualified Name)
+-&gt; HashQualified Name
+-&gt; Relation Name ref
+-&gt; Relation Name ref
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">HashQualified Name -&gt; HashQualified Name
+forall n. HashQualified n -&gt; HashQualified n
+</span><a href="Unison.HashQualifiedPrime.html#toHQ"><span class="hs-identifier hs-var">toHQ</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="annot"><a href="Unison.HashQualifiedPrime.html#searchUnconflictedBySuffix"><span class="hs-identifier hs-type">searchUnconflictedBySuffix</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679325774"><span class="annot"><a href="#local-6989586621679325774"><span class="hs-identifier hs-type">ref</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679325774"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679325774"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortHash</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-136"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679325774"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679325774"><span class="hs-identifier hs-type">ref</span></a></span><span>
+</span><span id="line-139"></span><span id="searchUnconflictedBySuffix"><span class="annot"><span class="annottext">searchUnconflictedBySuffix :: forall ref.
+Ord ref =&gt;
+(ref -&gt; ShortHash)
+-&gt; HashQualified Name -&gt; BiMultimap ref Name -&gt; Set ref
+</span><a href="Unison.HashQualifiedPrime.html#searchUnconflictedBySuffix"><span class="hs-identifier hs-var hs-var">searchUnconflictedBySuffix</span></a></span></span><span> </span><span class="annot"><span class="annottext">ref -&gt; ShortHash
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span id="local-6989586621679326112"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326112"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679326113"><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326113"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; BiMultimap ref Name -&gt; Set ref
+forall ref. Ord ref =&gt; Name -&gt; BiMultimap ref Name -&gt; Set ref
+</span><a href="Unison.Name.html#searchUnconflictedBySuffix"><span class="hs-identifier hs-var">Name.searchUnconflictedBySuffix</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326112"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326113"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-140"></span><span class="annot"><a href="Unison.HashQualifiedPrime.html#searchUnconflictedBySuffix"><span class="hs-identifier hs-var">searchUnconflictedBySuffix</span></a></span><span> </span><span id="local-6989586621679326115"><span class="annot"><span class="annottext">ref -&gt; ShortHash
+</span><a href="#local-6989586621679326115"><span class="hs-identifier hs-var">refHash</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326116"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326116"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679326117"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326117"><span class="hs-identifier hs-var">hash</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679326118"><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326118"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-141"></span><span>  </span><span class="annot"><span class="annottext">Set ref -&gt; (ref -&gt; Set ref) -&gt; Maybe ref -&gt; Set ref
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Set ref
+</span><a href="#local-6989586621679326120"><span class="hs-identifier hs-var">suffixMatches</span></a></span><span> </span><span class="annot"><span class="annottext">ref -&gt; Set ref
+forall a. a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.singleton</span></span><span> </span><span class="annot"><span class="annottext">Maybe ref
+</span><a href="#local-6989586621679326122"><span class="hs-identifier hs-var">exactMatch</span></a></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-143"></span><span>    </span><span class="annot"><a href="#local-6989586621679326122"><span class="hs-identifier hs-type">exactMatch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679325774"><span class="hs-identifier hs-type">ref</span></a></span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621679326122"><span class="annot"><span class="annottext">exactMatch :: Maybe ref
+</span><a href="#local-6989586621679326122"><span class="hs-identifier hs-var hs-var">exactMatch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-145"></span><span>      </span><span id="local-6989586621679326123"><span class="annot"><a href="#local-6989586621679326123"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Name -&gt; BiMultimap ref Name -&gt; Maybe ref
+forall b a. Ord b =&gt; b -&gt; BiMultimap a b -&gt; Maybe a
+</span><span class="hs-identifier hs-var">BiMultimap.lookupRan</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326116"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326118"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-146"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">guard</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679326117"><span class="hs-identifier hs-type">hash</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">`SH.isPrefixOf`</span></span><span> </span><span class="annot"><a href="#local-6989586621679326115"><span class="hs-identifier hs-type">refHash</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679326123"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="#local-6989586621679326123"><span class="hs-identifier hs-type">ref</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span>    </span><span class="annot"><a href="#local-6989586621679326120"><span class="hs-identifier hs-type">suffixMatches</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679325774"><span class="hs-identifier hs-type">ref</span></a></span><span>
+</span><span id="line-150"></span><span>    </span><span id="local-6989586621679326120"><span class="annot"><span class="annottext">suffixMatches :: Set ref
+</span><a href="#local-6989586621679326120"><span class="hs-identifier hs-var hs-var">suffixMatches</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-151"></span><span>      </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326118"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-152"></span><span>        </span><span class="annot"><span class="annottext">BiMultimap ref Name -&gt; (BiMultimap ref Name -&gt; Set ref) -&gt; Set ref
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(ref -&gt; Name -&gt; Set ref)
+-&gt; (Name -&gt; Ordering) -&gt; BiMultimap ref Name -&gt; Set ref
+forall a m b.
+(Ord a, Monoid m) =&gt;
+(a -&gt; b -&gt; m) -&gt; (b -&gt; Ordering) -&gt; BiMultimap a b -&gt; m
+</span><span class="hs-identifier hs-var">BiMultimap.searchRan</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679326127"><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326127"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ref -&gt; Set ref
+forall a. a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.singleton</span></span><span> </span><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326127"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; Name -&gt; Ordering
+</span><a href="Unison.Name.html#compareSuffix"><span class="hs-identifier hs-var">Name.compareSuffix</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326116"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>        </span><span class="annot"><span class="annottext">Set ref -&gt; (Set ref -&gt; Set ref) -&gt; Set ref
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(ref -&gt; Bool) -&gt; Set ref -&gt; Set ref
+forall a. (a -&gt; Bool) -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.filter</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679326130"><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326130"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326117"><span class="hs-identifier hs-var">hash</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; ShortHash -&gt; Bool
+</span><span class="hs-operator hs-var">`SH.isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">ref -&gt; ShortHash
+</span><a href="#local-6989586621679326115"><span class="hs-identifier hs-var">refHash</span></a></span><span> </span><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326130"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="annot"><a href="Unison.HashQualifiedPrime.html#filterUnconflictedBySuffix"><span class="hs-identifier hs-type">filterUnconflictedBySuffix</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679325793"><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortHash</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>
+</span><span id="line-162"></span><span id="filterUnconflictedBySuffix"><span class="annot"><span class="annottext">filterUnconflictedBySuffix :: forall ref.
+Ord ref =&gt;
+(ref -&gt; ShortHash)
+-&gt; HashQualified Name -&gt; BiMultimap ref Name -&gt; BiMultimap ref Name
+</span><a href="Unison.HashQualifiedPrime.html#filterUnconflictedBySuffix"><span class="hs-identifier hs-var hs-var">filterUnconflictedBySuffix</span></a></span></span><span> </span><span class="annot"><span class="annottext">ref -&gt; ShortHash
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span id="local-6989586621679326141"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326141"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679326142"><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326142"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; BiMultimap ref Name -&gt; BiMultimap ref Name
+forall ref.
+Ord ref =&gt;
+Name -&gt; BiMultimap ref Name -&gt; BiMultimap ref Name
+</span><a href="Unison.Name.html#filterUnconflictedBySuffix"><span class="hs-identifier hs-var">Name.filterUnconflictedBySuffix</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326141"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326142"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-163"></span><span class="annot"><a href="Unison.HashQualifiedPrime.html#filterUnconflictedBySuffix"><span class="hs-identifier hs-var">filterUnconflictedBySuffix</span></a></span><span> </span><span id="local-6989586621679326144"><span class="annot"><span class="annottext">ref -&gt; ShortHash
+</span><a href="#local-6989586621679326144"><span class="hs-identifier hs-var">refHash</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326145"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326145"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679326146"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326146"><span class="hs-identifier hs-var">hash</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679326147"><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326147"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-164"></span><span>  </span><span class="annot"><span class="annottext">BiMultimap ref Name
+-&gt; (ref -&gt; BiMultimap ref Name) -&gt; Maybe ref -&gt; BiMultimap ref Name
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326148"><span class="hs-identifier hs-var">suffixMatches</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679326149"><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326149"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ref -&gt; Name -&gt; BiMultimap ref Name
+forall a b. a -&gt; b -&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.singleton</span></span><span> </span><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326149"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326145"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe ref
+</span><a href="#local-6989586621679326151"><span class="hs-identifier hs-var">exactMatch</span></a></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-166"></span><span>    </span><span class="annot"><a href="#local-6989586621679326151"><span class="hs-identifier hs-type">exactMatch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span><span>
+</span><span id="line-167"></span><span>    </span><span id="local-6989586621679326151"><span class="annot"><span class="annottext">exactMatch :: Maybe ref
+</span><a href="#local-6989586621679326151"><span class="hs-identifier hs-var hs-var">exactMatch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-168"></span><span>      </span><span id="local-6989586621679326152"><span class="annot"><a href="#local-6989586621679326152"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Name -&gt; BiMultimap ref Name -&gt; Maybe ref
+forall b a. Ord b =&gt; b -&gt; BiMultimap a b -&gt; Maybe a
+</span><span class="hs-identifier hs-var">BiMultimap.lookupRan</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326145"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326147"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-169"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">guard</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679326153"><span class="hs-identifier hs-type">hashMatches</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679326152"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="#local-6989586621679326152"><span class="hs-identifier hs-type">ref</span></a></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span>    </span><span class="annot"><a href="#local-6989586621679326148"><span class="hs-identifier hs-type">suffixMatches</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>
+</span><span id="line-173"></span><span>    </span><span id="local-6989586621679326148"><span class="annot"><span class="annottext">suffixMatches :: BiMultimap ref Name
+</span><a href="#local-6989586621679326148"><span class="hs-identifier hs-var hs-var">suffixMatches</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-174"></span><span>      </span><span class="annot"><span class="annottext">(ref -&gt; Name -&gt; BiMultimap ref Name -&gt; BiMultimap ref Name)
+-&gt; BiMultimap ref Name
+-&gt; (Name -&gt; Ordering)
+-&gt; BiMultimap ref Name
+-&gt; BiMultimap ref Name
+forall a b acc.
+(a -&gt; b -&gt; acc -&gt; acc)
+-&gt; acc -&gt; (b -&gt; Ordering) -&gt; BiMultimap a b -&gt; acc
+</span><span class="hs-identifier hs-var">BiMultimap.searchrRan</span></span><span> </span><span class="annot"><span class="annottext">ref -&gt; Name -&gt; BiMultimap ref Name -&gt; BiMultimap ref Name
+</span><a href="#local-6989586621679326155"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+forall a b. (Ord a, Ord b) =&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.empty</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; Name -&gt; Ordering
+</span><a href="Unison.Name.html#compareSuffix"><span class="hs-identifier hs-var">Name.compareSuffix</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326145"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326147"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-175"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-176"></span><span>        </span><span class="annot"><a href="#local-6989586621679326155"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="Unison.Name.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>
+</span><span id="line-177"></span><span>        </span><span id="local-6989586621679326155"><span class="annot"><span class="annottext">f :: ref -&gt; Name -&gt; BiMultimap ref Name -&gt; BiMultimap ref Name
+</span><a href="#local-6989586621679326155"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679326157"><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326157"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span id="local-6989586621679326158"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326158"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679326159"><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326159"><span class="hs-identifier hs-var">acc</span></a></span></span><span>
+</span><span id="line-178"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ref -&gt; Bool
+</span><a href="#local-6989586621679326153"><span class="hs-identifier hs-var">hashMatches</span></a></span><span> </span><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326157"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ref -&gt; Name -&gt; BiMultimap ref Name -&gt; BiMultimap ref Name
+forall a b.
+(Ord a, Ord b) =&gt;
+a -&gt; b -&gt; BiMultimap a b -&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.insert</span></span><span> </span><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326157"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679326158"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326159"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-179"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679326159"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span>    </span><span class="annot"><a href="#local-6989586621679326153"><span class="hs-identifier hs-type">hashMatches</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679325793"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-182"></span><span>    </span><span id="local-6989586621679326153"><span class="annot"><span class="annottext">hashMatches :: ref -&gt; Bool
+</span><a href="#local-6989586621679326153"><span class="hs-identifier hs-var hs-var">hashMatches</span></a></span></span><span> </span><span id="local-6989586621679326161"><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326161"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-183"></span><span>      </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326146"><span class="hs-identifier hs-var">hash</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; ShortHash -&gt; Bool
+</span><span class="hs-operator hs-var">`SH.isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">ref -&gt; ShortHash
+</span><a href="#local-6989586621679326144"><span class="hs-identifier hs-var">refHash</span></a></span><span> </span><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679326161"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679325808"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Name.Alphabetical</span></span><span> </span><span class="annot"><a href="#local-6989586621679325808"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name.Alphabetical</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679325808"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-186"></span><span>  </span><span id="local-6989586621679326177"><span class="annot"><span class="annottext">compareAlphabetical :: HashQualified n -&gt; HashQualified n -&gt; Ordering
+</span><a href="#local-6989586621679326177"><span class="hs-identifier hs-var hs-var hs-var">compareAlphabetical</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span id="local-6989586621679326179"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326179"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span id="local-6989586621679326180"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326180"><span class="hs-identifier hs-var">n2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">n -&gt; n -&gt; Ordering
+forall n. Alphabetical n =&gt; n -&gt; n -&gt; Ordering
+</span><span class="hs-identifier hs-var">Name.compareAlphabetical</span></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326179"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326180"><span class="hs-identifier hs-var">n2</span></a></span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-comment">-- NameOnly comes first</span><span>
+</span><span id="line-188"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compareAlphabetical</span></span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-189"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compareAlphabetical</span></span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="annot"><a href="Unison.HashQualifiedPrime.html#NameOnly"><span class="hs-identifier hs-type">NameOnly</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-190"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">compareAlphabetical</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326181"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326181"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679326182"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326182"><span class="hs-identifier hs-var">sh</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HashQualifiedPrime.html#HashQualified"><span class="hs-identifier hs-type">HashQualified</span></a></span><span> </span><span id="local-6989586621679326183"><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326183"><span class="hs-identifier hs-var">n2</span></a></span></span><span> </span><span id="local-6989586621679326184"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326184"><span class="hs-identifier hs-var">sh2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">n -&gt; n -&gt; Ordering
+forall n. Alphabetical n =&gt; n -&gt; n -&gt; Ordering
+</span><span class="hs-identifier hs-var">Name.compareAlphabetical</span></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326181"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">n
+</span><a href="#local-6989586621679326183"><span class="hs-identifier hs-var">n2</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering -&gt; Ordering -&gt; Ordering
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; ShortHash -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326182"><span class="hs-identifier hs-var">sh</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679326184"><span class="hs-identifier hs-var">sh2</span></a></span><span>
+</span><span id="line-191"></span></pre></body></html>

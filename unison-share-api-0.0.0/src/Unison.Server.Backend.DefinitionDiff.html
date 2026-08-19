@@ -1,0 +1,1273 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | Utilities for displaying diffs between definitions.</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html"><span class="hs-identifier">Unison.Server.Backend.DefinitionDiff</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#diffDisplayObjects"><span class="hs-identifier">diffDisplayObjects</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#linewiseDiff"><span class="hs-identifier">linewiseDiff</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier">Paired</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Server.Types.html#Changed"><span class="hs-identifier">Changed</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Algorithm.Diff</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Diff</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Foldable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Function</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.Extra</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NEL</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Editor.DisplayObject</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DisplayObject</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html"><span class="hs-identifier">Unison.Server.Syntax</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Syntax.html#SyntaxText"><span class="hs-identifier">SyntaxText</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html"><span class="hs-identifier">Unison.Server.Syntax</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Syntax</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Server.Types.html"><span class="hs-identifier">Unison.Server.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Types.html#Changed"><span class="hs-identifier">Changed</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Server.Types.html#DisplayObjectDiff"><span class="hs-identifier">DisplayObjectDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Server.Types.html#LinewiseDiff"><span class="hs-identifier">LinewiseDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier">Paired</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Server.Types.html#SemanticSyntaxDiff"><span class="hs-identifier">SemanticSyntaxDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Server.Types.html#swapPair"><span class="hs-identifier">swapPair</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.AnnotatedText</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AnnotatedText</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Segment</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.AnnotatedText</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">AT</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.List</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ListUtil</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Recursion</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Rec</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#diffDisplayObjects"><span class="hs-identifier hs-type">diffDisplayObjects</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DisplayObject</span></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#SyntaxText"><span class="hs-identifier hs-type">SyntaxText</span></a></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#SyntaxText"><span class="hs-identifier hs-type">SyntaxText</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DisplayObject</span></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#SyntaxText"><span class="hs-identifier hs-type">SyntaxText</span></a></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#SyntaxText"><span class="hs-identifier hs-type">SyntaxText</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Types.html#DisplayObjectDiff"><span class="hs-identifier hs-type">DisplayObjectDiff</span></a></span><span>
+</span><span id="line-28"></span><span id="diffDisplayObjects"><span class="annot"><span class="annottext">diffDisplayObjects :: HasCallStack =&gt;
+DisplayObject SyntaxText SyntaxText
+-&gt; DisplayObject SyntaxText SyntaxText -&gt; DisplayObjectDiff
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#diffDisplayObjects"><span class="hs-identifier hs-var hs-var">diffDisplayObjects</span></a></span></span><span> </span><span id="local-6989586621680234156"><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621680234156"><span class="hs-identifier hs-var">from</span></a></span></span><span> </span><span id="local-6989586621680234157"><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621680234157"><span class="hs-identifier hs-var">to</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621680234156"><span class="hs-identifier hs-var">from</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621680234157"><span class="hs-identifier hs-var">to</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BuiltinObject</span></span><span> </span><span id="local-6989586621680234159"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680234159"><span class="hs-identifier hs-var">fromST</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BuiltinObject</span></span><span> </span><span id="local-6989586621680234160"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680234160"><span class="hs-identifier hs-var">toST</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DisplayObject
+  (LinewiseDiff (SemanticSyntaxDiff Element))
+  (LinewiseDiff (SemanticSyntaxDiff Element))
+-&gt; DisplayObjectDiff
+</span><a href="Unison.Server.Types.html#DisplayObjectDiff"><span class="hs-identifier hs-var">DisplayObjectDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LinewiseDiff (SemanticSyntaxDiff Element)
+-&gt; DisplayObject
+     (LinewiseDiff (SemanticSyntaxDiff Element))
+     (LinewiseDiff (SemanticSyntaxDiff Element))
+forall b a. b -&gt; DisplayObject b a
+</span><span class="hs-identifier hs-var">BuiltinObject</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxText
+-&gt; SyntaxText -&gt; LinewiseDiff (SemanticSyntaxDiff Element)
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#semanticLinewiseDiff"><span class="hs-identifier hs-var">semanticLinewiseDiff</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680234159"><span class="hs-identifier hs-var">fromST</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680234160"><span class="hs-identifier hs-var">toST</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MissingObject</span></span><span> </span><span id="local-6989586621680234164"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621680234164"><span class="hs-identifier hs-var">fromSH</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MissingObject</span></span><span> </span><span id="local-6989586621680234165"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621680234165"><span class="hs-identifier hs-var">toSH</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621680234164"><span class="hs-identifier hs-var">fromSH</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; ShortHash -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621680234165"><span class="hs-identifier hs-var">toSH</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DisplayObject
+  (LinewiseDiff (SemanticSyntaxDiff Element))
+  (LinewiseDiff (SemanticSyntaxDiff Element))
+-&gt; DisplayObjectDiff
+</span><a href="Unison.Server.Types.html#DisplayObjectDiff"><span class="hs-identifier hs-var">DisplayObjectDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortHash
+-&gt; DisplayObject
+     (LinewiseDiff (SemanticSyntaxDiff Element))
+     (LinewiseDiff (SemanticSyntaxDiff Element))
+forall b a. ShortHash -&gt; DisplayObject b a
+</span><span class="hs-identifier hs-var">MissingObject</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621680234164"><span class="hs-identifier hs-var">fromSH</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+-&gt; DisplayObject SyntaxText SyntaxText -&gt; DisplayObjectDiff
+</span><a href="Unison.Server.Types.html#MismatchedDisplayObjects"><span class="hs-identifier hs-var">MismatchedDisplayObjects</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortHash -&gt; DisplayObject SyntaxText SyntaxText
+forall b a. ShortHash -&gt; DisplayObject b a
+</span><span class="hs-identifier hs-var">MissingObject</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621680234164"><span class="hs-identifier hs-var">fromSH</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortHash -&gt; DisplayObject SyntaxText SyntaxText
+forall b a. ShortHash -&gt; DisplayObject b a
+</span><span class="hs-identifier hs-var">MissingObject</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621680234165"><span class="hs-identifier hs-var">toSH</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">UserObject</span></span><span> </span><span id="local-6989586621680234168"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680234168"><span class="hs-identifier hs-var">fromST</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UserObject</span></span><span> </span><span id="local-6989586621680234169"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680234169"><span class="hs-identifier hs-var">toST</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DisplayObject
+  (LinewiseDiff (SemanticSyntaxDiff Element))
+  (LinewiseDiff (SemanticSyntaxDiff Element))
+-&gt; DisplayObjectDiff
+</span><a href="Unison.Server.Types.html#DisplayObjectDiff"><span class="hs-identifier hs-var">DisplayObjectDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LinewiseDiff (SemanticSyntaxDiff Element)
+-&gt; DisplayObject
+     (LinewiseDiff (SemanticSyntaxDiff Element))
+     (LinewiseDiff (SemanticSyntaxDiff Element))
+forall b a. a -&gt; DisplayObject b a
+</span><span class="hs-identifier hs-var">UserObject</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxText
+-&gt; SyntaxText -&gt; LinewiseDiff (SemanticSyntaxDiff Element)
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#semanticLinewiseDiff"><span class="hs-identifier hs-var">semanticLinewiseDiff</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680234168"><span class="hs-identifier hs-var">fromST</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680234169"><span class="hs-identifier hs-var">toST</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621680234170"><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621680234170"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234171"><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621680234171"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+-&gt; DisplayObject SyntaxText SyntaxText -&gt; DisplayObjectDiff
+</span><a href="Unison.Server.Types.html#MismatchedDisplayObjects"><span class="hs-identifier hs-var">MismatchedDisplayObjects</span></a></span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621680234170"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621680234171"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- We special-case situations where the name of a definition changed but its hash didn't;</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- and cases where the name didn't change but the hash did.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- The diff algorithm only understands whether items are equal or not, so in order to add this special behavior we</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- treat these special cases as equal, then we can detect and expand them in a post-processing step.</span><span>
+</span><span id="line-41"></span><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#syntaxElementDiffEq"><span class="hs-identifier hs-type">syntaxElementDiffEq</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AT.Segment</span></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Syntax.Element</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AT.Segment</span></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Syntax.Element</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-42"></span><span id="syntaxElementDiffEq"><span class="annot"><span class="annottext">syntaxElementDiffEq :: Segment Element -&gt; Segment Element -&gt; Bool
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#syntaxElementDiffEq"><span class="hs-identifier hs-var hs-var">syntaxElementDiffEq</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">AT.Segment</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">segment :: forall a. Segment a -&gt; Text
+</span><span class="hs-identifier hs-var">segment</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621680234175"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234175"><span class="hs-identifier hs-var">fromSegment</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">annotation :: forall a. Segment a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">annotation</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621680234177"><span class="annot"><span class="annottext">Maybe Element
+</span><a href="#local-6989586621680234177"><span class="hs-identifier hs-var">fromAnnotation</span></a></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">AT.Segment</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">segment :: forall a. Segment a -&gt; Text
+</span><span class="hs-identifier hs-var">segment</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621680234178"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234178"><span class="hs-identifier hs-var">toSegment</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">annotation :: forall a. Segment a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">annotation</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621680234179"><span class="annot"><span class="annottext">Maybe Element
+</span><a href="#local-6989586621680234179"><span class="hs-identifier hs-var">toAnnotation</span></a></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234175"><span class="hs-identifier hs-var">fromSegment</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234178"><span class="hs-identifier hs-var">toSegment</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Element
+</span><a href="#local-6989586621680234177"><span class="hs-identifier hs-var">fromAnnotation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Element
+</span><a href="#local-6989586621680234179"><span class="hs-identifier hs-var">toAnnotation</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Element
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Element
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-46"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Element
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Element
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680234181"><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234181"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680234182"><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234182"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-48"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234181"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-49"></span><span>          </span><span class="hs-comment">-- The set of annotations we want to special-case</span><span>
+</span><span id="line-50"></span><span>          </span><span class="annot"><a href="Unison.Server.Syntax.html#TypeReference"><span class="hs-identifier hs-type">Syntax.TypeReference</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234181"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Element -&gt; Element -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234182"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-51"></span><span>          </span><span class="annot"><a href="Unison.Server.Syntax.html#TermReference"><span class="hs-identifier hs-type">Syntax.TermReference</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234181"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Element -&gt; Element -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234182"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-52"></span><span>          </span><span class="annot"><a href="Unison.Server.Syntax.html#DataConstructorReference"><span class="hs-identifier hs-type">Syntax.DataConstructorReference</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234181"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Element -&gt; Element -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234182"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-53"></span><span>          </span><span class="annot"><a href="Unison.Server.Syntax.html#AbilityConstructorReference"><span class="hs-identifier hs-type">Syntax.AbilityConstructorReference</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234181"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Element -&gt; Element -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234182"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-54"></span><span>          </span><span class="annot"><a href="Unison.Server.Syntax.html#HashQualifier"><span class="hs-identifier hs-type">Syntax.HashQualifier</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234181"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Element -&gt; Element -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Element
+</span><a href="#local-6989586621680234182"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-55"></span><span>          </span><span class="annot"><span class="annottext">Element
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#diffSegments"><span class="hs-identifier hs-type">diffSegments</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680234020"><span class="annot"><a href="#local-6989586621680234020"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621680234021"><span class="annot"><a href="#local-6989586621680234021"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621680234020"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680234021"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680234021"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="#local-6989586621680234020"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680234021"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="#local-6989586621680234020"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680234021"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Diff.PolyDiff</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680234021"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680234021"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-64"></span><span id="diffSegments"><span class="annot"><span class="annottext">diffSegments :: forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+(a -&gt; a -&gt; Bool) -&gt; f a -&gt; f a -&gt; [PolyDiff [a] [a]]
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#diffSegments"><span class="hs-identifier hs-var hs-var">diffSegments</span></a></span></span><span> </span><span id="local-6989586621680234192"><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621680234192"><span class="hs-identifier hs-var">diffEq</span></a></span></span><span> </span><span id="local-6989586621680234193"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621680234193"><span class="hs-identifier hs-var">left</span></a></span></span><span> </span><span id="local-6989586621680234194"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621680234194"><span class="hs-identifier hs-var">right</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; Bool) -&gt; [a] -&gt; [a] -&gt; [PolyDiff [a] [a]]
+forall a b. (a -&gt; b -&gt; Bool) -&gt; [a] -&gt; [b] -&gt; [PolyDiff [a] [b]]
+</span><span class="hs-identifier hs-var">Diff.getGroupedDiffBy</span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621680234192"><span class="hs-identifier hs-var">diffEq</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f a -&gt; [a]
+forall a. f a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">Foldable.toList</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621680234193"><span class="hs-identifier hs-var">left</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f a -&gt; [a]
+forall a. f a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">Foldable.toList</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621680234194"><span class="hs-identifier hs-var">right</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">data</span><span> </span><span id="DiffOrSame"><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#DiffOrSame"><span class="hs-identifier hs-var">DiffOrSame</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Different"><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#Different"><span class="hs-identifier hs-var">Different</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Same"><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#Same"><span class="hs-identifier hs-var">Same</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680234200"><span id="local-6989586621680234205"><span class="annot"><span class="annottext">DiffOrSame -&gt; DiffOrSame -&gt; Bool
+(DiffOrSame -&gt; DiffOrSame -&gt; Bool)
+-&gt; (DiffOrSame -&gt; DiffOrSame -&gt; Bool) -&gt; Eq DiffOrSame
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+== :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+$c/= :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+/= :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234212"><span id="local-6989586621680234214"><span id="local-6989586621680234216"><span id="local-6989586621680234220"><span id="local-6989586621680234223"><span id="local-6989586621680234226"><span id="local-6989586621680234229"><span class="annot"><span class="annottext">Eq DiffOrSame
+Eq DiffOrSame =&gt;
+(DiffOrSame -&gt; DiffOrSame -&gt; Ordering)
+-&gt; (DiffOrSame -&gt; DiffOrSame -&gt; Bool)
+-&gt; (DiffOrSame -&gt; DiffOrSame -&gt; Bool)
+-&gt; (DiffOrSame -&gt; DiffOrSame -&gt; Bool)
+-&gt; (DiffOrSame -&gt; DiffOrSame -&gt; Bool)
+-&gt; (DiffOrSame -&gt; DiffOrSame -&gt; DiffOrSame)
+-&gt; (DiffOrSame -&gt; DiffOrSame -&gt; DiffOrSame)
+-&gt; Ord DiffOrSame
+DiffOrSame -&gt; DiffOrSame -&gt; Bool
+DiffOrSame -&gt; DiffOrSame -&gt; Ordering
+DiffOrSame -&gt; DiffOrSame -&gt; DiffOrSame
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: DiffOrSame -&gt; DiffOrSame -&gt; Ordering
+compare :: DiffOrSame -&gt; DiffOrSame -&gt; Ordering
+$c&lt; :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+&lt; :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+$c&lt;= :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+&lt;= :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+$c&gt; :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+&gt; :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+$c&gt;= :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+&gt;= :: DiffOrSame -&gt; DiffOrSame -&gt; Bool
+$cmax :: DiffOrSame -&gt; DiffOrSame -&gt; DiffOrSame
+max :: DiffOrSame -&gt; DiffOrSame -&gt; DiffOrSame
+$cmin :: DiffOrSame -&gt; DiffOrSame -&gt; DiffOrSame
+min :: DiffOrSame -&gt; DiffOrSame -&gt; DiffOrSame
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234237"><span id="local-6989586621680234239"><span id="local-6989586621680234243"><span class="annot"><span class="annottext">Int -&gt; DiffOrSame -&gt; ShowS
+[DiffOrSame] -&gt; ShowS
+DiffOrSame -&gt; String
+(Int -&gt; DiffOrSame -&gt; ShowS)
+-&gt; (DiffOrSame -&gt; String)
+-&gt; ([DiffOrSame] -&gt; ShowS)
+-&gt; Show DiffOrSame
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; DiffOrSame -&gt; ShowS
+showsPrec :: Int -&gt; DiffOrSame -&gt; ShowS
+$cshow :: DiffOrSame -&gt; String
+show :: DiffOrSame -&gt; String
+$cshowList :: [DiffOrSame] -&gt; ShowS
+showList :: [DiffOrSame] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- | Compute a line-wise diff between two lists of segments.</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- &gt;&gt;&gt; let s a = Segment a Nothing</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- &gt;&gt;&gt; let left = [s &quot;line1&quot;, s &quot;\n&quot;, s &quot;line2&quot;, s &quot;\n&quot;, s &quot;line3&quot;, s &quot;\n&quot;, s &quot;line3&quot;]</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- &gt;&gt;&gt; let right = [s &quot;line1&quot;, s &quot;\n&quot;, s &quot;lineX&quot;, s &quot;\n&quot;, s &quot;line3&quot;]</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- &gt;&gt;&gt; linewiseDiff (==) left right</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- LinewiseDiff {lhsLines = [Unchanged [Paired (Segment {segment = &quot;line1&quot;, annotation = Nothing}) (Segment {segment = &quot;line1&quot;, annotation = Nothing})],Changed [OneSided (Segment {segment = &quot;line2&quot;, annotation = Nothing})],Changed [OneSided (Segment {segment = &quot;line3&quot;, annotation = Nothing})],Unchanged [Paired (Segment {segment = &quot;line3&quot;, annotation = Nothing}) (Segment {segment = &quot;line3&quot;, annotation = Nothing})]], rhsLines = [Unchanged [Paired (Segment {segment = &quot;line1&quot;, annotation = Nothing}) (Segment {segment = &quot;line1&quot;, annotation = Nothing})],Changed [OneSided (Segment {segment = &quot;lineX&quot;, annotation = Nothing})],Spacer,Unchanged [Paired (Segment {segment = &quot;line3&quot;, annotation = Nothing}) (Segment {segment = &quot;line3&quot;, annotation = Nothing})]]}</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- &gt;&gt;&gt; let s a = Segment a Nothing</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- &gt;&gt;&gt; let left = [s &quot;line1&quot;, s &quot;=\n&quot;, s &quot;line2&quot;, s &quot;,\n&quot;, s &quot;line3&quot;, s &quot;\n&quot;, s &quot;line3&quot;]</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- &gt;&gt;&gt; let right = [s &quot;line1&quot;, s &quot;\n&quot;, s &quot;lineX&quot;, s &quot;,\n,\n,&quot;, s &quot;line3&quot;]</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- &gt;&gt;&gt; linewiseDiff (==) left right</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- LinewiseDiff {lhsLines = [Changed [Paired (Segment {segment = &quot;line1&quot;, annotation = Nothing}) (Segment {segment = &quot;line1&quot;, annotation = Nothing}),OneSided (Segment {segment = &quot;=&quot;, annotation = Nothing})],Changed [OneSided (Segment {segment = &quot;line2&quot;, annotation = Nothing}),Paired (Segment {segment = &quot;,&quot;, annotation = Nothing}) (Segment {segment = &quot;,&quot;, annotation = Nothing})],Changed [OneSided (Segment {segment = &quot;line3&quot;, annotation = Nothing})],Changed [Paired (Segment {segment = &quot;line3&quot;, annotation = Nothing}) (Segment {segment = &quot;line3&quot;, annotation = Nothing})]], rhsLines = [Changed [Paired (Segment {segment = &quot;line1&quot;, annotation = Nothing}) (Segment {segment = &quot;line1&quot;, annotation = Nothing})],Changed [OneSided (Segment {segment = &quot;lineX&quot;, annotation = Nothing}),Paired (Segment {segment = &quot;,&quot;, annotation = Nothing}) (Segment {segment = &quot;,&quot;, annotation = Nothing})],Changed [OneSided (Segment {segment = &quot;,&quot;, annotation = Nothing})],Changed [OneSided (Segment {segment = &quot;,&quot;, annotation = Nothing}),Paired (Segment {segment = &quot;line3&quot;, annotation = Nothing}) (Segment {segment = &quot;line3&quot;, annotation = Nothing})]]}</span><span>
+</span><span id="line-86"></span><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#linewiseDiff"><span class="hs-identifier hs-type">linewiseDiff</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680234035"><span class="annot"><a href="#local-6989586621680234035"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621680234036"><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621680234035"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><a href="#local-6989586621680234035"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><a href="#local-6989586621680234035"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-comment">-- Returns a tuple of lists,</span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-comment">-- Each list is the same length, when lines are present on both sides they're considered Equal.</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-comment">-- When lines are only present on one side, the other side has a Nothing in that position as padding.</span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><a href="Unison.Server.Types.html#LinewiseDiff"><span class="hs-identifier hs-type">LinewiseDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier hs-type">Paired</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span id="linewiseDiff"><span class="annot"><span class="annottext">linewiseDiff :: forall (f :: * -&gt; *) a.
+(Foldable f, Eq a, Show a) =&gt;
+(Segment a -&gt; Segment a -&gt; Bool)
+-&gt; f (Segment a)
+-&gt; f (Segment a)
+-&gt; LinewiseDiff (Paired (Segment a))
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#linewiseDiff"><span class="hs-identifier hs-var hs-var">linewiseDiff</span></a></span></span><span> </span><span id="local-6989586621680234291"><span class="annot"><span class="annottext">Segment a -&gt; Segment a -&gt; Bool
+</span><a href="#local-6989586621680234291"><span class="hs-identifier hs-var">diffEq</span></a></span></span><span> </span><span id="local-6989586621680234292"><span class="annot"><span class="annottext">f (Segment a)
+</span><a href="#local-6989586621680234292"><span class="hs-identifier hs-var">left</span></a></span></span><span> </span><span id="local-6989586621680234293"><span class="annot"><span class="annottext">f (Segment a)
+</span><a href="#local-6989586621680234293"><span class="hs-identifier hs-var">right</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680234294"><span class="annot"><span class="annottext">leftLines :: [[Segment a]]
+</span><a href="#local-6989586621680234294"><span class="hs-identifier hs-var hs-var">leftLines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Segment a] -&gt; [[Segment a]]
+</span><a href="#local-6989586621680234295"><span class="hs-identifier hs-var">splitOnLines</span></a></span><span> </span><span class="annot"><span class="annottext">([Segment a] -&gt; [[Segment a]])
+-&gt; (f (Segment a) -&gt; [Segment a]) -&gt; f (Segment a) -&gt; [[Segment a]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">f (Segment a) -&gt; [Segment a]
+forall a. f a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">(f (Segment a) -&gt; [[Segment a]]) -&gt; f (Segment a) -&gt; [[Segment a]]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">f (Segment a)
+</span><a href="#local-6989586621680234292"><span class="hs-identifier hs-var">left</span></a></span><span>
+</span><span id="line-98"></span><span>      </span><span id="local-6989586621680234297"><span class="annot"><span class="annottext">rightLines :: [[Segment a]]
+</span><a href="#local-6989586621680234297"><span class="hs-identifier hs-var hs-var">rightLines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Segment a] -&gt; [[Segment a]]
+</span><a href="#local-6989586621680234295"><span class="hs-identifier hs-var">splitOnLines</span></a></span><span> </span><span class="annot"><span class="annottext">([Segment a] -&gt; [[Segment a]])
+-&gt; (f (Segment a) -&gt; [Segment a]) -&gt; f (Segment a) -&gt; [[Segment a]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">f (Segment a) -&gt; [Segment a]
+forall a. f a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">(f (Segment a) -&gt; [[Segment a]]) -&gt; f (Segment a) -&gt; [[Segment a]]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">f (Segment a)
+</span><a href="#local-6989586621680234293"><span class="hs-identifier hs-var">right</span></a></span><span>
+</span><span id="line-99"></span><span>      </span><span id="local-6989586621680234298"><span class="annot"><span class="annottext">groupedDiff :: [Diff [[Segment a]]]
+</span><a href="#local-6989586621680234298"><span class="hs-identifier hs-var hs-var">groupedDiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[Segment a]] -&gt; [[Segment a]] -&gt; [Diff [[Segment a]]]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [Diff [a]]
+</span><span class="hs-identifier hs-var">Diff.getGroupedDiff</span></span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234294"><span class="hs-identifier hs-var">leftLines</span></a></span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234297"><span class="hs-identifier hs-var">rightLines</span></a></span><span>
+</span><span id="line-100"></span><span>      </span><span id="local-6989586621680234300"><span class="annot"><span class="annottext">partitioned :: [(DiffOrSame,
+  NonEmpty
+    (Either
+       ([[Segment a]], [[Segment a]])
+       (Either [[Segment a]] [[Segment a]])))]
+</span><a href="#local-6989586621680234300"><span class="hs-identifier hs-var hs-var">partitioned</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="annottext">[Diff [[Segment a]]]
+</span><a href="#local-6989586621680234298"><span class="hs-identifier hs-var">groupedDiff</span></a></span><span>
+</span><span id="line-102"></span><span>          </span><span class="annot"><span class="annottext">[Diff [[Segment a]]]
+-&gt; ([Diff [[Segment a]]]
+    -&gt; [(DiffOrSame,
+         NonEmpty
+           (Either
+              ([[Segment a]], [[Segment a]])
+              (Either [[Segment a]] [[Segment a]])))])
+-&gt; [(DiffOrSame,
+     NonEmpty
+       (Either
+          ([[Segment a]], [[Segment a]])
+          (Either [[Segment a]] [[Segment a]])))]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Diff [[Segment a]]
+ -&gt; (DiffOrSame,
+     Either
+       ([[Segment a]], [[Segment a]])
+       (Either [[Segment a]] [[Segment a]])))
+-&gt; [Diff [[Segment a]]]
+-&gt; [(DiffOrSame,
+     NonEmpty
+       (Either
+          ([[Segment a]], [[Segment a]])
+          (Either [[Segment a]] [[Segment a]])))]
+forall (f :: * -&gt; *) k a b.
+(Foldable f, Eq k) =&gt;
+(a -&gt; (k, b)) -&gt; f a -&gt; [(k, NonEmpty b)]
+</span><span class="hs-identifier hs-var">ListUtil.groupMap</span></span><span>
+</span><span id="line-103"></span><span>            </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680234303"><span class="annot"><span class="annottext">Diff [[Segment a]]
+</span><a href="#local-6989586621680234303"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-104"></span><span>                </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Diff [[Segment a]]
+</span><a href="#local-6989586621680234303"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-105"></span><span>                  </span><span class="annot"><span class="hs-identifier hs-type">Diff.Both</span></span><span> </span><span id="local-6989586621680234305"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234305"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621680234306"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234306"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DiffOrSame
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#Same"><span class="hs-identifier hs-var">Same</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">([[Segment a]], [[Segment a]])
+-&gt; Either
+     ([[Segment a]], [[Segment a]]) (Either [[Segment a]] [[Segment a]])
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234305"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234306"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>                  </span><span class="annot"><span class="hs-identifier hs-type">Diff.First</span></span><span> </span><span id="local-6989586621680234308"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234308"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DiffOrSame
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#Different"><span class="hs-identifier hs-var">Different</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Either [[Segment a]] [[Segment a]]
+-&gt; Either
+     ([[Segment a]], [[Segment a]]) (Either [[Segment a]] [[Segment a]])
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Either [[Segment a]] [[Segment a]]
+ -&gt; Either
+      ([[Segment a]], [[Segment a]])
+      (Either [[Segment a]] [[Segment a]]))
+-&gt; Either [[Segment a]] [[Segment a]]
+-&gt; Either
+     ([[Segment a]], [[Segment a]]) (Either [[Segment a]] [[Segment a]])
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Segment a]] -&gt; Either [[Segment a]] [[Segment a]]
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234308"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>                  </span><span class="annot"><span class="hs-identifier hs-type">Diff.Second</span></span><span> </span><span id="local-6989586621680234310"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234310"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DiffOrSame
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#Different"><span class="hs-identifier hs-var">Different</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Either [[Segment a]] [[Segment a]]
+-&gt; Either
+     ([[Segment a]], [[Segment a]]) (Either [[Segment a]] [[Segment a]])
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Either [[Segment a]] [[Segment a]]
+ -&gt; Either
+      ([[Segment a]], [[Segment a]])
+      (Either [[Segment a]] [[Segment a]]))
+-&gt; Either [[Segment a]] [[Segment a]]
+-&gt; Either
+     ([[Segment a]], [[Segment a]]) (Either [[Segment a]] [[Segment a]])
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Segment a]] -&gt; Either [[Segment a]] [[Segment a]]
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234310"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>            </span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[(DiffOrSame,
+  NonEmpty
+    (Either
+       ([[Segment a]], [[Segment a]])
+       (Either [[Segment a]] [[Segment a]])))]
+</span><a href="#local-6989586621680234300"><span class="hs-identifier hs-var">partitioned</span></a></span><span>
+</span><span id="line-110"></span><span>        </span><span class="annot"><span class="annottext">[(DiffOrSame,
+  NonEmpty
+    (Either
+       ([[Segment a]], [[Segment a]])
+       (Either [[Segment a]] [[Segment a]])))]
+-&gt; ([(DiffOrSame,
+      NonEmpty
+        (Either
+           ([[Segment a]], [[Segment a]])
+           (Either [[Segment a]] [[Segment a]])))]
+    -&gt; ([Changed [Paired (Segment a)]],
+        [Changed [Paired (Segment a)]]))
+-&gt; ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">((DiffOrSame,
+  NonEmpty
+    (Either
+       ([[Segment a]], [[Segment a]])
+       (Either [[Segment a]] [[Segment a]])))
+ -&gt; ([Changed [Paired (Segment a)]],
+     [Changed [Paired (Segment a)]]))
+-&gt; [(DiffOrSame,
+     NonEmpty
+       (Either
+          ([[Segment a]], [[Segment a]])
+          (Either [[Segment a]] [[Segment a]])))]
+-&gt; ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-111"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DiffOrSame
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#Same"><span class="hs-identifier hs-var">Same</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234312"><span class="annot"><span class="annottext">NonEmpty
+  (Either
+     ([[Segment a]], [[Segment a]])
+     (Either [[Segment a]] [[Segment a]]))
+</span><a href="#local-6989586621680234312"><span class="hs-identifier hs-var">ds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-112"></span><span>            </span><span class="annot"><span class="annottext">NonEmpty
+  (Either
+     ([[Segment a]], [[Segment a]])
+     (Either [[Segment a]] [[Segment a]]))
+</span><a href="#local-6989586621680234312"><span class="hs-identifier hs-var">ds</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty
+  (Either
+     ([[Segment a]], [[Segment a]])
+     (Either [[Segment a]] [[Segment a]]))
+-&gt; (NonEmpty
+      (Either
+         ([[Segment a]], [[Segment a]])
+         (Either [[Segment a]] [[Segment a]]))
+    -&gt; ([Changed [Paired (Segment a)]],
+        [Changed [Paired (Segment a)]]))
+-&gt; ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Either
+   ([[Segment a]], [[Segment a]]) (Either [[Segment a]] [[Segment a]])
+ -&gt; ([Changed [Paired (Segment a)]],
+     [Changed [Paired (Segment a)]]))
+-&gt; NonEmpty
+     (Either
+        ([[Segment a]], [[Segment a]])
+        (Either [[Segment a]] [[Segment a]]))
+-&gt; ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; NonEmpty a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-113"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680234313"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234313"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234314"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234314"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-114"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680234315"><span class="annot"><span class="annottext">[[Paired (Segment a)]]
+</span><a href="#local-6989586621680234315"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234316"><span class="annot"><span class="annottext">[[Paired (Segment a)]]
+</span><a href="#local-6989586621680234316"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+-&gt; [[Segment a]]
+-&gt; ([[Paired (Segment a)]], [[Paired (Segment a)]])
+forall x. [[x]] -&gt; [[x]] -&gt; ([[Paired x]], [[Paired x]])
+</span><a href="#local-6989586621680234317"><span class="hs-identifier hs-var">pairLines</span></a></span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234313"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234314"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-115"></span><span>                 </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Paired (Segment a)] -&gt; Changed [Paired (Segment a)]
+forall a. a -&gt; Changed a
+</span><a href="Unison.Server.Types.html#Unchanged"><span class="hs-identifier hs-var">Unchanged</span></a></span><span> </span><span class="annot"><span class="annottext">([Paired (Segment a)] -&gt; Changed [Paired (Segment a)])
+-&gt; [[Paired (Segment a)]] -&gt; [Changed [Paired (Segment a)]]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[[Paired (Segment a)]]
+</span><a href="#local-6989586621680234315"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Paired (Segment a)] -&gt; Changed [Paired (Segment a)]
+forall a. a -&gt; Changed a
+</span><a href="Unison.Server.Types.html#Unchanged"><span class="hs-identifier hs-var">Unchanged</span></a></span><span> </span><span class="annot"><span class="annottext">([Paired (Segment a)] -&gt; Changed [Paired (Segment a)])
+-&gt; [[Paired (Segment a)]] -&gt; [Changed [Paired (Segment a)]]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[[Paired (Segment a)]]
+</span><a href="#local-6989586621680234316"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="annottext">Either [[Segment a]] [[Segment a]]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;impossible&quot;</span></span><span>
+</span><span id="line-117"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DiffOrSame
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#Different"><span class="hs-identifier hs-var">Different</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234321"><span class="annot"><span class="annottext">NonEmpty
+  (Either
+     ([[Segment a]], [[Segment a]])
+     (Either [[Segment a]] [[Segment a]]))
+</span><a href="#local-6989586621680234321"><span class="hs-identifier hs-var">ds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-118"></span><span>            </span><span class="hs-comment">-- When left and right are different, We do a subdiff on the chunk</span><span>
+</span><span id="line-119"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680234322"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234322"><span class="hs-identifier hs-var">lefts</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234323"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234323"><span class="hs-identifier hs-var">rights</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-120"></span><span>                  </span><span class="annot"><span class="annottext">NonEmpty
+  (Either
+     ([[Segment a]], [[Segment a]])
+     (Either [[Segment a]] [[Segment a]]))
+</span><a href="#local-6989586621680234321"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-121"></span><span>                    </span><span class="annot"><span class="annottext">NonEmpty
+  (Either
+     ([[Segment a]], [[Segment a]])
+     (Either [[Segment a]] [[Segment a]]))
+-&gt; (NonEmpty
+      (Either
+         ([[Segment a]], [[Segment a]])
+         (Either [[Segment a]] [[Segment a]]))
+    -&gt; ([[Segment a]], [[Segment a]]))
+-&gt; ([[Segment a]], [[Segment a]])
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Either
+   ([[Segment a]], [[Segment a]]) (Either [[Segment a]] [[Segment a]])
+ -&gt; ([[Segment a]], [[Segment a]]))
+-&gt; NonEmpty
+     (Either
+        ([[Segment a]], [[Segment a]])
+        (Either [[Segment a]] [[Segment a]]))
+-&gt; ([[Segment a]], [[Segment a]])
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; NonEmpty a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-122"></span><span>                      </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">([[Segment a]], [[Segment a]])
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ([[Segment a]], [[Segment a]])
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;impossible&quot;</span></span><span>
+</span><span id="line-123"></span><span>                      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621680234324"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234324"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234324"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>                      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621680234325"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234325"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[[Segment a]]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234325"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>             </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(Segment a -&gt; Segment a -&gt; Bool)
+-&gt; [[Segment a]]
+-&gt; [[Segment a]]
+-&gt; ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
+forall a.
+Eq a =&gt;
+(Segment a -&gt; Segment a -&gt; Bool)
+-&gt; [[Segment a]]
+-&gt; [[Segment a]]
+-&gt; ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#diffChangeChunk"><span class="hs-identifier hs-var">diffChangeChunk</span></a></span><span> </span><span class="annot"><span class="annottext">Segment a -&gt; Segment a -&gt; Bool
+</span><a href="#local-6989586621680234291"><span class="hs-identifier hs-var">diffEq</span></a></span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234322"><span class="hs-identifier hs-var">lefts</span></a></span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234323"><span class="hs-identifier hs-var">rights</span></a></span><span>
+</span><span id="line-126"></span><span>        </span><span class="annot"><span class="annottext">([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
+-&gt; (([Changed [Paired (Segment a)]],
+     [Changed [Paired (Segment a)]])
+    -&gt; LinewiseDiff (Paired (Segment a)))
+-&gt; LinewiseDiff (Paired (Segment a))
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621680234327"><span class="annot"><span class="annottext">[Changed [Paired (Segment a)]]
+</span><a href="#local-6989586621680234327"><span class="hs-identifier hs-var">lhsLines</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234328"><span class="annot"><span class="annottext">[Changed [Paired (Segment a)]]
+</span><a href="#local-6989586621680234328"><span class="hs-identifier hs-var">rhsLines</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-127"></span><span>          </span><span class="annot"><a href="Unison.Server.Types.html#LinewiseDiff"><span class="hs-identifier hs-type">LinewiseDiff</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">[Changed [Paired (Segment a)]]
+lhsLines :: [Changed [Paired (Segment a)]]
+lhsLines :: [Changed [Paired (Segment a)]]
+</span><a href="#local-6989586621680234327"><span class="hs-identifier hs-var hs-var">lhsLines</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Changed [Paired (Segment a)]]
+rhsLines :: [Changed [Paired (Segment a)]]
+rhsLines :: [Changed [Paired (Segment a)]]
+</span><a href="#local-6989586621680234328"><span class="hs-identifier hs-var hs-var">rhsLines</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><a href="#local-6989586621680234295"><span class="hs-identifier hs-type">splitOnLines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234036"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-130"></span><span>    </span><span id="local-6989586621680234295"><span class="annot"><span class="annottext">splitOnLines :: [Segment a] -&gt; [[Segment a]]
+</span><a href="#local-6989586621680234295"><span class="hs-identifier hs-var hs-var">splitOnLines</span></a></span></span><span> </span><span id="local-6989586621680234332"><span class="annot"><span class="annottext">[Segment a]
+</span><a href="#local-6989586621680234332"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-131"></span><span>      </span><span class="annot"><span class="annottext">[Segment a]
+</span><a href="#local-6989586621680234332"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-132"></span><span>        </span><span class="annot"><span class="annottext">[Segment a]
+-&gt; ([Segment a] -&gt; [Maybe (Segment a)]) -&gt; [Maybe (Segment a)]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Segment a -&gt; [Maybe (Segment a)])
+-&gt; [Segment a] -&gt; [Maybe (Segment a)]
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span>
+</span><span id="line-133"></span><span>          </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">segment :: forall a. Segment a -&gt; Text
+</span><span class="hs-identifier hs-var">segment</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621680234333"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234333"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234334"><span class="annot"><span class="annottext">Maybe a
+annotation :: forall a. Segment a -&gt; Maybe a
+annotation :: Maybe a
+</span><span class="hs-identifier hs-var hs-var">annotation</span></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-134"></span><span>              </span><span class="annot"><span class="annottext">HasCallStack =&gt; Text -&gt; Text -&gt; [Text]
+Text -&gt; Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">Text.splitOn</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234333"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-135"></span><span>                </span><span class="annot"><span class="annottext">[Text] -&gt; (Text -&gt; Maybe (Segment a)) -&gt; [Maybe (Segment a)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680234337"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234337"><span class="hs-identifier hs-var">seg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Segment a -&gt; Maybe (Segment a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Segment a -&gt; Maybe (Segment a)) -&gt; Segment a -&gt; Maybe (Segment a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe a -&gt; Segment a
+forall a. Text -&gt; Maybe a -&gt; Segment a
+</span><span class="hs-identifier hs-var">Segment</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234337"><span class="hs-identifier hs-var">seg</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621680234334"><span class="hs-identifier hs-var">annotation</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>                </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+-&gt; ([Maybe (Segment a)] -&gt; [Maybe (Segment a)])
+-&gt; [Maybe (Segment a)]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Segment a) -&gt; [Maybe (Segment a)] -&gt; [Maybe (Segment a)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">List.intersperse</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Segment a)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-137"></span><span>                </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+-&gt; ([Maybe (Segment a)] -&gt; [Maybe (Segment a)])
+-&gt; [Maybe (Segment a)]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Maybe (Segment a) -&gt; Bool)
+-&gt; [Maybe (Segment a)] -&gt; [Maybe (Segment a)]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-138"></span><span>                  </span><span class="annot"><span class="annottext">Maybe (Segment a)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-139"></span><span>                  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621680234339"><span class="annot"><span class="annottext">Text
+segment :: forall a. Segment a -&gt; Text
+segment :: Text
+</span><span class="hs-identifier hs-var hs-var">segment</span></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">Text.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234339"><span class="hs-identifier hs-var">segment</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>          </span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>        </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+-&gt; ([Maybe (Segment a)] -&gt; [[Maybe (Segment a)]])
+-&gt; [[Maybe (Segment a)]]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)] -&gt; [Maybe (Segment a)] -&gt; [[Maybe (Segment a)]]
+forall a. (HasCallStack, Eq a) =&gt; [a] -&gt; [a] -&gt; [[a]]
+</span><span class="hs-identifier hs-var">List.splitOn</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe (Segment a)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">]</span><span>
+</span><span id="line-142"></span><span>        </span><span class="annot"><span class="annottext">[[Maybe (Segment a)]]
+-&gt; ([[Maybe (Segment a)]] -&gt; [[Segment a]]) -&gt; [[Segment a]]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">([Maybe (Segment a)] -&gt; [Segment a])
+-&gt; [[Maybe (Segment a)]] -&gt; [[Segment a]]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)] -&gt; [Segment a]
+forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span>
+</span><span id="line-143"></span><span>    </span><span class="annot"><a href="#local-6989586621680234317"><span class="hs-identifier hs-type">pairLines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680234064"><span class="annot"><a href="#local-6989586621680234064"><span class="hs-identifier hs-type">x</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680234064"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680234064"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier hs-type">Paired</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680234064"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier hs-type">Paired</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680234064"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621680234317"><span class="annot"><span class="annottext">pairLines :: forall x. [[x]] -&gt; [[x]] -&gt; ([[Paired x]], [[Paired x]])
+</span><a href="#local-6989586621680234317"><span class="hs-identifier hs-var hs-var">pairLines</span></a></span></span><span> </span><span id="local-6989586621680234346"><span class="annot"><span class="annottext">[[x]]
+</span><a href="#local-6989586621680234346"><span class="hs-identifier hs-var">left</span></a></span></span><span> </span><span id="local-6989586621680234347"><span class="annot"><span class="annottext">[[x]]
+</span><a href="#local-6989586621680234347"><span class="hs-identifier hs-var">right</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-145"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680234348"><span class="annot"><span class="annottext">paired :: [[Paired x]]
+</span><a href="#local-6989586621680234348"><span class="hs-identifier hs-var hs-var">paired</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([x] -&gt; [x] -&gt; [Paired x]) -&gt; [[x]] -&gt; [[x]] -&gt; [[Paired x]]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(x -&gt; x -&gt; Paired x) -&gt; [x] -&gt; [x] -&gt; [Paired x]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">x -&gt; x -&gt; Paired x
+forall a. a -&gt; a -&gt; Paired a
+</span><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier hs-var">Paired</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[[x]]
+</span><a href="#local-6989586621680234346"><span class="hs-identifier hs-var">left</span></a></span><span> </span><span class="annot"><span class="annottext">[[x]]
+</span><a href="#local-6989586621680234347"><span class="hs-identifier hs-var">right</span></a></span><span>
+</span><span id="line-146"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">[[Paired x]]
+</span><a href="#local-6989586621680234348"><span class="hs-identifier hs-var">paired</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-147"></span><span>            </span><span class="annot"><span class="annottext">(Paired x -&gt; Paired x) -&gt; [Paired x] -&gt; [Paired x]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Paired x -&gt; Paired x
+forall a. Paired a -&gt; Paired a
+</span><a href="Unison.Server.Types.html#swapPair"><span class="hs-identifier hs-var">swapPair</span></a></span><span> </span><span class="annot"><span class="annottext">([Paired x] -&gt; [Paired x]) -&gt; [[Paired x]] -&gt; [[Paired x]]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[[Paired x]]
+</span><a href="#local-6989586621680234348"><span class="hs-identifier hs-var">paired</span></a></span><span>
+</span><span id="line-148"></span><span>          </span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- | Compute a semantic line-wise diff between two SyntaxText values, with special-casing</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- to detect tokens whose name stayed the same but whose hash changed, or whose hash stayed the same but whose name changed.</span><span>
+</span><span id="line-152"></span><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#semanticLinewiseDiff"><span class="hs-identifier hs-type">semanticLinewiseDiff</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#SyntaxText"><span class="hs-identifier hs-type">SyntaxText</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#SyntaxText"><span class="hs-identifier hs-type">SyntaxText</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Types.html#LinewiseDiff"><span class="hs-identifier hs-type">LinewiseDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Types.html#SemanticSyntaxDiff"><span class="hs-identifier hs-type">SemanticSyntaxDiff</span></a></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Syntax.Element</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span id="semanticLinewiseDiff"><span class="annot"><span class="annottext">semanticLinewiseDiff :: SyntaxText
+-&gt; SyntaxText -&gt; LinewiseDiff (SemanticSyntaxDiff Element)
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#semanticLinewiseDiff"><span class="hs-identifier hs-var hs-var">semanticLinewiseDiff</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">AnnotatedText</span></span><span> </span><span id="local-6989586621680234352"><span class="annot"><span class="annottext">Seq (Segment Element)
+</span><a href="#local-6989586621680234352"><span class="hs-identifier hs-var">lhs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">AnnotatedText</span></span><span> </span><span id="local-6989586621680234353"><span class="annot"><span class="annottext">Seq (Segment Element)
+</span><a href="#local-6989586621680234353"><span class="hs-identifier hs-var">rhs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-154"></span><span>  </span><span class="annot"><span class="annottext">(Segment Element -&gt; Segment Element -&gt; Bool)
+-&gt; Seq (Segment Element)
+-&gt; Seq (Segment Element)
+-&gt; LinewiseDiff (Paired (Segment Element))
+forall (f :: * -&gt; *) a.
+(Foldable f, Eq a, Show a) =&gt;
+(Segment a -&gt; Segment a -&gt; Bool)
+-&gt; f (Segment a)
+-&gt; f (Segment a)
+-&gt; LinewiseDiff (Paired (Segment a))
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#linewiseDiff"><span class="hs-identifier hs-var">linewiseDiff</span></a></span><span> </span><span class="annot"><span class="annottext">Segment Element -&gt; Segment Element -&gt; Bool
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#syntaxElementDiffEq"><span class="hs-identifier hs-var">syntaxElementDiffEq</span></a></span><span> </span><span class="annot"><span class="annottext">Seq (Segment Element)
+</span><a href="#local-6989586621680234352"><span class="hs-identifier hs-var">lhs</span></a></span><span> </span><span class="annot"><span class="annottext">Seq (Segment Element)
+</span><a href="#local-6989586621680234353"><span class="hs-identifier hs-var">rhs</span></a></span><span>
+</span><span id="line-155"></span><span>    </span><span class="annot"><span class="annottext">LinewiseDiff (Paired (Segment Element))
+-&gt; (Paired (Segment Element) -&gt; SemanticSyntaxDiff Element)
+-&gt; LinewiseDiff (SemanticSyntaxDiff Element)
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Paired (Segment Element) -&gt; SemanticSyntaxDiff Element
+</span><a href="#local-6989586621680234354"><span class="hs-identifier hs-var">specialCasePairs</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><span class="annottext">LinewiseDiff (SemanticSyntaxDiff Element)
+-&gt; (LinewiseDiff (SemanticSyntaxDiff Element)
+    -&gt; LinewiseDiff (SemanticSyntaxDiff Element))
+-&gt; LinewiseDiff (SemanticSyntaxDiff Element)
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Types.html#LinewiseDiff"><span class="hs-identifier hs-type">LinewiseDiff</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621680234355"><span class="annot"><span class="annottext">[Changed [SemanticSyntaxDiff Element]]
+lhsLines :: forall a. LinewiseDiff a -&gt; [Changed [a]]
+lhsLines :: [Changed [SemanticSyntaxDiff Element]]
+</span><a href="Unison.Server.Types.html#lhsLines"><span class="hs-identifier hs-var hs-var">lhsLines</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234356"><span class="annot"><span class="annottext">[Changed [SemanticSyntaxDiff Element]]
+rhsLines :: forall a. LinewiseDiff a -&gt; [Changed [a]]
+rhsLines :: [Changed [SemanticSyntaxDiff Element]]
+</span><a href="Unison.Server.Types.html#rhsLines"><span class="hs-identifier hs-var hs-var">rhsLines</span></a></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-157"></span><span>      </span><span class="annot"><a href="Unison.Server.Types.html#LinewiseDiff"><span class="hs-identifier hs-type">LinewiseDiff</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">lhsLines :: [Changed [SemanticSyntaxDiff Element]]
+</span><a href="Unison.Server.Types.html#lhsLines"><span class="hs-identifier hs-var">lhsLines</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Changed [SemanticSyntaxDiff Element]
+ -&gt; Changed [SemanticSyntaxDiff Element])
+-&gt; [Changed [SemanticSyntaxDiff Element]]
+-&gt; [Changed [SemanticSyntaxDiff Element]]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">((Changed [SemanticSyntaxDiff Element]
+  -&gt; Changed [SemanticSyntaxDiff Element])
+ -&gt; [Changed [SemanticSyntaxDiff Element]]
+ -&gt; [Changed [SemanticSyntaxDiff Element]])
+-&gt; (([SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element])
+    -&gt; Changed [SemanticSyntaxDiff Element]
+    -&gt; Changed [SemanticSyntaxDiff Element])
+-&gt; ([SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element])
+-&gt; [Changed [SemanticSyntaxDiff Element]]
+-&gt; [Changed [SemanticSyntaxDiff Element]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element])
+-&gt; Changed [SemanticSyntaxDiff Element]
+-&gt; Changed [SemanticSyntaxDiff Element]
+forall a b. (a -&gt; b) -&gt; Changed a -&gt; Changed b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element]
+</span><a href="#local-6989586621680234357"><span class="hs-identifier hs-var">aggregateChunks</span></a></span><span> </span><span class="annot"><span class="annottext">[Changed [SemanticSyntaxDiff Element]]
+</span><a href="#local-6989586621680234355"><span class="hs-identifier hs-var">lhsLines</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">rhsLines :: [Changed [SemanticSyntaxDiff Element]]
+</span><a href="Unison.Server.Types.html#rhsLines"><span class="hs-identifier hs-var">rhsLines</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Changed [SemanticSyntaxDiff Element]
+ -&gt; Changed [SemanticSyntaxDiff Element])
+-&gt; [Changed [SemanticSyntaxDiff Element]]
+-&gt; [Changed [SemanticSyntaxDiff Element]]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">((Changed [SemanticSyntaxDiff Element]
+  -&gt; Changed [SemanticSyntaxDiff Element])
+ -&gt; [Changed [SemanticSyntaxDiff Element]]
+ -&gt; [Changed [SemanticSyntaxDiff Element]])
+-&gt; (([SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element])
+    -&gt; Changed [SemanticSyntaxDiff Element]
+    -&gt; Changed [SemanticSyntaxDiff Element])
+-&gt; ([SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element])
+-&gt; [Changed [SemanticSyntaxDiff Element]]
+-&gt; [Changed [SemanticSyntaxDiff Element]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element])
+-&gt; Changed [SemanticSyntaxDiff Element]
+-&gt; Changed [SemanticSyntaxDiff Element]
+forall a b. (a -&gt; b) -&gt; Changed a -&gt; Changed b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element]
+</span><a href="#local-6989586621680234357"><span class="hs-identifier hs-var">aggregateChunks</span></a></span><span> </span><span class="annot"><span class="annottext">[Changed [SemanticSyntaxDiff Element]]
+</span><a href="#local-6989586621680234356"><span class="hs-identifier hs-var">rhsLines</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-159"></span><span>    </span><span class="annot"><a href="#local-6989586621680234354"><span class="hs-identifier hs-type">specialCasePairs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier hs-type">Paired</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Syntax.Element</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Types.html#SemanticSyntaxDiff"><span class="hs-identifier hs-type">SemanticSyntaxDiff</span></a></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Syntax.Element</span></a></span><span>
+</span><span id="line-160"></span><span>    </span><span id="local-6989586621680234354"><span class="annot"><span class="annottext">specialCasePairs :: Paired (Segment Element) -&gt; SemanticSyntaxDiff Element
+</span><a href="#local-6989586621680234354"><span class="hs-identifier hs-var hs-var">specialCasePairs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-161"></span><span>      </span><span class="annot"><a href="Unison.Server.Types.html#OneSided"><span class="hs-identifier hs-type">OneSided</span></a></span><span> </span><span id="local-6989586621680234359"><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234359"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NonEmpty (Segment Element) -&gt; SemanticSyntaxDiff Element
+forall a. NonEmpty (Segment a) -&gt; SemanticSyntaxDiff a
+</span><a href="Unison.Server.Types.html#OnlyThisSide"><span class="hs-identifier hs-var">OnlyThisSide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Segment Element -&gt; NonEmpty (Segment Element)
+forall a. a -&gt; NonEmpty a
+</span><span class="hs-identifier hs-var">NEL.singleton</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234359"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>      </span><span class="annot"><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier hs-type">Paired</span></a></span><span> </span><span id="local-6989586621680234362"><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span></span><span> </span><span id="local-6989586621680234363"><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234363"><span class="hs-identifier hs-var">toSegment</span></a></span></span><span>
+</span><span id="line-163"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span><span> </span><span class="annot"><span class="annottext">Segment Element -&gt; Segment Element -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234363"><span class="hs-identifier hs-var">toSegment</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NonEmpty (Segment Element) -&gt; SemanticSyntaxDiff Element
+forall a. NonEmpty (Segment a) -&gt; SemanticSyntaxDiff a
+</span><a href="Unison.Server.Types.html#Both"><span class="hs-identifier hs-var">Both</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Segment Element -&gt; NonEmpty (Segment Element)
+forall a. a -&gt; NonEmpty a
+</span><span class="hs-identifier hs-var">NEL.singleton</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Segment Element -&gt; Maybe Element
+forall a. Segment a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">AT.annotation</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Element -&gt; Maybe Element -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Segment Element -&gt; Maybe Element
+forall a. Segment a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">AT.annotation</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234363"><span class="hs-identifier hs-var">toSegment</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Text, Text) -&gt; Maybe Element -&gt; SemanticSyntaxDiff Element
+forall a. (Text, Text) -&gt; Maybe a -&gt; SemanticSyntaxDiff a
+</span><a href="Unison.Server.Types.html#SegmentChange"><span class="hs-identifier hs-var">SegmentChange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Segment Element -&gt; Text
+forall a. Segment a -&gt; Text
+</span><span class="hs-identifier hs-var">AT.segment</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Segment Element -&gt; Text
+forall a. Segment a -&gt; Text
+</span><span class="hs-identifier hs-var">AT.segment</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234363"><span class="hs-identifier hs-var">toSegment</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Segment Element -&gt; Maybe Element
+forall a. Segment a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">AT.annotation</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>        </span><span class="hs-comment">-- We only emit an annotation change if it's a change in just the hash of the element (optionally the KIND of hash reference can change too).</span><span>
+</span><span id="line-166"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Segment Element -&gt; Text
+forall a. Segment a -&gt; Text
+</span><span class="hs-identifier hs-var">AT.segment</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Segment Element -&gt; Text
+forall a. Segment a -&gt; Text
+</span><span class="hs-identifier hs-var">AT.segment</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234363"><span class="hs-identifier hs-var">toSegment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-167"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680234366"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234366"><span class="hs-identifier hs-var">_fromHash</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Segment Element -&gt; Maybe Element
+forall a. Segment a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">AT.annotation</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Element -&gt; (Element -&gt; Maybe Text) -&gt; Maybe Text
+forall a b. Maybe a -&gt; (a -&gt; Maybe b) -&gt; Maybe b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Element -&gt; Maybe Text
+</span><a href="#local-6989586621680234367"><span class="hs-identifier hs-var">elementHash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-168"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680234368"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234368"><span class="hs-identifier hs-var">_toHash</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Segment Element -&gt; Maybe Element
+forall a. Segment a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">AT.annotation</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234363"><span class="hs-identifier hs-var">toSegment</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Element -&gt; (Element -&gt; Maybe Text) -&gt; Maybe Text
+forall a b. Maybe a -&gt; (a -&gt; Maybe b) -&gt; Maybe b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Element -&gt; Maybe Text
+</span><a href="#local-6989586621680234367"><span class="hs-identifier hs-var">elementHash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-169"></span><span>            </span><span class="annot"><span class="annottext">Text
+-&gt; (Maybe Element, Maybe Element) -&gt; SemanticSyntaxDiff Element
+forall a. Text -&gt; (Maybe a, Maybe a) -&gt; SemanticSyntaxDiff a
+</span><a href="Unison.Server.Types.html#AnnotationChange"><span class="hs-identifier hs-var">AnnotationChange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Segment Element -&gt; Text
+forall a. Segment a -&gt; Text
+</span><span class="hs-identifier hs-var">AT.segment</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Segment Element -&gt; Maybe Element
+forall a. Segment a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">AT.annotation</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Segment Element -&gt; Maybe Element
+forall a. Segment a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">AT.annotation</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234363"><span class="hs-identifier hs-var">toSegment</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-171"></span><span>            </span><span class="hs-comment">-- the annotation changed, but it's not a recognized hash change.</span><span>
+</span><span id="line-172"></span><span>            </span><span class="hs-comment">-- This can happen in certain special cases, e.g. a paren changed from being a syntax element into being part</span><span>
+</span><span id="line-173"></span><span>            </span><span class="hs-comment">-- of a unit.</span><span>
+</span><span id="line-174"></span><span>            </span><span class="hs-comment">-- We just emit both as old/new segments.</span><span>
+</span><span id="line-175"></span><span>            </span><span class="annot"><span class="annottext">NonEmpty (Segment Element) -&gt; SemanticSyntaxDiff Element
+forall a. NonEmpty (Segment a) -&gt; SemanticSyntaxDiff a
+</span><a href="Unison.Server.Types.html#OnlyThisSide"><span class="hs-identifier hs-var">OnlyThisSide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Segment Element -&gt; NonEmpty (Segment Element)
+forall a. a -&gt; NonEmpty a
+</span><span class="hs-identifier hs-var">NEL.singleton</span></span><span> </span><span class="annot"><span class="annottext">Segment Element
+</span><a href="#local-6989586621680234362"><span class="hs-identifier hs-var">fromSegment</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-177"></span><span>          </span><span class="annot"><a href="#local-6989586621680234367"><span class="hs-identifier hs-type">elementHash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Syntax.Element</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#UnisonHash"><span class="hs-identifier hs-type">Syntax.UnisonHash</span></a></span><span>
+</span><span id="line-178"></span><span>          </span><span id="local-6989586621680234367"><span class="annot"><span class="annottext">elementHash :: Element -&gt; Maybe Text
+</span><a href="#local-6989586621680234367"><span class="hs-identifier hs-var hs-var">elementHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-179"></span><span>            </span><span class="annot"><a href="Unison.Server.Syntax.html#TypeReference"><span class="hs-identifier hs-type">Syntax.TypeReference</span></a></span><span> </span><span id="local-6989586621680234371"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621680234371"><span class="hs-identifier hs-var">_fqn</span></a></span></span><span> </span><span id="local-6989586621680234372"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234372"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234372"><span class="hs-identifier hs-var">hash</span></a></span><span>
+</span><span id="line-180"></span><span>            </span><span class="annot"><a href="Unison.Server.Syntax.html#TermReference"><span class="hs-identifier hs-type">Syntax.TermReference</span></a></span><span> </span><span id="local-6989586621680234373"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621680234373"><span class="hs-identifier hs-var">_fqn</span></a></span></span><span> </span><span id="local-6989586621680234374"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234374"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234374"><span class="hs-identifier hs-var">hash</span></a></span><span>
+</span><span id="line-181"></span><span>            </span><span class="annot"><a href="Unison.Server.Syntax.html#DataConstructorReference"><span class="hs-identifier hs-type">Syntax.DataConstructorReference</span></a></span><span> </span><span id="local-6989586621680234375"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621680234375"><span class="hs-identifier hs-var">_fqn</span></a></span></span><span> </span><span id="local-6989586621680234376"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234376"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234376"><span class="hs-identifier hs-var">hash</span></a></span><span>
+</span><span id="line-182"></span><span>            </span><span class="annot"><a href="Unison.Server.Syntax.html#AbilityConstructorReference"><span class="hs-identifier hs-type">Syntax.AbilityConstructorReference</span></a></span><span> </span><span id="local-6989586621680234377"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621680234377"><span class="hs-identifier hs-var">_fqn</span></a></span></span><span> </span><span id="local-6989586621680234378"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234378"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680234378"><span class="hs-identifier hs-var">hash</span></a></span><span>
+</span><span id="line-183"></span><span>            </span><span class="annot"><span class="annottext">Element
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span>    </span><span class="hs-comment">-- Collapse subsequent chunks of the same kind of diff into one chunk.</span><span>
+</span><span id="line-186"></span><span>    </span><span class="annot"><a href="#local-6989586621680234357"><span class="hs-identifier hs-type">aggregateChunks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Types.html#SemanticSyntaxDiff"><span class="hs-identifier hs-type">SemanticSyntaxDiff</span></a></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Syntax.Element</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Types.html#SemanticSyntaxDiff"><span class="hs-identifier hs-type">SemanticSyntaxDiff</span></a></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Syntax.Element</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-187"></span><span>    </span><span id="local-6989586621680234357"><span class="annot"><span class="annottext">aggregateChunks :: [SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element]
+</span><a href="#local-6989586621680234357"><span class="hs-identifier hs-var hs-var">aggregateChunks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-188"></span><span>      </span><span class="annot"><span class="annottext">Algebra
+  (XNor (SemanticSyntaxDiff Element)) [SemanticSyntaxDiff Element]
+-&gt; [SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element]
+forall a.
+Algebra (XNor (SemanticSyntaxDiff Element)) a
+-&gt; [SemanticSyntaxDiff Element] -&gt; a
+forall t (f :: * -&gt; *) a. Recursive t f =&gt; Algebra f a -&gt; t -&gt; a
+</span><span class="hs-identifier hs-var">Rec.cata</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-189"></span><span>        </span><span class="annot"><span class="annottext">XNor (SemanticSyntaxDiff Element) [SemanticSyntaxDiff Element]
+</span><span class="hs-identifier hs-var">Rec.Neither</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-190"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Rec.Both</span></span><span> </span><span id="local-6989586621680234382"><span class="annot"><span class="annottext">SemanticSyntaxDiff Element
+</span><a href="#local-6989586621680234382"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SemanticSyntaxDiff Element
+</span><a href="#local-6989586621680234382"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-191"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Rec.Both</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Types.html#OnlyThisSide"><span class="hs-identifier hs-type">OnlyThisSide</span></a></span><span> </span><span id="local-6989586621680234383"><span class="annot"><span class="annottext">NonEmpty (Segment Element)
+</span><a href="#local-6989586621680234383"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Types.html#OnlyThisSide"><span class="hs-identifier hs-type">OnlyThisSide</span></a></span><span> </span><span id="local-6989586621680234384"><span class="annot"><span class="annottext">NonEmpty (Segment Element)
+</span><a href="#local-6989586621680234384"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680234385"><span class="annot"><span class="annottext">[SemanticSyntaxDiff Element]
+</span><a href="#local-6989586621680234385"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-192"></span><span>          </span><span class="annot"><span class="annottext">NonEmpty (Segment Element) -&gt; SemanticSyntaxDiff Element
+forall a. NonEmpty (Segment a) -&gt; SemanticSyntaxDiff a
+</span><a href="Unison.Server.Types.html#OnlyThisSide"><span class="hs-identifier hs-var">OnlyThisSide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NonEmpty (Segment Element)
+</span><a href="#local-6989586621680234383"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty (Segment Element)
+-&gt; NonEmpty (Segment Element) -&gt; NonEmpty (Segment Element)
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">NonEmpty (Segment Element)
+</span><a href="#local-6989586621680234384"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SemanticSyntaxDiff Element
+-&gt; [SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[SemanticSyntaxDiff Element]
+</span><a href="#local-6989586621680234385"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-193"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Rec.Both</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Types.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span id="local-6989586621680234386"><span class="annot"><span class="annottext">NonEmpty (Segment Element)
+</span><a href="#local-6989586621680234386"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Types.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span id="local-6989586621680234387"><span class="annot"><span class="annottext">NonEmpty (Segment Element)
+</span><a href="#local-6989586621680234387"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680234388"><span class="annot"><span class="annottext">[SemanticSyntaxDiff Element]
+</span><a href="#local-6989586621680234388"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-194"></span><span>          </span><span class="annot"><span class="annottext">NonEmpty (Segment Element) -&gt; SemanticSyntaxDiff Element
+forall a. NonEmpty (Segment a) -&gt; SemanticSyntaxDiff a
+</span><a href="Unison.Server.Types.html#Both"><span class="hs-identifier hs-var">Both</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NonEmpty (Segment Element)
+</span><a href="#local-6989586621680234386"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty (Segment Element)
+-&gt; NonEmpty (Segment Element) -&gt; NonEmpty (Segment Element)
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">NonEmpty (Segment Element)
+</span><a href="#local-6989586621680234387"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SemanticSyntaxDiff Element
+-&gt; [SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[SemanticSyntaxDiff Element]
+</span><a href="#local-6989586621680234388"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-195"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Rec.Both</span></span><span> </span><span id="local-6989586621680234389"><span class="annot"><span class="annottext">SemanticSyntaxDiff Element
+</span><a href="#local-6989586621680234389"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621680234390"><span class="annot"><span class="annottext">[SemanticSyntaxDiff Element]
+</span><a href="#local-6989586621680234390"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SemanticSyntaxDiff Element
+</span><a href="#local-6989586621680234389"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">SemanticSyntaxDiff Element
+-&gt; [SemanticSyntaxDiff Element] -&gt; [SemanticSyntaxDiff Element]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[SemanticSyntaxDiff Element]
+</span><a href="#local-6989586621680234390"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- | Takes the left and right sides of a diff which are part of the same contiguous chunk, then</span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- diffs them and returns padded left/right line diffs</span><span>
+</span><span id="line-199"></span><span class="annot"><a href="Unison.Server.Backend.DefinitionDiff.html#diffChangeChunk"><span class="hs-identifier hs-type">diffChangeChunk</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-200"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680234072"><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-202"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-203"></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-comment">-- Lists of lines, where each line is a list of segments.</span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-comment">-- 'Nothing' lines are just padding</span><span>
+</span><span id="line-207"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Types.html#Changed"><span class="hs-identifier hs-type">Changed</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier hs-type">Paired</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Types.html#Changed"><span class="hs-identifier hs-type">Changed</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier hs-type">Paired</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-208"></span><span id="diffChangeChunk"><span class="annot"><span class="annottext">diffChangeChunk :: forall a.
+Eq a =&gt;
+(Segment a -&gt; Segment a -&gt; Bool)
+-&gt; [[Segment a]]
+-&gt; [[Segment a]]
+-&gt; ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#diffChangeChunk"><span class="hs-identifier hs-var hs-var">diffChangeChunk</span></a></span></span><span> </span><span id="local-6989586621680234431"><span class="annot"><span class="annottext">Segment a -&gt; Segment a -&gt; Bool
+</span><a href="#local-6989586621680234431"><span class="hs-identifier hs-var">diffEq</span></a></span></span><span> </span><span id="local-6989586621680234432"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234432"><span class="hs-identifier hs-var">leftLines</span></a></span></span><span> </span><span id="local-6989586621680234433"><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234433"><span class="hs-identifier hs-var">rightLines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-comment">-- Represent newlines with 'Nothing' so we can do a flat diff.</span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621680234434"><span class="hs-identifier hs-type">flattenedL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-211"></span><span>      </span><span id="local-6989586621680234434"><span class="annot"><span class="annottext">flattenedL :: [Maybe (Segment a)]
+</span><a href="#local-6989586621680234434"><span class="hs-identifier hs-var hs-var">flattenedL</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)] -&gt; [[Maybe (Segment a)]] -&gt; [Maybe (Segment a)]
+forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><span class="hs-identifier hs-var">List.intercalate</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe (Segment a)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Segment a -&gt; Maybe (Segment a))
+-&gt; [Segment a] -&gt; [Maybe (Segment a)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Segment a -&gt; Maybe (Segment a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">([Segment a] -&gt; [Maybe (Segment a)])
+-&gt; [[Segment a]] -&gt; [[Maybe (Segment a)]]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234432"><span class="hs-identifier hs-var">leftLines</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>      </span><span class="annot"><a href="#local-6989586621680234436"><span class="hs-identifier hs-type">flattenedR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-213"></span><span>      </span><span id="local-6989586621680234436"><span class="annot"><span class="annottext">flattenedR :: [Maybe (Segment a)]
+</span><a href="#local-6989586621680234436"><span class="hs-identifier hs-var hs-var">flattenedR</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)] -&gt; [[Maybe (Segment a)]] -&gt; [Maybe (Segment a)]
+forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><span class="hs-identifier hs-var">List.intercalate</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe (Segment a)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Segment a -&gt; Maybe (Segment a))
+-&gt; [Segment a] -&gt; [Maybe (Segment a)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Segment a -&gt; Maybe (Segment a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">([Segment a] -&gt; [Maybe (Segment a)])
+-&gt; [[Segment a]] -&gt; [[Maybe (Segment a)]]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[[Segment a]]
+</span><a href="#local-6989586621680234433"><span class="hs-identifier hs-var">rightLines</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-214"></span><span>      </span><span class="annot"><a href="#local-6989586621680234437"><span class="hs-identifier hs-type">diff</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Diff.PolyDiff</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-215"></span><span>      </span><span id="local-6989586621680234437"><span class="annot"><span class="annottext">diff :: [PolyDiff [Maybe (Segment a)] [Maybe (Segment a)]]
+</span><a href="#local-6989586621680234437"><span class="hs-identifier hs-var hs-var">diff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Maybe (Segment a) -&gt; Maybe (Segment a) -&gt; Bool)
+-&gt; [Maybe (Segment a)]
+-&gt; [Maybe (Segment a)]
+-&gt; [PolyDiff [Maybe (Segment a)] [Maybe (Segment a)]]
+forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+(a -&gt; a -&gt; Bool) -&gt; f a -&gt; f a -&gt; [PolyDiff [a] [a]]
+</span><a href="Unison.Server.Backend.DefinitionDiff.html#diffSegments"><span class="hs-identifier hs-var">diffSegments</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Segment a) -&gt; Maybe (Segment a) -&gt; Bool
+</span><a href="#local-6989586621680234438"><span class="hs-identifier hs-var">mayDiffEq</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234434"><span class="hs-identifier hs-var">flattenedL</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234436"><span class="hs-identifier hs-var">flattenedR</span></a></span><span>
+</span><span id="line-216"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621680234439"><span class="annot"><span class="annottext">[Maybe (Paired (Segment a))]
+</span><a href="#local-6989586621680234439"><span class="hs-identifier hs-var">leftResults</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier hs-type">Paired</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span id="local-6989586621680234440"><span class="annot"><span class="annottext">[Maybe (Paired (Segment a))]
+</span><a href="#local-6989586621680234440"><span class="hs-identifier hs-var">rightResults</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-217"></span><span>        </span><span class="annot"><span class="annottext">[PolyDiff [Maybe (Segment a)] [Maybe (Segment a)]]
+</span><a href="#local-6989586621680234437"><span class="hs-identifier hs-var">diff</span></a></span><span>
+</span><span id="line-218"></span><span>          </span><span class="annot"><span class="annottext">[PolyDiff [Maybe (Segment a)] [Maybe (Segment a)]]
+-&gt; ([PolyDiff [Maybe (Segment a)] [Maybe (Segment a)]]
+    -&gt; ([Maybe (Paired (Segment a))], [Maybe (Paired (Segment a))]))
+-&gt; ([Maybe (Paired (Segment a))], [Maybe (Paired (Segment a))])
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(PolyDiff [Maybe (Segment a)] [Maybe (Segment a)]
+ -&gt; ([Maybe (Paired (Segment a))], [Maybe (Paired (Segment a))]))
+-&gt; [PolyDiff [Maybe (Segment a)] [Maybe (Segment a)]]
+-&gt; ([Maybe (Paired (Segment a))], [Maybe (Paired (Segment a))])
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-219"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Diff.First</span></span><span> </span><span id="local-6989586621680234441"><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234441"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-220"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Segment a -&gt; Paired (Segment a))
+-&gt; Maybe (Segment a) -&gt; Maybe (Paired (Segment a))
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Segment a -&gt; Paired (Segment a)
+forall a. a -&gt; Paired a
+</span><a href="Unison.Server.Types.html#OneSided"><span class="hs-identifier hs-var">OneSided</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe (Segment a) -&gt; Maybe (Paired (Segment a)))
+-&gt; [Maybe (Segment a)] -&gt; [Maybe (Paired (Segment a))]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234441"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Maybe (Paired (Segment a))]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Diff.Second</span></span><span> </span><span id="local-6989586621680234442"><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234442"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-222"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Maybe (Paired (Segment a))]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(Segment a -&gt; Paired (Segment a))
+-&gt; Maybe (Segment a) -&gt; Maybe (Paired (Segment a))
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Segment a -&gt; Paired (Segment a)
+forall a. a -&gt; Paired a
+</span><a href="Unison.Server.Types.html#OneSided"><span class="hs-identifier hs-var">OneSided</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe (Segment a) -&gt; Maybe (Paired (Segment a)))
+-&gt; [Maybe (Segment a)] -&gt; [Maybe (Paired (Segment a))]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234442"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-223"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Diff.Both</span></span><span> </span><span id="local-6989586621680234443"><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234443"><span class="hs-identifier hs-var">from</span></a></span></span><span> </span><span id="local-6989586621680234444"><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234444"><span class="hs-identifier hs-var">to</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-224"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680234447"><span class="annot"><span class="annottext">zipper :: Maybe a -&gt; Maybe a -&gt; Maybe (Paired a)
+</span><a href="#local-6989586621680234447"><span class="hs-identifier hs-var hs-var">zipper</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">cases</span><span>
+</span><span id="line-225"></span><span>                    </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (Paired a)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-226"></span><span>                    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680234448"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680234448"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680234449"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680234449"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Paired a -&gt; Maybe (Paired a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; Paired a
+forall a. a -&gt; a -&gt; Paired a
+</span><a href="Unison.Server.Types.html#Paired"><span class="hs-identifier hs-var">Paired</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680234448"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680234449"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-227"></span><span>                    </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe (Paired a)
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;impossible&quot;</span></span><span>
+</span><span id="line-228"></span><span>               </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Maybe (Segment a)
+ -&gt; Maybe (Segment a) -&gt; Maybe (Paired (Segment a)))
+-&gt; [Maybe (Segment a)]
+-&gt; [Maybe (Segment a)]
+-&gt; [Maybe (Paired (Segment a))]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Segment a)
+-&gt; Maybe (Segment a) -&gt; Maybe (Paired (Segment a))
+forall {a}. Maybe a -&gt; Maybe a -&gt; Maybe (Paired a)
+</span><a href="#local-6989586621680234447"><span class="hs-identifier hs-var">zipper</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234443"><span class="hs-identifier hs-var">from</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234444"><span class="hs-identifier hs-var">to</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(Maybe (Segment a)
+ -&gt; Maybe (Segment a) -&gt; Maybe (Paired (Segment a)))
+-&gt; [Maybe (Segment a)]
+-&gt; [Maybe (Segment a)]
+-&gt; [Maybe (Paired (Segment a))]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Segment a)
+-&gt; Maybe (Segment a) -&gt; Maybe (Paired (Segment a))
+forall {a}. Maybe a -&gt; Maybe a -&gt; Maybe (Paired a)
+</span><a href="#local-6989586621680234447"><span class="hs-identifier hs-var">zipper</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234444"><span class="hs-identifier hs-var">to</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe (Segment a)]
+</span><a href="#local-6989586621680234443"><span class="hs-identifier hs-var">from</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span>      </span><span class="hs-comment">-- Now only padding newlines are represented by Nothing.</span><span>
+</span><span id="line-231"></span><span>      </span><span id="local-6989586621680234450"><span class="annot"><span class="annottext">padding :: [Changed a]
+</span><a href="#local-6989586621680234450"><span class="hs-identifier hs-var hs-var">padding</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Changed a -&gt; [Changed a]
+forall a. a -&gt; [a]
+</span><span class="hs-identifier hs-var">repeat</span></span><span> </span><span class="annot"><span class="annottext">Changed a
+forall a. Changed a
+</span><a href="Unison.Server.Types.html#Spacer"><span class="hs-identifier hs-var">Spacer</span></a></span><span>
+</span><span id="line-232"></span><span>      </span><span id="local-6989586621680234453"><span class="annot"><span class="annottext">relinedLeft :: [[Paired (Segment a)]]
+</span><a href="#local-6989586621680234453"><span class="hs-identifier hs-var hs-var">relinedLeft</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Maybe (Paired (Segment a))] -&gt; [Paired (Segment a)]
+forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span> </span><span class="annot"><span class="annottext">([Maybe (Paired (Segment a))] -&gt; [Paired (Segment a)])
+-&gt; [[Maybe (Paired (Segment a))]] -&gt; [[Paired (Segment a)]]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Maybe (Paired (Segment a))]
+-&gt; [Maybe (Paired (Segment a))] -&gt; [[Maybe (Paired (Segment a))]]
+forall a. (HasCallStack, Eq a) =&gt; [a] -&gt; [a] -&gt; [[a]]
+</span><span class="hs-identifier hs-var">List.splitOn</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe (Paired (Segment a))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[Maybe (Paired (Segment a))]
+</span><a href="#local-6989586621680234439"><span class="hs-identifier hs-var">leftResults</span></a></span><span>
+</span><span id="line-233"></span><span>      </span><span id="local-6989586621680234454"><span class="annot"><span class="annottext">relinedRight :: [[Paired (Segment a)]]
+</span><a href="#local-6989586621680234454"><span class="hs-identifier hs-var hs-var">relinedRight</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Maybe (Paired (Segment a))] -&gt; [Paired (Segment a)]
+forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span> </span><span class="annot"><span class="annottext">([Maybe (Paired (Segment a))] -&gt; [Paired (Segment a)])
+-&gt; [[Maybe (Paired (Segment a))]] -&gt; [[Paired (Segment a)]]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Maybe (Paired (Segment a))]
+-&gt; [Maybe (Paired (Segment a))] -&gt; [[Maybe (Paired (Segment a))]]
+forall a. (HasCallStack, Eq a) =&gt; [a] -&gt; [a] -&gt; [[a]]
+</span><span class="hs-identifier hs-var">List.splitOn</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe (Paired (Segment a))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[Maybe (Paired (Segment a))]
+</span><a href="#local-6989586621680234440"><span class="hs-identifier hs-var">rightResults</span></a></span><span>
+</span><span id="line-234"></span><span>      </span><span id="local-6989586621680234455"><span class="annot"><span class="annottext">leftLength :: Int
+</span><a href="#local-6989586621680234455"><span class="hs-identifier hs-var hs-var">leftLength</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[Paired (Segment a)]] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[[Paired (Segment a)]]
+</span><a href="#local-6989586621680234453"><span class="hs-identifier hs-var">relinedLeft</span></a></span><span>
+</span><span id="line-235"></span><span>      </span><span id="local-6989586621680234457"><span class="annot"><span class="annottext">rightLength :: Int
+</span><a href="#local-6989586621680234457"><span class="hs-identifier hs-var hs-var">rightLength</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[Paired (Segment a)]] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[[Paired (Segment a)]]
+</span><a href="#local-6989586621680234454"><span class="hs-identifier hs-var">relinedRight</span></a></span><span>
+</span><span id="line-236"></span><span>      </span><span id="local-6989586621680234458"><span class="annot"><span class="annottext">maxLines :: Int
+</span><a href="#local-6989586621680234458"><span class="hs-identifier hs-var hs-var">maxLines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680234455"><span class="hs-identifier hs-var">leftLength</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680234457"><span class="hs-identifier hs-var">rightLength</span></a></span><span>
+</span><span id="line-237"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Paired (Segment a)] -&gt; Changed [Paired (Segment a)]
+forall a. a -&gt; Changed a
+</span><a href="Unison.Server.Types.html#Changed"><span class="hs-identifier hs-var">Changed</span></a></span><span> </span><span class="annot"><span class="annottext">([Paired (Segment a)] -&gt; Changed [Paired (Segment a)])
+-&gt; [[Paired (Segment a)]] -&gt; [Changed [Paired (Segment a)]]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[[Paired (Segment a)]]
+</span><a href="#local-6989586621680234453"><span class="hs-identifier hs-var">relinedLeft</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Changed [Paired (Segment a)]]
+-&gt; [Changed [Paired (Segment a)]] -&gt; [Changed [Paired (Segment a)]]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; [Changed [Paired (Segment a)]] -&gt; [Changed [Paired (Segment a)]]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680234458"><span class="hs-identifier hs-var">maxLines</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680234455"><span class="hs-identifier hs-var">leftLength</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Changed [Paired (Segment a)]]
+forall {a}. [Changed a]
+</span><a href="#local-6989586621680234450"><span class="hs-identifier hs-var">padding</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-238"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Paired (Segment a)] -&gt; Changed [Paired (Segment a)]
+forall a. a -&gt; Changed a
+</span><a href="Unison.Server.Types.html#Changed"><span class="hs-identifier hs-var">Changed</span></a></span><span> </span><span class="annot"><span class="annottext">([Paired (Segment a)] -&gt; Changed [Paired (Segment a)])
+-&gt; [[Paired (Segment a)]] -&gt; [Changed [Paired (Segment a)]]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[[Paired (Segment a)]]
+</span><a href="#local-6989586621680234454"><span class="hs-identifier hs-var">relinedRight</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Changed [Paired (Segment a)]]
+-&gt; [Changed [Paired (Segment a)]] -&gt; [Changed [Paired (Segment a)]]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; [Changed [Paired (Segment a)]] -&gt; [Changed [Paired (Segment a)]]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680234458"><span class="hs-identifier hs-var">maxLines</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680234457"><span class="hs-identifier hs-var">rightLength</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Changed [Paired (Segment a)]]
+forall {a}. [Changed a]
+</span><a href="#local-6989586621680234450"><span class="hs-identifier hs-var">padding</span></a></span><span>
+</span><span id="line-239"></span><span>      </span><span class="hs-special">)</span><span>
+</span><span id="line-240"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-241"></span><span>    </span><span class="annot"><a href="#local-6989586621680234438"><span class="hs-identifier hs-type">mayDiffEq</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="#local-6989586621680234072"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-242"></span><span>    </span><span id="local-6989586621680234438"><span class="annot"><span class="annottext">mayDiffEq :: Maybe (Segment a) -&gt; Maybe (Segment a) -&gt; Bool
+</span><a href="#local-6989586621680234438"><span class="hs-identifier hs-var hs-var">mayDiffEq</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">cases</span><span>
+</span><span id="line-243"></span><span>      </span><span class="annot"><span class="annottext">Maybe (Segment a)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Segment a)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-244"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680234462"><span class="annot"><span class="annottext">Segment a
+</span><a href="#local-6989586621680234462"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680234463"><span class="annot"><span class="annottext">Segment a
+</span><a href="#local-6989586621680234463"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Segment a -&gt; Segment a -&gt; Bool
+</span><a href="#local-6989586621680234431"><span class="hs-identifier hs-var">diffEq</span></a></span><span> </span><span class="annot"><span class="annottext">Segment a
+</span><a href="#local-6989586621680234462"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Segment a
+</span><a href="#local-6989586621680234463"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-245"></span><span>      </span><span class="annot"><span class="annottext">Maybe (Segment a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Segment a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-246"></span></pre></body></html>

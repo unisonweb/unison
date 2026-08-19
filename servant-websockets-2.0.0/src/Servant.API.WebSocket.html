@@ -1,0 +1,407 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP                   #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances     #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies          #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Servant.API.WebSocket.html"><span class="hs-identifier">Servant.API.WebSocket</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>                              </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">void</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(&gt;=&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>                     </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Resource</span></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">runResourceT</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span>                                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Proxy</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.Wai.Handler.WebSockets</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">websocketsOr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.WebSockets</span></span><span>                         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Connection</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">PendingConnection</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">acceptRequest</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">defaultConnectionOptions</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Server</span></span><span>                             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HasServer</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ServerError</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ServerT</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">runHandler</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Server.Internal.Router</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">leafRouter</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Server.Internal.RouteResult</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">RouteResult</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Server.Internal.Delayed</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">runDelayed</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- | Endpoint for defining a route to provide a web socket. The</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- handler function gets an already negotiated websocket 'Connection'</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- to send and receive data.</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Example:</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- &gt; type WebSocketApi = &quot;stream&quot; :&gt; WebSocket</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- &gt; server :: Server WebSocketApi</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- &gt; server = streamData</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- &gt;  where</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- &gt;   streamData :: MonadIO m =&gt; Connection -&gt; m ()</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- &gt;   streamData c = do</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- &gt;     liftIO $ forkPingThread c 10</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- &gt;     liftIO . forM_ [1..] $ \i -&gt; do</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- &gt;        sendTextData c (pack $ show (i :: Int)) &gt;&gt; threadDelay 1000000</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">data</span><span> </span><span id="WebSocket"><span class="annot"><a href="Servant.API.WebSocket.html#WebSocket"><span class="hs-identifier hs-var">WebSocket</span></a></span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679134299"><span class="annot"><span class="hs-identifier hs-type">HasServer</span></span><span> </span><span class="annot"><a href="Servant.API.WebSocket.html#WebSocket"><span class="hs-identifier hs-type">WebSocket</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679134299"><span class="hs-identifier hs-type">ctx</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ServerT"><span class="annot"><span class="hs-identifier hs-var">ServerT</span></span></span><span> </span><span id="local-6989586621679134384"><span class="annot"><a href="Servant.API.WebSocket.html#WebSocket"><span class="hs-identifier hs-type">WebSocket</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679134384"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Connection</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679134384"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if MIN_VERSION_servant_server(0,12,0)
+</span><span>  </span><span id="local-6989586621679134385"><span class="annot"><span class="annottext">hoistServerWithContext :: forall (m :: * -&gt; *) (n :: * -&gt; *).
+Proxy WebSocket
+-&gt; Proxy ctx
+-&gt; (forall x. m x -&gt; n x)
+-&gt; ServerT WebSocket m
+-&gt; ServerT WebSocket n
+</span><a href="#local-6989586621679134385"><span class="hs-identifier hs-var hs-var hs-var">hoistServerWithContext</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy WebSocket
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Proxy ctx
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679134387"><span class="annot"><span class="annottext">forall x. m x -&gt; n x
+</span><a href="#local-6989586621679134387"><span class="hs-identifier hs-var">nat</span></a></span></span><span> </span><span id="local-6989586621679134388"><span class="annot"><span class="annottext">ServerT WebSocket m
+</span><a href="#local-6989586621679134388"><span class="hs-identifier hs-var">svr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m () -&gt; n ()
+forall x. m x -&gt; n x
+</span><a href="#local-6989586621679134387"><span class="hs-identifier hs-var">nat</span></a></span><span> </span><span class="annot"><span class="annottext">(m () -&gt; n ()) -&gt; (Connection -&gt; m ()) -&gt; Connection -&gt; n ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ServerT WebSocket m
+Connection -&gt; m ()
+</span><a href="#local-6989586621679134388"><span class="hs-identifier hs-var">svr</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679134400"><span class="annot"><span class="annottext">route :: forall env.
+Proxy WebSocket
+-&gt; Context ctx -&gt; Delayed env (Server WebSocket) -&gt; Router env
+</span><a href="#local-6989586621679134400"><span class="hs-identifier hs-var hs-var hs-var">route</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy WebSocket
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="annot"><span class="annottext">Context ctx
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679134403"><span class="annot"><span class="annottext">Delayed env (Server WebSocket)
+</span><a href="#local-6989586621679134403"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; RoutingApplication) -&gt; Router' env RoutingApplication
+forall env a. (env -&gt; a) -&gt; Router' env a
+</span><span class="hs-identifier hs-var">leafRouter</span></span><span> </span><span class="annot"><span class="annottext">((env -&gt; RoutingApplication) -&gt; Router' env RoutingApplication)
+-&gt; (env -&gt; RoutingApplication) -&gt; Router' env RoutingApplication
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679134404"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621679134404"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679134405"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679134405"><span class="hs-identifier hs-var">request</span></a></span></span><span> </span><span id="local-6989586621679134406"><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134406"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ResourceT IO ResponseReceived -&gt; IO ResponseReceived
+forall (m :: * -&gt; *) a. MonadUnliftIO m =&gt; ResourceT m a -&gt; m a
+</span><span class="hs-identifier hs-var">runResourceT</span></span><span> </span><span class="annot"><span class="annottext">(ResourceT IO ResponseReceived -&gt; IO ResponseReceived)
+-&gt; ResourceT IO ResponseReceived -&gt; IO ResponseReceived
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><span class="annottext">Delayed env (Connection -&gt; Handler ())
+-&gt; env
+-&gt; Request
+-&gt; ResourceT IO (RouteResult (Connection -&gt; Handler ()))
+forall env a.
+Delayed env a -&gt; env -&gt; Request -&gt; ResourceT IO (RouteResult a)
+</span><span class="hs-identifier hs-var">runDelayed</span></span><span> </span><span class="annot"><span class="annottext">Delayed env (Server WebSocket)
+Delayed env (Connection -&gt; Handler ())
+</span><a href="#local-6989586621679134403"><span class="hs-identifier hs-var">app</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621679134404"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679134405"><span class="hs-identifier hs-var">request</span></a></span><span> </span><span class="annot"><span class="annottext">ResourceT IO (RouteResult (Connection -&gt; Handler ()))
+-&gt; (RouteResult (Connection -&gt; Handler ())
+    -&gt; ResourceT IO ResponseReceived)
+-&gt; ResourceT IO ResponseReceived
+forall a b.
+ResourceT IO a -&gt; (a -&gt; ResourceT IO b) -&gt; ResourceT IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">IO ResponseReceived -&gt; ResourceT IO ResponseReceived
+forall a. IO a -&gt; ResourceT IO a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO ResponseReceived -&gt; ResourceT IO ResponseReceived)
+-&gt; (RouteResult (Connection -&gt; Handler ()) -&gt; IO ResponseReceived)
+-&gt; RouteResult (Connection -&gt; Handler ())
+-&gt; ResourceT IO ResponseReceived
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Request
+-&gt; (RouteResult Response -&gt; IO ResponseReceived)
+-&gt; RouteResult (Connection -&gt; Handler ())
+-&gt; IO ResponseReceived
+forall {a}.
+Request
+-&gt; (RouteResult Response -&gt; IO ResponseReceived)
+-&gt; RouteResult (Connection -&gt; Handler a)
+-&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134407"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679134405"><span class="hs-identifier hs-var">request</span></a></span><span> </span><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134406"><span class="hs-identifier hs-var">respond</span></a></span><span>
+</span><span id="line-47"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679134407"><span class="annot"><span class="annottext">go :: Request
+-&gt; (RouteResult Response -&gt; IO ResponseReceived)
+-&gt; RouteResult (Connection -&gt; Handler a)
+-&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134407"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679134408"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679134408"><span class="hs-identifier hs-var">request</span></a></span></span><span> </span><span id="local-6989586621679134409"><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134409"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Route</span></span><span> </span><span id="local-6989586621679134411"><span class="annot"><span class="annottext">Connection -&gt; Handler a
+</span><a href="#local-6989586621679134411"><span class="hs-identifier hs-var">app'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-49"></span><span>      </span><span class="annot"><span class="annottext">ConnectionOptions -&gt; ServerApp -&gt; Application -&gt; Application
+</span><span class="hs-identifier hs-var">websocketsOr</span></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><span class="hs-identifier hs-var">defaultConnectionOptions</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Connection -&gt; Handler a) -&gt; ServerApp
+forall {a}. (Connection -&gt; Handler a) -&gt; ServerApp
+</span><a href="#local-6989586621679134412"><span class="hs-identifier hs-var">runApp</span></a></span><span> </span><span class="annot"><span class="annottext">Connection -&gt; Handler a
+</span><a href="#local-6989586621679134411"><span class="hs-identifier hs-var">app'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(RouteResult Response -&gt; IO ResponseReceived) -&gt; Application
+forall {a} {b} {p} {p}. (RouteResult a -&gt; b) -&gt; p -&gt; p -&gt; b
+</span><a href="#local-6989586621679134413"><span class="hs-identifier hs-var">backupApp</span></a></span><span> </span><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134409"><span class="hs-identifier hs-var">respond</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679134408"><span class="hs-identifier hs-var">request</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134409"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(RouteResult Response -&gt; IO ResponseReceived)
+-&gt; (Response -&gt; RouteResult Response)
+-&gt; Response
+-&gt; IO ResponseReceived
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Response -&gt; RouteResult Response
+forall a. a -&gt; RouteResult a
+</span><span class="hs-identifier hs-var">Route</span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><a href="#local-6989586621679134407"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679134414"><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134414"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Fail</span></span><span> </span><span id="local-6989586621679134416"><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679134416"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134414"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(RouteResult Response -&gt; IO ResponseReceived)
+-&gt; RouteResult Response -&gt; IO ResponseReceived
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ServerError -&gt; RouteResult Response
+forall a. ServerError -&gt; RouteResult a
+</span><span class="hs-identifier hs-var">Fail</span></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679134416"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="#local-6989586621679134407"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679134417"><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134417"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FailFatal</span></span><span> </span><span id="local-6989586621679134419"><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679134419"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134417"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(RouteResult Response -&gt; IO ResponseReceived)
+-&gt; RouteResult Response -&gt; IO ResponseReceived
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ServerError -&gt; RouteResult Response
+forall a. ServerError -&gt; RouteResult a
+</span><span class="hs-identifier hs-var">FailFatal</span></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679134419"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679134412"><span class="annot"><span class="annottext">runApp :: (Connection -&gt; Handler a) -&gt; ServerApp
+</span><a href="#local-6989586621679134412"><span class="hs-identifier hs-var hs-var">runApp</span></a></span></span><span> </span><span id="local-6989586621679134423"><span class="annot"><span class="annottext">Connection -&gt; Handler a
+</span><a href="#local-6989586621679134423"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PendingConnection -&gt; IO Connection
+</span><span class="hs-identifier hs-var">acceptRequest</span></span><span> </span><span class="annot"><span class="annottext">(PendingConnection -&gt; IO Connection)
+-&gt; (Connection -&gt; IO ()) -&gt; ServerApp
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679134424"><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679134424"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO (Either ServerError a) -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handler a -&gt; IO (Either ServerError a)
+forall a. Handler a -&gt; IO (Either ServerError a)
+</span><span class="hs-identifier hs-var">runHandler</span></span><span> </span><span class="annot"><span class="annottext">(Handler a -&gt; IO (Either ServerError a))
+-&gt; Handler a -&gt; IO (Either ServerError a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Connection -&gt; Handler a
+</span><a href="#local-6989586621679134423"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679134424"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679134413"><span class="annot"><span class="annottext">backupApp :: (RouteResult a -&gt; b) -&gt; p -&gt; p -&gt; b
+</span><a href="#local-6989586621679134413"><span class="hs-identifier hs-var hs-var">backupApp</span></a></span></span><span> </span><span id="local-6989586621679134429"><span class="annot"><span class="annottext">RouteResult a -&gt; b
+</span><a href="#local-6989586621679134429"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RouteResult a -&gt; b
+</span><a href="#local-6989586621679134429"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(RouteResult a -&gt; b) -&gt; RouteResult a -&gt; b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ServerError -&gt; RouteResult a
+forall a. ServerError -&gt; RouteResult a
+</span><span class="hs-identifier hs-var">Fail</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ServerError</span></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">errHTTPCode :: Int
+</span><span class="hs-identifier hs-var">errHTTPCode</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">426</span></span><span>
+</span><span id="line-56"></span><span>                                                       </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">errReasonPhrase :: String
+</span><span class="hs-identifier hs-var">errReasonPhrase</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Upgrade Required&quot;</span></span><span>
+</span><span id="line-57"></span><span>                                                       </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">errBody :: ByteString
+</span><span class="hs-identifier hs-var">errBody</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-58"></span><span>                                                       </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">errHeaders :: [Header]
+</span><span class="hs-identifier hs-var">errHeaders</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Header]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-59"></span><span>                                                       </span><span class="hs-special">}</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- | Endpoint for defining a route to provide a web socket. The</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- handler function gets a 'PendingConnection'. It can either</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- 'rejectRequest' or 'acceptRequest'. This function is provided</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- for greater flexibility to reject connections.</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- Example:</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- &gt; type WebSocketApi = &quot;stream&quot; :&gt; WebSocketPending</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- &gt; server :: Server WebSocketApi</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- &gt; server = streamData</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- &gt;  where</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- &gt;   streamData :: MonadIO m =&gt; PendingConnection -&gt; m ()</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- &gt;   streamData pc = do</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- &gt;      c &lt;- acceptRequest pc</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- &gt;      liftIO $ forkPingThread c 10</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- &gt;      liftIO . forM_ [1..] $ \i -&gt;</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- &gt;        sendTextData c (pack $ show (i :: Int)) &gt;&gt; threadDelay 1000000</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">data</span><span> </span><span id="WebSocketPending"><span class="annot"><a href="Servant.API.WebSocket.html#WebSocketPending"><span class="hs-identifier hs-var">WebSocketPending</span></a></span></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679134359"><span class="annot"><span class="hs-identifier hs-type">HasServer</span></span><span> </span><span class="annot"><a href="Servant.API.WebSocket.html#WebSocketPending"><span class="hs-identifier hs-type">WebSocketPending</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679134359"><span class="hs-identifier hs-type">ctx</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ServerT"><span class="annot"><span class="hs-identifier hs-var">ServerT</span></span></span><span> </span><span id="local-6989586621679134438"><span class="annot"><a href="Servant.API.WebSocket.html#WebSocketPending"><span class="hs-identifier hs-type">WebSocketPending</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679134438"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PendingConnection</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679134438"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if MIN_VERSION_servant_server(0,12,0)
+</span><span>  </span><span id="local-6989586621679134439"><span class="annot"><span class="annottext">hoistServerWithContext :: forall (m :: * -&gt; *) (n :: * -&gt; *).
+Proxy WebSocketPending
+-&gt; Proxy ctx
+-&gt; (forall x. m x -&gt; n x)
+-&gt; ServerT WebSocketPending m
+-&gt; ServerT WebSocketPending n
+</span><span class="hs-identifier hs-var hs-var hs-var">hoistServerWithContext</span></span></span><span> </span><span class="annot"><span class="annottext">Proxy WebSocketPending
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Proxy ctx
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679134440"><span class="annot"><span class="annottext">forall x. m x -&gt; n x
+</span><a href="#local-6989586621679134440"><span class="hs-identifier hs-var">nat</span></a></span></span><span> </span><span id="local-6989586621679134441"><span class="annot"><span class="annottext">ServerT WebSocketPending m
+</span><a href="#local-6989586621679134441"><span class="hs-identifier hs-var">svr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m () -&gt; n ()
+forall x. m x -&gt; n x
+</span><a href="#local-6989586621679134440"><span class="hs-identifier hs-var">nat</span></a></span><span> </span><span class="annot"><span class="annottext">(m () -&gt; n ())
+-&gt; (PendingConnection -&gt; m ()) -&gt; PendingConnection -&gt; n ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ServerT WebSocketPending m
+PendingConnection -&gt; m ()
+</span><a href="#local-6989586621679134441"><span class="hs-identifier hs-var">svr</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621679134447"><span class="annot"><span class="annottext">route :: forall env.
+Proxy WebSocketPending
+-&gt; Context ctx
+-&gt; Delayed env (Server WebSocketPending)
+-&gt; Router env
+</span><span class="hs-identifier hs-var hs-var hs-var">route</span></span></span><span> </span><span class="annot"><span class="annottext">Proxy WebSocketPending
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="annot"><span class="annottext">Context ctx
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679134448"><span class="annot"><span class="annottext">Delayed env (Server WebSocketPending)
+</span><a href="#local-6989586621679134448"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; RoutingApplication) -&gt; Router' env RoutingApplication
+forall env a. (env -&gt; a) -&gt; Router' env a
+</span><span class="hs-identifier hs-var">leafRouter</span></span><span> </span><span class="annot"><span class="annottext">((env -&gt; RoutingApplication) -&gt; Router' env RoutingApplication)
+-&gt; (env -&gt; RoutingApplication) -&gt; Router' env RoutingApplication
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679134449"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621679134449"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621679134450"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679134450"><span class="hs-identifier hs-var">request</span></a></span></span><span> </span><span id="local-6989586621679134451"><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134451"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ResourceT IO ResponseReceived -&gt; IO ResponseReceived
+forall (m :: * -&gt; *) a. MonadUnliftIO m =&gt; ResourceT m a -&gt; m a
+</span><span class="hs-identifier hs-var">runResourceT</span></span><span> </span><span class="annot"><span class="annottext">(ResourceT IO ResponseReceived -&gt; IO ResponseReceived)
+-&gt; ResourceT IO ResponseReceived -&gt; IO ResponseReceived
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><span class="annottext">Delayed env (PendingConnection -&gt; Handler ())
+-&gt; env
+-&gt; Request
+-&gt; ResourceT IO (RouteResult (PendingConnection -&gt; Handler ()))
+forall env a.
+Delayed env a -&gt; env -&gt; Request -&gt; ResourceT IO (RouteResult a)
+</span><span class="hs-identifier hs-var">runDelayed</span></span><span> </span><span class="annot"><span class="annottext">Delayed env (Server WebSocketPending)
+Delayed env (PendingConnection -&gt; Handler ())
+</span><a href="#local-6989586621679134448"><span class="hs-identifier hs-var">app</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621679134449"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679134450"><span class="hs-identifier hs-var">request</span></a></span><span> </span><span class="annot"><span class="annottext">ResourceT IO (RouteResult (PendingConnection -&gt; Handler ()))
+-&gt; (RouteResult (PendingConnection -&gt; Handler ())
+    -&gt; ResourceT IO ResponseReceived)
+-&gt; ResourceT IO ResponseReceived
+forall a b.
+ResourceT IO a -&gt; (a -&gt; ResourceT IO b) -&gt; ResourceT IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">IO ResponseReceived -&gt; ResourceT IO ResponseReceived
+forall a. IO a -&gt; ResourceT IO a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO ResponseReceived -&gt; ResourceT IO ResponseReceived)
+-&gt; (RouteResult (PendingConnection -&gt; Handler ())
+    -&gt; IO ResponseReceived)
+-&gt; RouteResult (PendingConnection -&gt; Handler ())
+-&gt; ResourceT IO ResponseReceived
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Request
+-&gt; (RouteResult Response -&gt; IO ResponseReceived)
+-&gt; RouteResult (PendingConnection -&gt; Handler ())
+-&gt; IO ResponseReceived
+forall {a}.
+Request
+-&gt; (RouteResult Response -&gt; IO ResponseReceived)
+-&gt; RouteResult (PendingConnection -&gt; Handler a)
+-&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134452"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679134450"><span class="hs-identifier hs-var">request</span></a></span><span> </span><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134451"><span class="hs-identifier hs-var">respond</span></a></span><span>
+</span><span id="line-92"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621679134452"><span class="annot"><span class="annottext">go :: Request
+-&gt; (RouteResult Response -&gt; IO ResponseReceived)
+-&gt; RouteResult (PendingConnection -&gt; Handler a)
+-&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134452"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679134453"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679134453"><span class="hs-identifier hs-var">request</span></a></span></span><span> </span><span id="local-6989586621679134454"><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134454"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Route</span></span><span> </span><span id="local-6989586621679134455"><span class="annot"><span class="annottext">PendingConnection -&gt; Handler a
+</span><a href="#local-6989586621679134455"><span class="hs-identifier hs-var">app'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-94"></span><span>      </span><span class="annot"><span class="annottext">ConnectionOptions -&gt; ServerApp -&gt; Application -&gt; Application
+</span><span class="hs-identifier hs-var">websocketsOr</span></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><span class="hs-identifier hs-var">defaultConnectionOptions</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(PendingConnection -&gt; Handler a) -&gt; ServerApp
+forall {t} {a}. (t -&gt; Handler a) -&gt; t -&gt; IO ()
+</span><a href="#local-6989586621679134456"><span class="hs-identifier hs-var">runApp</span></a></span><span> </span><span class="annot"><span class="annottext">PendingConnection -&gt; Handler a
+</span><a href="#local-6989586621679134455"><span class="hs-identifier hs-var">app'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(RouteResult Response -&gt; IO ResponseReceived) -&gt; Application
+forall {a} {b} {p} {p}. (RouteResult a -&gt; b) -&gt; p -&gt; p -&gt; b
+</span><a href="#local-6989586621679134457"><span class="hs-identifier hs-var">backupApp</span></a></span><span> </span><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134454"><span class="hs-identifier hs-var">respond</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679134453"><span class="hs-identifier hs-var">request</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134454"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(RouteResult Response -&gt; IO ResponseReceived)
+-&gt; (Response -&gt; RouteResult Response)
+-&gt; Response
+-&gt; IO ResponseReceived
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Response -&gt; RouteResult Response
+forall a. a -&gt; RouteResult a
+</span><span class="hs-identifier hs-var">Route</span></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><a href="#local-6989586621679134452"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679134458"><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134458"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Fail</span></span><span> </span><span id="local-6989586621679134459"><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679134459"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134458"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(RouteResult Response -&gt; IO ResponseReceived)
+-&gt; RouteResult Response -&gt; IO ResponseReceived
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ServerError -&gt; RouteResult Response
+forall a. ServerError -&gt; RouteResult a
+</span><span class="hs-identifier hs-var">Fail</span></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679134459"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><a href="#local-6989586621679134452"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679134460"><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134460"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FailFatal</span></span><span> </span><span id="local-6989586621679134461"><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679134461"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RouteResult Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679134460"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(RouteResult Response -&gt; IO ResponseReceived)
+-&gt; RouteResult Response -&gt; IO ResponseReceived
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ServerError -&gt; RouteResult Response
+forall a. ServerError -&gt; RouteResult a
+</span><span class="hs-identifier hs-var">FailFatal</span></span><span> </span><span class="annot"><span class="annottext">ServerError
+</span><a href="#local-6989586621679134461"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>    </span><span id="local-6989586621679134456"><span class="annot"><span class="annottext">runApp :: (t -&gt; Handler a) -&gt; t -&gt; IO ()
+</span><a href="#local-6989586621679134456"><span class="hs-identifier hs-var hs-var">runApp</span></a></span></span><span> </span><span id="local-6989586621679134463"><span class="annot"><span class="annottext">t -&gt; Handler a
+</span><a href="#local-6989586621679134463"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679134464"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679134464"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Either ServerError a) -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handler a -&gt; IO (Either ServerError a)
+forall a. Handler a -&gt; IO (Either ServerError a)
+</span><span class="hs-identifier hs-var">runHandler</span></span><span> </span><span class="annot"><span class="annottext">(Handler a -&gt; IO (Either ServerError a))
+-&gt; Handler a -&gt; IO (Either ServerError a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">t -&gt; Handler a
+</span><a href="#local-6989586621679134463"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679134464"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621679134457"><span class="annot"><span class="annottext">backupApp :: (RouteResult a -&gt; b) -&gt; p -&gt; p -&gt; b
+</span><a href="#local-6989586621679134457"><span class="hs-identifier hs-var hs-var">backupApp</span></a></span></span><span> </span><span id="local-6989586621679134467"><span class="annot"><span class="annottext">RouteResult a -&gt; b
+</span><a href="#local-6989586621679134467"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RouteResult a -&gt; b
+</span><a href="#local-6989586621679134467"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(RouteResult a -&gt; b) -&gt; RouteResult a -&gt; b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ServerError -&gt; RouteResult a
+forall a. ServerError -&gt; RouteResult a
+</span><span class="hs-identifier hs-var">Fail</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ServerError</span></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">errHTTPCode :: Int
+</span><span class="hs-identifier hs-var">errHTTPCode</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">426</span></span><span>
+</span><span id="line-101"></span><span>                                                       </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">errReasonPhrase :: String
+</span><span class="hs-identifier hs-var">errReasonPhrase</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Upgrade Required&quot;</span></span><span>
+</span><span id="line-102"></span><span>                                                       </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">errBody :: ByteString
+</span><span class="hs-identifier hs-var">errBody</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-103"></span><span>                                                       </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">errHeaders :: [Header]
+</span><span class="hs-identifier hs-var">errHeaders</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Header]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-104"></span><span>                                                       </span><span class="hs-special">}</span><span>
+</span><span id="line-105"></span></pre></body></html>

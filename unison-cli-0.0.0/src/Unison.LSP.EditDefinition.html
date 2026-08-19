@@ -1,0 +1,364 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.LSP.EditDefinition.html"><span class="hs-identifier">Unison.LSP.EditDefinition</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.LSP.EditDefinition.html#editDefinitionHandler"><span class="hs-identifier">editDefinitionHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">List</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Except</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Lens</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LSP</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Message</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Msg</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LSP</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.FileAnalysis.html"><span class="hs-identifier">Unison.LSP.FileAnalysis</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.FileAnalysis.html#ppedForFile"><span class="hs-identifier">ppedForFile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Queries.html"><span class="hs-identifier">Unison.LSP.Queries</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LSPQ</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html"><span class="hs-identifier">Unison.LSP.Types</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Util.Wrappers.html"><span class="hs-identifier">Unison.LSP.Util.Wrappers</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.Util.Wrappers.html#editDefinitionByFQN"><span class="hs-identifier">editDefinitionByFQN</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.LabeledDependency</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LD</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnv</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPE</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnvDecl</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPED</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Syntax.HashQualified</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SyntaxHQ</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="EditDefinitionParams"><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionParams"><span class="hs-identifier hs-var">EditDefinitionParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="EditDefinitionParams"><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionParams"><span class="hs-identifier hs-var">EditDefinitionParams</span></a></span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="textDocument"><span class="annot"><span class="annottext">EditDefinitionParams -&gt; TextDocumentIdentifier
+</span><a href="Unison.LSP.EditDefinition.html#textDocument"><span class="hs-identifier hs-var hs-var">textDocument</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">LSP.TextDocumentIdentifier</span></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span id="position"><span class="annot"><span class="annottext">EditDefinitionParams -&gt; Maybe Position
+</span><a href="Unison.LSP.EditDefinition.html#position"><span class="hs-identifier hs-var hs-var">position</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LSP.Position</span></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span id="fqn"><span class="annot"><span class="annottext">EditDefinitionParams -&gt; Maybe Text
+</span><a href="Unison.LSP.EditDefinition.html#fqn"><span class="hs-identifier hs-var hs-var">fqn</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681624447"><span id="local-6989586621681624458"><span id="local-6989586621681624462"><span class="annot"><span class="annottext">Int -&gt; EditDefinitionParams -&gt; ShowS
+[EditDefinitionParams] -&gt; ShowS
+EditDefinitionParams -&gt; String
+(Int -&gt; EditDefinitionParams -&gt; ShowS)
+-&gt; (EditDefinitionParams -&gt; String)
+-&gt; ([EditDefinitionParams] -&gt; ShowS)
+-&gt; Show EditDefinitionParams
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; EditDefinitionParams -&gt; ShowS
+showsPrec :: Int -&gt; EditDefinitionParams -&gt; ShowS
+$cshow :: EditDefinitionParams -&gt; String
+show :: EditDefinitionParams -&gt; String
+$cshowList :: [EditDefinitionParams] -&gt; ShowS
+showList :: [EditDefinitionParams] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681624469"><span id="local-6989586621681624478"><span class="annot"><span class="annottext">EditDefinitionParams -&gt; EditDefinitionParams -&gt; Bool
+(EditDefinitionParams -&gt; EditDefinitionParams -&gt; Bool)
+-&gt; (EditDefinitionParams -&gt; EditDefinitionParams -&gt; Bool)
+-&gt; Eq EditDefinitionParams
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: EditDefinitionParams -&gt; EditDefinitionParams -&gt; Bool
+== :: EditDefinitionParams -&gt; EditDefinitionParams -&gt; Bool
+$c/= :: EditDefinitionParams -&gt; EditDefinitionParams -&gt; Bool
+/= :: EditDefinitionParams -&gt; EditDefinitionParams -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681624486"><span id="local-6989586621681624490"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionParams"><span class="hs-identifier hs-type">EditDefinitionParams</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621681624509"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser EditDefinitionParams
+</span><a href="#local-6989586621681624509"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser EditDefinitionParams)
+-&gt; Value
+-&gt; Parser EditDefinitionParams
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;EditDefinitionParams&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser EditDefinitionParams)
+ -&gt; Value -&gt; Parser EditDefinitionParams)
+-&gt; (Object -&gt; Parser EditDefinitionParams)
+-&gt; Value
+-&gt; Parser EditDefinitionParams
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681624512"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681624512"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-36"></span><span>    </span><span id="local-6989586621681624513"><span class="annot"><a href="#local-6989586621681624513"><span class="hs-identifier hs-var">textDocument</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681624512"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser TextDocumentIdentifier
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;textDocument&quot;</span></span><span>
+</span><span id="line-37"></span><span>    </span><span id="local-6989586621681624515"><span class="annot"><a href="#local-6989586621681624515"><span class="hs-identifier hs-var">position</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621681624512"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">Aeson..:?</span></span><span> </span><span class="annot"><span class="hs-string">&quot;position&quot;</span></span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621681624517"><span class="annot"><a href="#local-6989586621681624517"><span class="hs-identifier hs-var">fqn</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621681624512"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">Aeson..:?</span></span><span> </span><span class="annot"><span class="hs-string">&quot;fqn&quot;</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionParams"><span class="hs-identifier hs-type">EditDefinitionParams</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.LSP.EditDefinition.html#textDocument"><span class="hs-identifier hs-var hs-type">textDocument</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.LSP.EditDefinition.html#position"><span class="hs-identifier hs-var hs-type">position</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.LSP.EditDefinition.html#fqn"><span class="hs-identifier hs-var hs-type">fqn</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">data</span><span> </span><span id="EditDefinitionResponse"><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionResponse"><span class="hs-identifier hs-var">EditDefinitionResponse</span></a></span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="EditDefinitionError"><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionError"><span class="hs-identifier hs-var">EditDefinitionError</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EditDefinitionSuccess"><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionSuccess"><span class="hs-identifier hs-var">EditDefinitionSuccess</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">{- Whether the definition was newly added -}</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681624521"><span id="local-6989586621681624528"><span id="local-6989586621681624532"><span class="annot"><span class="annottext">Int -&gt; EditDefinitionResponse -&gt; ShowS
+[EditDefinitionResponse] -&gt; ShowS
+EditDefinitionResponse -&gt; String
+(Int -&gt; EditDefinitionResponse -&gt; ShowS)
+-&gt; (EditDefinitionResponse -&gt; String)
+-&gt; ([EditDefinitionResponse] -&gt; ShowS)
+-&gt; Show EditDefinitionResponse
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; EditDefinitionResponse -&gt; ShowS
+showsPrec :: Int -&gt; EditDefinitionResponse -&gt; ShowS
+$cshow :: EditDefinitionResponse -&gt; String
+show :: EditDefinitionResponse -&gt; String
+$cshowList :: [EditDefinitionResponse] -&gt; ShowS
+showList :: [EditDefinitionResponse] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681624535"><span id="local-6989586621681624543"><span class="annot"><span class="annottext">EditDefinitionResponse -&gt; EditDefinitionResponse -&gt; Bool
+(EditDefinitionResponse -&gt; EditDefinitionResponse -&gt; Bool)
+-&gt; (EditDefinitionResponse -&gt; EditDefinitionResponse -&gt; Bool)
+-&gt; Eq EditDefinitionResponse
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: EditDefinitionResponse -&gt; EditDefinitionResponse -&gt; Bool
+== :: EditDefinitionResponse -&gt; EditDefinitionResponse -&gt; Bool
+$c/= :: EditDefinitionResponse -&gt; EditDefinitionResponse -&gt; Bool
+/= :: EditDefinitionResponse -&gt; EditDefinitionResponse -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681624548"><span id="local-6989586621681624552"><span id="local-6989586621681624555"><span id="local-6989586621681624558"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionResponse"><span class="hs-identifier hs-type">EditDefinitionResponse</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621681624572"><span class="annot"><span class="annottext">toJSON :: EditDefinitionResponse -&gt; Value
+</span><a href="#local-6989586621681624572"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionSuccess"><span class="hs-identifier hs-type">EditDefinitionSuccess</span></a></span><span> </span><span id="local-6989586621681624574"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681624574"><span class="hs-identifier hs-var">newlyAdded</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-49"></span><span>      </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span>
+</span><span id="line-50"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;newlyAdded&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Bool -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681624574"><span class="hs-identifier hs-var">newlyAdded</span></a></span><span>
+</span><span id="line-51"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionError"><span class="hs-identifier hs-type">EditDefinitionError</span></a></span><span> </span><span id="local-6989586621681624577"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624577"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span>
+</span><span id="line-54"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;error&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624577"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | Handler for the 'unison/editDefinition' custom LSP request.</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- This resolves the symbol at the given position to its FQN and adds it to the current file.</span><span>
+</span><span id="line-59"></span><span class="annot"><a href="Unison.LSP.EditDefinition.html#editDefinitionHandler"><span class="hs-identifier hs-type">editDefinitionHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Msg.TRequestMessage</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_CustomMethod</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison/editDefinition&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.TResponseError</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_CustomMethod</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison/editDefinition&quot;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span id="editDefinitionHandler"><span class="annot"><span class="annottext">editDefinitionHandler :: forall {f :: MessageDirection} {f :: MessageDirection}.
+TRequestMessage ('Method_CustomMethod &quot;unison/editDefinition&quot;)
+-&gt; (Either
+      (TResponseError ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+      Value
+    -&gt; Lsp ())
+-&gt; Lsp ()
+</span><a href="Unison.LSP.EditDefinition.html#editDefinitionHandler"><span class="hs-identifier hs-var hs-var">editDefinitionHandler</span></a></span></span><span> </span><span id="local-6989586621681624619"><span class="annot"><span class="annottext">TRequestMessage ('Method_CustomMethod &quot;unison/editDefinition&quot;)
+</span><a href="#local-6989586621681624619"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621681624620"><span class="annot"><span class="annottext">Either
+  (TResponseError ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+  Value
+-&gt; Lsp ()
+</span><a href="#local-6989586621681624620"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621681624621"><span class="annot"><a href="#local-6989586621681624621"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ExceptT Text Lsp Bool -&gt; Lsp (Either Text Bool)
+forall e (m :: * -&gt; *) a. ExceptT e m a -&gt; m (Either e a)
+</span><span class="hs-identifier hs-var">runExceptT</span></span><span> </span><span class="annot"><span class="annottext">(ExceptT Text Lsp Bool -&gt; Lsp (Either Text Bool))
+-&gt; ExceptT Text Lsp Bool -&gt; Lsp (Either Text Bool)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681624623"><span class="annot"><span class="annottext">paramsJSON :: Value
+</span><a href="#local-6989586621681624623"><span class="hs-identifier hs-var hs-var hs-var">paramsJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TRequestMessage ('Method_CustomMethod &quot;unison/editDefinition&quot;)
+</span><a href="#local-6989586621681624619"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage ('Method_CustomMethod &quot;unison/editDefinition&quot;)
+-&gt; Getting
+     Value
+     (TRequestMessage ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+     Value
+-&gt; Value
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  Value
+  (TRequestMessage ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+  Value
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+  Value
+</span><span class="hs-identifier hs-var">LSP.params</span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><a href="Unison.LSP.EditDefinition.html#EditDefinitionParams"><span class="hs-identifier hs-type">EditDefinitionParams</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681624626"><span class="annot"><a href="Unison.LSP.EditDefinition.html#textDocument"><span class="hs-identifier hs-var hs-var">textDocument</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681624627"><span class="annot"><a href="Unison.LSP.EditDefinition.html#position"><span class="hs-identifier hs-var hs-var">position</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681624628"><span class="annot"><a href="Unison.LSP.EditDefinition.html#fqn"><span class="hs-identifier hs-var hs-var">fqn</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Result EditDefinitionParams
+forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">Aeson.fromJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621681624623"><span class="hs-identifier hs-var">paramsJSON</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Error</span></span><span> </span><span id="local-6989586621681624631"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681624631"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ExceptT Text Lsp EditDefinitionParams
+forall a. Text -&gt; ExceptT Text Lsp a
+forall e (m :: * -&gt; *) a. MonadError e m =&gt; e -&gt; m a
+</span><span class="hs-identifier hs-var">throwError</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; ExceptT Text Lsp EditDefinitionParams)
+-&gt; Text -&gt; ExceptT Text Lsp EditDefinitionParams
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Invalid parameters: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">Text.pack</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681624631"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-68"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Success</span></span><span> </span><span id="local-6989586621681624635"><span class="annot"><span class="annottext">EditDefinitionParams
+</span><a href="#local-6989586621681624635"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EditDefinitionParams -&gt; ExceptT Text Lsp EditDefinitionParams
+forall a. a -&gt; ExceptT Text Lsp a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">EditDefinitionParams
+</span><a href="#local-6989586621681624635"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681624636"><span class="annot"><a href="#local-6989586621681624636"><span class="hs-identifier hs-var hs-var">fileURI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TextDocumentIdentifier
+</span><a href="#local-6989586621681624626"><span class="hs-identifier hs-var">textDocument</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">_uri</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-comment">-- Get the FQN either directly or by resolving the symbol at the position</span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621681624637"><span class="annot"><a href="#local-6989586621681624637"><span class="hs-identifier hs-var">fqnText</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681624628"><span class="hs-identifier hs-type">fqn</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681624627"><span class="hs-identifier hs-type">position</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-73"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681624638"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624638"><span class="hs-identifier hs-var">directFqn</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Position
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-74"></span><span>        </span><span class="hs-comment">-- Use the provided FQN directly</span><span>
+</span><span id="line-75"></span><span>        </span><span class="annot"><span class="annottext">Text -&gt; ExceptT Text Lsp Text
+forall a. a -&gt; ExceptT Text Lsp a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624638"><span class="hs-identifier hs-var">directFqn</span></a></span><span>
+</span><span id="line-76"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681624639"><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621681624639"><span class="hs-identifier hs-var">pos</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-77"></span><span>        </span><span class="hs-comment">-- Get the symbol reference at the position</span><span>
+</span><span id="line-78"></span><span>        </span><span id="local-6989586621681624640"><span class="annot"><a href="#local-6989586621681624640"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Text
+-&gt; Lsp (Maybe LabeledDependency)
+-&gt; ExceptT Text Lsp LabeledDependency
+forall a. Text -&gt; Lsp (Maybe a) -&gt; ExceptT Text Lsp a
+</span><a href="#local-6989586621681624641"><span class="hs-identifier hs-var">orFail</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Error: Definition not found in Codebase&quot;</span></span><span> </span><span class="annot"><span class="annottext">(Lsp (Maybe LabeledDependency)
+ -&gt; ExceptT Text Lsp LabeledDependency)
+-&gt; (MaybeT Lsp LabeledDependency -&gt; Lsp (Maybe LabeledDependency))
+-&gt; MaybeT Lsp LabeledDependency
+-&gt; ExceptT Text Lsp LabeledDependency
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">MaybeT Lsp LabeledDependency -&gt; Lsp (Maybe LabeledDependency)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><span class="hs-identifier hs-var">runMaybeT</span></span><span> </span><span class="annot"><span class="annottext">(MaybeT Lsp LabeledDependency
+ -&gt; ExceptT Text Lsp LabeledDependency)
+-&gt; MaybeT Lsp LabeledDependency
+-&gt; ExceptT Text Lsp LabeledDependency
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Uri -&gt; Position -&gt; MaybeT Lsp LabeledDependency
+forall (m :: * -&gt; *).
+Lspish m =&gt;
+Uri -&gt; Position -&gt; MaybeT m LabeledDependency
+</span><a href="Unison.LSP.Queries.html#refAtPosition"><span class="hs-identifier hs-var">LSPQ.refAtPosition</span></a></span><span> </span><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621681624636"><span class="hs-identifier hs-var">fileURI</span></a></span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621681624639"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>        </span><span class="hs-comment">-- Get the FQN for the reference</span><span>
+</span><span id="line-81"></span><span>        </span><span id="local-6989586621681624645"><span class="annot"><a href="#local-6989586621681624645"><span class="hs-identifier hs-var">pped</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">lift</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Unison.LSP.FileAnalysis.html#ppedForFile"><span class="hs-identifier hs-type">ppedForFile</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624636"><span class="hs-identifier hs-type">fileURI</span></a></span><span>
+</span><span id="line-82"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681624647"><span class="annot"><a href="#local-6989586621681624647"><span class="hs-identifier hs-var hs-var">unsuffixifiedPPE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnvDecl -&gt; PrettyPrintEnv
+</span><span class="hs-identifier hs-var">PPED.unsuffixifiedPPE</span></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnvDecl
+</span><a href="#local-6989586621681624645"><span class="hs-identifier hs-var">pped</span></a></span><span>
+</span><span id="line-83"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681624649"><span class="annot"><a href="#local-6989586621681624649"><span class="hs-identifier hs-var hs-var">fqnName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">LabeledDependency
+</span><a href="#local-6989586621681624640"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-84"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">LD.TypeReference</span></span><span> </span><span id="local-6989586621681624651"><span class="annot"><span class="annottext">TypeReference
+</span><a href="#local-6989586621681624651"><span class="hs-identifier hs-var">typeRef</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; TypeReference -&gt; HashQualified Name
+</span><span class="hs-identifier hs-var">PPE.typeName</span></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621681624647"><span class="hs-identifier hs-var">unsuffixifiedPPE</span></a></span><span> </span><span class="annot"><span class="annottext">TypeReference
+</span><a href="#local-6989586621681624651"><span class="hs-identifier hs-var">typeRef</span></a></span><span>
+</span><span id="line-85"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">LD.TermReferent</span></span><span> </span><span id="local-6989586621681624654"><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681624654"><span class="hs-identifier hs-var">termRef</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; Referent -&gt; HashQualified Name
+</span><span class="hs-identifier hs-var">PPE.termName</span></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621681624647"><span class="hs-identifier hs-var">unsuffixifiedPPE</span></a></span><span> </span><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681624654"><span class="hs-identifier hs-var">termRef</span></a></span><span>
+</span><span id="line-86"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SyntaxHQ.toText</span></span><span> </span><span class="annot"><a href="#local-6989586621681624649"><span class="hs-identifier hs-type">fqnName</span></a></span><span>
+</span><span id="line-87"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Position
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-88"></span><span>        </span><span class="annot"><span class="annottext">Text -&gt; ExceptT Text Lsp Text
+forall a. Text -&gt; ExceptT Text Lsp a
+forall e (m :: * -&gt; *) a. MonadError e m =&gt; e -&gt; m a
+</span><span class="hs-identifier hs-var">throwError</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Either 'position' or 'fqn' must be provided&quot;</span></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-comment">-- Call the editDefinitionByFQN utility</span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><a href="Unison.LSP.Util.Wrappers.html#editDefinitionByFQN"><span class="hs-identifier hs-type">editDefinitionByFQN</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624636"><span class="hs-identifier hs-type">fileURI</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624637"><span class="hs-identifier hs-type">fqnText</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-comment">-- Send the response</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621681624621"><span class="hs-identifier hs-type">result</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621681624657"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624657"><span class="hs-identifier hs-var">errMsg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either
+  (TResponseError ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+  Value
+-&gt; Lsp ()
+</span><a href="#local-6989586621681624620"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Value
+-&gt; Either
+     (TResponseError ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+     Value
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Value
+ -&gt; Either
+      (TResponseError ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+      Value)
+-&gt; Value
+-&gt; Either
+     (TResponseError ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+     Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">EditDefinitionResponse -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.toJSON</span></span><span> </span><span class="annot"><span class="annottext">(EditDefinitionResponse -&gt; Value)
+-&gt; EditDefinitionResponse -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; EditDefinitionResponse
+</span><a href="Unison.LSP.EditDefinition.html#EditDefinitionError"><span class="hs-identifier hs-var">EditDefinitionError</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624657"><span class="hs-identifier hs-var">errMsg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621681624658"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681624658"><span class="hs-identifier hs-var">isNewDefinition</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-97"></span><span>      </span><span class="annot"><span class="annottext">Either
+  (TResponseError ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+  Value
+-&gt; Lsp ()
+</span><a href="#local-6989586621681624620"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Value
+-&gt; Either
+     (TResponseError ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+     Value
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Value
+ -&gt; Either
+      (TResponseError ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+      Value)
+-&gt; Value
+-&gt; Either
+     (TResponseError ('Method_CustomMethod &quot;unison/editDefinition&quot;))
+     Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">EditDefinitionResponse -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.toJSON</span></span><span> </span><span class="annot"><span class="annottext">(EditDefinitionResponse -&gt; Value)
+-&gt; EditDefinitionResponse -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; EditDefinitionResponse
+</span><a href="Unison.LSP.EditDefinition.html#EditDefinitionSuccess"><span class="hs-identifier hs-var">EditDefinitionSuccess</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681624658"><span class="hs-identifier hs-var">isNewDefinition</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>    </span><span id="local-6989586621681624417"><span class="annot"><a href="#local-6989586621681624641"><span class="hs-identifier hs-type">orFail</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621681624417"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624417"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621681624641"><span class="annot"><span class="annottext">orFail :: forall a. Text -&gt; Lsp (Maybe a) -&gt; ExceptT Text Lsp a
+</span><a href="#local-6989586621681624641"><span class="hs-identifier hs-var hs-var">orFail</span></a></span></span><span> </span><span id="local-6989586621681624664"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624664"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span id="local-6989586621681624665"><span class="annot"><span class="annottext">Lsp (Maybe a)
+</span><a href="#local-6989586621681624665"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-101"></span><span>      </span><span id="local-6989586621681624666"><span class="annot"><a href="#local-6989586621681624666"><span class="hs-identifier hs-var">ma</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Lsp (Maybe a) -&gt; ExceptT Text Lsp (Maybe a)
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ExceptT Text m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">Lsp (Maybe a)
+</span><a href="#local-6989586621681624665"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-102"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621681624666"><span class="hs-identifier hs-type">ma</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-103"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681624667"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681624667"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; ExceptT Text Lsp a
+forall a. a -&gt; ExceptT Text Lsp a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681624667"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ExceptT Text Lsp a
+forall a. Text -&gt; ExceptT Text Lsp a
+forall e (m :: * -&gt; *) a. MonadError e m =&gt; e -&gt; m a
+</span><span class="hs-identifier hs-var">throwError</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624664"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-105"></span></pre></body></html>

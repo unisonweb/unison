@@ -1,0 +1,102 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module      :  Data.Data</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, CWI 2001--2004</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Stability   :  stable</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Portability :  non-portable (local universal quantification)</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- This module provides the 'Data' class with its primitives for</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- generic programming, along with instances for many datatypes. It</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- corresponds to a merge between the previous &quot;Data.Generics.Basics&quot;</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- and almost all of &quot;Data.Generics.Instances&quot;. The instances that are</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- not present in this module were moved to the</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- @Data.Generics.Instances@ module in the @syb@ package.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- \&quot;Scrap your boilerplate\&quot; --- Generic programming in Haskell.  See</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- &lt;https://wiki.haskell.org/Research_papers/Generics#Scrap_your_boilerplate.21&gt;.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Data.html"><span class="hs-identifier">Data.Data</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Module Data.Typeable re-exported for convenience</span></span><span>
+</span><span id="line-26"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Typeable.html"><span class="hs-identifier">Data.Typeable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span>        </span><span class="annot"><span class="hs-comment">-- * The Data class for processing constructor applications</span></span><span>
+</span><span id="line-29"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#Data"><span class="hs-identifier">Data</span></a></span><span class="hs-special">(</span><span>
+</span><span id="line-30"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#gfoldl"><span class="hs-identifier">gfoldl</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#gunfold"><span class="hs-identifier">gunfold</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#toConstr"><span class="hs-identifier">toConstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#dataTypeOf"><span class="hs-identifier">dataTypeOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#dataCast1"><span class="hs-identifier">dataCast1</span></a></span><span class="hs-special">,</span><span>      </span><span class="hs-comment">-- mediate types and unary type constructors</span><span>
+</span><span id="line-35"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#dataCast2"><span class="hs-identifier">dataCast2</span></a></span><span class="hs-special">,</span><span>      </span><span class="hs-comment">-- mediate types and binary type constructors</span><span>
+</span><span id="line-36"></span><span>                </span><span class="hs-comment">-- Generic maps defined in terms of gfoldl</span><span>
+</span><span id="line-37"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#gmapT"><span class="hs-identifier">gmapT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#gmapQ"><span class="hs-identifier">gmapQ</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#gmapQl"><span class="hs-identifier">gmapQl</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#gmapQr"><span class="hs-identifier">gmapQr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#gmapQi"><span class="hs-identifier">gmapQi</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#gmapM"><span class="hs-identifier">gmapM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#gmapMp"><span class="hs-identifier">gmapMp</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>                </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#gmapMo"><span class="hs-identifier">gmapMo</span></a></span><span>
+</span><span id="line-45"></span><span>            </span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Datatype representations</span></span><span>
+</span><span id="line-48"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#DataType"><span class="hs-identifier">DataType</span></a></span><span class="hs-special">,</span><span>       </span><span class="hs-comment">-- abstract</span><span>
+</span><span id="line-49"></span><span>        </span><span class="annot"><span class="hs-comment">-- ** Constructors</span></span><span>
+</span><span id="line-50"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#mkDataType"><span class="hs-identifier">mkDataType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#mkIntType"><span class="hs-identifier">mkIntType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#mkFloatType"><span class="hs-identifier">mkFloatType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#mkCharType"><span class="hs-identifier">mkCharType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#mkNoRepType"><span class="hs-identifier">mkNoRepType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="hs-comment">-- ** Observers</span></span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#dataTypeName"><span class="hs-identifier">dataTypeName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#DataRep"><span class="hs-identifier">DataRep</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#dataTypeRep"><span class="hs-identifier">dataTypeRep</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>        </span><span class="annot"><span class="hs-comment">-- ** Convenience functions</span></span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#repConstr"><span class="hs-identifier">repConstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#isAlgType"><span class="hs-identifier">isAlgType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#dataTypeConstrs"><span class="hs-identifier">dataTypeConstrs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#indexConstr"><span class="hs-identifier">indexConstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#maxConstrIndex"><span class="hs-identifier">maxConstrIndex</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#isNorepType"><span class="hs-identifier">isNorepType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Data constructor representations</span></span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#Constr"><span class="hs-identifier">Constr</span></a></span><span class="hs-special">,</span><span>         </span><span class="hs-comment">-- abstract</span><span>
+</span><span id="line-69"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#ConIndex"><span class="hs-identifier">ConIndex</span></a></span><span class="hs-special">,</span><span>       </span><span class="hs-comment">-- alias for Int, start at 1</span><span>
+</span><span id="line-70"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#Fixity"><span class="hs-identifier">Fixity</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>        </span><span class="annot"><span class="hs-comment">-- ** Constructors</span></span><span>
+</span><span id="line-72"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#mkConstr"><span class="hs-identifier">mkConstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#mkConstrTag"><span class="hs-identifier">mkConstrTag</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-74"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#mkIntegralConstr"><span class="hs-identifier">mkIntegralConstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#mkRealConstr"><span class="hs-identifier">mkRealConstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#mkCharConstr"><span class="hs-identifier">mkCharConstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>        </span><span class="annot"><span class="hs-comment">-- ** Observers</span></span><span>
+</span><span id="line-78"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#constrType"><span class="hs-identifier">constrType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#ConstrRep"><span class="hs-identifier">ConstrRep</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#constrRep"><span class="hs-identifier">constrRep</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#constrFields"><span class="hs-identifier">constrFields</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-82"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#constrFixity"><span class="hs-identifier">constrFixity</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-83"></span><span>        </span><span class="annot"><span class="hs-comment">-- ** Convenience function: algebraic data types</span></span><span>
+</span><span id="line-84"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#constrIndex"><span class="hs-identifier">constrIndex</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-85"></span><span>        </span><span class="annot"><span class="hs-comment">-- ** From strings to constructors and vice versa: all data types</span></span><span>
+</span><span id="line-86"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#showConstr"><span class="hs-identifier">showConstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-87"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#readConstr"><span class="hs-identifier">readConstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Convenience functions: take type constructors apart</span></span><span>
+</span><span id="line-90"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#tyconUQname"><span class="hs-identifier">tyconUQname</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-91"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#tyconModule"><span class="hs-identifier">tyconModule</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Generic operations defined in terms of 'gunfold'</span></span><span>
+</span><span id="line-94"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#fromConstr"><span class="hs-identifier">fromConstr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-95"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#fromConstrB"><span class="hs-identifier">fromConstrB</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-96"></span><span>        </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html#fromConstrM"><span class="hs-identifier">fromConstrM</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Data.html"><span class="hs-identifier">GHC.Internal.Data.Data</span></a></span><span>
+</span><span id="line-101"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Typeable.html"><span class="hs-identifier">Data.Typeable</span></a></span><span>
+</span><span id="line-102"></span></pre></body></html>

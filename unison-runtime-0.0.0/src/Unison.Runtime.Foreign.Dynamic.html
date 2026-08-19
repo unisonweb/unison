@@ -1,0 +1,542 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ExistentialQuantification #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html"><span class="hs-identifier">Unison.Runtime.Foreign.Dynamic</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unless</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">when</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.ForeignPtr</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.LibFFI.FFITypes</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.LibFFI.Internal</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Marshal</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Storable</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Store</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Runtime.FFI.DLL</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">data</span><span> </span><span id="FFType"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFType"><span class="hs-identifier hs-var">FFType</span></a></span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="I8"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#I8"><span class="hs-identifier hs-var">I8</span></a></span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="I16"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#I16"><span class="hs-identifier hs-var">I16</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="I32"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#I32"><span class="hs-identifier hs-var">I32</span></a></span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="I64"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#I64"><span class="hs-identifier hs-var">I64</span></a></span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="U8"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#U8"><span class="hs-identifier hs-var">U8</span></a></span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="U16"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#U16"><span class="hs-identifier hs-var">U16</span></a></span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="U32"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#U32"><span class="hs-identifier hs-var">U32</span></a></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="U64"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#U64"><span class="hs-identifier hs-var">U64</span></a></span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="F32"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#F32"><span class="hs-identifier hs-var">F32</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="D64"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#D64"><span class="hs-identifier hs-var">D64</span></a></span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Void"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#Void"><span class="hs-identifier hs-var">Void</span></a></span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MBArr"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#MBArr"><span class="hs-identifier hs-var">MBArr</span></a></span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Ptr"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#Ptr"><span class="hs-identifier hs-var">Ptr</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680701023"><span id="local-6989586621680701028"><span class="annot"><span class="annottext">FFType -&gt; FFType -&gt; Bool
+(FFType -&gt; FFType -&gt; Bool)
+-&gt; (FFType -&gt; FFType -&gt; Bool) -&gt; Eq FFType
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: FFType -&gt; FFType -&gt; Bool
+== :: FFType -&gt; FFType -&gt; Bool
+$c/= :: FFType -&gt; FFType -&gt; Bool
+/= :: FFType -&gt; FFType -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680701034"><span id="local-6989586621680701038"><span id="local-6989586621680701042"><span id="local-6989586621680701046"><span id="local-6989586621680701049"><span id="local-6989586621680701052"><span id="local-6989586621680701055"><span class="annot"><span class="annottext">Eq FFType
+Eq FFType =&gt;
+(FFType -&gt; FFType -&gt; Ordering)
+-&gt; (FFType -&gt; FFType -&gt; Bool)
+-&gt; (FFType -&gt; FFType -&gt; Bool)
+-&gt; (FFType -&gt; FFType -&gt; Bool)
+-&gt; (FFType -&gt; FFType -&gt; Bool)
+-&gt; (FFType -&gt; FFType -&gt; FFType)
+-&gt; (FFType -&gt; FFType -&gt; FFType)
+-&gt; Ord FFType
+FFType -&gt; FFType -&gt; Bool
+FFType -&gt; FFType -&gt; Ordering
+FFType -&gt; FFType -&gt; FFType
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: FFType -&gt; FFType -&gt; Ordering
+compare :: FFType -&gt; FFType -&gt; Ordering
+$c&lt; :: FFType -&gt; FFType -&gt; Bool
+&lt; :: FFType -&gt; FFType -&gt; Bool
+$c&lt;= :: FFType -&gt; FFType -&gt; Bool
+&lt;= :: FFType -&gt; FFType -&gt; Bool
+$c&gt; :: FFType -&gt; FFType -&gt; Bool
+&gt; :: FFType -&gt; FFType -&gt; Bool
+$c&gt;= :: FFType -&gt; FFType -&gt; Bool
+&gt;= :: FFType -&gt; FFType -&gt; Bool
+$cmax :: FFType -&gt; FFType -&gt; FFType
+max :: FFType -&gt; FFType -&gt; FFType
+$cmin :: FFType -&gt; FFType -&gt; FFType
+min :: FFType -&gt; FFType -&gt; FFType
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680701063"><span id="local-6989586621680701065"><span id="local-6989586621680701069"><span class="annot"><span class="annottext">Int -&gt; FFType -&gt; ShowS
+[FFType] -&gt; ShowS
+FFType -&gt; [Char]
+(Int -&gt; FFType -&gt; ShowS)
+-&gt; (FFType -&gt; [Char]) -&gt; ([FFType] -&gt; ShowS) -&gt; Show FFType
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; FFType -&gt; ShowS
+showsPrec :: Int -&gt; FFType -&gt; ShowS
+$cshow :: FFType -&gt; [Char]
+show :: FFType -&gt; [Char]
+$cshowList :: [FFType] -&gt; ShowS
+showList :: [FFType] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- arguments and return type</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">data</span><span> </span><span id="FFSpec"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFSpec"><span class="hs-identifier hs-var">FFSpec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FFSpec"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFSpec"><span class="hs-identifier hs-var">FFSpec</span></a></span></span><span> </span><span class="hs-special">{</span><span id="ffArgs"><span class="annot"><span class="annottext">FFSpec -&gt; [FFType]
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#ffArgs"><span class="hs-identifier hs-var hs-var">ffArgs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">[</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFType"><span class="hs-identifier hs-type">FFType</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span id="ffResult"><span class="annot"><span class="annottext">FFSpec -&gt; FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#ffResult"><span class="hs-identifier hs-var hs-var">ffResult</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFType"><span class="hs-identifier hs-type">FFType</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680701077"><span id="local-6989586621680701082"><span class="annot"><span class="annottext">FFSpec -&gt; FFSpec -&gt; Bool
+(FFSpec -&gt; FFSpec -&gt; Bool)
+-&gt; (FFSpec -&gt; FFSpec -&gt; Bool) -&gt; Eq FFSpec
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: FFSpec -&gt; FFSpec -&gt; Bool
+== :: FFSpec -&gt; FFSpec -&gt; Bool
+$c/= :: FFSpec -&gt; FFSpec -&gt; Bool
+/= :: FFSpec -&gt; FFSpec -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680701088"><span id="local-6989586621680701094"><span id="local-6989586621680701099"><span id="local-6989586621680701103"><span id="local-6989586621680701106"><span id="local-6989586621680701109"><span id="local-6989586621680701112"><span class="annot"><span class="annottext">Eq FFSpec
+Eq FFSpec =&gt;
+(FFSpec -&gt; FFSpec -&gt; Ordering)
+-&gt; (FFSpec -&gt; FFSpec -&gt; Bool)
+-&gt; (FFSpec -&gt; FFSpec -&gt; Bool)
+-&gt; (FFSpec -&gt; FFSpec -&gt; Bool)
+-&gt; (FFSpec -&gt; FFSpec -&gt; Bool)
+-&gt; (FFSpec -&gt; FFSpec -&gt; FFSpec)
+-&gt; (FFSpec -&gt; FFSpec -&gt; FFSpec)
+-&gt; Ord FFSpec
+FFSpec -&gt; FFSpec -&gt; Bool
+FFSpec -&gt; FFSpec -&gt; Ordering
+FFSpec -&gt; FFSpec -&gt; FFSpec
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: FFSpec -&gt; FFSpec -&gt; Ordering
+compare :: FFSpec -&gt; FFSpec -&gt; Ordering
+$c&lt; :: FFSpec -&gt; FFSpec -&gt; Bool
+&lt; :: FFSpec -&gt; FFSpec -&gt; Bool
+$c&lt;= :: FFSpec -&gt; FFSpec -&gt; Bool
+&lt;= :: FFSpec -&gt; FFSpec -&gt; Bool
+$c&gt; :: FFSpec -&gt; FFSpec -&gt; Bool
+&gt; :: FFSpec -&gt; FFSpec -&gt; Bool
+$c&gt;= :: FFSpec -&gt; FFSpec -&gt; Bool
+&gt;= :: FFSpec -&gt; FFSpec -&gt; Bool
+$cmax :: FFSpec -&gt; FFSpec -&gt; FFSpec
+max :: FFSpec -&gt; FFSpec -&gt; FFSpec
+$cmin :: FFSpec -&gt; FFSpec -&gt; FFSpec
+min :: FFSpec -&gt; FFSpec -&gt; FFSpec
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680701115"><span id="local-6989586621680701123"><span id="local-6989586621680701127"><span class="annot"><span class="annottext">Int -&gt; FFSpec -&gt; ShowS
+[FFSpec] -&gt; ShowS
+FFSpec -&gt; [Char]
+(Int -&gt; FFSpec -&gt; ShowS)
+-&gt; (FFSpec -&gt; [Char]) -&gt; ([FFSpec] -&gt; ShowS) -&gt; Show FFSpec
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; FFSpec -&gt; ShowS
+showsPrec :: Int -&gt; FFSpec -&gt; ShowS
+$cshow :: FFSpec -&gt; [Char]
+show :: FFSpec -&gt; [Char]
+$cshowList :: [FFSpec] -&gt; ShowS
+showList :: [FFSpec] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">data</span><span> </span><span id="CSpec"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CSpec"><span class="hs-identifier hs-var">CSpec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CSpec"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CSpec"><span class="hs-identifier hs-var">CSpec</span></a></span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="cInterface"><span class="annot"><span class="annottext">CSpec -&gt; ForeignPtr CIF
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#cInterface"><span class="hs-identifier hs-var hs-var">cInterface</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ForeignPtr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CIF</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span id="numArgs"><span class="annot"><span class="annottext">CSpec -&gt; Int
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#numArgs"><span class="hs-identifier hs-var hs-var">numArgs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span id="ffSpec"><span class="annot"><span class="annottext">CSpec -&gt; FFSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#ffSpec"><span class="hs-identifier hs-var hs-var">ffSpec</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFSpec"><span class="hs-identifier hs-type">FFSpec</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">data</span><span> </span><span id="CDynFunc"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-var">CDynFunc</span></a></span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680701133"><span class="annot"><a href="#local-6989586621680701133"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-43"></span><span>  </span><span id="CDynFunc"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-var">CDynFunc</span></a></span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="cName"><span class="annot"><span class="annottext">CDynFunc -&gt; [Char]
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#cName"><span class="hs-identifier hs-var hs-var">cName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span id="cSpec"><span class="annot"><span class="annottext">CDynFunc -&gt; CSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#cSpec"><span class="hs-identifier hs-var hs-var">cSpec</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CSpec"><span class="hs-identifier hs-type">CSpec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>    </span><span id="cFun"><span class="annot"><span class="annottext">()
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#cFun"><span class="hs-identifier hs-var hs-var">cFun</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="annot"><a href="#local-6989586621680701133"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#cffArgs"><span class="hs-identifier hs-type">cffArgs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFType"><span class="hs-identifier hs-type">FFType</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-50"></span><span id="cffArgs"><span class="annot"><span class="annottext">cffArgs :: CDynFunc -&gt; [FFType]
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#cffArgs"><span class="hs-identifier hs-var hs-var">cffArgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FFSpec -&gt; [FFType]
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#ffArgs"><span class="hs-identifier hs-var">ffArgs</span></a></span><span> </span><span class="annot"><span class="annottext">(FFSpec -&gt; [FFType])
+-&gt; (CDynFunc -&gt; FFSpec) -&gt; CDynFunc -&gt; [FFType]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CSpec -&gt; FFSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#ffSpec"><span class="hs-identifier hs-var">ffSpec</span></a></span><span> </span><span class="annot"><span class="annottext">(CSpec -&gt; FFSpec) -&gt; (CDynFunc -&gt; CSpec) -&gt; CDynFunc -&gt; FFSpec
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CDynFunc -&gt; CSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#cSpec"><span class="hs-identifier hs-var">cSpec</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#cffResult"><span class="hs-identifier hs-type">cffResult</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFType"><span class="hs-identifier hs-type">FFType</span></a></span><span>
+</span><span id="line-53"></span><span id="cffResult"><span class="annot"><span class="annottext">cffResult :: CDynFunc -&gt; FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#cffResult"><span class="hs-identifier hs-var hs-var">cffResult</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FFSpec -&gt; FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#ffResult"><span class="hs-identifier hs-var">ffResult</span></a></span><span> </span><span class="annot"><span class="annottext">(FFSpec -&gt; FFType) -&gt; (CDynFunc -&gt; FFSpec) -&gt; CDynFunc -&gt; FFType
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CSpec -&gt; FFSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#ffSpec"><span class="hs-identifier hs-var">ffSpec</span></a></span><span> </span><span class="annot"><span class="annottext">(CSpec -&gt; FFSpec) -&gt; (CDynFunc -&gt; CSpec) -&gt; CDynFunc -&gt; FFSpec
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CDynFunc -&gt; CSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#cSpec"><span class="hs-identifier hs-var">cSpec</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680701142"><span id="local-6989586621680701147"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621680701151"><span class="annot"><span class="annottext">show :: CDynFunc -&gt; [Char]
+</span><a href="#local-6989586621680701151"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span id="local-6989586621680701153"><span class="annot"><span class="annottext">CDynFunc
+</span><a href="#local-6989586621680701153"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&lt;&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">CDynFunc -&gt; [Char]
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#cName"><span class="hs-identifier hs-var">cName</span></a></span><span> </span><span class="annot"><span class="annottext">CDynFunc
+</span><a href="#local-6989586621680701153"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&gt;&quot;</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- Compare pointers for CDynFunc</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680701156"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CSpec
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680701159"><span class="annot"><span class="annottext">FunPtr a
+</span><a href="#local-6989586621680701159"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621680701160"><span class="annot"><span class="annottext">== :: CDynFunc -&gt; CDynFunc -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CSpec
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680701163"><span class="annot"><span class="annottext">FunPtr a
+</span><a href="#local-6989586621680701163"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FunPtr a
+</span><a href="#local-6989586621680701159"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">FunPtr a -&gt; FunPtr a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">FunPtr a -&gt; FunPtr a
+forall a b. FunPtr a -&gt; FunPtr b
+</span><span class="hs-identifier hs-var">castFunPtr</span></span><span> </span><span class="annot"><span class="annottext">FunPtr a
+</span><a href="#local-6989586621680701163"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680701169"><span id="local-6989586621680701173"><span id="local-6989586621680701176"><span id="local-6989586621680701179"><span id="local-6989586621680701182"><span id="local-6989586621680701185"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621680701187"><span class="annot"><span class="annottext">compare :: CDynFunc -&gt; CDynFunc -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var">compare</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CSpec
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680701188"><span class="annot"><span class="annottext">FunPtr a
+</span><a href="#local-6989586621680701188"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CSpec
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680701191"><span class="annot"><span class="annottext">FunPtr a
+</span><a href="#local-6989586621680701191"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FunPtr a -&gt; FunPtr a -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">FunPtr a
+</span><a href="#local-6989586621680701188"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FunPtr a -&gt; FunPtr a
+forall a b. FunPtr a -&gt; FunPtr b
+</span><span class="hs-identifier hs-var">castFunPtr</span></span><span> </span><span class="annot"><span class="annottext">FunPtr a
+</span><a href="#local-6989586621680701191"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-type">encodeType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFType"><span class="hs-identifier hs-type">FFType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CType</span></span><span>
+</span><span id="line-66"></span><span id="encodeType"><span class="annot"><span class="annottext">encodeType :: FFType -&gt; Ptr CType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var hs-var">encodeType</span></a></span></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#I8"><span class="hs-identifier hs-var">I8</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_sint8</span></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#I16"><span class="hs-identifier hs-var">I16</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_sint16</span></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#I32"><span class="hs-identifier hs-var">I32</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_sint32</span></span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#I64"><span class="hs-identifier hs-var">I64</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_sint64</span></span><span>
+</span><span id="line-70"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#U8"><span class="hs-identifier hs-var">U8</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_uint8</span></span><span>
+</span><span id="line-71"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#U16"><span class="hs-identifier hs-var">U16</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_uint16</span></span><span>
+</span><span id="line-72"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#U32"><span class="hs-identifier hs-var">U32</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_uint32</span></span><span>
+</span><span id="line-73"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#U64"><span class="hs-identifier hs-var">U64</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_uint64</span></span><span>
+</span><span id="line-74"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#D64"><span class="hs-identifier hs-var">D64</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_double</span></span><span>
+</span><span id="line-75"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#F32"><span class="hs-identifier hs-var">F32</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_float</span></span><span>
+</span><span id="line-76"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#Void"><span class="hs-identifier hs-var">Void</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_void</span></span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#MBArr"><span class="hs-identifier hs-var">MBArr</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_pointer</span></span><span>
+</span><span id="line-78"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#Ptr"><span class="hs-identifier hs-var">Ptr</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><span class="hs-identifier hs-var">ffi_type_pointer</span></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeTypes"><span class="hs-identifier hs-type">encodeTypes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFType"><span class="hs-identifier hs-type">FFType</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CType</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span id="encodeTypes"><span class="annot"><span class="annottext">encodeTypes :: [FFType] -&gt; Ptr (Ptr CType) -&gt; IO ()
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#encodeTypes"><span class="hs-identifier hs-var hs-var">encodeTypes</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">Ptr (Ptr CType)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#encodeTypes"><span class="hs-identifier hs-var">encodeTypes</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680701206"><span class="annot"><span class="annottext">FFType
+</span><a href="#local-6989586621680701206"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680701207"><span class="annot"><span class="annottext">[FFType]
+</span><a href="#local-6989586621680701207"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621680701208"><span class="annot"><span class="annottext">Ptr (Ptr CType)
+</span><a href="#local-6989586621680701208"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><span class="annottext">Ptr (Ptr CType) -&gt; Ptr CType -&gt; IO ()
+forall a. Storable a =&gt; Ptr a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">Store.poke</span></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr CType)
+</span><a href="#local-6989586621680701208"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">(Ptr CType -&gt; IO ()) -&gt; Ptr CType -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FFType -&gt; Ptr CType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="#local-6989586621680701206"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="annottext">[FFType] -&gt; Ptr (Ptr CType) -&gt; IO ()
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#encodeTypes"><span class="hs-identifier hs-var">encodeTypes</span></a></span><span> </span><span class="annot"><span class="annottext">[FFType]
+</span><a href="#local-6989586621680701207"><span class="hs-identifier hs-var">ts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr (Ptr CType) -&gt; Int -&gt; Ptr (Ptr CType)
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-identifier hs-var">plusPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr CType)
+</span><a href="#local-6989586621680701208"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680701211"><span class="hs-identifier hs-var">sz</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621680701211"><span class="annot"><span class="annottext">sz :: Int
+</span><a href="#local-6989586621680701211"><span class="hs-identifier hs-var hs-var">sz</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">Store.sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr CType
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CType</span></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">data</span><span> </span><span id="PrepException"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#PrepException"><span class="hs-identifier hs-var">PrepException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="BadVoid"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#BadVoid"><span class="hs-identifier hs-var">BadVoid</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="BadResult"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#BadResult"><span class="hs-identifier hs-var">BadResult</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="BadInit"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#BadInit"><span class="hs-identifier hs-var">BadInit</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680701221"><span id="local-6989586621680701223"><span id="local-6989586621680701227"><span class="annot"><span class="annottext">Int -&gt; PrepException -&gt; ShowS
+[PrepException] -&gt; ShowS
+PrepException -&gt; [Char]
+(Int -&gt; PrepException -&gt; ShowS)
+-&gt; (PrepException -&gt; [Char])
+-&gt; ([PrepException] -&gt; ShowS)
+-&gt; Show PrepException
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PrepException -&gt; ShowS
+showsPrec :: Int -&gt; PrepException -&gt; ShowS
+$cshow :: PrepException -&gt; [Char]
+show :: PrepException -&gt; [Char]
+$cshowList :: [PrepException] -&gt; ShowS
+showList :: [PrepException] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680701234"><span id="local-6989586621680701237"><span id="local-6989586621680701240"><span id="local-6989586621680701243"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#PrepException"><span class="hs-identifier hs-type">PrepException</span></a></span></span></span></span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#adjustSpec"><span class="hs-identifier hs-type">adjustSpec</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFSpec"><span class="hs-identifier hs-type">FFSpec</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFSpec"><span class="hs-identifier hs-type">FFSpec</span></a></span><span>
+</span><span id="line-93"></span><span id="adjustSpec"><span class="annot"><span class="annottext">adjustSpec :: FFSpec -&gt; IO FFSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#adjustSpec"><span class="hs-identifier hs-var hs-var">adjustSpec</span></a></span></span><span> </span><span id="local-6989586621680701247"><span class="annot"><span class="annottext">sp :: FFSpec
+</span><a href="#local-6989586621680701247"><span class="hs-identifier hs-var">sp</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFSpec"><span class="hs-identifier hs-type">FFSpec</span></a></span><span> </span><span id="local-6989586621680701248"><span class="annot"><span class="annottext">[FFType]
+</span><a href="#local-6989586621680701248"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span id="local-6989586621680701249"><span class="annot"><span class="annottext">FFType
+</span><a href="#local-6989586621680701249"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#Void"><span class="hs-identifier hs-var">Void</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[FFType]
+</span><a href="#local-6989586621680701248"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FFSpec -&gt; IO FFSpec
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(FFSpec -&gt; IO FFSpec) -&gt; FFSpec -&gt; IO FFSpec
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[FFType] -&gt; FFType -&gt; FFSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#FFSpec"><span class="hs-identifier hs-var">FFSpec</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="#local-6989586621680701249"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">(FFType -&gt; Bool) -&gt; [FFType] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FFType -&gt; FFType -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#Void"><span class="hs-identifier hs-var">Void</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[FFType]
+</span><a href="#local-6989586621680701248"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PrepException -&gt; IO FFSpec
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">PrepException
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#BadVoid"><span class="hs-identifier hs-var">BadVoid</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FFSpec -&gt; IO FFSpec
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">FFSpec
+</span><a href="#local-6989586621680701247"><span class="hs-identifier hs-var">sp</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#prepareSpec"><span class="hs-identifier hs-type">prepareSpec</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFSpec"><span class="hs-identifier hs-type">FFSpec</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CSpec"><span class="hs-identifier hs-type">CSpec</span></a></span><span>
+</span><span id="line-99"></span><span id="prepareSpec"><span class="annot"><span class="annottext">prepareSpec :: FFSpec -&gt; IO CSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#prepareSpec"><span class="hs-identifier hs-var hs-var">prepareSpec</span></a></span></span><span> </span><span id="local-6989586621680701253"><span class="annot"><span class="annottext">FFSpec
+</span><a href="#local-6989586621680701253"><span class="hs-identifier hs-var">spec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621680701254"><span class="annot"><span class="annottext">ffSpec :: FFSpec
+</span><a href="#local-6989586621680701254"><span class="hs-identifier hs-var">ffSpec</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFSpec"><span class="hs-identifier hs-type">FFSpec</span></a></span><span> </span><span id="local-6989586621680701255"><span class="annot"><span class="annottext">[FFType]
+</span><a href="#local-6989586621680701255"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span id="local-6989586621680701256"><span class="annot"><span class="annottext">FFType
+</span><a href="#local-6989586621680701256"><span class="hs-identifier hs-var">ret</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FFSpec -&gt; IO FFSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#adjustSpec"><span class="hs-identifier hs-var">adjustSpec</span></a></span><span> </span><span class="annot"><span class="annottext">FFSpec
+</span><a href="#local-6989586621680701253"><span class="hs-identifier hs-var">spec</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FFType
+</span><a href="#local-6989586621680701256"><span class="hs-identifier hs-var">ret</span></a></span><span> </span><span class="annot"><span class="annottext">FFType -&gt; FFType -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#MBArr"><span class="hs-identifier hs-var">MBArr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-103"></span><span>    </span><span class="annot"><span class="annottext">PrepException -&gt; IO ()
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">PrepException
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#BadResult"><span class="hs-identifier hs-var">BadResult</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680701257"><span class="annot"><span class="annottext">numArgs :: Int
+</span><a href="#local-6989586621680701257"><span class="hs-identifier hs-var hs-var">numArgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[FFType] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[FFType]
+</span><a href="#local-6989586621680701255"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-106"></span><span>      </span><span id="local-6989586621680701259"><span class="annot"><span class="annottext">n :: CUInt
+</span><a href="#local-6989586621680701259"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; CUInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680701257"><span class="hs-identifier hs-var">numArgs</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>  </span><span id="local-6989586621680701260"><span class="annot"><span class="annottext">ForeignPtr CIF
+</span><a href="#local-6989586621680701260"><span class="hs-identifier hs-var">cInterface</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO (ForeignPtr CIF)
+forall a. Int -&gt; IO (ForeignPtr a)
+</span><span class="hs-identifier hs-var">mallocForeignPtrBytes</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier hs-var">sizeOf_cif</span></span><span>
+</span><span id="line-109"></span><span>  </span><span class="annot"><span class="annottext">ForeignPtr CIF -&gt; (Ptr CIF -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr CIF
+</span><a href="#local-6989586621680701260"><span class="hs-identifier hs-var">cInterface</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680701264"><span class="annot"><span class="annottext">Ptr CIF
+</span><a href="#local-6989586621680701264"><span class="hs-identifier hs-var">cif</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; (Ptr (Ptr CType) -&gt; IO ()) -&gt; IO ()
+forall a b. Storable a =&gt; Int -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">allocaArray</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680701257"><span class="hs-identifier hs-var">numArgs</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680701266"><span class="annot"><span class="annottext">Ptr (Ptr CType)
+</span><a href="#local-6989586621680701266"><span class="hs-identifier hs-var">argTys</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-111"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680701267"><span class="annot"><span class="annottext">retTy :: Ptr CType
+</span><a href="#local-6989586621680701267"><span class="hs-identifier hs-var hs-var">retTy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FFType -&gt; Ptr CType
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#encodeType"><span class="hs-identifier hs-var">encodeType</span></a></span><span> </span><span class="annot"><span class="annottext">FFType
+</span><a href="#local-6989586621680701256"><span class="hs-identifier hs-var">ret</span></a></span><span>
+</span><span id="line-112"></span><span>      </span><span class="annot"><span class="annottext">[FFType] -&gt; Ptr (Ptr CType) -&gt; IO ()
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#encodeTypes"><span class="hs-identifier hs-var">encodeTypes</span></a></span><span> </span><span class="annot"><span class="annottext">[FFType]
+</span><a href="#local-6989586621680701255"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr CType)
+</span><a href="#local-6989586621680701266"><span class="hs-identifier hs-var">argTys</span></a></span><span>
+</span><span id="line-113"></span><span>      </span><span id="local-6989586621680701268"><span class="annot"><span class="annottext">C_ffi_status
+</span><a href="#local-6989586621680701268"><span class="hs-identifier hs-var">status</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr CIF
+-&gt; C_ffi_status
+-&gt; CUInt
+-&gt; Ptr CType
+-&gt; Ptr (Ptr CType)
+-&gt; IO C_ffi_status
+</span><span class="hs-identifier hs-var">ffi_prep_cif</span></span><span> </span><span class="annot"><span class="annottext">Ptr CIF
+</span><a href="#local-6989586621680701264"><span class="hs-identifier hs-var">cif</span></a></span><span> </span><span class="annot"><span class="annottext">C_ffi_status
+</span><span class="hs-identifier hs-var">ffi_default_abi</span></span><span> </span><span class="annot"><span class="annottext">CUInt
+</span><a href="#local-6989586621680701259"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="#local-6989586621680701267"><span class="hs-identifier hs-var">retTy</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr CType)
+</span><a href="#local-6989586621680701266"><span class="hs-identifier hs-var">argTys</span></a></span><span>
+</span><span id="line-114"></span><span>      </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">unless</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">C_ffi_status
+</span><a href="#local-6989586621680701268"><span class="hs-identifier hs-var">status</span></a></span><span> </span><span class="annot"><span class="annottext">C_ffi_status -&gt; C_ffi_status -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">C_ffi_status
+</span><span class="hs-identifier hs-var">ffi_ok</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-115"></span><span>        </span><span class="annot"><span class="annottext">PrepException -&gt; IO ()
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">PrepException
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#BadInit"><span class="hs-identifier hs-var">BadInit</span></a></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CSpec"><span class="hs-identifier hs-type">CSpec</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">ForeignPtr CIF
+cInterface :: ForeignPtr CIF
+cInterface :: ForeignPtr CIF
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#cInterface"><span class="hs-identifier hs-var hs-var">cInterface</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+numArgs :: Int
+numArgs :: Int
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#numArgs"><span class="hs-identifier hs-var hs-var">numArgs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FFSpec
+ffSpec :: FFSpec
+ffSpec :: FFSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#ffSpec"><span class="hs-identifier hs-var hs-var">ffSpec</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#loadForeign"><span class="hs-identifier hs-type">loadForeign</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DLL</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#FFSpec"><span class="hs-identifier hs-type">FFSpec</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span><span>
+</span><span id="line-120"></span><span id="loadForeign"><span class="annot"><span class="annottext">loadForeign :: DLL -&gt; FFSpec -&gt; [Char] -&gt; IO CDynFunc
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#loadForeign"><span class="hs-identifier hs-var hs-var">loadForeign</span></a></span></span><span> </span><span id="local-6989586621680701273"><span class="annot"><span class="annottext">DLL
+</span><a href="#local-6989586621680701273"><span class="hs-identifier hs-var">dll</span></a></span></span><span> </span><span id="local-6989586621680701274"><span class="annot"><span class="annottext">FFSpec
+</span><a href="#local-6989586621680701274"><span class="hs-identifier hs-var">fspec</span></a></span></span><span> </span><span id="local-6989586621680701275"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621680701275"><span class="hs-identifier hs-var">sym</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-121"></span><span>  </span><span class="annot"><span class="annottext">[Char] -&gt; CSpec -&gt; FunPtr (ZonkAny 0) -&gt; CDynFunc
+forall a. [Char] -&gt; CSpec -&gt; FunPtr a -&gt; CDynFunc
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-var">CDynFunc</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621680701276"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">(CSpec -&gt; FunPtr (ZonkAny 0) -&gt; CDynFunc)
+-&gt; IO CSpec -&gt; IO (FunPtr (ZonkAny 0) -&gt; CDynFunc)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">FFSpec -&gt; IO CSpec
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#prepareSpec"><span class="hs-identifier hs-var">prepareSpec</span></a></span><span> </span><span class="annot"><span class="annottext">FFSpec
+</span><a href="#local-6989586621680701274"><span class="hs-identifier hs-var">fspec</span></a></span><span> </span><span class="annot"><span class="annottext">IO (FunPtr (ZonkAny 0) -&gt; CDynFunc)
+-&gt; IO (FunPtr (ZonkAny 0)) -&gt; IO CDynFunc
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">DLL -&gt; [Char] -&gt; IO (FunPtr (ZonkAny 0))
+forall a. DLL -&gt; [Char] -&gt; IO (FunPtr a)
+</span><span class="hs-identifier hs-var">getDLLSym</span></span><span> </span><span class="annot"><span class="annottext">DLL
+</span><a href="#local-6989586621680701273"><span class="hs-identifier hs-var">dll</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621680701275"><span class="hs-identifier hs-var">sym</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-123"></span><span>    </span><span id="local-6989586621680701276"><span class="annot"><span class="annottext">name :: [Char]
+</span><a href="#local-6989586621680701276"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DLL -&gt; [Char]
+</span><span class="hs-identifier hs-var">getDLLPath</span></span><span> </span><span class="annot"><span class="annottext">DLL
+</span><a href="#local-6989586621680701273"><span class="hs-identifier hs-var">dll</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;$&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621680701275"><span class="hs-identifier hs-var">sym</span></a></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- Calls a foreign function with arguments stored in memory pointed to by</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- the first pointer, and returning the result to the second pointer. The</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- argument pointer should be to a 64-bit type, and it should point to</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- memory with as many arguments as are taken by the specification of the</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- function argument.</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- If some of the function's arguments are smaller than 64-bits, they</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- should be written as individual 64-bit locations in the pointer, so</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- that casting the offset pointer to the smaller type gives the pointer</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- used to write the smaller value to the memory. E.G.</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--     Store.poke (castPtr (plusPtr p i)) &lt;smaller-value&gt;</span><span>
+</span><span id="line-137"></span><span id="local-6989586621680700951"><span id="local-6989586621680700952"><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#callForeign"><span class="hs-identifier hs-type">callForeign</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621680700951"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621680700952"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-138"></span><span id="callForeign"><span class="annot"><span class="annottext">callForeign :: forall a r. CDynFunc -&gt; Ptr (Ptr a) -&gt; Ptr r -&gt; IO ()
+</span><a href="Unison.Runtime.Foreign.Dynamic.html#callForeign"><span class="hs-identifier hs-var hs-var">callForeign</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CDynFunc"><span class="hs-identifier hs-type">CDynFunc</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Foreign.Dynamic.html#CSpec"><span class="hs-identifier hs-type">CSpec</span></a></span><span> </span><span id="local-6989586621680701281"><span class="annot"><span class="annottext">ForeignPtr CIF
+</span><a href="#local-6989586621680701281"><span class="hs-identifier hs-var">cInterface</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FFSpec
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680701282"><span class="annot"><span class="annottext">FunPtr a
+</span><a href="#local-6989586621680701282"><span class="hs-identifier hs-var">fun</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680701283"><span class="annot"><span class="annottext">Ptr (Ptr a)
+</span><a href="#local-6989586621680701283"><span class="hs-identifier hs-var">cArgs</span></a></span></span><span> </span><span id="local-6989586621680701284"><span class="annot"><span class="annottext">Ptr r
+</span><a href="#local-6989586621680701284"><span class="hs-identifier hs-var">cRet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-139"></span><span>  </span><span class="annot"><span class="annottext">ForeignPtr CIF -&gt; (Ptr CIF -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr CIF
+</span><a href="#local-6989586621680701281"><span class="hs-identifier hs-var">cInterface</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680701285"><span class="annot"><span class="annottext">Ptr CIF
+</span><a href="#local-6989586621680701285"><span class="hs-identifier hs-var">cif</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-140"></span><span>    </span><span class="annot"><span class="annottext">Ptr CIF -&gt; FunPtr a -&gt; Ptr CValue -&gt; Ptr (Ptr CValue) -&gt; IO ()
+forall a.
+Ptr CIF -&gt; FunPtr a -&gt; Ptr CValue -&gt; Ptr (Ptr CValue) -&gt; IO ()
+</span><span class="hs-identifier hs-var">ffi_call</span></span><span> </span><span class="annot"><span class="annottext">Ptr CIF
+</span><a href="#local-6989586621680701285"><span class="hs-identifier hs-var">cif</span></a></span><span> </span><span class="annot"><span class="annottext">FunPtr a
+</span><a href="#local-6989586621680701282"><span class="hs-identifier hs-var">fun</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr r -&gt; Ptr CValue
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr r
+</span><a href="#local-6989586621680701284"><span class="hs-identifier hs-var">cRet</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr (Ptr a) -&gt; Ptr (Ptr CValue)
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr a)
+</span><a href="#local-6989586621680701283"><span class="hs-identifier hs-var">cArgs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span></pre></body></html>

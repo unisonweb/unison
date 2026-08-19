@@ -1,0 +1,243 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.LSP.DocumentSymbols.html"><span class="hs-identifier">Unison.LSP.DocumentSymbols</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.LSP.DocumentSymbols.html#documentSymbolsHandler"><span class="hs-identifier">documentSymbolsHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">List</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Lens</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">error</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Message</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Msg</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.FileAnalysis.html"><span class="hs-identifier">Unison.LSP.FileAnalysis</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.FileAnalysis.html"><span class="hs-identifier">Unison.LSP.FileAnalysis</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">FileAnalysis</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html"><span class="hs-identifier">Unison.LSP.Types</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnv</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PrettyPrintEnv</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnvDecl</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPED</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Syntax.Name</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Name</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Syntax.TypePrinter</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TypePrinter</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Pretty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Pretty</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><span class="hs-comment">-- | Go to Definition handler</span></span><span>
+</span><span id="line-21"></span><span id="local-6989586621681567588"><span class="annot"><a href="Unison.LSP.DocumentSymbols.html#documentSymbolsHandler"><span class="hs-identifier hs-type">documentSymbolsHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Msg.TRequestMessage</span></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_TextDocumentDocumentSymbol</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.TResponseError</span></span><span> </span><span class="annot"><a href="#local-6989586621681567588"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.MessageResult</span></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_TextDocumentDocumentSymbol</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-22"></span><span id="documentSymbolsHandler"><span class="annot"><span class="annottext">documentSymbolsHandler :: forall {f :: MessageDirection} (m :: Method f 'Request).
+TRequestMessage 'Method_TextDocumentDocumentSymbol
+-&gt; (Either
+      (TResponseError m)
+      (MessageResult 'Method_TextDocumentDocumentSymbol)
+    -&gt; Lsp ())
+-&gt; Lsp ()
+</span><a href="Unison.LSP.DocumentSymbols.html#documentSymbolsHandler"><span class="hs-identifier hs-var hs-var">documentSymbolsHandler</span></a></span></span><span> </span><span id="local-6989586621681567728"><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDocumentSymbol
+</span><a href="#local-6989586621681567728"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621681567729"><span class="annot"><span class="annottext">Either
+  (TResponseError m)
+  (MessageResult 'Method_TextDocumentDocumentSymbol)
+-&gt; Lsp ()
+</span><a href="#local-6989586621681567729"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-23"></span><span>  </span><span class="annot"><span class="annottext">Either
+  (TResponseError m)
+  ([SymbolInformation] |? ([DocumentSymbol] |? Null))
+-&gt; Lsp ()
+Either
+  (TResponseError m)
+  (MessageResult 'Method_TextDocumentDocumentSymbol)
+-&gt; Lsp ()
+</span><a href="#local-6989586621681567729"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(Either
+   (TResponseError m)
+   ([SymbolInformation] |? ([DocumentSymbol] |? Null))
+ -&gt; Lsp ())
+-&gt; (Maybe [DocumentSymbol]
+    -&gt; Either
+         (TResponseError m)
+         ([SymbolInformation] |? ([DocumentSymbol] |? Null)))
+-&gt; Maybe [DocumentSymbol]
+-&gt; Lsp ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([SymbolInformation] |? ([DocumentSymbol] |? Null))
+-&gt; Either
+     (TResponseError m)
+     ([SymbolInformation] |? ([DocumentSymbol] |? Null))
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(([SymbolInformation] |? ([DocumentSymbol] |? Null))
+ -&gt; Either
+      (TResponseError m)
+      ([SymbolInformation] |? ([DocumentSymbol] |? Null)))
+-&gt; (Maybe [DocumentSymbol]
+    -&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null))
+-&gt; Maybe [DocumentSymbol]
+-&gt; Either
+     (TResponseError m)
+     ([SymbolInformation] |? ([DocumentSymbol] |? Null))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([SymbolInformation] |? ([DocumentSymbol] |? Null))
+-&gt; ([DocumentSymbol]
+    -&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null))
+-&gt; Maybe [DocumentSymbol]
+-&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null)
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([DocumentSymbol] |? Null)
+-&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null)
+forall a b. b -&gt; a |? b
+</span><span class="hs-identifier hs-var">InR</span></span><span> </span><span class="annot"><span class="annottext">(([DocumentSymbol] |? Null)
+ -&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null))
+-&gt; ([DocumentSymbol] -&gt; [DocumentSymbol] |? Null)
+-&gt; [DocumentSymbol]
+-&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[DocumentSymbol] -&gt; [DocumentSymbol] |? Null
+forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">InL</span></span><span> </span><span class="annot"><span class="annottext">([DocumentSymbol]
+ -&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null))
+-&gt; [DocumentSymbol]
+-&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([DocumentSymbol] |? Null)
+-&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null)
+forall a b. b -&gt; a |? b
+</span><span class="hs-identifier hs-var">InR</span></span><span> </span><span class="annot"><span class="annottext">(([DocumentSymbol] |? Null)
+ -&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null))
+-&gt; ([DocumentSymbol] -&gt; [DocumentSymbol] |? Null)
+-&gt; [DocumentSymbol]
+-&gt; [SymbolInformation] |? ([DocumentSymbol] |? Null)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[DocumentSymbol] -&gt; [DocumentSymbol] |? Null
+forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">InL</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe [DocumentSymbol] -&gt; Lsp ())
+-&gt; Lsp (Maybe [DocumentSymbol]) -&gt; Lsp ()
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">MaybeT Lsp [DocumentSymbol] -&gt; Lsp (Maybe [DocumentSymbol])
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><span class="hs-identifier hs-var">runMaybeT</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681567736"><span class="annot"><span class="annottext">fileUri :: Uri
+</span><a href="#local-6989586621681567736"><span class="hs-identifier hs-var hs-var hs-var">fileUri</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDocumentSymbol
+</span><a href="#local-6989586621681567728"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDocumentSymbol
+-&gt; Getting
+     Uri (TRequestMessage 'Method_TextDocumentDocumentSymbol) Uri
+-&gt; Uri
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">(DocumentSymbolParams -&gt; Const Uri DocumentSymbolParams)
+-&gt; TRequestMessage 'Method_TextDocumentDocumentSymbol
+-&gt; Const Uri (TRequestMessage 'Method_TextDocumentDocumentSymbol)
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage 'Method_TextDocumentDocumentSymbol)
+  DocumentSymbolParams
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">((DocumentSymbolParams -&gt; Const Uri DocumentSymbolParams)
+ -&gt; TRequestMessage 'Method_TextDocumentDocumentSymbol
+ -&gt; Const Uri (TRequestMessage 'Method_TextDocumentDocumentSymbol))
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; DocumentSymbolParams -&gt; Const Uri DocumentSymbolParams)
+-&gt; Getting
+     Uri (TRequestMessage 'Method_TextDocumentDocumentSymbol) Uri
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; DocumentSymbolParams -&gt; Const Uri DocumentSymbolParams
+forall s a. HasTextDocument s a =&gt; Lens' s a
+Lens' DocumentSymbolParams TextDocumentIdentifier
+</span><span class="hs-identifier hs-var">textDocument</span></span><span> </span><span class="annot"><span class="annottext">((TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+ -&gt; DocumentSymbolParams -&gt; Const Uri DocumentSymbolParams)
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; (Uri -&gt; Const Uri Uri)
+-&gt; DocumentSymbolParams
+-&gt; Const Uri DocumentSymbolParams
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Uri -&gt; Const Uri Uri)
+-&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier
+forall s a. HasUri s a =&gt; Lens' s a
+Lens' TextDocumentIdentifier Uri
+</span><span class="hs-identifier hs-var">uri</span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="Unison.LSP.Types.html#FileAnalysis"><span class="hs-identifier hs-type">FileAnalysis</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681567742"><span class="annot"><a href="#local-6989586621681567742"><span class="hs-identifier hs-var hs-var">documentSymbols</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Uri -&gt; MaybeT Lsp FileAnalysis
+forall (m :: * -&gt; *). Lspish m =&gt; Uri -&gt; MaybeT m FileAnalysis
+</span><a href="Unison.LSP.FileAnalysis.html#getFileAnalysis"><span class="hs-identifier hs-var">FileAnalysis.getFileAnalysis</span></a></span><span> </span><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621681567736"><span class="hs-identifier hs-var">fileUri</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span id="local-6989586621681567745"><span class="annot"><a href="#local-6989586621681567745"><span class="hs-identifier hs-var">ppe</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-var">PPED.suffixifiedPPE</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.FileAnalysis.html#ppedForFile"><span class="hs-identifier hs-type">ppedForFile</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567736"><span class="hs-identifier hs-type">fileUri</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.DocumentSymbols.html#asLspDocumentSymbols"><span class="hs-identifier hs-type">asLspDocumentSymbols</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567745"><span class="hs-identifier hs-type">ppe</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621681567742"><span class="hs-identifier hs-type">documentSymbols</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Unison.LSP.DocumentSymbols.html#asLspDocumentSymbols"><span class="hs-identifier hs-type">asLspDocumentSymbols</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnv</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#UDocumentSymbol"><span class="hs-identifier hs-type">UDocumentSymbol</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DocumentSymbol</span></span><span>
+</span><span id="line-30"></span><span id="asLspDocumentSymbols"><span class="annot"><span class="annottext">asLspDocumentSymbols :: PrettyPrintEnv -&gt; UDocumentSymbol -&gt; DocumentSymbol
+</span><a href="Unison.LSP.DocumentSymbols.html#asLspDocumentSymbols"><span class="hs-identifier hs-var hs-var">asLspDocumentSymbols</span></a></span></span><span>
+</span><span id="line-31"></span><span>  </span><span id="local-6989586621681567751"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621681567751"><span class="hs-identifier hs-var">ppe</span></a></span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><a href="Unison.LSP.Types.html#UDocumentSymbol"><span class="hs-identifier hs-type">UDocumentSymbol</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="local-6989586621681567753"><span class="annot"><span class="annottext">Name
+symbolName :: Name
+symbolName :: UDocumentSymbol -&gt; Name
+</span><a href="#local-6989586621681567753"><span class="hs-identifier hs-var hs-var">symbolName</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>      </span><span id="local-6989586621681567755"><span class="annot"><span class="annottext">Maybe (Type Symbol Ann)
+symbolSignature :: Maybe (Type Symbol Ann)
+symbolSignature :: UDocumentSymbol -&gt; Maybe (Type Symbol Ann)
+</span><a href="#local-6989586621681567755"><span class="hs-identifier hs-var hs-var">symbolSignature</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>      </span><span id="local-6989586621681567757"><span class="annot"><span class="annottext">USymbolKind
+symbolKind :: USymbolKind
+symbolKind :: UDocumentSymbol -&gt; USymbolKind
+</span><a href="#local-6989586621681567757"><span class="hs-identifier hs-var hs-var">symbolKind</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>      </span><span id="local-6989586621681567759"><span class="annot"><span class="annottext">Range
+symbolRange :: Range
+symbolRange :: UDocumentSymbol -&gt; Range
+</span><a href="#local-6989586621681567759"><span class="hs-identifier hs-var hs-var">symbolRange</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>      </span><span id="local-6989586621681567761"><span class="annot"><span class="annottext">[UDocumentSymbol]
+symbolChildren :: [UDocumentSymbol]
+symbolChildren :: UDocumentSymbol -&gt; [UDocumentSymbol]
+</span><a href="#local-6989586621681567761"><span class="hs-identifier hs-var hs-var">symbolChildren</span></a></span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">DocumentSymbol</span></span><span>
+</span><span id="line-40"></span><span>      </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">_name :: Text
+</span><span class="hs-identifier hs-var">_name</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Text
+</span><span class="hs-identifier hs-var">Name.toText</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681567753"><span class="hs-identifier hs-var">symbolName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="annottext">_detail :: Maybe Text
+</span><span class="hs-identifier hs-var">_detail</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-42"></span><span>          </span><span id="local-6989586621681567767"><span class="annot"><a href="#local-6989586621681567767"><span class="hs-identifier hs-var">typ</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe (Type Symbol Ann)
+</span><a href="#local-6989586621681567755"><span class="hs-identifier hs-var">symbolSignature</span></a></span><span>
+</span><span id="line-43"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-string">&quot;: &quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TypePrinter.prettyStr</span></span><span> </span><span class="annot"><a href="#local-6989586621681567769"><span class="hs-identifier hs-type">typeWidth</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567751"><span class="hs-identifier hs-type">ppe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567767"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><span class="annottext">_kind :: SymbolKind
+</span><span class="hs-identifier hs-var">_kind</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">USymbolKind -&gt; SymbolKind
+</span><a href="#local-6989586621681567771"><span class="hs-identifier hs-var">lspSymbolKind</span></a></span><span> </span><span class="annot"><span class="annottext">USymbolKind
+</span><a href="#local-6989586621681567757"><span class="hs-identifier hs-var">symbolKind</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>        </span><span class="annot"><span class="annottext">_tags :: Maybe [SymbolTag]
+</span><span class="hs-identifier hs-var">_tags</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SymbolTag] -&gt; Maybe [SymbolTag]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>        </span><span class="annot"><span class="annottext">_deprecated :: Maybe Bool
+</span><span class="hs-identifier hs-var">_deprecated</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>        </span><span class="annot"><span class="annottext">_range :: Range
+</span><span class="hs-identifier hs-var">_range</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621681567759"><span class="hs-identifier hs-var">symbolRange</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>        </span><span class="annot"><span class="annottext">_selectionRange :: Range
+</span><span class="hs-identifier hs-var">_selectionRange</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621681567759"><span class="hs-identifier hs-var">symbolRange</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>        </span><span class="annot"><span class="annottext">_children :: Maybe [DocumentSymbol]
+</span><span class="hs-identifier hs-var">_children</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[UDocumentSymbol] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[UDocumentSymbol]
+</span><a href="#local-6989586621681567761"><span class="hs-identifier hs-var">symbolChildren</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe [DocumentSymbol]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[DocumentSymbol] -&gt; Maybe [DocumentSymbol]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; UDocumentSymbol -&gt; DocumentSymbol
+</span><a href="Unison.LSP.DocumentSymbols.html#asLspDocumentSymbols"><span class="hs-identifier hs-var">asLspDocumentSymbols</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621681567751"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">(UDocumentSymbol -&gt; DocumentSymbol)
+-&gt; [UDocumentSymbol] -&gt; [DocumentSymbol]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[UDocumentSymbol]
+</span><a href="#local-6989586621681567761"><span class="hs-identifier hs-var">symbolChildren</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>      </span><span id="local-6989586621681567769"><span class="annot"><span class="annottext">typeWidth :: Width
+</span><a href="#local-6989586621681567769"><span class="hs-identifier hs-var hs-var">typeWidth</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Width
+</span><span class="hs-identifier hs-var">Pretty.Width</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">120</span></span><span>
+</span><span id="line-53"></span><span>      </span><span id="local-6989586621681567771"><span class="annot"><span class="annottext">lspSymbolKind :: USymbolKind -&gt; SymbolKind
+</span><a href="#local-6989586621681567771"><span class="hs-identifier hs-var hs-var">lspSymbolKind</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="annottext">USymbolKind
+</span><a href="Unison.LSP.Types.html#DataDeclSymbol"><span class="hs-identifier hs-var">DataDeclSymbol</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><span class="hs-identifier hs-var">SymbolKind_Class</span></span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="annottext">USymbolKind
+</span><a href="Unison.LSP.Types.html#EffectDeclSymbol"><span class="hs-identifier hs-var">EffectDeclSymbol</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><span class="hs-identifier hs-var">SymbolKind_Interface</span></span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><span class="annottext">USymbolKind
+</span><a href="Unison.LSP.Types.html#TermSymbol"><span class="hs-identifier hs-var">TermSymbol</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SymbolKind
+</span><span class="hs-identifier hs-var">SymbolKind_Function</span></span><span>
+</span><span id="line-57"></span></pre></body></html>

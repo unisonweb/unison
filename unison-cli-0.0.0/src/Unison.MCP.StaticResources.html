@@ -1,0 +1,87 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.MCP.StaticResources.html"><span class="hs-identifier">Unison.MCP.StaticResources</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.MCP.StaticResources.html#staticResources"><span class="hs-identifier">staticResources</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.MCP.StaticResources.html#unisonGuideText"><span class="hs-identifier">unisonGuideText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Map</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.MCP.Types</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.FileEmbed</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">embedProjectStringFile</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="annot"><a href="Unison.MCP.StaticResources.html#staticResources"><span class="hs-identifier hs-type">staticResources</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Resource</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ResourceContent</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span id="staticResources"><span class="annot"><span class="annottext">staticResources :: Map Text (Resource, ResourceContent)
+</span><a href="Unison.MCP.StaticResources.html#staticResources"><span class="hs-identifier hs-var hs-var">staticResources</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-17"></span><span>  </span><span class="annot"><span class="annottext">[(Text, (Resource, ResourceContent))]
+-&gt; Map Text (Resource, ResourceContent)
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Resource -&gt; Text
+</span><span class="hs-identifier hs-var">resourceUri</span></span><span> </span><span class="annot"><span class="annottext">(Resource -&gt; Text)
+-&gt; ((Resource, ResourceContent) -&gt; Resource)
+-&gt; (Resource, ResourceContent)
+-&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Resource, ResourceContent) -&gt; Resource
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">((Resource, ResourceContent) -&gt; Text)
+-&gt; (Resource, ResourceContent) -&gt; Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Resource, ResourceContent)
+</span><a href="Unison.MCP.StaticResources.html#unisonGuideResource"><span class="hs-identifier hs-var">unisonGuideResource</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(Resource, ResourceContent)
+</span><a href="Unison.MCP.StaticResources.html#unisonGuideResource"><span class="hs-identifier hs-var">unisonGuideResource</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><a href="Unison.MCP.StaticResources.html#unisonGuideText"><span class="hs-identifier hs-type">unisonGuideText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-22"></span><span id="unisonGuideText"><span class="annot"><span class="annottext">unisonGuideText :: Text
+</span><a href="Unison.MCP.StaticResources.html#unisonGuideText"><span class="hs-identifier hs-var hs-var">unisonGuideText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">$</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">embedProjectStringFile</span></span><span> </span><span class="annot"><span class="hs-string">&quot;src/Unison/MCP/StaticResources/unison-guide.md&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Unison.MCP.StaticResources.html#unisonGuideResource"><span class="hs-identifier hs-type">unisonGuideResource</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Resource</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ResourceContent</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span id="unisonGuideResource"><span class="annot"><span class="annottext">unisonGuideResource :: (Resource, ResourceContent)
+</span><a href="Unison.MCP.StaticResources.html#unisonGuideResource"><span class="hs-identifier hs-var hs-var">unisonGuideResource</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Resource</span></span><span>
+</span><span id="line-27"></span><span>      </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">resourceUri :: Text
+</span><span class="hs-identifier hs-var">resourceUri</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;file://unison-guide&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>        </span><span class="annot"><span class="annottext">resourceName :: Text
+</span><span class="hs-identifier hs-var">resourceName</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Unison Programming Guide&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>        </span><span class="annot"><span class="annottext">resourceDescription :: Maybe Text
+</span><a href="#local-6989586621681569523"><span class="hs-identifier hs-var">resourceDescription</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;A complete guide on how to program in Unison in Markdown format&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>        </span><span class="annot"><span class="annottext">resourceMimeType :: Maybe Text
+</span><a href="#local-6989586621681569524"><span class="hs-identifier hs-var">resourceMimeType</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;text/markdown&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>        </span><span class="annot"><span class="annottext">resourceTemplate :: Maybe Text
+</span><a href="#local-6989586621681569525"><span class="hs-identifier hs-var">resourceTemplate</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-32"></span><span>      </span><span class="hs-special">}</span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">ResourceContent</span></span><span>
+</span><span id="line-34"></span><span>      </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">resourceContentUri :: Text
+</span><a href="#local-6989586621681569527"><span class="hs-identifier hs-var">resourceContentUri</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;file://unison-guide&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>        </span><span class="annot"><span class="annottext">resourceContentMimeType :: Maybe Text
+</span><a href="#local-6989586621681569528"><span class="hs-identifier hs-var">resourceContentMimeType</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;text/markdown&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>        </span><span class="annot"><span class="annottext">resourceContentText :: Maybe Text
+</span><a href="#local-6989586621681569529"><span class="hs-identifier hs-var">resourceContentText</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="Unison.MCP.StaticResources.html#unisonGuideText"><span class="hs-identifier hs-var">unisonGuideText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><span class="annottext">resourceContentBlob :: Maybe Text
+</span><a href="#local-6989586621681569530"><span class="hs-identifier hs-var">resourceContentBlob</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-38"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span></pre></body></html>

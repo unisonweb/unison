@@ -1,0 +1,301 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html"><span class="hs-identifier">Unison.Codebase.Branch.BranchDiff</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#BranchDiff"><span class="hs-identifier">BranchDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#diff0"><span class="hs-identifier">diff0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.html"><span class="hs-identifier">Unison.Codebase.Branch</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Branch.Type.html#Branch0"><span class="hs-identifier">Branch0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.html"><span class="hs-identifier">Unison.Codebase.Branch</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Metadata.html"><span class="hs-identifier">Unison.Codebase.Metadata</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Metadata</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.NameSegment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NameSegment</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Referent</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Util.Star2.html"><span class="hs-identifier">Unison.Util.Star2</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Star2</span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">type</span><span> </span><span id="Star"><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#Star"><span class="hs-identifier hs-var">Star</span></a></span></span><span> </span><span id="local-6989586621680688786"><span class="annot"><a href="#local-6989586621680688786"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span id="local-6989586621680688787"><span class="annot"><a href="#local-6989586621680688787"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Unison.Codebase.Metadata.html#Star"><span class="hs-identifier hs-type">Metadata.Star</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680688786"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680688787"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Represents a shallow diff of a Branch0.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Each of these `Star`s contain metadata as well, so an entry in</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- `added` or `removed` could be an update to the metadata.</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">data</span><span> </span><span id="BranchDiff"><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#BranchDiff"><span class="hs-identifier hs-var">BranchDiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="BranchDiff"><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#BranchDiff"><span class="hs-identifier hs-var">BranchDiff</span></a></span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="addedTerms"><span class="annot"><span class="annottext">BranchDiff -&gt; Star Referent NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#addedTerms"><span class="hs-identifier hs-var hs-var">addedTerms</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#Star"><span class="hs-identifier hs-type">Star</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span id="removedTerms"><span class="annot"><span class="annottext">BranchDiff -&gt; Star Referent NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#removedTerms"><span class="hs-identifier hs-var hs-var">removedTerms</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#Star"><span class="hs-identifier hs-type">Star</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span id="addedTypes"><span class="annot"><span class="annottext">BranchDiff -&gt; Star Reference NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#addedTypes"><span class="hs-identifier hs-var hs-var">addedTypes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#Star"><span class="hs-identifier hs-type">Star</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span id="removedTypes"><span class="annot"><span class="annottext">BranchDiff -&gt; Star Reference NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#removedTypes"><span class="hs-identifier hs-var hs-var">removedTypes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#Star"><span class="hs-identifier hs-type">Star</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680688795"><span id="local-6989586621680688806"><span class="annot"><span class="annottext">BranchDiff -&gt; BranchDiff -&gt; Bool
+(BranchDiff -&gt; BranchDiff -&gt; Bool)
+-&gt; (BranchDiff -&gt; BranchDiff -&gt; Bool) -&gt; Eq BranchDiff
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: BranchDiff -&gt; BranchDiff -&gt; Bool
+== :: BranchDiff -&gt; BranchDiff -&gt; Bool
+$c/= :: BranchDiff -&gt; BranchDiff -&gt; Bool
+/= :: BranchDiff -&gt; BranchDiff -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680688820"><span id="local-6989586621680688831"><span id="local-6989586621680688841"><span id="local-6989586621680688845"><span id="local-6989586621680688848"><span id="local-6989586621680688851"><span id="local-6989586621680688854"><span class="annot"><span class="annottext">Eq BranchDiff
+Eq BranchDiff =&gt;
+(BranchDiff -&gt; BranchDiff -&gt; Ordering)
+-&gt; (BranchDiff -&gt; BranchDiff -&gt; Bool)
+-&gt; (BranchDiff -&gt; BranchDiff -&gt; Bool)
+-&gt; (BranchDiff -&gt; BranchDiff -&gt; Bool)
+-&gt; (BranchDiff -&gt; BranchDiff -&gt; Bool)
+-&gt; (BranchDiff -&gt; BranchDiff -&gt; BranchDiff)
+-&gt; (BranchDiff -&gt; BranchDiff -&gt; BranchDiff)
+-&gt; Ord BranchDiff
+BranchDiff -&gt; BranchDiff -&gt; Bool
+BranchDiff -&gt; BranchDiff -&gt; Ordering
+BranchDiff -&gt; BranchDiff -&gt; BranchDiff
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: BranchDiff -&gt; BranchDiff -&gt; Ordering
+compare :: BranchDiff -&gt; BranchDiff -&gt; Ordering
+$c&lt; :: BranchDiff -&gt; BranchDiff -&gt; Bool
+&lt; :: BranchDiff -&gt; BranchDiff -&gt; Bool
+$c&lt;= :: BranchDiff -&gt; BranchDiff -&gt; Bool
+&lt;= :: BranchDiff -&gt; BranchDiff -&gt; Bool
+$c&gt; :: BranchDiff -&gt; BranchDiff -&gt; Bool
+&gt; :: BranchDiff -&gt; BranchDiff -&gt; Bool
+$c&gt;= :: BranchDiff -&gt; BranchDiff -&gt; Bool
+&gt;= :: BranchDiff -&gt; BranchDiff -&gt; Bool
+$cmax :: BranchDiff -&gt; BranchDiff -&gt; BranchDiff
+max :: BranchDiff -&gt; BranchDiff -&gt; BranchDiff
+$cmin :: BranchDiff -&gt; BranchDiff -&gt; BranchDiff
+min :: BranchDiff -&gt; BranchDiff -&gt; BranchDiff
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680688871"><span id="local-6989586621680688884"><span id="local-6989586621680688888"><span class="annot"><span class="annottext">Int -&gt; BranchDiff -&gt; ShowS
+[BranchDiff] -&gt; ShowS
+BranchDiff -&gt; String
+(Int -&gt; BranchDiff -&gt; ShowS)
+-&gt; (BranchDiff -&gt; String)
+-&gt; ([BranchDiff] -&gt; ShowS)
+-&gt; Show BranchDiff
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; BranchDiff -&gt; ShowS
+showsPrec :: Int -&gt; BranchDiff -&gt; ShowS
+$cshow :: BranchDiff -&gt; String
+show :: BranchDiff -&gt; String
+$cshowList :: [BranchDiff] -&gt; ShowS
+showList :: [BranchDiff] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span id="local-6989586621680688760"><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#diff0"><span class="hs-identifier hs-type">diff0</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.Type.html#Branch0"><span class="hs-identifier hs-type">Branch0</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680688760"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.Type.html#Branch0"><span class="hs-identifier hs-type">Branch0</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680688760"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#BranchDiff"><span class="hs-identifier hs-type">BranchDiff</span></a></span></span><span>
+</span><span id="line-30"></span><span id="diff0"><span class="annot"><span class="annottext">diff0 :: forall (m :: * -&gt; *). Branch0 m -&gt; Branch0 m -&gt; BranchDiff
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#diff0"><span class="hs-identifier hs-var hs-var">diff0</span></a></span></span><span> </span><span id="local-6989586621680688923"><span class="annot"><span class="annottext">Branch0 m
+</span><a href="#local-6989586621680688923"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span id="local-6989586621680688924"><span class="annot"><span class="annottext">Branch0 m
+</span><a href="#local-6989586621680688924"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#BranchDiff"><span class="hs-identifier hs-type">BranchDiff</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">addedTerms :: Star Referent NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#addedTerms"><span class="hs-identifier hs-var">addedTerms</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Star Referent NameSegment
+-&gt; Star Referent NameSegment -&gt; Star Referent NameSegment
+forall fact d1 d2.
+(Ord fact, Ord d1, Ord d2) =&gt;
+Star2 fact d1 d2 -&gt; Star2 fact d1 d2 -&gt; Star2 fact d1 d2
+</span><a href="Unison.Util.Star2.html#difference"><span class="hs-identifier hs-var">Star2.difference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch0 m
+</span><a href="#local-6989586621680688924"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Branch0 m
+-&gt; Getting
+     (Star Referent NameSegment) (Branch0 m) (Star Referent NameSegment)
+-&gt; Star Referent NameSegment
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (Star Referent NameSegment) (Branch0 m) (Star Referent NameSegment)
+forall (m :: * -&gt; *) (f :: * -&gt; *).
+Functor f =&gt;
+(Star Referent NameSegment -&gt; f (Star Referent NameSegment))
+-&gt; Branch0 m -&gt; f (Branch0 m)
+</span><a href="Unison.Codebase.Branch.Type.html#terms_"><span class="hs-identifier hs-var">Branch.terms_</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch0 m
+</span><a href="#local-6989586621680688923"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Branch0 m
+-&gt; Getting
+     (Star Referent NameSegment) (Branch0 m) (Star Referent NameSegment)
+-&gt; Star Referent NameSegment
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (Star Referent NameSegment) (Branch0 m) (Star Referent NameSegment)
+forall (m :: * -&gt; *) (f :: * -&gt; *).
+Functor f =&gt;
+(Star Referent NameSegment -&gt; f (Star Referent NameSegment))
+-&gt; Branch0 m -&gt; f (Branch0 m)
+</span><a href="Unison.Codebase.Branch.Type.html#terms_"><span class="hs-identifier hs-var">Branch.terms_</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>      </span><span class="annot"><span class="annottext">removedTerms :: Star Referent NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#removedTerms"><span class="hs-identifier hs-var">removedTerms</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Star Referent NameSegment
+-&gt; Star Referent NameSegment -&gt; Star Referent NameSegment
+forall fact d1 d2.
+(Ord fact, Ord d1, Ord d2) =&gt;
+Star2 fact d1 d2 -&gt; Star2 fact d1 d2 -&gt; Star2 fact d1 d2
+</span><a href="Unison.Util.Star2.html#difference"><span class="hs-identifier hs-var">Star2.difference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch0 m
+</span><a href="#local-6989586621680688923"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Branch0 m
+-&gt; Getting
+     (Star Referent NameSegment) (Branch0 m) (Star Referent NameSegment)
+-&gt; Star Referent NameSegment
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (Star Referent NameSegment) (Branch0 m) (Star Referent NameSegment)
+forall (m :: * -&gt; *) (f :: * -&gt; *).
+Functor f =&gt;
+(Star Referent NameSegment -&gt; f (Star Referent NameSegment))
+-&gt; Branch0 m -&gt; f (Branch0 m)
+</span><a href="Unison.Codebase.Branch.Type.html#terms_"><span class="hs-identifier hs-var">Branch.terms_</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch0 m
+</span><a href="#local-6989586621680688924"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Branch0 m
+-&gt; Getting
+     (Star Referent NameSegment) (Branch0 m) (Star Referent NameSegment)
+-&gt; Star Referent NameSegment
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (Star Referent NameSegment) (Branch0 m) (Star Referent NameSegment)
+forall (m :: * -&gt; *) (f :: * -&gt; *).
+Functor f =&gt;
+(Star Referent NameSegment -&gt; f (Star Referent NameSegment))
+-&gt; Branch0 m -&gt; f (Branch0 m)
+</span><a href="Unison.Codebase.Branch.Type.html#terms_"><span class="hs-identifier hs-var">Branch.terms_</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>      </span><span class="annot"><span class="annottext">addedTypes :: Star Reference NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#addedTypes"><span class="hs-identifier hs-var">addedTypes</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Star Reference NameSegment
+-&gt; Star Reference NameSegment -&gt; Star Reference NameSegment
+forall fact d1 d2.
+(Ord fact, Ord d1, Ord d2) =&gt;
+Star2 fact d1 d2 -&gt; Star2 fact d1 d2 -&gt; Star2 fact d1 d2
+</span><a href="Unison.Util.Star2.html#difference"><span class="hs-identifier hs-var">Star2.difference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch0 m
+</span><a href="#local-6989586621680688924"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Branch0 m
+-&gt; Getting
+     (Star Reference NameSegment)
+     (Branch0 m)
+     (Star Reference NameSegment)
+-&gt; Star Reference NameSegment
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (Star Reference NameSegment)
+  (Branch0 m)
+  (Star Reference NameSegment)
+forall (m :: * -&gt; *) (f :: * -&gt; *).
+Functor f =&gt;
+(Star Reference NameSegment -&gt; f (Star Reference NameSegment))
+-&gt; Branch0 m -&gt; f (Branch0 m)
+</span><a href="Unison.Codebase.Branch.Type.html#types_"><span class="hs-identifier hs-var">Branch.types_</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch0 m
+</span><a href="#local-6989586621680688923"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Branch0 m
+-&gt; Getting
+     (Star Reference NameSegment)
+     (Branch0 m)
+     (Star Reference NameSegment)
+-&gt; Star Reference NameSegment
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (Star Reference NameSegment)
+  (Branch0 m)
+  (Star Reference NameSegment)
+forall (m :: * -&gt; *) (f :: * -&gt; *).
+Functor f =&gt;
+(Star Reference NameSegment -&gt; f (Star Reference NameSegment))
+-&gt; Branch0 m -&gt; f (Branch0 m)
+</span><a href="Unison.Codebase.Branch.Type.html#types_"><span class="hs-identifier hs-var">Branch.types_</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><span class="annottext">removedTypes :: Star Reference NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#removedTypes"><span class="hs-identifier hs-var">removedTypes</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Star Reference NameSegment
+-&gt; Star Reference NameSegment -&gt; Star Reference NameSegment
+forall fact d1 d2.
+(Ord fact, Ord d1, Ord d2) =&gt;
+Star2 fact d1 d2 -&gt; Star2 fact d1 d2 -&gt; Star2 fact d1 d2
+</span><a href="Unison.Util.Star2.html#difference"><span class="hs-identifier hs-var">Star2.difference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch0 m
+</span><a href="#local-6989586621680688923"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Branch0 m
+-&gt; Getting
+     (Star Reference NameSegment)
+     (Branch0 m)
+     (Star Reference NameSegment)
+-&gt; Star Reference NameSegment
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (Star Reference NameSegment)
+  (Branch0 m)
+  (Star Reference NameSegment)
+forall (m :: * -&gt; *) (f :: * -&gt; *).
+Functor f =&gt;
+(Star Reference NameSegment -&gt; f (Star Reference NameSegment))
+-&gt; Branch0 m -&gt; f (Branch0 m)
+</span><a href="Unison.Codebase.Branch.Type.html#types_"><span class="hs-identifier hs-var">Branch.types_</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch0 m
+</span><a href="#local-6989586621680688924"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Branch0 m
+-&gt; Getting
+     (Star Reference NameSegment)
+     (Branch0 m)
+     (Star Reference NameSegment)
+-&gt; Star Reference NameSegment
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (Star Reference NameSegment)
+  (Branch0 m)
+  (Star Reference NameSegment)
+forall (m :: * -&gt; *) (f :: * -&gt; *).
+Functor f =&gt;
+(Star Reference NameSegment -&gt; f (Star Reference NameSegment))
+-&gt; Branch0 m -&gt; f (Branch0 m)
+</span><a href="Unison.Codebase.Branch.Type.html#types_"><span class="hs-identifier hs-var">Branch.types_</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680688931"><span id="local-6989586621680688935"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#BranchDiff"><span class="hs-identifier hs-type">BranchDiff</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621680688951"><span class="annot"><span class="annottext">BranchDiff
+</span><a href="#local-6989586621680688951"><span class="hs-identifier hs-var">left</span></a></span></span><span> </span><span id="local-6989586621680688952"><span class="annot"><span class="annottext">&lt;&gt; :: BranchDiff -&gt; BranchDiff -&gt; BranchDiff
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span id="local-6989586621680688953"><span class="annot"><span class="annottext">BranchDiff
+</span><a href="#local-6989586621680688953"><span class="hs-identifier hs-var">right</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#BranchDiff"><span class="hs-identifier hs-type">BranchDiff</span></a></span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">addedTerms :: Star Referent NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#addedTerms"><span class="hs-identifier hs-var">addedTerms</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BranchDiff -&gt; Star Referent NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#addedTerms"><span class="hs-identifier hs-var">addedTerms</span></a></span><span> </span><span class="annot"><span class="annottext">BranchDiff
+</span><a href="#local-6989586621680688951"><span class="hs-identifier hs-var">left</span></a></span><span> </span><span class="annot"><span class="annottext">Star Referent NameSegment
+-&gt; Star Referent NameSegment -&gt; Star Referent NameSegment
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">BranchDiff -&gt; Star Referent NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#addedTerms"><span class="hs-identifier hs-var">addedTerms</span></a></span><span> </span><span class="annot"><span class="annottext">BranchDiff
+</span><a href="#local-6989586621680688953"><span class="hs-identifier hs-var">right</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>        </span><span class="annot"><span class="annottext">removedTerms :: Star Referent NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#removedTerms"><span class="hs-identifier hs-var">removedTerms</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BranchDiff -&gt; Star Referent NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#removedTerms"><span class="hs-identifier hs-var">removedTerms</span></a></span><span> </span><span class="annot"><span class="annottext">BranchDiff
+</span><a href="#local-6989586621680688951"><span class="hs-identifier hs-var">left</span></a></span><span> </span><span class="annot"><span class="annottext">Star Referent NameSegment
+-&gt; Star Referent NameSegment -&gt; Star Referent NameSegment
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">BranchDiff -&gt; Star Referent NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#removedTerms"><span class="hs-identifier hs-var">removedTerms</span></a></span><span> </span><span class="annot"><span class="annottext">BranchDiff
+</span><a href="#local-6989586621680688953"><span class="hs-identifier hs-var">right</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><span class="annottext">addedTypes :: Star Reference NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#addedTypes"><span class="hs-identifier hs-var">addedTypes</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BranchDiff -&gt; Star Reference NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#addedTypes"><span class="hs-identifier hs-var">addedTypes</span></a></span><span> </span><span class="annot"><span class="annottext">BranchDiff
+</span><a href="#local-6989586621680688951"><span class="hs-identifier hs-var">left</span></a></span><span> </span><span class="annot"><span class="annottext">Star Reference NameSegment
+-&gt; Star Reference NameSegment -&gt; Star Reference NameSegment
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">BranchDiff -&gt; Star Reference NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#addedTypes"><span class="hs-identifier hs-var">addedTypes</span></a></span><span> </span><span class="annot"><span class="annottext">BranchDiff
+</span><a href="#local-6989586621680688953"><span class="hs-identifier hs-var">right</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><span class="annottext">removedTypes :: Star Reference NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#removedTypes"><span class="hs-identifier hs-var">removedTypes</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BranchDiff -&gt; Star Reference NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#removedTypes"><span class="hs-identifier hs-var">removedTypes</span></a></span><span> </span><span class="annot"><span class="annottext">BranchDiff
+</span><a href="#local-6989586621680688951"><span class="hs-identifier hs-var">left</span></a></span><span> </span><span class="annot"><span class="annottext">Star Reference NameSegment
+-&gt; Star Reference NameSegment -&gt; Star Reference NameSegment
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">BranchDiff -&gt; Star Reference NameSegment
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#removedTypes"><span class="hs-identifier hs-var">removedTypes</span></a></span><span> </span><span class="annot"><span class="annottext">BranchDiff
+</span><a href="#local-6989586621680688953"><span class="hs-identifier hs-var">right</span></a></span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680688958"><span id="local-6989586621680688962"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Branch.BranchDiff.html#BranchDiff"><span class="hs-identifier hs-type">BranchDiff</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621680688976"><span class="annot"><span class="annottext">mempty :: BranchDiff
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Star Referent NameSegment
+-&gt; Star Referent NameSegment
+-&gt; Star Reference NameSegment
+-&gt; Star Reference NameSegment
+-&gt; BranchDiff
+</span><a href="Unison.Codebase.Branch.BranchDiff.html#BranchDiff"><span class="hs-identifier hs-var">BranchDiff</span></a></span><span> </span><span class="annot"><span class="annottext">Star Referent NameSegment
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="annot"><span class="annottext">Star Referent NameSegment
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="annot"><span class="annottext">Star Reference NameSegment
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="annot"><span class="annottext">Star Reference NameSegment
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-49"></span></pre></body></html>

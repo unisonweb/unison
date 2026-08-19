@@ -1,0 +1,68 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.KeyThumbprint.html"><span class="hs-identifier">Unison.KeyThumbprint</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.KeyThumbprint.html#KeyThumbprint"><span class="hs-identifier">KeyThumbprint</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">newtype</span><span> </span><span id="KeyThumbprint"><span class="annot"><a href="Unison.KeyThumbprint.html#KeyThumbprint"><span class="hs-identifier hs-var">KeyThumbprint</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="KeyThumbprint"><span class="annot"><a href="Unison.KeyThumbprint.html#KeyThumbprint"><span class="hs-identifier hs-var">KeyThumbprint</span></a></span></span><span> </span><span class="hs-special">{</span><span id="thumbprintToText"><span class="annot"><span class="annottext">KeyThumbprint -&gt; Text
+</span><a href="Unison.KeyThumbprint.html#thumbprintToText"><span class="hs-identifier hs-var hs-var">thumbprintToText</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">}</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679320989"><span id="local-6989586621679320995"><span id="local-6989586621679320999"><span class="annot"><span class="annottext">Int -&gt; KeyThumbprint -&gt; ShowS
+[KeyThumbprint] -&gt; ShowS
+KeyThumbprint -&gt; String
+(Int -&gt; KeyThumbprint -&gt; ShowS)
+-&gt; (KeyThumbprint -&gt; String)
+-&gt; ([KeyThumbprint] -&gt; ShowS)
+-&gt; Show KeyThumbprint
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; KeyThumbprint -&gt; ShowS
+showsPrec :: Int -&gt; KeyThumbprint -&gt; ShowS
+$cshow :: KeyThumbprint -&gt; String
+show :: KeyThumbprint -&gt; String
+$cshowList :: [KeyThumbprint] -&gt; ShowS
+showList :: [KeyThumbprint] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679321004"><span id="local-6989586621679321009"><span class="annot"><span class="annottext">KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+(KeyThumbprint -&gt; KeyThumbprint -&gt; Bool)
+-&gt; (KeyThumbprint -&gt; KeyThumbprint -&gt; Bool) -&gt; Eq KeyThumbprint
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+== :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+$c/= :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+/= :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679321018"><span id="local-6989586621679321023"><span id="local-6989586621679321027"><span id="local-6989586621679321031"><span id="local-6989586621679321035"><span id="local-6989586621679321039"><span id="local-6989586621679321043"><span class="annot"><span class="annottext">Eq KeyThumbprint
+Eq KeyThumbprint =&gt;
+(KeyThumbprint -&gt; KeyThumbprint -&gt; Ordering)
+-&gt; (KeyThumbprint -&gt; KeyThumbprint -&gt; Bool)
+-&gt; (KeyThumbprint -&gt; KeyThumbprint -&gt; Bool)
+-&gt; (KeyThumbprint -&gt; KeyThumbprint -&gt; Bool)
+-&gt; (KeyThumbprint -&gt; KeyThumbprint -&gt; Bool)
+-&gt; (KeyThumbprint -&gt; KeyThumbprint -&gt; KeyThumbprint)
+-&gt; (KeyThumbprint -&gt; KeyThumbprint -&gt; KeyThumbprint)
+-&gt; Ord KeyThumbprint
+KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+KeyThumbprint -&gt; KeyThumbprint -&gt; Ordering
+KeyThumbprint -&gt; KeyThumbprint -&gt; KeyThumbprint
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: KeyThumbprint -&gt; KeyThumbprint -&gt; Ordering
+compare :: KeyThumbprint -&gt; KeyThumbprint -&gt; Ordering
+$c&lt; :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+&lt; :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+$c&lt;= :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+&lt;= :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+$c&gt; :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+&gt; :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+$c&gt;= :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+&gt;= :: KeyThumbprint -&gt; KeyThumbprint -&gt; Bool
+$cmax :: KeyThumbprint -&gt; KeyThumbprint -&gt; KeyThumbprint
+max :: KeyThumbprint -&gt; KeyThumbprint -&gt; KeyThumbprint
+$cmin :: KeyThumbprint -&gt; KeyThumbprint -&gt; KeyThumbprint
+min :: KeyThumbprint -&gt; KeyThumbprint -&gt; KeyThumbprint
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span></pre></body></html>

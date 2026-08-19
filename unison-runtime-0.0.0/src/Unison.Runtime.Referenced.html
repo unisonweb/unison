@@ -1,0 +1,877 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE QuantifiedConstraints #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html"><span class="hs-identifier">Unison.Runtime.Referenced</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referenced"><span class="hs-identifier">Referenced</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#dereference"><span class="hs-identifier">dereference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referential"><span class="hs-identifier">Referential</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier">RefNum</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#CanonST"><span class="hs-identifier">CanonST</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#emptyCST"><span class="hs-identifier">emptyCST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Canonize"><span class="hs-identifier">Canonize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#resolveRef"><span class="hs-identifier">resolveRef</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#canonicalizeRefs"><span class="hs-identifier">canonicalizeRefs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#recanonicalizeRefs"><span class="hs-identifier">recanonicalizeRefs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#toReferenced"><span class="hs-identifier">toReferenced</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State.Strict</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">toList</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Const</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.HashMap.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HM</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hashable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Primitive.Array</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">arrayFromList</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">indexArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sizeofArray</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Seq</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(|&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ConstructorReference</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ReferentPrime</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html"><span class="hs-identifier">Unison.Runtime.Canonicalizer</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">lookup</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- A number for indexing into a list of common references.</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">newtype</span><span> </span><span id="RefNum"><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-var">RefNum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RefNum"><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-var">RefNum</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680705714"><span id="local-6989586621680705718"><span class="annot"><span class="annottext">RefNum -&gt; RefNum -&gt; Bool
+(RefNum -&gt; RefNum -&gt; Bool)
+-&gt; (RefNum -&gt; RefNum -&gt; Bool) -&gt; Eq RefNum
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: RefNum -&gt; RefNum -&gt; Bool
+== :: RefNum -&gt; RefNum -&gt; Bool
+$c/= :: RefNum -&gt; RefNum -&gt; Bool
+/= :: RefNum -&gt; RefNum -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680705725"><span id="local-6989586621680705729"><span id="local-6989586621680705732"><span id="local-6989586621680705736"><span id="local-6989586621680705739"><span id="local-6989586621680705742"><span id="local-6989586621680705745"><span class="annot"><span class="annottext">Eq RefNum
+Eq RefNum =&gt;
+(RefNum -&gt; RefNum -&gt; Ordering)
+-&gt; (RefNum -&gt; RefNum -&gt; Bool)
+-&gt; (RefNum -&gt; RefNum -&gt; Bool)
+-&gt; (RefNum -&gt; RefNum -&gt; Bool)
+-&gt; (RefNum -&gt; RefNum -&gt; Bool)
+-&gt; (RefNum -&gt; RefNum -&gt; RefNum)
+-&gt; (RefNum -&gt; RefNum -&gt; RefNum)
+-&gt; Ord RefNum
+RefNum -&gt; RefNum -&gt; Bool
+RefNum -&gt; RefNum -&gt; Ordering
+RefNum -&gt; RefNum -&gt; RefNum
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: RefNum -&gt; RefNum -&gt; Ordering
+compare :: RefNum -&gt; RefNum -&gt; Ordering
+$c&lt; :: RefNum -&gt; RefNum -&gt; Bool
+&lt; :: RefNum -&gt; RefNum -&gt; Bool
+$c&lt;= :: RefNum -&gt; RefNum -&gt; Bool
+&lt;= :: RefNum -&gt; RefNum -&gt; Bool
+$c&gt; :: RefNum -&gt; RefNum -&gt; Bool
+&gt; :: RefNum -&gt; RefNum -&gt; Bool
+$c&gt;= :: RefNum -&gt; RefNum -&gt; Bool
+&gt;= :: RefNum -&gt; RefNum -&gt; Bool
+$cmax :: RefNum -&gt; RefNum -&gt; RefNum
+max :: RefNum -&gt; RefNum -&gt; RefNum
+$cmin :: RefNum -&gt; RefNum -&gt; RefNum
+min :: RefNum -&gt; RefNum -&gt; RefNum
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680705753"><span id="local-6989586621680705758"><span id="local-6989586621680705762"><span class="annot"><span class="annottext">Int -&gt; RefNum -&gt; ShowS
+[RefNum] -&gt; ShowS
+RefNum -&gt; String
+(Int -&gt; RefNum -&gt; ShowS)
+-&gt; (RefNum -&gt; String) -&gt; ([RefNum] -&gt; ShowS) -&gt; Show RefNum
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; RefNum -&gt; ShowS
+showsPrec :: Int -&gt; RefNum -&gt; ShowS
+$cshow :: RefNum -&gt; String
+show :: RefNum -&gt; String
+$cshowList :: [RefNum] -&gt; ShowS
+showList :: [RefNum] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680705769"><span id="local-6989586621680705774"><span class="annot"><span class="annottext">Eq RefNum
+Eq RefNum =&gt;
+(Int -&gt; RefNum -&gt; Int) -&gt; (RefNum -&gt; Int) -&gt; Hashable RefNum
+Int -&gt; RefNum -&gt; Int
+RefNum -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; RefNum -&gt; Int
+hashWithSalt :: Int -&gt; RefNum -&gt; Int
+$chash :: RefNum -&gt; Int
+hash :: RefNum -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Unison.Runtime.Referenced.html#getRefNum"><span class="hs-identifier hs-type">getRefNum</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-39"></span><span id="getRefNum"><span class="annot"><span class="annottext">getRefNum :: RefNum -&gt; Int
+</span><a href="Unison.Runtime.Referenced.html#getRefNum"><span class="hs-identifier hs-var hs-var">getRefNum</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span id="local-6989586621680705782"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680705782"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680705782"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- A value with optional optimization information for serialization.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- The references are required for serialization V5, and are assumed</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- to be the only references used in the value _up to in-memory</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- uniqueness_.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- This is parameterized so that it can be used with both Value and</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- Code.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- Also note, the stored referenced might not be 'tight' in the sense</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- that they all actually occur in the value. Maintaining this</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- invariant together with actual canonicalization would be onerous</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- and isn't done at this time.</span><span>
+</span><span id="line-53"></span><span class="hs-keyword">data</span><span> </span><span id="Referenced"><span class="annot"><a href="Unison.Runtime.Referenced.html#Referenced"><span class="hs-identifier hs-var">Referenced</span></a></span></span><span> </span><span id="local-6989586621680705667"><span class="annot"><a href="#local-6989586621680705667"><span class="hs-identifier hs-type">t</span></a></span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">-- types, terms</span><span>
+</span><span id="line-55"></span><span>    </span><span id="WithRefs"><span class="annot"><a href="Unison.Runtime.Referenced.html#WithRefs"><span class="hs-identifier hs-var">WithRefs</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680705667"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Plain"><span class="annot"><a href="Unison.Runtime.Referenced.html#Plain"><span class="hs-identifier hs-var">Plain</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680705667"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680705534"><span id="local-6989586621680705788"><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680705533"><span class="annot"><a href="#local-6989586621680705533"><span class="hs-identifier hs-type">r</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621680705533"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680705534"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705533"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705534"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Plain"><span class="hs-identifier hs-type">Plain</span></a></span><span> </span><span id="local-6989586621680705804"><span class="annot"><span class="annottext">t Reference
+</span><a href="#local-6989586621680705804"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621680705805"><span class="annot"><span class="annottext">== :: Referenced t -&gt; Referenced t -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Plain"><span class="hs-identifier hs-type">Plain</span></a></span><span> </span><span id="local-6989586621680705806"><span class="annot"><span class="annottext">t Reference
+</span><a href="#local-6989586621680705806"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t Reference
+</span><a href="#local-6989586621680705804"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">t Reference -&gt; t Reference -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">t Reference
+</span><a href="#local-6989586621680705806"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Referenced.html#WithRefs"><span class="hs-identifier hs-type">WithRefs</span></a></span><span> </span><span id="local-6989586621680705807"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705807"><span class="hs-identifier hs-var">tysx</span></a></span></span><span> </span><span id="local-6989586621680705808"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705808"><span class="hs-identifier hs-var">tmsx</span></a></span></span><span> </span><span id="local-6989586621680705809"><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680705809"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#WithRefs"><span class="hs-identifier hs-type">WithRefs</span></a></span><span> </span><span id="local-6989586621680705810"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705810"><span class="hs-identifier hs-var">tysy</span></a></span></span><span> </span><span id="local-6989586621680705811"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705811"><span class="hs-identifier hs-var">tmsy</span></a></span></span><span> </span><span id="local-6989586621680705812"><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680705812"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705807"><span class="hs-identifier hs-var">tysx</span></a></span><span> </span><span class="annot"><span class="annottext">[Reference] -&gt; [Reference] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705810"><span class="hs-identifier hs-var">tysy</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705808"><span class="hs-identifier hs-var">tmsx</span></a></span><span> </span><span class="annot"><span class="annottext">[Reference] -&gt; [Reference] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705811"><span class="hs-identifier hs-var">tmsy</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680705809"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">t RefNum -&gt; t RefNum -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680705812"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="annottext">Referenced t
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Referenced t
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680705540"><span id="local-6989586621680705817"><span id="local-6989586621680705822"><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680705539"><span class="annot"><a href="#local-6989586621680705539"><span class="hs-identifier hs-type">r</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621680705539"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680705540"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705539"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705540"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621680705842"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; Referenced t -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></span></span><span> </span><span id="local-6989586621680705843"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680705843"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Plain"><span class="hs-identifier hs-type">Plain</span></a></span><span> </span><span id="local-6989586621680705844"><span class="annot"><span class="annottext">t Reference
+</span><a href="#local-6989586621680705844"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><span class="hs-identifier hs-var">showParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680705843"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Plain &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; t Reference -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">11</span></span><span> </span><span class="annot"><span class="annottext">t Reference
+</span><a href="#local-6989586621680705844"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Referenced.html#WithRefs"><span class="hs-identifier hs-type">WithRefs</span></a></span><span> </span><span id="local-6989586621680705848"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705848"><span class="hs-identifier hs-var">tys</span></a></span></span><span> </span><span id="local-6989586621680705849"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705849"><span class="hs-identifier hs-var">tms</span></a></span></span><span> </span><span id="local-6989586621680705850"><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680705850"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-68"></span><span>      </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><span class="hs-identifier hs-var">showParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680705843"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ShowS -&gt; ShowS) -&gt; ShowS -&gt; ShowS
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-69"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;WithRefs &quot;</span></span><span>
+</span><span id="line-70"></span><span>          </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Reference] -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705848"><span class="hs-identifier hs-var">tys</span></a></span><span>
+</span><span id="line-71"></span><span>          </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span>
+</span><span id="line-72"></span><span>          </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Reference] -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705849"><span class="hs-identifier hs-var">tms</span></a></span><span>
+</span><span id="line-73"></span><span>          </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span>
+</span><span id="line-74"></span><span>          </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; t RefNum -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">11</span></span><span> </span><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680705850"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- A class categorizing types that contain something like a codebase</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- reference, providing traversal functions over the references. The</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- difference between just being a Functor/Traversable is that</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- references may be either term or type references, and the</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- traversals make that information available.</span><span>
+</span><span id="line-81"></span><span class="hs-comment">--</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- In all cases, the boolean argument is 'is the reference a type,' so</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- `False` indicates a term reference and `True` indicates a type</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- reference.</span><span>
+</span><span id="line-85"></span><span class="hs-keyword">class</span><span> </span><span id="Referential"><span class="annot"><a href="Unison.Runtime.Referenced.html#Referential"><span class="hs-identifier hs-var">Referential</span></a></span></span><span> </span><span id="local-6989586621680705555"><span class="annot"><a href="#local-6989586621680705555"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>  </span><span id="overRefs"><span class="annot"><a href="Unison.Runtime.Referenced.html#overRefs"><span class="hs-identifier hs-type">overRefs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621680705553"><span id="local-6989586621680705554"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705553"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705554"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705555"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705553"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705555"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705554"><span class="hs-identifier hs-type">s</span></a></span></span></span><span>
+</span><span id="line-87"></span><span>  </span><span id="foldMapRefs"><span class="annot"><a href="Unison.Runtime.Referenced.html#foldMapRefs"><span class="hs-identifier hs-type">foldMapRefs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621680705565"><span id="local-6989586621680705566"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621680705565"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705566"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705565"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705555"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705566"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705565"><span class="hs-identifier hs-type">m</span></a></span></span></span><span>
+</span><span id="line-88"></span><span>  </span><span id="traverseRefs"><span class="annot"><a href="Unison.Runtime.Referenced.html#traverseRefs"><span class="hs-identifier hs-type">traverseRefs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621680705561"><span id="local-6989586621680705562"><span id="local-6989586621680705563"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621680705561"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705562"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705561"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705563"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705555"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705562"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705561"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680705555"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705563"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621680705856"><span class="annot"><a href="Unison.Runtime.Referenced.html#overRefs"><span class="hs-identifier hs-var hs-var">overRefs</span></a></span><span> </span><span id="local-6989586621680705860"><span class="annot"><span class="annottext">Bool -&gt; r -&gt; s
+</span><a href="#local-6989586621680705860"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity (t s) -&gt; t s
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">(Identity (t s) -&gt; t s) -&gt; (t r -&gt; Identity (t s)) -&gt; t r -&gt; t s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; r -&gt; Identity s) -&gt; t r -&gt; Identity (t s)
+forall (t :: * -&gt; *) (f :: * -&gt; *) r s.
+(Referential t, Applicative f) =&gt;
+(Bool -&gt; r -&gt; f s) -&gt; t r -&gt; f (t s)
+forall (f :: * -&gt; *) r s.
+Applicative f =&gt;
+(Bool -&gt; r -&gt; f s) -&gt; t r -&gt; f (t s)
+</span><a href="Unison.Runtime.Referenced.html#traverseRefs"><span class="hs-identifier hs-var">traverseRefs</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680705862"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705862"><span class="hs-identifier hs-var">isTy</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">s -&gt; Identity s
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="annot"><span class="annottext">(s -&gt; Identity s) -&gt; (r -&gt; s) -&gt; r -&gt; Identity s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; r -&gt; s
+</span><a href="#local-6989586621680705860"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705862"><span class="hs-identifier hs-var">isTy</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-91"></span><span>  </span><span id="local-6989586621680705864"><span class="annot"><a href="Unison.Runtime.Referenced.html#foldMapRefs"><span class="hs-identifier hs-var hs-var">foldMapRefs</span></a></span><span> </span><span id="local-6989586621680705869"><span class="annot"><span class="annottext">Bool -&gt; r -&gt; m
+</span><a href="#local-6989586621680705869"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Const m (t (ZonkAny 0)) -&gt; m
+forall {k} a (b :: k). Const a b -&gt; a
+</span><span class="hs-identifier hs-var">getConst</span></span><span> </span><span class="annot"><span class="annottext">(Const m (t (ZonkAny 0)) -&gt; m)
+-&gt; (t r -&gt; Const m (t (ZonkAny 0))) -&gt; t r -&gt; m
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; r -&gt; Const m (ZonkAny 0))
+-&gt; t r -&gt; Const m (t (ZonkAny 0))
+forall (t :: * -&gt; *) (f :: * -&gt; *) r s.
+(Referential t, Applicative f) =&gt;
+(Bool -&gt; r -&gt; f s) -&gt; t r -&gt; f (t s)
+forall (f :: * -&gt; *) r s.
+Applicative f =&gt;
+(Bool -&gt; r -&gt; f s) -&gt; t r -&gt; f (t s)
+</span><a href="Unison.Runtime.Referenced.html#traverseRefs"><span class="hs-identifier hs-var">traverseRefs</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680705871"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705871"><span class="hs-identifier hs-var">isTy</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m -&gt; Const m (ZonkAny 0)
+forall {k} a (b :: k). a -&gt; Const a b
+</span><span class="hs-identifier hs-var">Const</span></span><span> </span><span class="annot"><span class="annottext">(m -&gt; Const m (ZonkAny 0)) -&gt; (r -&gt; m) -&gt; r -&gt; Const m (ZonkAny 0)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; r -&gt; m
+</span><a href="#local-6989586621680705869"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705871"><span class="hs-identifier hs-var">isTy</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referential"><span class="hs-identifier hs-type">Referential</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent'</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-94"></span><span>  </span><span id="local-6989586621680705878"><span class="annot"><span class="annottext">overRefs :: forall r s. (Bool -&gt; r -&gt; s) -&gt; Referent' r -&gt; Referent' s
+</span><a href="Unison.Runtime.Referenced.html#overRefs"><span class="hs-identifier hs-var hs-var hs-var">overRefs</span></a></span></span><span> </span><span id="local-6989586621680705879"><span class="annot"><span class="annottext">Bool -&gt; r -&gt; s
+</span><a href="#local-6989586621680705879"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Con'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConstructorReference</span></span><span> </span><span id="local-6989586621680705882"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705882"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621680705883"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621680705883"><span class="hs-identifier hs-var">j</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680705884"><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621680705884"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-96"></span><span>      </span><span class="annot"><span class="annottext">GConstructorReference s -&gt; ConstructorType -&gt; Referent' s
+forall r. GConstructorReference r -&gt; ConstructorType -&gt; Referent' r
+</span><span class="hs-identifier hs-var">Con'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; ConstructorId -&gt; GConstructorReference s
+forall r. r -&gt; ConstructorId -&gt; GConstructorReference r
+</span><span class="hs-identifier hs-var">ConstructorReference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; r -&gt; s
+</span><a href="#local-6989586621680705879"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705882"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621680705883"><span class="hs-identifier hs-var">j</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621680705884"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Ref'</span></span><span> </span><span id="local-6989586621680705886"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705886"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">s -&gt; Referent' s
+forall r. r -&gt; Referent' r
+</span><span class="hs-identifier hs-var">Ref'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; r -&gt; s
+</span><a href="#local-6989586621680705879"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705886"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>  </span><span id="local-6989586621680705888"><span class="annot"><span class="annottext">foldMapRefs :: forall m r. Monoid m =&gt; (Bool -&gt; r -&gt; m) -&gt; Referent' r -&gt; m
+</span><a href="Unison.Runtime.Referenced.html#foldMapRefs"><span class="hs-identifier hs-var hs-var hs-var">foldMapRefs</span></a></span></span><span> </span><span id="local-6989586621680705889"><span class="annot"><span class="annottext">Bool -&gt; r -&gt; m
+</span><a href="#local-6989586621680705889"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Con'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConstructorReference</span></span><span> </span><span id="local-6989586621680705890"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705890"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorType
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; r -&gt; m
+</span><a href="#local-6989586621680705889"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705890"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-101"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Ref'</span></span><span> </span><span id="local-6989586621680705891"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705891"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; r -&gt; m
+</span><a href="#local-6989586621680705889"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705891"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621680705897"><span class="annot"><span class="annottext">traverseRefs :: forall (f :: * -&gt; *) r s.
+Applicative f =&gt;
+(Bool -&gt; r -&gt; f s) -&gt; Referent' r -&gt; f (Referent' s)
+</span><a href="Unison.Runtime.Referenced.html#traverseRefs"><span class="hs-identifier hs-var hs-var hs-var">traverseRefs</span></a></span></span><span> </span><span id="local-6989586621680705898"><span class="annot"><span class="annottext">Bool -&gt; r -&gt; f s
+</span><a href="#local-6989586621680705898"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Con'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConstructorReference</span></span><span> </span><span id="local-6989586621680705899"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705899"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621680705900"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621680705900"><span class="hs-identifier hs-var">j</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680705901"><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621680705901"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-105"></span><span>      </span><span class="annot"><span class="annottext">(GConstructorReference s -&gt; ConstructorType -&gt; Referent' s)
+-&gt; ConstructorType -&gt; GConstructorReference s -&gt; Referent' s
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">GConstructorReference s -&gt; ConstructorType -&gt; Referent' s
+forall r. GConstructorReference r -&gt; ConstructorType -&gt; Referent' r
+</span><span class="hs-identifier hs-var">Con'</span></span><span> </span><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621680705901"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">(GConstructorReference s -&gt; Referent' s)
+-&gt; (s -&gt; GConstructorReference s) -&gt; s -&gt; Referent' s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(s -&gt; ConstructorId -&gt; GConstructorReference s)
+-&gt; ConstructorId -&gt; s -&gt; GConstructorReference s
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; ConstructorId -&gt; GConstructorReference s
+forall r. r -&gt; ConstructorId -&gt; GConstructorReference r
+</span><span class="hs-identifier hs-var">ConstructorReference</span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621680705900"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">(s -&gt; Referent' s) -&gt; f s -&gt; f (Referent' s)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; r -&gt; f s
+</span><a href="#local-6989586621680705898"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705899"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Ref'</span></span><span> </span><span id="local-6989586621680705904"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705904"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">s -&gt; Referent' s
+forall r. r -&gt; Referent' r
+</span><span class="hs-identifier hs-var">Ref'</span></span><span> </span><span class="annot"><span class="annottext">(s -&gt; Referent' s) -&gt; f s -&gt; f (Referent' s)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; r -&gt; f s
+</span><a href="#local-6989586621680705898"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621680705904"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span id="local-6989586621680705597"><span class="annot"><a href="Unison.Runtime.Referenced.html#dereference"><span class="hs-identifier hs-type">dereference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referential"><span class="hs-identifier hs-type">Referential</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705597"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705597"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705597"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span></span><span>
+</span><span id="line-109"></span><span id="dereference"><span class="annot"><span class="annottext">dereference :: forall (t :: * -&gt; *). Referential t =&gt; Referenced t -&gt; t Reference
+</span><a href="Unison.Runtime.Referenced.html#dereference"><span class="hs-identifier hs-var hs-var">dereference</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#Plain"><span class="hs-identifier hs-type">Plain</span></a></span><span> </span><span id="local-6989586621680705912"><span class="annot"><span class="annottext">t Reference
+</span><a href="#local-6989586621680705912"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t Reference
+</span><a href="#local-6989586621680705912"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-110"></span><span class="annot"><a href="Unison.Runtime.Referenced.html#dereference"><span class="hs-identifier hs-var">dereference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#WithRefs"><span class="hs-identifier hs-type">WithRefs</span></a></span><span> </span><span id="local-6989586621680705913"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705913"><span class="hs-identifier hs-var">tysl</span></a></span></span><span> </span><span id="local-6989586621680705914"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705914"><span class="hs-identifier hs-var">tmsl</span></a></span></span><span> </span><span id="local-6989586621680705915"><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680705915"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; RefNum -&gt; Reference) -&gt; t RefNum -&gt; t Reference
+forall r s. (Bool -&gt; r -&gt; s) -&gt; t r -&gt; t s
+forall (t :: * -&gt; *) r s.
+Referential t =&gt;
+(Bool -&gt; r -&gt; s) -&gt; t r -&gt; t s
+</span><a href="Unison.Runtime.Referenced.html#overRefs"><span class="hs-identifier hs-var">overRefs</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; RefNum -&gt; Reference
+</span><a href="#local-6989586621680705916"><span class="hs-identifier hs-var">lkup</span></a></span><span> </span><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680705915"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>    </span><span id="local-6989586621680705917"><span class="annot"><span class="annottext">tys :: Array Reference
+</span><a href="#local-6989586621680705917"><span class="hs-identifier hs-var hs-var">tys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Reference] -&gt; Array Reference
+forall a. [a] -&gt; Array a
+</span><span class="hs-identifier hs-var">arrayFromList</span></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705913"><span class="hs-identifier hs-var">tysl</span></a></span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621680705918"><span class="annot"><span class="annottext">tms :: Array Reference
+</span><a href="#local-6989586621680705918"><span class="hs-identifier hs-var hs-var">tms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Reference] -&gt; Array Reference
+forall a. [a] -&gt; Array a
+</span><span class="hs-identifier hs-var">arrayFromList</span></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680705914"><span class="hs-identifier hs-var">tmsl</span></a></span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621680705916"><span class="annot"><span class="annottext">lkup :: Bool -&gt; RefNum -&gt; Reference
+</span><a href="#local-6989586621680705916"><span class="hs-identifier hs-var hs-var">lkup</span></a></span></span><span> </span><span id="local-6989586621680705919"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705919"><span class="hs-identifier hs-var">isTy</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span id="local-6989586621680705920"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680705920"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680705920"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680705920"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Array Reference -&gt; Int
+forall a. Array a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeofArray</span></span><span> </span><span class="annot"><span class="annottext">Array Reference
+</span><a href="#local-6989586621680705921"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Array Reference -&gt; Int -&gt; Reference
+forall a. Array a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">indexArray</span></span><span> </span><span class="annot"><span class="annottext">Array Reference
+</span><a href="#local-6989586621680705921"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680705920"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-116"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Reference
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;dereference: index out of bounds&quot;</span></span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-118"></span><span>        </span><span id="local-6989586621680705921"><span class="annot"><span class="annottext">arr :: Array Reference
+</span><a href="#local-6989586621680705921"><span class="hs-identifier hs-var hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705919"><span class="hs-identifier hs-var">isTy</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Array Reference
+</span><a href="#local-6989586621680705917"><span class="hs-identifier hs-var">tys</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Array Reference
+</span><a href="#local-6989586621680705918"><span class="hs-identifier hs-var">tms</span></a></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-keyword">data</span><span> </span><span id="CanonST"><span class="annot"><a href="Unison.Runtime.Referenced.html#CanonST"><span class="hs-identifier hs-var">CanonST</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CST"><span class="annot"><a href="Unison.Runtime.Referenced.html#CST"><span class="hs-identifier hs-var">CST</span></a></span></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="canon"><span class="annot"><span class="annottext">CanonST -&gt; Canonicalizer Reference
+</span><a href="Unison.Runtime.Referenced.html#canon"><span class="hs-identifier hs-var hs-var">canon</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">,</span><span>
+</span><span id="line-122"></span><span>    </span><span id="_tyNums"><span class="annot"><span class="annottext">CanonST -&gt; CanonMap Reference RefNum
+</span><a href="Unison.Runtime.Referenced.html#_tyNums"><span class="hs-identifier hs-var hs-var">_tyNums</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-123"></span><span>    </span><span id="_tmNums"><span class="annot"><span class="annottext">CanonST -&gt; CanonMap Reference RefNum
+</span><a href="Unison.Runtime.Referenced.html#_tmNums"><span class="hs-identifier hs-var hs-var">_tmNums</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-124"></span><span>    </span><span id="_tys"><span class="annot"><span class="annottext">CanonST -&gt; Seq Reference
+</span><a href="Unison.Runtime.Referenced.html#_tys"><span class="hs-identifier hs-var hs-var">_tys</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">,</span><span>
+</span><span id="line-125"></span><span>    </span><span id="_tms"><span class="annot"><span class="annottext">CanonST -&gt; Seq Reference
+</span><a href="Unison.Runtime.Referenced.html#_tms"><span class="hs-identifier hs-var hs-var">_tms</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="annot"><a href="Unison.Runtime.Referenced.html#emptyCST"><span class="hs-identifier hs-type">emptyCST</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#CanonST"><span class="hs-identifier hs-type">CanonST</span></a></span><span>
+</span><span id="line-129"></span><span id="emptyCST"><span class="annot"><span class="annottext">emptyCST :: CanonST
+</span><a href="Unison.Runtime.Referenced.html#emptyCST"><span class="hs-identifier hs-var hs-var">emptyCST</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Canonicalizer Reference
+-&gt; CanonMap Reference RefNum
+-&gt; CanonMap Reference RefNum
+-&gt; Seq Reference
+-&gt; Seq Reference
+-&gt; CanonST
+</span><a href="Unison.Runtime.Referenced.html#CST"><span class="hs-identifier hs-var">CST</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer Reference
+forall a. Canonicalizer a
+</span><a href="Unison.Runtime.Canonicalizer.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+forall k v. CanonMap k v
+</span><a href="Unison.Runtime.Canonicalizer.html#emptyCM"><span class="hs-identifier hs-var">emptyCM</span></a></span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+forall k v. CanonMap k v
+</span><a href="Unison.Runtime.Canonicalizer.html#emptyCM"><span class="hs-identifier hs-var">emptyCM</span></a></span><span> </span><span class="annot"><span class="annottext">Seq Reference
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="annot"><span class="annottext">Seq Reference
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-keyword">type</span><span> </span><span id="Canonize"><span class="annot"><a href="Unison.Runtime.Referenced.html#Canonize"><span class="hs-identifier hs-var">Canonize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">StateT</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#CanonST"><span class="hs-identifier hs-type">CanonST</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="annot"><a href="Unison.Runtime.Referenced.html#resolveRef"><span class="hs-identifier hs-type">resolveRef</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Canonize"><span class="hs-identifier hs-type">Canonize</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span>
+</span><span id="line-134"></span><span id="resolveRef"><span class="annot"><span class="annottext">resolveRef :: Bool -&gt; Reference -&gt; Canonize RefNum
+</span><a href="Unison.Runtime.Referenced.html#resolveRef"><span class="hs-identifier hs-var hs-var">resolveRef</span></a></span></span><span> </span><span id="local-6989586621680705931"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705931"><span class="hs-identifier hs-var">isTy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; Reference -&gt; Canonize RefNum
+</span><a href="Unison.Runtime.Referenced.html#resolveRef0"><span class="hs-identifier hs-var">resolveRef0</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;resolveRef&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705931"><span class="hs-identifier hs-var">isTy</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="annot"><a href="Unison.Runtime.Referenced.html#resolveRef0"><span class="hs-identifier hs-type">resolveRef0</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Canonize"><span class="hs-identifier hs-type">Canonize</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span>
+</span><span id="line-137"></span><span id="resolveRef0"><span class="annot"><span class="annottext">resolveRef0 :: String -&gt; Bool -&gt; Reference -&gt; Canonize RefNum
+</span><a href="Unison.Runtime.Referenced.html#resolveRef0"><span class="hs-identifier hs-var hs-var">resolveRef0</span></a></span></span><span> </span><span id="local-6989586621680705933"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680705933"><span class="hs-identifier hs-var">_funName</span></a></span></span><span> </span><span id="local-6989586621680705934"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705934"><span class="hs-identifier hs-var">isTy</span></a></span></span><span> </span><span id="local-6989586621680705935"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705935"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(CanonST -&gt; IO (RefNum, CanonST)) -&gt; Canonize RefNum
+forall s (m :: * -&gt; *) a. (s -&gt; m (a, s)) -&gt; StateT s m a
+</span><span class="hs-identifier hs-var">StateT</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-138"></span><span>  </span><span id="local-6989586621680705937"><span class="annot"><span class="annottext">st :: CanonST
+</span><a href="#local-6989586621680705937"><span class="hs-identifier hs-var">st</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#CST"><span class="hs-identifier hs-type">CST</span></a></span><span> </span><span id="local-6989586621680705938"><span class="annot"><span class="annottext">Canonicalizer Reference
+</span><a href="#local-6989586621680705938"><span class="hs-identifier hs-var">canon</span></a></span></span><span> </span><span id="local-6989586621680705939"><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705939"><span class="hs-identifier hs-var">tym</span></a></span></span><span> </span><span id="local-6989586621680705940"><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705940"><span class="hs-identifier hs-var">tmm</span></a></span></span><span> </span><span id="local-6989586621680705941"><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705941"><span class="hs-identifier hs-var">tys</span></a></span></span><span> </span><span id="local-6989586621680705942"><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705942"><span class="hs-identifier hs-var">tms</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-139"></span><span>    </span><span class="annot"><span class="annottext">Canonicalizer Reference -&gt; Reference -&gt; IO (Canonicity Reference)
+forall a. Ord a =&gt; Canonicalizer a -&gt; a -&gt; IO (Canonicity a)
+</span><a href="Unison.Runtime.Canonicalizer.html#categorize"><span class="hs-identifier hs-var">categorize</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer Reference
+</span><a href="#local-6989586621680705938"><span class="hs-identifier hs-var">canon</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705935"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Canonicity Reference)
+-&gt; (Canonicity Reference -&gt; IO (RefNum, CanonST))
+-&gt; IO (RefNum, CanonST)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-140"></span><span>      </span><span class="annot"><span class="annottext">Canonicity Reference
+</span><a href="Unison.Runtime.Canonicalizer.html#Canonical"><span class="hs-identifier hs-var">Canonical</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-141"></span><span>        </span><span class="annot"><span class="annottext">Reference -&gt; IO (Maybe RefNum)
+</span><a href="#local-6989586621680705945"><span class="hs-identifier hs-var">look</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705935"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Maybe RefNum)
+-&gt; (Maybe RefNum -&gt; IO (RefNum, CanonST)) -&gt; IO (RefNum, CanonST)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-142"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680705946"><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680705946"><span class="hs-identifier hs-var">rn</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(RefNum, CanonST) -&gt; IO (RefNum, CanonST)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680705946"><span class="hs-identifier hs-var">rn</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CanonST
+</span><a href="#local-6989586621680705937"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span>          </span><span class="annot"><span class="annottext">Maybe RefNum
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Reference -&gt; Canonicalizer Reference -&gt; IO (RefNum, CanonST)
+</span><a href="#local-6989586621680705947"><span class="hs-identifier hs-var">updated</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705935"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer Reference
+</span><a href="#local-6989586621680705938"><span class="hs-identifier hs-var">canon</span></a></span><span>
+</span><span id="line-144"></span><span>      </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Novel"><span class="hs-identifier hs-type">Novel</span></a></span><span> </span><span id="local-6989586621680705949"><span class="annot"><span class="annottext">Canonicalizer Reference
+</span><a href="#local-6989586621680705949"><span class="hs-identifier hs-var">canon</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Reference -&gt; Canonicalizer Reference -&gt; IO (RefNum, CanonST)
+</span><a href="#local-6989586621680705947"><span class="hs-identifier hs-var">updated</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705935"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer Reference
+</span><a href="#local-6989586621680705949"><span class="hs-identifier hs-var">canon</span></a></span><span>
+</span><span id="line-145"></span><span>      </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Equivalent"><span class="hs-identifier hs-type">Equivalent</span></a></span><span> </span><span id="local-6989586621680705951"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705951"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621680705952"><span class="annot"><span class="annottext">Canonicalizer Reference
+</span><a href="#local-6989586621680705952"><span class="hs-identifier hs-var">canon</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-146"></span><span>        </span><span class="annot"><span class="annottext">Reference -&gt; IO (Maybe RefNum)
+</span><a href="#local-6989586621680705945"><span class="hs-identifier hs-var">look</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705951"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Maybe RefNum)
+-&gt; (Maybe RefNum -&gt; IO (RefNum, CanonST)) -&gt; IO (RefNum, CanonST)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-147"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680705953"><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680705953"><span class="hs-identifier hs-var">rn</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(RefNum, CanonST) -&gt; IO (RefNum, CanonST)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680705953"><span class="hs-identifier hs-var">rn</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CanonST
+</span><a href="#local-6989586621680705937"><span class="hs-identifier hs-var">st</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Runtime.Referenced.html#canon"><span class="hs-identifier hs-var">canon</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680705952"><span class="hs-identifier hs-type">canon</span></a></span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>          </span><span class="annot"><span class="annottext">Maybe RefNum
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Reference -&gt; Canonicalizer Reference -&gt; IO (RefNum, CanonST)
+</span><a href="#local-6989586621680705947"><span class="hs-identifier hs-var">updated</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705951"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer Reference
+</span><a href="#local-6989586621680705952"><span class="hs-identifier hs-var">canon</span></a></span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-150"></span><span>      </span><span id="local-6989586621680705945"><span class="annot"><span class="annottext">look :: Reference -&gt; IO (Maybe RefNum)
+</span><a href="#local-6989586621680705945"><span class="hs-identifier hs-var hs-var">look</span></a></span></span><span> </span><span id="local-6989586621680705954"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705954"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Reference -&gt; CanonMap Reference RefNum -&gt; IO (Maybe RefNum)
+forall k v. Ord k =&gt; k -&gt; CanonMap k v -&gt; IO (Maybe v)
+</span><a href="Unison.Runtime.Canonicalizer.html#lookup"><span class="hs-identifier hs-var">lookup</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705954"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705934"><span class="hs-identifier hs-var">isTy</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705939"><span class="hs-identifier hs-var">tym</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705940"><span class="hs-identifier hs-var">tmm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span>      </span><span id="local-6989586621680705947"><span class="annot"><span class="annottext">updated :: Reference -&gt; Canonicalizer Reference -&gt; IO (RefNum, CanonST)
+</span><a href="#local-6989586621680705947"><span class="hs-identifier hs-var hs-var">updated</span></a></span></span><span> </span><span id="local-6989586621680705956"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705956"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621680705957"><span class="annot"><span class="annottext">Canonicalizer Reference
+</span><a href="#local-6989586621680705957"><span class="hs-identifier hs-var">canon</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-153"></span><span>        </span><span id="local-6989586621680705958"><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705958"><span class="hs-identifier hs-var">tym</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705934"><span class="hs-identifier hs-var">isTy</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Reference
+-&gt; RefNum
+-&gt; CanonMap Reference RefNum
+-&gt; IO (CanonMap Reference RefNum)
+forall k v. Ord k =&gt; k -&gt; v -&gt; CanonMap k v -&gt; IO (CanonMap k v)
+</span><a href="Unison.Runtime.Canonicalizer.html#insert"><span class="hs-identifier hs-var">insert</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705956"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680705960"><span class="hs-identifier hs-var">rn</span></a></span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705939"><span class="hs-identifier hs-var">tym</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum -&gt; IO (CanonMap Reference RefNum)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705939"><span class="hs-identifier hs-var">tym</span></a></span><span>
+</span><span id="line-154"></span><span>        </span><span id="local-6989586621680705961"><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705961"><span class="hs-identifier hs-var">tmm</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705934"><span class="hs-identifier hs-var">isTy</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum -&gt; IO (CanonMap Reference RefNum)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705940"><span class="hs-identifier hs-var">tmm</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Reference
+-&gt; RefNum
+-&gt; CanonMap Reference RefNum
+-&gt; IO (CanonMap Reference RefNum)
+forall k v. Ord k =&gt; k -&gt; v -&gt; CanonMap k v -&gt; IO (CanonMap k v)
+</span><a href="Unison.Runtime.Canonicalizer.html#insert"><span class="hs-identifier hs-var">insert</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705956"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680705960"><span class="hs-identifier hs-var">rn</span></a></span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705940"><span class="hs-identifier hs-var">tmm</span></a></span><span>
+</span><span id="line-155"></span><span>        </span><span id="local-6989586621680705962"><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705962"><span class="hs-identifier hs-var">tys</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Seq Reference -&gt; IO (Seq Reference)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Seq Reference -&gt; IO (Seq Reference))
+-&gt; Seq Reference -&gt; IO (Seq Reference)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705934"><span class="hs-identifier hs-var">isTy</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705941"><span class="hs-identifier hs-var">tys</span></a></span><span> </span><span class="annot"><span class="annottext">Seq Reference -&gt; Reference -&gt; Seq Reference
+forall a. Seq a -&gt; a -&gt; Seq a
+</span><span class="hs-operator hs-var">|&gt;</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705956"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705941"><span class="hs-identifier hs-var">tys</span></a></span><span>
+</span><span id="line-156"></span><span>        </span><span id="local-6989586621680705963"><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705963"><span class="hs-identifier hs-var">tms</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Seq Reference -&gt; IO (Seq Reference)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Seq Reference -&gt; IO (Seq Reference))
+-&gt; Seq Reference -&gt; IO (Seq Reference)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705934"><span class="hs-identifier hs-var">isTy</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705942"><span class="hs-identifier hs-var">tms</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705942"><span class="hs-identifier hs-var">tms</span></a></span><span> </span><span class="annot"><span class="annottext">Seq Reference -&gt; Reference -&gt; Seq Reference
+forall a. Seq a -&gt; a -&gt; Seq a
+</span><span class="hs-operator hs-var">|&gt;</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621680705956"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-157"></span><span>        </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680705960"><span class="hs-identifier hs-var">rn</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Canonicalizer Reference
+-&gt; CanonMap Reference RefNum
+-&gt; CanonMap Reference RefNum
+-&gt; Seq Reference
+-&gt; Seq Reference
+-&gt; CanonST
+</span><a href="Unison.Runtime.Referenced.html#CST"><span class="hs-identifier hs-var">CST</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer Reference
+</span><a href="#local-6989586621680705957"><span class="hs-identifier hs-var">canon</span></a></span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705958"><span class="hs-identifier hs-var">tym</span></a></span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><a href="#local-6989586621680705961"><span class="hs-identifier hs-var">tmm</span></a></span><span> </span><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705962"><span class="hs-identifier hs-var">tys</span></a></span><span> </span><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705963"><span class="hs-identifier hs-var">tms</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-159"></span><span>          </span><span id="local-6989586621680705960"><span class="annot"><span class="annottext">rn :: RefNum
+</span><a href="#local-6989586621680705960"><span class="hs-identifier hs-var hs-var">rn</span></a></span></span><span>
+</span><span id="line-160"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680705934"><span class="hs-identifier hs-var">isTy</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; RefNum
+</span><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-var">RefNum</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq Reference -&gt; Int
+forall a. Seq a -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705941"><span class="hs-identifier hs-var">tys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; RefNum
+</span><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-var">RefNum</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq Reference -&gt; Int
+forall a. Seq a -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680705942"><span class="hs-identifier hs-var">tms</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>      </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621680705947"><span class="hs-pragma hs-type">updated</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- Given a reference traversal, canonicalizes the references in a</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- value. The operation is presented as a state transformation, so</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- that it can hook into a larger canonicalization procedure. The</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- lists of canonical references of each sort are yielded as part of</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- the state.</span><span>
+</span><span id="line-169"></span><span id="local-6989586621680705636"><span class="annot"><a href="Unison.Runtime.Referenced.html#canonicalizeRefs"><span class="hs-identifier hs-type">canonicalizeRefs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referential"><span class="hs-identifier hs-type">Referential</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705636"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680705636"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Canonize"><span class="hs-identifier hs-type">Canonize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680705636"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-170"></span><span id="canonicalizeRefs"><span class="annot"><span class="annottext">canonicalizeRefs :: forall (t :: * -&gt; *).
+Referential t =&gt;
+t Reference -&gt; Canonize (t RefNum)
+</span><a href="Unison.Runtime.Referenced.html#canonicalizeRefs"><span class="hs-identifier hs-var hs-var">canonicalizeRefs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Reference -&gt; Canonize RefNum)
+-&gt; t Reference -&gt; StateT CanonST IO (t RefNum)
+forall (t :: * -&gt; *) (f :: * -&gt; *) r s.
+(Referential t, Applicative f) =&gt;
+(Bool -&gt; r -&gt; f s) -&gt; t r -&gt; f (t s)
+forall (f :: * -&gt; *) r s.
+Applicative f =&gt;
+(Bool -&gt; r -&gt; f s) -&gt; t r -&gt; f (t s)
+</span><a href="Unison.Runtime.Referenced.html#traverseRefs"><span class="hs-identifier hs-var">traverseRefs</span></a></span><span> </span><span class="annot"><span class="annottext">((Bool -&gt; Reference -&gt; Canonize RefNum)
+ -&gt; t Reference -&gt; StateT CanonST IO (t RefNum))
+-&gt; (Bool -&gt; Reference -&gt; Canonize RefNum)
+-&gt; t Reference
+-&gt; StateT CanonST IO (t RefNum)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; Reference -&gt; Canonize RefNum
+</span><a href="Unison.Runtime.Referenced.html#resolveRef0"><span class="hs-identifier hs-var">resolveRef0</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;canonicalizeRefs&quot;</span></span><span>
+</span><span id="line-171"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#canonicalizeRefs"><span class="hs-pragma hs-type">canonicalizeRefs</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- Given a `Referenced` value, this recanonicalizes the references in</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- the wrapped value. The intention is for this to be hooked into a</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- larger canonicalization procedure, so that already canonicalized</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- values can be more efficiently brought in line with other values</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- that are already canonicalized.</span><span>
+</span><span id="line-178"></span><span class="hs-comment">--</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- If the `Referenced` value is `Plain`, then all we can do is</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- traverse it, canonicalizing the references. However, if it is</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- tagged with canonical refs, we can see if they all match existing</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- canonical refs. If so, we don't need to traverse the value. Even if</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- not, we can traverse with marginally more efficient lookups.</span><span>
+</span><span id="line-184"></span><span id="local-6989586621680705640"><span class="annot"><a href="Unison.Runtime.Referenced.html#recanonicalizeRefs"><span class="hs-identifier hs-type">recanonicalizeRefs</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referential"><span class="hs-identifier hs-type">Referential</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705640"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705640"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Canonize"><span class="hs-identifier hs-type">Canonize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680705640"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-186"></span><span id="recanonicalizeRefs"><span class="annot"><span class="annottext">recanonicalizeRefs :: forall (t :: * -&gt; *).
+Referential t =&gt;
+Referenced t -&gt; Canonize (t RefNum)
+</span><a href="Unison.Runtime.Referenced.html#recanonicalizeRefs"><span class="hs-identifier hs-var hs-var">recanonicalizeRefs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-187"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Plain"><span class="hs-identifier hs-type">Plain</span></a></span><span> </span><span id="local-6989586621680706000"><span class="annot"><span class="annottext">t Reference
+</span><a href="#local-6989586621680706000"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">t Reference -&gt; Canonize (t RefNum)
+forall (t :: * -&gt; *).
+Referential t =&gt;
+t Reference -&gt; Canonize (t RefNum)
+</span><a href="Unison.Runtime.Referenced.html#canonicalizeRefs"><span class="hs-identifier hs-var">canonicalizeRefs</span></a></span><span> </span><span class="annot"><span class="annottext">t Reference
+</span><a href="#local-6989586621680706000"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-188"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Referenced.html#WithRefs"><span class="hs-identifier hs-type">WithRefs</span></a></span><span> </span><span id="local-6989586621680706001"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680706001"><span class="hs-identifier hs-var">tys</span></a></span></span><span> </span><span id="local-6989586621680706002"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680706002"><span class="hs-identifier hs-var">tms</span></a></span></span><span> </span><span id="local-6989586621680706003"><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680706003"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621680706004"><span class="annot"><span class="annottext">[RefNum]
+</span><a href="#local-6989586621680706004"><span class="hs-identifier hs-var">tyns</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Reference -&gt; Canonize RefNum)
+-&gt; [Reference] -&gt; StateT CanonST IO [RefNum]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; Reference -&gt; Canonize RefNum
+</span><a href="Unison.Runtime.Referenced.html#resolveRef0"><span class="hs-identifier hs-var">resolveRef0</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;recanonicalizeRefs&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680706001"><span class="hs-identifier hs-var">tys</span></a></span><span>
+</span><span id="line-190"></span><span>    </span><span id="local-6989586621680706006"><span class="annot"><span class="annottext">[RefNum]
+</span><a href="#local-6989586621680706006"><span class="hs-identifier hs-var">tmns</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Reference -&gt; Canonize RefNum)
+-&gt; [Reference] -&gt; StateT CanonST IO [RefNum]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; Reference -&gt; Canonize RefNum
+</span><a href="Unison.Runtime.Referenced.html#resolveRef0"><span class="hs-identifier hs-var">resolveRef0</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;recanonicalizeRefs&quot;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680706002"><span class="hs-identifier hs-var">tms</span></a></span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span>    </span><span id="local-6989586621680706007"><span class="annot"><span class="annottext">HashMap Int RefNum
+</span><a href="#local-6989586621680706007"><span class="hs-identifier hs-var">rtys</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HashMap Int RefNum -&gt; StateT CanonST IO (HashMap Int RefNum)
+forall a. a -&gt; StateT CanonST IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(HashMap Int RefNum -&gt; StateT CanonST IO (HashMap Int RefNum))
+-&gt; ([(Int, RefNum)] -&gt; HashMap Int RefNum)
+-&gt; [(Int, RefNum)]
+-&gt; StateT CanonST IO (HashMap Int RefNum)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[(Int, RefNum)] -&gt; HashMap Int RefNum
+forall k v. (Eq k, Hashable k) =&gt; [(k, v)] -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Int, RefNum)] -&gt; HashMap Int RefNum)
+-&gt; ([(Int, RefNum)] -&gt; [(Int, RefNum)])
+-&gt; [(Int, RefNum)]
+-&gt; HashMap Int RefNum
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((Int, RefNum) -&gt; Bool) -&gt; [(Int, RefNum)] -&gt; [(Int, RefNum)]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">(Int, RefNum) -&gt; Bool
+</span><a href="#local-6989586621680706009"><span class="hs-identifier hs-var">notSame</span></a></span><span> </span><span class="annot"><span class="annottext">([(Int, RefNum)] -&gt; StateT CanonST IO (HashMap Int RefNum))
+-&gt; [(Int, RefNum)] -&gt; StateT CanonST IO (HashMap Int RefNum)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [RefNum] -&gt; [(Int, RefNum)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[RefNum]
+</span><a href="#local-6989586621680706004"><span class="hs-identifier hs-var">tyns</span></a></span><span>
+</span><span id="line-193"></span><span>    </span><span id="local-6989586621680706010"><span class="annot"><span class="annottext">HashMap Int RefNum
+</span><a href="#local-6989586621680706010"><span class="hs-identifier hs-var">rtms</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HashMap Int RefNum -&gt; StateT CanonST IO (HashMap Int RefNum)
+forall a. a -&gt; StateT CanonST IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(HashMap Int RefNum -&gt; StateT CanonST IO (HashMap Int RefNum))
+-&gt; ([(Int, RefNum)] -&gt; HashMap Int RefNum)
+-&gt; [(Int, RefNum)]
+-&gt; StateT CanonST IO (HashMap Int RefNum)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[(Int, RefNum)] -&gt; HashMap Int RefNum
+forall k v. (Eq k, Hashable k) =&gt; [(k, v)] -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Int, RefNum)] -&gt; HashMap Int RefNum)
+-&gt; ([(Int, RefNum)] -&gt; [(Int, RefNum)])
+-&gt; [(Int, RefNum)]
+-&gt; HashMap Int RefNum
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((Int, RefNum) -&gt; Bool) -&gt; [(Int, RefNum)] -&gt; [(Int, RefNum)]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">(Int, RefNum) -&gt; Bool
+</span><a href="#local-6989586621680706009"><span class="hs-identifier hs-var">notSame</span></a></span><span> </span><span class="annot"><span class="annottext">([(Int, RefNum)] -&gt; StateT CanonST IO (HashMap Int RefNum))
+-&gt; [(Int, RefNum)] -&gt; StateT CanonST IO (HashMap Int RefNum)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [RefNum] -&gt; [(Int, RefNum)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[RefNum]
+</span><a href="#local-6989586621680706006"><span class="hs-identifier hs-var">tmns</span></a></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680706011"><span class="annot"><span class="annottext">f :: Bool -&gt; RefNum -&gt; RefNum
+</span><a href="#local-6989586621680706011"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621680706012"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680706012"><span class="hs-identifier hs-var">isTy</span></a></span></span><span> </span><span id="local-6989586621680706013"><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680706013"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RefNum -&gt; Int -&gt; HashMap Int RefNum -&gt; RefNum
+forall k v. (Eq k, Hashable k) =&gt; v -&gt; k -&gt; HashMap k v -&gt; v
+</span><span class="hs-identifier hs-var">HM.findWithDefault</span></span><span> </span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680706013"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RefNum -&gt; Int
+</span><a href="Unison.Runtime.Referenced.html#getRefNum"><span class="hs-identifier hs-var">getRefNum</span></a></span><span> </span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680706013"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashMap Int RefNum
+</span><a href="#local-6989586621680706015"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-196"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-197"></span><span>            </span><span id="local-6989586621680706015"><span class="annot"><span class="annottext">m :: HashMap Int RefNum
+</span><a href="#local-6989586621680706015"><span class="hs-identifier hs-var hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680706012"><span class="hs-identifier hs-var">isTy</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">HashMap Int RefNum
+</span><a href="#local-6989586621680706007"><span class="hs-identifier hs-var">rtys</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">HashMap Int RefNum
+</span><a href="#local-6989586621680706010"><span class="hs-identifier hs-var">rtms</span></a></span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">HashMap Int RefNum -&gt; Bool
+forall k v. HashMap k v -&gt; Bool
+</span><span class="hs-identifier hs-var">HM.null</span></span><span> </span><span class="annot"><span class="annottext">HashMap Int RefNum
+</span><a href="#local-6989586621680706007"><span class="hs-identifier hs-var">rtys</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">HashMap Int RefNum -&gt; Bool
+forall k v. HashMap k v -&gt; Bool
+</span><span class="hs-identifier hs-var">HM.null</span></span><span> </span><span class="annot"><span class="annottext">HashMap Int RefNum
+</span><a href="#local-6989586621680706010"><span class="hs-identifier hs-var">rtms</span></a></span><span>
+</span><span id="line-200"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">t RefNum -&gt; Canonize (t RefNum)
+forall a. a -&gt; StateT CanonST IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680706003"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-comment">-- already canonical</span><span>
+</span><span id="line-201"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">t RefNum -&gt; Canonize (t RefNum)
+forall a. a -&gt; StateT CanonST IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(t RefNum -&gt; Canonize (t RefNum))
+-&gt; t RefNum -&gt; Canonize (t RefNum)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; RefNum -&gt; RefNum) -&gt; t RefNum -&gt; t RefNum
+forall r s. (Bool -&gt; r -&gt; s) -&gt; t r -&gt; t s
+forall (t :: * -&gt; *) r s.
+Referential t =&gt;
+(Bool -&gt; r -&gt; s) -&gt; t r -&gt; t s
+</span><a href="Unison.Runtime.Referenced.html#overRefs"><span class="hs-identifier hs-var">overRefs</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; RefNum -&gt; RefNum
+</span><a href="#local-6989586621680706011"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680706003"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-202"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-203"></span><span>    </span><span id="local-6989586621680706009"><span class="annot"><span class="annottext">notSame :: (Int, RefNum) -&gt; Bool
+</span><a href="#local-6989586621680706009"><span class="hs-identifier hs-var hs-var">notSame</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680706018"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680706018"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span id="local-6989586621680706019"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680706019"><span class="hs-identifier hs-var">j</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680706018"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680706019"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span id="local-6989586621680705661"><span class="annot"><a href="Unison.Runtime.Referenced.html#toReferenced"><span class="hs-identifier hs-type">toReferenced</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#Canonize"><span class="hs-identifier hs-type">Canonize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680705661"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680705661"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-206"></span><span id="toReferenced"><span class="annot"><span class="annottext">toReferenced :: forall (t :: * -&gt; *). Canonize (t RefNum) -&gt; IO (Referenced t)
+</span><a href="Unison.Runtime.Referenced.html#toReferenced"><span class="hs-identifier hs-var hs-var">toReferenced</span></a></span></span><span> </span><span id="local-6989586621680706022"><span class="annot"><span class="annottext">Canonize (t RefNum)
+</span><a href="#local-6989586621680706022"><span class="hs-identifier hs-var">act</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(t RefNum, CanonST) -&gt; Referenced t
+forall {t :: * -&gt; *}. (t RefNum, CanonST) -&gt; Referenced t
+</span><a href="#local-6989586621680706023"><span class="hs-identifier hs-var">finalize</span></a></span><span> </span><span class="annot"><span class="annottext">((t RefNum, CanonST) -&gt; Referenced t)
+-&gt; IO (t RefNum, CanonST) -&gt; IO (Referenced t)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Canonize (t RefNum) -&gt; CanonST -&gt; IO (t RefNum, CanonST)
+forall s (m :: * -&gt; *) a. StateT s m a -&gt; s -&gt; m (a, s)
+</span><span class="hs-identifier hs-var">runStateT</span></span><span> </span><span class="annot"><span class="annottext">Canonize (t RefNum)
+</span><a href="#local-6989586621680706022"><span class="hs-identifier hs-var">act</span></a></span><span> </span><span class="annot"><span class="annottext">CanonST
+</span><a href="Unison.Runtime.Referenced.html#emptyCST"><span class="hs-identifier hs-var">emptyCST</span></a></span><span>
+</span><span id="line-207"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-208"></span><span>    </span><span id="local-6989586621680706023"><span class="annot"><span class="annottext">finalize :: (t RefNum, CanonST) -&gt; Referenced t
+</span><a href="#local-6989586621680706023"><span class="hs-identifier hs-var hs-var">finalize</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680706027"><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680706027"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#CST"><span class="hs-identifier hs-type">CST</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CanonMap Reference RefNum
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680706028"><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680706028"><span class="hs-identifier hs-var">tys</span></a></span></span><span> </span><span id="local-6989586621680706029"><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680706029"><span class="hs-identifier hs-var">tms</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-209"></span><span>      </span><span class="annot"><span class="annottext">[Reference] -&gt; [Reference] -&gt; t RefNum -&gt; Referenced t
+forall (t :: * -&gt; *).
+[Reference] -&gt; [Reference] -&gt; t RefNum -&gt; Referenced t
+</span><a href="Unison.Runtime.Referenced.html#WithRefs"><span class="hs-identifier hs-var">WithRefs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq Reference -&gt; [Reference]
+forall a. Seq a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680706028"><span class="hs-identifier hs-var">tys</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq Reference -&gt; [Reference]
+forall a. Seq a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">Seq Reference
+</span><a href="#local-6989586621680706029"><span class="hs-identifier hs-var">tms</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t RefNum
+</span><a href="#local-6989586621680706027"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-210"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#toReferenced"><span class="hs-pragma hs-type">toReferenced</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-211"></span></pre></body></html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE StandaloneKindSignatures #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html"><span class="hs-identifier">GHC.Utils.Monad.Codensity</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier">Codensity</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#toCodensity"><span class="hs-identifier">toCodensity</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#fromCodensity"><span class="hs-identifier">fromCodensity</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Kind.html"><span class="hs-identifier">Data.Kind</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Type</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Exts.html"><span class="hs-identifier">GHC.Exts</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">oneShot</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Fix.html"><span class="hs-identifier">Control.Monad.Fix</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html"><span class="hs-identifier">Control.Monad.IO.Class</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html"><span class="hs-identifier">Control.Monad.Trans.Class</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Concurrent.MVar.html"><span class="hs-identifier">Control.Concurrent.MVar</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">newEmptyMVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readMVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">putMVar</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Exception.html"><span class="hs-identifier">Control.Exception</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.IO.Exception.html"><span class="hs-identifier">GHC.IO.Exception</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.IO.Unsafe.html"><span class="hs-identifier">GHC.IO.Unsafe</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">unsafeDupableInterleaveIO</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">newtype</span><span> </span><span id="Codensity"><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-var">Codensity</span></a></span></span><span> </span><span id="local-6989586621682337123"><span class="annot"><a href="#local-6989586621682337123"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621682337124"><span class="annot"><a href="#local-6989586621682337124"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Codensity"><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-var">Codensity</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="runCodensity"><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+Codensity m a -&gt; forall r. (a -&gt; m r) -&gt; m r
+</span><a href="GHC.Utils.Monad.Codensity.html#runCodensity"><span class="hs-identifier hs-var hs-var">runCodensity</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621682337126"><span class="annot"><a href="#local-6989586621682337126"><span class="hs-identifier hs-type">r</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682337124"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682337123"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337126"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682337123"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337126"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682337136"><span id="local-6989586621682337227"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337136"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621682337231"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Codensity k a -&gt; Codensity k b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621682337232"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682337232"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span id="local-6989586621682337233"><span class="annot"><span class="annottext">forall r. (a -&gt; k r) -&gt; k r
+</span><a href="#local-6989586621682337233"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall r. (b -&gt; k r) -&gt; k r) -&gt; Codensity k b
+forall (m :: * -&gt; *) a.
+(forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+</span><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-var">Codensity</span></a></span><span> </span><span class="annot"><span class="annottext">((forall r. (b -&gt; k r) -&gt; k r) -&gt; Codensity k b)
+-&gt; (forall r. (b -&gt; k r) -&gt; k r) -&gt; Codensity k b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((b -&gt; k r) -&gt; k r) -&gt; (b -&gt; k r) -&gt; k r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682337234"><span class="annot"><span class="annottext">b -&gt; k r
+</span><a href="#local-6989586621682337234"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; k r) -&gt; k r
+forall r. (a -&gt; k r) -&gt; k r
+</span><a href="#local-6989586621682337233"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; k r) -&gt; k r) -&gt; (a -&gt; k r) -&gt; k r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; k r) -&gt; a -&gt; k r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682337235"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337235"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; k r
+</span><a href="#local-6989586621682337234"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; k r) -&gt; b -&gt; k r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682337232"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337235"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fmap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682337156"><span id="local-6989586621682337241"><span id="local-6989586621682337245"><span id="local-6989586621682337248"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337156"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>  </span><span id="local-6989586621682337251"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; Codensity f a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span id="local-6989586621682337252"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337252"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall r. (a -&gt; f r) -&gt; f r) -&gt; Codensity f a
+forall (m :: * -&gt; *) a.
+(forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+</span><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-var">Codensity</span></a></span><span> </span><span class="annot"><span class="annottext">((forall r. (a -&gt; f r) -&gt; f r) -&gt; Codensity f a)
+-&gt; (forall r. (a -&gt; f r) -&gt; f r) -&gt; Codensity f a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((a -&gt; f r) -&gt; f r) -&gt; (a -&gt; f r) -&gt; f r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682337253"><span class="annot"><span class="annottext">a -&gt; f r
+</span><a href="#local-6989586621682337253"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; f r
+</span><a href="#local-6989586621682337253"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337252"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">pure</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span id="local-6989586621682337254"><span class="annot"><span class="annottext">forall r. ((a -&gt; b) -&gt; f r) -&gt; f r
+</span><a href="#local-6989586621682337254"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621682337255"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. Codensity f (a -&gt; b) -&gt; Codensity f a -&gt; Codensity f b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span id="local-6989586621682337256"><span class="annot"><span class="annottext">forall r. (a -&gt; f r) -&gt; f r
+</span><a href="#local-6989586621682337256"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="annottext">(forall r. (b -&gt; f r) -&gt; f r) -&gt; Codensity f b
+forall (m :: * -&gt; *) a.
+(forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+</span><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-var">Codensity</span></a></span><span> </span><span class="annot"><span class="annottext">((forall r. (b -&gt; f r) -&gt; f r) -&gt; Codensity f b)
+-&gt; (forall r. (b -&gt; f r) -&gt; f r) -&gt; Codensity f b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((b -&gt; f r) -&gt; f r) -&gt; (b -&gt; f r) -&gt; f r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682337257"><span class="annot"><span class="annottext">b -&gt; f r
+</span><a href="#local-6989586621682337257"><span class="hs-identifier hs-var">bfr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; f r) -&gt; f r
+forall r. ((a -&gt; b) -&gt; f r) -&gt; f r
+</span><a href="#local-6989586621682337254"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; b) -&gt; f r) -&gt; f r) -&gt; ((a -&gt; b) -&gt; f r) -&gt; f r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; f r) -&gt; (a -&gt; b) -&gt; f r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682337258"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682337258"><span class="hs-identifier hs-var">ab</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; f r) -&gt; f r
+forall r. (a -&gt; f r) -&gt; f r
+</span><a href="#local-6989586621682337256"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; f r) -&gt; f r) -&gt; (a -&gt; f r) -&gt; f r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f r) -&gt; a -&gt; f r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682337259"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337259"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; f r
+</span><a href="#local-6989586621682337257"><span class="hs-identifier hs-var">bfr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682337258"><span class="hs-identifier hs-var">ab</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337259"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&lt;*&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682337169"><span id="local-6989586621682337264"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337169"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621682337270"><span class="annot"><span class="annottext">return :: forall a. a -&gt; Codensity f a
+</span><span class="hs-identifier hs-var hs-var hs-var">return</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Codensity f a
+forall a. a -&gt; Codensity f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">return</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-37"></span><span>  </span><span id="local-6989586621682337271"><span class="annot"><span class="annottext">Codensity f a
+</span><a href="#local-6989586621682337271"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621682337272"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. Codensity f a -&gt; (a -&gt; Codensity f b) -&gt; Codensity f b
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621682337273"><span class="annot"><span class="annottext">a -&gt; Codensity f b
+</span><a href="#local-6989586621682337273"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="annottext">(forall r. (b -&gt; f r) -&gt; f r) -&gt; Codensity f b
+forall (m :: * -&gt; *) a.
+(forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+</span><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-var">Codensity</span></a></span><span> </span><span class="annot"><span class="annottext">((forall r. (b -&gt; f r) -&gt; f r) -&gt; Codensity f b)
+-&gt; (forall r. (b -&gt; f r) -&gt; f r) -&gt; Codensity f b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((b -&gt; f r) -&gt; f r) -&gt; (b -&gt; f r) -&gt; f r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682337274"><span class="annot"><span class="annottext">b -&gt; f r
+</span><a href="#local-6989586621682337274"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Codensity f a -&gt; forall r. (a -&gt; f r) -&gt; f r
+forall (m :: * -&gt; *) a.
+Codensity m a -&gt; forall r. (a -&gt; m r) -&gt; m r
+</span><a href="GHC.Utils.Monad.Codensity.html#runCodensity"><span class="hs-identifier hs-var">runCodensity</span></a></span><span> </span><span class="annot"><span class="annottext">Codensity f a
+</span><a href="#local-6989586621682337271"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; f r) -&gt; f r) -&gt; (a -&gt; f r) -&gt; f r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f r) -&gt; a -&gt; f r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682337275"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337275"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Codensity f b -&gt; forall r. (b -&gt; f r) -&gt; f r
+forall (m :: * -&gt; *) a.
+Codensity m a -&gt; forall r. (a -&gt; m r) -&gt; m r
+</span><a href="GHC.Utils.Monad.Codensity.html#runCodensity"><span class="hs-identifier hs-var">runCodensity</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Codensity f b
+</span><a href="#local-6989586621682337273"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337275"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">b -&gt; f r
+</span><a href="#local-6989586621682337274"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&gt;&gt;=</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#MonadTrans"><span class="hs-identifier hs-type">MonadTrans</span></a></span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621682337282"><span class="annot"><span class="annottext">lift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; Codensity m a
+</span><a href="#local-6989586621682337282"><span class="hs-identifier hs-var hs-var hs-var">lift</span></a></span></span><span> </span><span id="local-6989586621682337284"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621682337284"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+forall (m :: * -&gt; *) a.
+(forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+</span><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-var">Codensity</span></a></span><span> </span><span class="annot"><span class="annottext">((forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a)
+-&gt; (forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((a -&gt; m r) -&gt; m r) -&gt; (a -&gt; m r) -&gt; m r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621682337284"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; (a -&gt; m r) -&gt; m r
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#lift"><span class="hs-pragma hs-type">lift</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682337186"><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#MonadIO"><span class="hs-identifier hs-type">MonadIO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337186"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#MonadIO"><span class="hs-identifier hs-type">MonadIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337186"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621682337297"><span class="annot"><span class="annottext">liftIO :: forall a. IO a -&gt; Codensity m a
+</span><a href="#local-6989586621682337297"><span class="hs-identifier hs-var hs-var hs-var">liftIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Codensity m a
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; Codensity m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; Codensity m a) -&gt; (IO a -&gt; m a) -&gt; IO a -&gt; Codensity m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; m a
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-pragma hs-type">liftIO</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682337194"><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#MonadIO"><span class="hs-identifier hs-type">MonadIO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337194"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadFix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337194"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621682337307"><span class="annot"><span class="annottext">mfix :: forall a. (a -&gt; Codensity m a) -&gt; Codensity m a
+</span><span class="hs-identifier hs-var hs-var hs-var">mfix</span></span></span><span> </span><span id="local-6989586621682337308"><span class="annot"><span class="annottext">a -&gt; Codensity m a
+</span><a href="#local-6989586621682337308"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+forall (m :: * -&gt; *) a.
+(forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+</span><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-var">Codensity</span></a></span><span> </span><span class="annot"><span class="annottext">((forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a)
+-&gt; (forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((a -&gt; m r) -&gt; m r) -&gt; (a -&gt; m r) -&gt; m r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; m r) -&gt; m r) -&gt; (a -&gt; m r) -&gt; m r)
+-&gt; ((a -&gt; m r) -&gt; m r) -&gt; (a -&gt; m r) -&gt; m r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682337321"><span class="annot"><span class="annottext">a -&gt; m r
+</span><a href="#local-6989586621682337321"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621682337322"><span class="annot"><a href="#local-6989586621682337322"><span class="hs-identifier hs-var">promise</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (MVar a) -&gt; m (MVar a)
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (MVar a) -&gt; m (MVar a)) -&gt; IO (MVar a) -&gt; m (MVar a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO (MVar a)
+forall a. IO (MVar a)
+</span><span class="hs-identifier hs-var">newEmptyMVar</span></span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621682337323"><span class="annot"><a href="#local-6989586621682337323"><span class="hs-identifier hs-var">ans</span></a></span></span><span>     </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-type">liftIO</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">unsafeDupableInterleaveIO</span></span><span>
+</span><span id="line-50"></span><span>                      </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">readMVar</span></span><span> </span><span class="annot"><a href="#local-6989586621682337322"><span class="hs-identifier hs-type">promise</span></a></span><span>
+</span><span id="line-51"></span><span>                          </span><span class="annot"><span class="hs-operator hs-type">`catch`</span></span><span>
+</span><span id="line-52"></span><span>                        </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="annot"><span class="annottext">BlockedIndefinitelyOnMVar
+</span><span class="hs-identifier hs-var">BlockedIndefinitelyOnMVar</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FixIOException -&gt; IO a
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">FixIOException
+</span><span class="hs-identifier hs-var">FixIOException</span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#runCodensity"><span class="hs-identifier hs-var">runCodensity</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682337308"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337323"><span class="hs-identifier hs-type">ans</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">oneShot</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682337328"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337328"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-54"></span><span>      </span><span class="annot"><span class="annottext">IO () -&gt; m ()
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; m ()) -&gt; IO () -&gt; m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">MVar a -&gt; a -&gt; IO ()
+forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar a
+</span><a href="#local-6989586621682337322"><span class="hs-identifier hs-var">promise</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337328"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-55"></span><span>      </span><span class="annot"><span class="annottext">a -&gt; m r
+</span><a href="#local-6989586621682337321"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682337328"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">mfix</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span id="local-6989586621682337329"><span id="local-6989586621682337330"><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#toCodensity"><span class="hs-identifier hs-type">toCodensity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621682337329"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682337329"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337330"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337329"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337330"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-59"></span><span id="toCodensity"><span class="annot"><span class="annottext">toCodensity :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; Codensity m a
+</span><a href="GHC.Utils.Monad.Codensity.html#toCodensity"><span class="hs-identifier hs-var hs-var">toCodensity</span></a></span></span><span> </span><span id="local-6989586621682337332"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621682337332"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+forall (m :: * -&gt; *) a.
+(forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+</span><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-var">Codensity</span></a></span><span> </span><span class="annot"><span class="annottext">((forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a)
+-&gt; (forall r. (a -&gt; m r) -&gt; m r) -&gt; Codensity m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((a -&gt; m r) -&gt; m r) -&gt; (a -&gt; m r) -&gt; m r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621682337332"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; (a -&gt; m r) -&gt; m r
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#toCodensity"><span class="hs-pragma hs-type">toCodensity</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span id="local-6989586621682337213"><span id="local-6989586621682337214"><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#fromCodensity"><span class="hs-identifier hs-type">fromCodensity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621682337213"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#Codensity"><span class="hs-identifier hs-type">Codensity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337213"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337214"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682337213"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682337214"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-63"></span><span id="fromCodensity"><span class="annot"><span class="annottext">fromCodensity :: forall (m :: * -&gt; *) a. Monad m =&gt; Codensity m a -&gt; m a
+</span><a href="GHC.Utils.Monad.Codensity.html#fromCodensity"><span class="hs-identifier hs-var hs-var">fromCodensity</span></a></span></span><span> </span><span id="local-6989586621682337336"><span class="annot"><span class="annottext">Codensity m a
+</span><a href="#local-6989586621682337336"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Codensity m a -&gt; forall r. (a -&gt; m r) -&gt; m r
+forall (m :: * -&gt; *) a.
+Codensity m a -&gt; forall r. (a -&gt; m r) -&gt; m r
+</span><a href="GHC.Utils.Monad.Codensity.html#runCodensity"><span class="hs-identifier hs-var">runCodensity</span></a></span><span> </span><span class="annot"><span class="annottext">Codensity m a
+</span><a href="#local-6989586621682337336"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; m a
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-64"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.Codensity.html#fromCodensity"><span class="hs-pragma hs-type">fromCodensity</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-65"></span></pre></body></html>

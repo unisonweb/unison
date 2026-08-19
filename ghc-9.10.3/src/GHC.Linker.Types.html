@@ -1,0 +1,706 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Types for the linkers and the loader</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- (c) The University of Glasgow 2019</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html"><span class="hs-identifier">GHC.Linker.Types</span></a></span><span>
+</span><span id="line-10"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Loader"><span class="hs-identifier">Loader</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LoaderState"><span class="hs-identifier">LoaderState</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#uninitializedLoader"><span class="hs-identifier">uninitializedLoader</span></a></span><span>
+</span><span id="line-13"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#modifyClosureEnv"><span class="hs-identifier">modifyClosureEnv</span></a></span><span>
+</span><span id="line-14"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LinkerEnv"><span class="hs-identifier">LinkerEnv</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#filterLinkerEnv"><span class="hs-identifier">filterLinkerEnv</span></a></span><span>
+</span><span id="line-16"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#ClosureEnv"><span class="hs-identifier">ClosureEnv</span></a></span><span>
+</span><span id="line-17"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#emptyClosureEnv"><span class="hs-identifier">emptyClosureEnv</span></a></span><span>
+</span><span id="line-18"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#extendClosureEnv"><span class="hs-identifier">extendClosureEnv</span></a></span><span>
+</span><span id="line-19"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Linkable"><span class="hs-identifier">Linkable</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LinkableSet"><span class="hs-identifier">LinkableSet</span></a></span><span>
+</span><span id="line-21"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#mkLinkableSet"><span class="hs-identifier">mkLinkableSet</span></a></span><span>
+</span><span id="line-22"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#unionLinkableSet"><span class="hs-identifier">unionLinkableSet</span></a></span><span>
+</span><span id="line-23"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#ObjFile"><span class="hs-identifier">ObjFile</span></a></span><span>
+</span><span id="line-24"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Unlinked"><span class="hs-identifier">Unlinked</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#SptEntry"><span class="hs-identifier">SptEntry</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#isObjectLinkable"><span class="hs-identifier">isObjectLinkable</span></a></span><span>
+</span><span id="line-27"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#linkableObjs"><span class="hs-identifier">linkableObjs</span></a></span><span>
+</span><span id="line-28"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#isObject"><span class="hs-identifier">isObject</span></a></span><span>
+</span><span id="line-29"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#nameOfObject"><span class="hs-identifier">nameOfObject</span></a></span><span>
+</span><span id="line-30"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#nameOfObject_maybe"><span class="hs-identifier">nameOfObject_maybe</span></a></span><span>
+</span><span id="line-31"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#isInterpretable"><span class="hs-identifier">isInterpretable</span></a></span><span>
+</span><span id="line-32"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#byteCodeOfObject"><span class="hs-identifier">byteCodeOfObject</span></a></span><span>
+</span><span id="line-33"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LibrarySpec"><span class="hs-identifier">LibrarySpec</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LoadedPkgInfo"><span class="hs-identifier">LoadedPkgInfo</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#PkgsLoaded"><span class="hs-identifier">PkgsLoaded</span></a></span><span>
+</span><span id="line-36"></span><span>   </span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.html"><span class="hs-identifier">GHC.Unit</span></a></span><span>                </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#UnitId"><span class="hs-identifier">UnitId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier">Module</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.ByteCode.Types.html"><span class="hs-identifier">GHC.ByteCode.Types</span></a></span><span>      </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.ByteCode.Types.html#ItblEnv"><span class="hs-identifier">ItblEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.ByteCode.Types.html#AddrEnv"><span class="hs-identifier">AddrEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.ByteCode.Types.html#CompiledByteCode"><span class="hs-identifier">CompiledByteCode</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Fingerprint.Type.html"><span class="hs-identifier">GHC.Fingerprint.Type</span></a></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Fingerprint</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.RemoteTypes.html"><span class="hs-identifier">GHCi.RemoteTypes</span></a></span><span>        </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.RemoteTypes.html#ForeignHValue"><span class="hs-identifier">ForeignHValue</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.RemoteTypes.html#RemotePtr"><span class="hs-identifier">RemotePtr</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.Message.html"><span class="hs-identifier">GHCi.Message</span></a></span><span>            </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.Message.html#LoadedDLL"><span class="hs-identifier">LoadedDLL</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Var.html"><span class="hs-identifier">GHC.Types.Var</span></a></span><span>           </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier">Id</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.Env.html"><span class="hs-identifier">GHC.Types.Name.Env</span></a></span><span>      </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.Name.Env.html#NameEnv"><span class="hs-identifier">NameEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Name.Env.html#emptyNameEnv"><span class="hs-identifier">emptyNameEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Name.Env.html#extendNameEnvList"><span class="hs-identifier">extendNameEnvList</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Name.Env.html#filterNameEnv"><span class="hs-identifier">filterNameEnv</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span>          </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier">Name</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Concurrent.MVar.html"><span class="hs-identifier">Control.Concurrent.MVar</span></a></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../time-1.12.2-986d/src/Data.Time.html"><span class="hs-identifier">Data.Time</span></a></span><span>               </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../time-1.12.2-986d/src/Data.Time.Clock.Internal.UTCTime.html#UTCTime"><span class="hs-identifier">UTCTime</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Maybe.html"><span class="hs-identifier">Data.Maybe</span></a></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Env.html"><span class="hs-identifier">GHC.Unit.Module.Env</span></a></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.DSet.html"><span class="hs-identifier">GHC.Types.Unique.DSet</span></a></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.DFM.html"><span class="hs-identifier">GHC.Types.Unique.DFM</span></a></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.WholeCoreBindings.html"><span class="hs-identifier">GHC.Unit.Module.WholeCoreBindings</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><span class="hs-comment">{- **********************************************************************
+
+                        The Loader's state
+
+  ********************************************************************* -}</span></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">{-
+The loader state *must* match the actual state of the C dynamic linker at all
+times.
+
+The MVar used to hold the LoaderState contains a Maybe LoaderState. The MVar
+serves to ensure mutual exclusion between multiple loaded copies of the GHC
+library. The Maybe may be Nothing to indicate that the linker has not yet been
+initialised.
+
+The LinkerEnv maps Names to actual closures (for interpreted code only), for
+use during linking.
+
+Note [Looking up symbols in the relevant objects]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In #23415, we determined that a lot of time (&gt;10s, or even up to &gt;35s!) was
+being spent on dynamically loading symbols before actually interpreting code
+when `:main` was run in GHCi. The root cause was that for each symbol we wanted
+to lookup, we would traverse the list of loaded objects and try find the symbol
+in each of them with dlsym (i.e. looking up a symbol was, worst case, linear in
+the amount of loaded objects).
+
+To drastically improve load time (from +-38 seconds down to +-2s), we now:
+
+1. For every of the native objects loaded for a given unit, store the handles returned by `dlopen`.
+  - In `pkgs_loaded` of the `LoaderState`, which maps `UnitId`s to
+    `LoadedPkgInfo`s, where the handles live in its field `loaded_pkg_hs_dlls`.
+
+2. When looking up a Name (e.g. `lookupHsSymbol`), find that name's `UnitId` in
+    the `pkgs_loaded` mapping,
+
+3. And only look for the symbol (with `dlsym`) on the /handles relevant to that
+    unit/, rather than in every loaded object.
+
+Note [Symbols may not be found in pkgs_loaded]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Currently the `pkgs_loaded` mapping only contains the dynamic objects
+associated with loaded units. Symbols defined in a static object (e.g. from a
+statically-linked Haskell library) are found via the generic `lookupSymbol`
+function call by `lookupHsSymbol` when the symbol is not found in any of the
+dynamic objects of `pkgs_loaded`.
+
+The rationale here is two-fold:
+
+ * we have only observed major link-time issues in dynamic linking; lookups in
+ the RTS linker's static symbol table seem to be fast enough
+
+ * allowing symbol lookups restricted to a single ObjectCode would require the
+ maintenance of a symbol table per `ObjectCode`, which would introduce time and
+ space overhead
+
+This fallback is further needed because we don't look in the haskell objects
+loaded for the home units (see the call to `loadModuleLinkables` in
+`loadDependencies`, as opposed to the call to `loadPackages'` in the same
+function which updates `pkgs_loaded`). We should ultimately keep track of the
+objects loaded (probably in `objs_loaded`, for which `LinkableSet` is a bit
+unsatisfactory, see a suggestion in 51c5c4eb1f2a33e4dc88e6a37b7b7c135234ce9b)
+and be able to lookup symbols specifically in them too (similarly to
+`lookupSymbolInDLL`).
+-}</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">newtype</span><span> </span><span id="Loader"><span class="annot"><a href="GHC.Linker.Types.html#Loader"><span class="hs-identifier hs-var">Loader</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Loader"><span class="annot"><a href="GHC.Linker.Types.html#Loader"><span class="hs-identifier hs-var">Loader</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="loader_state"><span class="annot"><span class="annottext">Loader -&gt; MVar (Maybe LoaderState)
+</span><a href="GHC.Linker.Types.html#loader_state"><span class="hs-identifier hs-var hs-var">loader_state</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LoaderState"><span class="hs-identifier hs-type">LoaderState</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="hs-keyword">data</span><span> </span><span id="LoaderState"><span class="annot"><a href="GHC.Linker.Types.html#LoaderState"><span class="hs-identifier hs-var">LoaderState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="LoaderState"><span class="annot"><a href="GHC.Linker.Types.html#LoaderState"><span class="hs-identifier hs-var">LoaderState</span></a></span></span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="linker_env"><span class="annot"><span class="annottext">LoaderState -&gt; LinkerEnv
+</span><a href="GHC.Linker.Types.html#linker_env"><span class="hs-identifier hs-var hs-var">linker_env</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Linker.Types.html#LinkerEnv"><span class="hs-identifier hs-type">LinkerEnv</span></a></span><span>
+</span><span id="line-132"></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ Current global mapping from Names to their true values</span></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="bcos_loaded"><span class="annot"><span class="annottext">LoaderState -&gt; LinkableSet
+</span><a href="GHC.Linker.Types.html#bcos_loaded"><span class="hs-identifier hs-var hs-var">bcos_loaded</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Linker.Types.html#LinkableSet"><span class="hs-identifier hs-type">LinkableSet</span></a></span><span>
+</span><span id="line-135"></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ The currently loaded interpreted modules (home package)</span></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="objs_loaded"><span class="annot"><span class="annottext">LoaderState -&gt; LinkableSet
+</span><a href="GHC.Linker.Types.html#objs_loaded"><span class="hs-identifier hs-var hs-var">objs_loaded</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Linker.Types.html#LinkableSet"><span class="hs-identifier hs-type">LinkableSet</span></a></span><span>
+</span><span id="line-138"></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ And the currently-loaded compiled modules (home package)</span></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="pkgs_loaded"><span class="annot"><span class="annottext">LoaderState -&gt; PkgsLoaded
+</span><a href="GHC.Linker.Types.html#pkgs_loaded"><span class="hs-identifier hs-var hs-var">pkgs_loaded</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Linker.Types.html#PkgsLoaded"><span class="hs-identifier hs-type">PkgsLoaded</span></a></span><span>
+</span><span id="line-141"></span><span>        </span><span class="hs-comment">-- ^ The currently-loaded packages; always object code</span><span>
+</span><span id="line-142"></span><span>        </span><span class="hs-comment">-- haskell libraries, system libraries, transitive dependencies</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="temp_sos"><span class="annot"><span class="annottext">LoaderState -&gt; [(FilePath, FilePath)]
+</span><a href="GHC.Linker.Types.html#temp_sos"><span class="hs-identifier hs-var hs-var">temp_sos</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-145"></span><span>        </span><span class="hs-comment">-- ^ We need to remember the name of previous temporary DLL/.so</span><span>
+</span><span id="line-146"></span><span>        </span><span class="hs-comment">-- libraries so we can link them (see #10322)</span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="annot"><a href="GHC.Linker.Types.html#uninitializedLoader"><span class="hs-identifier hs-type">uninitializedLoader</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Loader"><span class="hs-identifier hs-type">Loader</span></a></span><span>
+</span><span id="line-150"></span><span id="uninitializedLoader"><span class="annot"><span class="annottext">uninitializedLoader :: IO Loader
+</span><a href="GHC.Linker.Types.html#uninitializedLoader"><span class="hs-identifier hs-var hs-var">uninitializedLoader</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MVar (Maybe LoaderState) -&gt; Loader
+</span><a href="GHC.Linker.Types.html#Loader"><span class="hs-identifier hs-var">Loader</span></a></span><span> </span><span class="annot"><span class="annottext">(MVar (Maybe LoaderState) -&gt; Loader)
+-&gt; IO (MVar (Maybe LoaderState)) -&gt; IO Loader
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe LoaderState -&gt; IO (MVar (Maybe LoaderState))
+forall a. a -&gt; IO (MVar a)
+</span><span class="hs-identifier hs-var">newMVar</span></span><span> </span><span class="annot"><span class="annottext">Maybe LoaderState
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="annot"><a href="GHC.Linker.Types.html#modifyClosureEnv"><span class="hs-identifier hs-type">modifyClosureEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LoaderState"><span class="hs-identifier hs-type">LoaderState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#ClosureEnv"><span class="hs-identifier hs-type">ClosureEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#ClosureEnv"><span class="hs-identifier hs-type">ClosureEnv</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LoaderState"><span class="hs-identifier hs-type">LoaderState</span></a></span><span>
+</span><span id="line-153"></span><span id="modifyClosureEnv"><span class="annot"><span class="annottext">modifyClosureEnv :: LoaderState -&gt; (ClosureEnv -&gt; ClosureEnv) -&gt; LoaderState
+</span><a href="GHC.Linker.Types.html#modifyClosureEnv"><span class="hs-identifier hs-var hs-var">modifyClosureEnv</span></a></span></span><span> </span><span id="local-6989586621682704362"><span class="annot"><span class="annottext">LoaderState
+</span><a href="#local-6989586621682704362"><span class="hs-identifier hs-var">pls</span></a></span></span><span> </span><span id="local-6989586621682704363"><span class="annot"><span class="annottext">ClosureEnv -&gt; ClosureEnv
+</span><a href="#local-6989586621682704363"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682704364"><span class="annot"><span class="annottext">le :: LinkerEnv
+</span><a href="#local-6989586621682704364"><span class="hs-identifier hs-var hs-var">le</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LoaderState -&gt; LinkerEnv
+</span><a href="GHC.Linker.Types.html#linker_env"><span class="hs-identifier hs-var">linker_env</span></a></span><span> </span><span class="annot"><span class="annottext">LoaderState
+</span><a href="#local-6989586621682704362"><span class="hs-identifier hs-var">pls</span></a></span><span>
+</span><span id="line-155"></span><span>        </span><span id="local-6989586621682704365"><span class="annot"><span class="annottext">ce :: ClosureEnv
+</span><a href="#local-6989586621682704365"><span class="hs-identifier hs-var hs-var">ce</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LinkerEnv -&gt; ClosureEnv
+</span><a href="GHC.Linker.Types.html#closure_env"><span class="hs-identifier hs-var">closure_env</span></a></span><span> </span><span class="annot"><span class="annottext">LinkerEnv
+</span><a href="#local-6989586621682704364"><span class="hs-identifier hs-var">le</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">LoaderState
+</span><a href="#local-6989586621682704362"><span class="hs-identifier hs-var">pls</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#linker_env"><span class="hs-identifier hs-var">linker_env</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621682704364"><span class="hs-identifier hs-type">le</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#closure_env"><span class="hs-identifier hs-var">closure_env</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621682704363"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682704365"><span class="hs-identifier hs-type">ce</span></a></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-keyword">data</span><span> </span><span id="LinkerEnv"><span class="annot"><a href="GHC.Linker.Types.html#LinkerEnv"><span class="hs-identifier hs-var">LinkerEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="LinkerEnv"><span class="annot"><a href="GHC.Linker.Types.html#LinkerEnv"><span class="hs-identifier hs-var">LinkerEnv</span></a></span></span><span>
+</span><span id="line-159"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="closure_env"><span class="annot"><span class="annottext">LinkerEnv -&gt; ClosureEnv
+</span><a href="GHC.Linker.Types.html#closure_env"><span class="hs-identifier hs-var hs-var">closure_env</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Linker.Types.html#ClosureEnv"><span class="hs-identifier hs-type">ClosureEnv</span></a></span><span>
+</span><span id="line-160"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Current global mapping from closure Names to their true values</span></span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="itbl_env"><span class="annot"><span class="annottext">LinkerEnv -&gt; ItblEnv
+</span><a href="GHC.Linker.Types.html#itbl_env"><span class="hs-identifier hs-var hs-var">itbl_env</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.ByteCode.Types.html#ItblEnv"><span class="hs-identifier hs-type">ItblEnv</span></a></span><span>
+</span><span id="line-163"></span><span>      </span><span class="hs-comment">-- ^ The current global mapping from RdrNames of DataCons to</span><span>
+</span><span id="line-164"></span><span>      </span><span class="hs-comment">-- info table addresses.</span><span>
+</span><span id="line-165"></span><span>      </span><span class="hs-comment">-- When a new Unlinked is linked into the running image, or an existing</span><span>
+</span><span id="line-166"></span><span>      </span><span class="hs-comment">-- module in the image is replaced, the itbl_env must be updated</span><span>
+</span><span id="line-167"></span><span>      </span><span class="hs-comment">-- appropriately.</span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="addr_env"><span class="annot"><span class="annottext">LinkerEnv -&gt; AddrEnv
+</span><a href="GHC.Linker.Types.html#addr_env"><span class="hs-identifier hs-var hs-var">addr_env</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.ByteCode.Types.html#AddrEnv"><span class="hs-identifier hs-type">AddrEnv</span></a></span><span>
+</span><span id="line-170"></span><span>      </span><span class="hs-comment">-- ^ Like 'closure_env' and 'itbl_env', but for top-level 'Addr#' literals,</span><span>
+</span><span id="line-171"></span><span>      </span><span class="hs-comment">-- see Note [Generating code for top-level string literal bindings] in GHC.StgToByteCode.</span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="annot"><a href="GHC.Linker.Types.html#filterLinkerEnv"><span class="hs-identifier hs-type">filterLinkerEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LinkerEnv"><span class="hs-identifier hs-type">LinkerEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LinkerEnv"><span class="hs-identifier hs-type">LinkerEnv</span></a></span><span>
+</span><span id="line-175"></span><span id="filterLinkerEnv"><span class="annot"><span class="annottext">filterLinkerEnv :: (Name -&gt; Bool) -&gt; LinkerEnv -&gt; LinkerEnv
+</span><a href="GHC.Linker.Types.html#filterLinkerEnv"><span class="hs-identifier hs-var hs-var">filterLinkerEnv</span></a></span></span><span> </span><span id="local-6989586621682704370"><span class="annot"><span class="annottext">Name -&gt; Bool
+</span><a href="#local-6989586621682704370"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621682704371"><span class="annot"><span class="annottext">LinkerEnv
+</span><a href="#local-6989586621682704371"><span class="hs-identifier hs-var">le</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LinkerEnv"><span class="hs-identifier hs-type">LinkerEnv</span></a></span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">closure_env :: ClosureEnv
+</span><a href="GHC.Linker.Types.html#closure_env"><span class="hs-identifier hs-var">closure_env</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Name, ForeignHValue) -&gt; Bool) -&gt; ClosureEnv -&gt; ClosureEnv
+forall elt. (elt -&gt; Bool) -&gt; NameEnv elt -&gt; NameEnv elt
+</span><a href="GHC.Types.Name.Env.html#filterNameEnv"><span class="hs-identifier hs-var">filterNameEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; Bool
+</span><a href="#local-6989586621682704370"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; Bool)
+-&gt; ((Name, ForeignHValue) -&gt; Name) -&gt; (Name, ForeignHValue) -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Name, ForeignHValue) -&gt; Name
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LinkerEnv -&gt; ClosureEnv
+</span><a href="GHC.Linker.Types.html#closure_env"><span class="hs-identifier hs-var">closure_env</span></a></span><span> </span><span class="annot"><span class="annottext">LinkerEnv
+</span><a href="#local-6989586621682704371"><span class="hs-identifier hs-var">le</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">itbl_env :: ItblEnv
+</span><a href="GHC.Linker.Types.html#itbl_env"><span class="hs-identifier hs-var">itbl_env</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Name, ItblPtr) -&gt; Bool) -&gt; ItblEnv -&gt; ItblEnv
+forall elt. (elt -&gt; Bool) -&gt; NameEnv elt -&gt; NameEnv elt
+</span><a href="GHC.Types.Name.Env.html#filterNameEnv"><span class="hs-identifier hs-var">filterNameEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; Bool
+</span><a href="#local-6989586621682704370"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; Bool)
+-&gt; ((Name, ItblPtr) -&gt; Name) -&gt; (Name, ItblPtr) -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Name, ItblPtr) -&gt; Name
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LinkerEnv -&gt; ItblEnv
+</span><a href="GHC.Linker.Types.html#itbl_env"><span class="hs-identifier hs-var">itbl_env</span></a></span><span> </span><span class="annot"><span class="annottext">LinkerEnv
+</span><a href="#local-6989586621682704371"><span class="hs-identifier hs-var">le</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">addr_env :: AddrEnv
+</span><a href="GHC.Linker.Types.html#addr_env"><span class="hs-identifier hs-var">addr_env</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Name, AddrPtr) -&gt; Bool) -&gt; AddrEnv -&gt; AddrEnv
+forall elt. (elt -&gt; Bool) -&gt; NameEnv elt -&gt; NameEnv elt
+</span><a href="GHC.Types.Name.Env.html#filterNameEnv"><span class="hs-identifier hs-var">filterNameEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; Bool
+</span><a href="#local-6989586621682704370"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; Bool)
+-&gt; ((Name, AddrPtr) -&gt; Name) -&gt; (Name, AddrPtr) -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Name, AddrPtr) -&gt; Name
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LinkerEnv -&gt; AddrEnv
+</span><a href="GHC.Linker.Types.html#addr_env"><span class="hs-identifier hs-var">addr_env</span></a></span><span> </span><span class="annot"><span class="annottext">LinkerEnv
+</span><a href="#local-6989586621682704371"><span class="hs-identifier hs-var">le</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span class="hs-keyword">type</span><span> </span><span id="ClosureEnv"><span class="annot"><a href="GHC.Linker.Types.html#ClosureEnv"><span class="hs-identifier hs-var">ClosureEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Types.Name.Env.html#NameEnv"><span class="hs-identifier hs-type">NameEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.RemoteTypes.html#ForeignHValue"><span class="hs-identifier hs-type">ForeignHValue</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="annot"><a href="GHC.Linker.Types.html#emptyClosureEnv"><span class="hs-identifier hs-type">emptyClosureEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#ClosureEnv"><span class="hs-identifier hs-type">ClosureEnv</span></a></span><span>
+</span><span id="line-184"></span><span id="emptyClosureEnv"><span class="annot"><span class="annottext">emptyClosureEnv :: ClosureEnv
+</span><a href="GHC.Linker.Types.html#emptyClosureEnv"><span class="hs-identifier hs-var hs-var">emptyClosureEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ClosureEnv
+forall a. NameEnv a
+</span><a href="GHC.Types.Name.Env.html#emptyNameEnv"><span class="hs-identifier hs-var">emptyNameEnv</span></a></span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="annot"><a href="GHC.Linker.Types.html#extendClosureEnv"><span class="hs-identifier hs-type">extendClosureEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#ClosureEnv"><span class="hs-identifier hs-type">ClosureEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span class="hs-special">,</span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.RemoteTypes.html#ForeignHValue"><span class="hs-identifier hs-type">ForeignHValue</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#ClosureEnv"><span class="hs-identifier hs-type">ClosureEnv</span></a></span><span>
+</span><span id="line-187"></span><span id="extendClosureEnv"><span class="annot"><span class="annottext">extendClosureEnv :: ClosureEnv -&gt; [(Name, ForeignHValue)] -&gt; ClosureEnv
+</span><a href="GHC.Linker.Types.html#extendClosureEnv"><span class="hs-identifier hs-var hs-var">extendClosureEnv</span></a></span></span><span> </span><span id="local-6989586621682704374"><span class="annot"><span class="annottext">ClosureEnv
+</span><a href="#local-6989586621682704374"><span class="hs-identifier hs-var">cl_env</span></a></span></span><span> </span><span id="local-6989586621682704375"><span class="annot"><span class="annottext">[(Name, ForeignHValue)]
+</span><a href="#local-6989586621682704375"><span class="hs-identifier hs-var">pairs</span></a></span></span><span>
+</span><span id="line-188"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ClosureEnv -&gt; [(Name, (Name, ForeignHValue))] -&gt; ClosureEnv
+forall a. NameEnv a -&gt; [(Name, a)] -&gt; NameEnv a
+</span><a href="GHC.Types.Name.Env.html#extendNameEnvList"><span class="hs-identifier hs-var">extendNameEnvList</span></a></span><span> </span><span class="annot"><span class="annottext">ClosureEnv
+</span><a href="#local-6989586621682704374"><span class="hs-identifier hs-var">cl_env</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682704376"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682704376"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">ForeignHValue
+</span><a href="#local-6989586621682704377"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682704376"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682704376"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621682704377"><span class="annot"><span class="annottext">ForeignHValue
+</span><a href="#local-6989586621682704377"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Name, ForeignHValue)]
+</span><a href="#local-6989586621682704375"><span class="hs-identifier hs-var">pairs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-189"></span><span>
+</span><span id="line-190"></span><span class="hs-keyword">type</span><span> </span><span id="PkgsLoaded"><span class="annot"><a href="GHC.Linker.Types.html#PkgsLoaded"><span class="hs-identifier hs-var">PkgsLoaded</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Types.Unique.DFM.html#UniqDFM"><span class="hs-identifier hs-type">UniqDFM</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#UnitId"><span class="hs-identifier hs-type">UnitId</span></a></span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LoadedPkgInfo"><span class="hs-identifier hs-type">LoadedPkgInfo</span></a></span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="hs-keyword">data</span><span> </span><span id="LoadedPkgInfo"><span class="annot"><a href="GHC.Linker.Types.html#LoadedPkgInfo"><span class="hs-identifier hs-var">LoadedPkgInfo</span></a></span></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="LoadedPkgInfo"><span class="annot"><a href="GHC.Linker.Types.html#LoadedPkgInfo"><span class="hs-identifier hs-var">LoadedPkgInfo</span></a></span></span><span>
+</span><span id="line-194"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="loaded_pkg_uid"><span class="annot"><span class="annottext">LoadedPkgInfo -&gt; UnitId
+</span><a href="GHC.Linker.Types.html#loaded_pkg_uid"><span class="hs-identifier hs-var hs-var">loaded_pkg_uid</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Unit.Types.html#UnitId"><span class="hs-identifier hs-type">UnitId</span></a></span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="loaded_pkg_hs_objs"><span class="annot"><span class="annottext">LoadedPkgInfo -&gt; [LibrarySpec]
+</span><a href="GHC.Linker.Types.html#loaded_pkg_hs_objs"><span class="hs-identifier hs-var hs-var">loaded_pkg_hs_objs</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">[</span><span class="annot"><a href="GHC.Linker.Types.html#LibrarySpec"><span class="hs-identifier hs-type">LibrarySpec</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="loaded_pkg_non_hs_objs"><span class="annot"><span class="annottext">LoadedPkgInfo -&gt; [LibrarySpec]
+</span><a href="GHC.Linker.Types.html#loaded_pkg_non_hs_objs"><span class="hs-identifier hs-var hs-var">loaded_pkg_non_hs_objs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">[</span><span class="annot"><a href="GHC.Linker.Types.html#LibrarySpec"><span class="hs-identifier hs-type">LibrarySpec</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-197"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="loaded_pkg_hs_dlls"><span class="annot"><span class="annottext">LoadedPkgInfo -&gt; [RemotePtr LoadedDLL]
+</span><a href="GHC.Linker.Types.html#loaded_pkg_hs_dlls"><span class="hs-identifier hs-var hs-var">loaded_pkg_hs_dlls</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">[</span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.RemoteTypes.html#RemotePtr"><span class="hs-identifier hs-type">RemotePtr</span></a></span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.Message.html#LoadedDLL"><span class="hs-identifier hs-type">LoadedDLL</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-198"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ See Note [Looking up symbols in the relevant objects]</span></span><span>
+</span><span id="line-199"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="loaded_pkg_trans_deps"><span class="annot"><span class="annottext">LoadedPkgInfo -&gt; UniqDSet UnitId
+</span><a href="GHC.Linker.Types.html#loaded_pkg_trans_deps"><span class="hs-identifier hs-var hs-var">loaded_pkg_trans_deps</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Unique.DSet.html#UniqDSet"><span class="hs-identifier hs-type">UniqDSet</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#UnitId"><span class="hs-identifier hs-type">UnitId</span></a></span><span>
+</span><span id="line-200"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LoadedPkgInfo"><span class="hs-identifier hs-type">LoadedPkgInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-203"></span><span>  </span><span id="local-6989586621682704399"><span class="annot"><span class="annottext">ppr :: LoadedPkgInfo -&gt; SDoc
+</span><a href="#local-6989586621682704399"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#LoadedPkgInfo"><span class="hs-identifier hs-type">LoadedPkgInfo</span></a></span><span> </span><span id="local-6989586621682704401"><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682704401"><span class="hs-identifier hs-var">uid</span></a></span></span><span> </span><span id="local-6989586621682704402"><span class="annot"><span class="annottext">[LibrarySpec]
+</span><a href="#local-6989586621682704402"><span class="hs-identifier hs-var">hs_objs</span></a></span></span><span> </span><span id="local-6989586621682704403"><span class="annot"><span class="annottext">[LibrarySpec]
+</span><a href="#local-6989586621682704403"><span class="hs-identifier hs-var">non_hs_objs</span></a></span></span><span> </span><span class="annot"><span class="annottext">[RemotePtr LoadedDLL]
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682704404"><span class="annot"><span class="annottext">UniqDSet UnitId
+</span><a href="#local-6989586621682704404"><span class="hs-identifier hs-var">trans_deps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-204"></span><span>    </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">UnitId -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682704401"><span class="hs-identifier hs-var">uid</span></a></span><span>
+</span><span id="line-205"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[LibrarySpec] -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">[LibrarySpec]
+</span><a href="#local-6989586621682704402"><span class="hs-identifier hs-var">hs_objs</span></a></span><span>
+</span><span id="line-206"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[LibrarySpec] -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">[LibrarySpec]
+</span><a href="#local-6989586621682704403"><span class="hs-identifier hs-var">non_hs_objs</span></a></span><span>
+</span><span id="line-207"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UniqDSet UnitId -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">UniqDSet UnitId
+</span><a href="#local-6989586621682704404"><span class="hs-identifier hs-var">trans_deps</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span class="annot"><span class="hs-comment">-- | Information we can use to dynamically link modules into the compiler</span></span><span>
+</span><span id="line-211"></span><span class="hs-keyword">data</span><span> </span><span id="Linkable"><span class="annot"><a href="GHC.Linker.Types.html#Linkable"><span class="hs-identifier hs-var">Linkable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="LM"><span class="annot"><a href="GHC.Linker.Types.html#LM"><span class="hs-identifier hs-var">LM</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-212"></span><span>  </span><span id="linkableTime"><span class="annot"><span class="annottext">Linkable -&gt; UTCTime
+</span><a href="GHC.Linker.Types.html#linkableTime"><span class="hs-identifier hs-var hs-var">linkableTime</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../time-1.12.2-986d/src/Data.Time.Clock.Internal.UTCTime.html#UTCTime"><span class="hs-identifier hs-type">UTCTime</span></a></span><span class="hs-special">,</span><span>         </span><span class="hs-comment">-- ^ Time at which this linkable was built</span><span>
+</span><span id="line-213"></span><span>                                        </span><span class="hs-comment">-- (i.e. when the bytecodes were produced,</span><span>
+</span><span id="line-214"></span><span>                                        </span><span class="hs-comment">--       or the mod date on the files)</span><span>
+</span><span id="line-215"></span><span>  </span><span id="linkableModule"><span class="annot"><span class="annottext">Linkable -&gt; Module
+</span><a href="GHC.Linker.Types.html#linkableModule"><span class="hs-identifier hs-var hs-var">linkableModule</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span class="hs-special">,</span><span>          </span><span class="annot"><span class="hs-comment">-- ^ The linkable module itself</span></span><span>
+</span><span id="line-216"></span><span>  </span><span id="linkableUnlinked"><span class="annot"><span class="annottext">Linkable -&gt; [Unlinked]
+</span><a href="GHC.Linker.Types.html#linkableUnlinked"><span class="hs-identifier hs-var hs-var">linkableUnlinked</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Linker.Types.html#Unlinked"><span class="hs-identifier hs-type">Unlinked</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-217"></span><span>    </span><span class="hs-comment">-- ^ Those files and chunks of code we have yet to link.</span><span>
+</span><span id="line-218"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-219"></span><span>    </span><span class="hs-comment">-- INVARIANT: A valid linkable always has at least one 'Unlinked' item.</span><span>
+</span><span id="line-220"></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span class="hs-keyword">type</span><span> </span><span id="LinkableSet"><span class="annot"><a href="GHC.Linker.Types.html#LinkableSet"><span class="hs-identifier hs-var">LinkableSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Unit.Module.Env.html#ModuleEnv"><span class="hs-identifier hs-type">ModuleEnv</span></a></span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Linkable"><span class="hs-identifier hs-type">Linkable</span></a></span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span class="annot"><a href="GHC.Linker.Types.html#mkLinkableSet"><span class="hs-identifier hs-type">mkLinkableSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Linker.Types.html#Linkable"><span class="hs-identifier hs-type">Linkable</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LinkableSet"><span class="hs-identifier hs-type">LinkableSet</span></a></span><span>
+</span><span id="line-225"></span><span id="mkLinkableSet"><span class="annot"><span class="annottext">mkLinkableSet :: [Linkable] -&gt; LinkableSet
+</span><a href="GHC.Linker.Types.html#mkLinkableSet"><span class="hs-identifier hs-var hs-var">mkLinkableSet</span></a></span></span><span> </span><span id="local-6989586621682704410"><span class="annot"><span class="annottext">[Linkable]
+</span><a href="#local-6989586621682704410"><span class="hs-identifier hs-var">ls</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Module, Linkable)] -&gt; LinkableSet
+forall a. [(Module, a)] -&gt; ModuleEnv a
+</span><a href="GHC.Unit.Module.Env.html#mkModuleEnv"><span class="hs-identifier hs-var">mkModuleEnv</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Linkable -&gt; Module
+</span><a href="GHC.Linker.Types.html#linkableModule"><span class="hs-identifier hs-var">linkableModule</span></a></span><span> </span><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704412"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704412"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621682704412"><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704412"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Linkable]
+</span><a href="#local-6989586621682704410"><span class="hs-identifier hs-var">ls</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="annot"><a href="GHC.Linker.Types.html#unionLinkableSet"><span class="hs-identifier hs-type">unionLinkableSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LinkableSet"><span class="hs-identifier hs-type">LinkableSet</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LinkableSet"><span class="hs-identifier hs-type">LinkableSet</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LinkableSet"><span class="hs-identifier hs-type">LinkableSet</span></a></span><span>
+</span><span id="line-228"></span><span id="unionLinkableSet"><span class="annot"><span class="annottext">unionLinkableSet :: LinkableSet -&gt; LinkableSet -&gt; LinkableSet
+</span><a href="GHC.Linker.Types.html#unionLinkableSet"><span class="hs-identifier hs-var hs-var">unionLinkableSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Linkable -&gt; Linkable -&gt; Linkable)
+-&gt; LinkableSet -&gt; LinkableSet -&gt; LinkableSet
+forall a.
+(a -&gt; a -&gt; a) -&gt; ModuleEnv a -&gt; ModuleEnv a -&gt; ModuleEnv a
+</span><a href="GHC.Unit.Module.Env.html#plusModuleEnv_C"><span class="hs-identifier hs-var">plusModuleEnv_C</span></a></span><span> </span><span class="annot"><span class="annottext">Linkable -&gt; Linkable -&gt; Linkable
+</span><a href="#local-6989586621682704414"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-230"></span><span>    </span><span id="local-6989586621682704414"><span class="annot"><span class="annottext">go :: Linkable -&gt; Linkable -&gt; Linkable
+</span><a href="#local-6989586621682704414"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621682704417"><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704417"><span class="hs-identifier hs-var">l1</span></a></span></span><span> </span><span id="local-6989586621682704418"><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704418"><span class="hs-identifier hs-var">l2</span></a></span></span><span>
+</span><span id="line-231"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Linkable -&gt; UTCTime
+</span><a href="GHC.Linker.Types.html#linkableTime"><span class="hs-identifier hs-var">linkableTime</span></a></span><span> </span><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704417"><span class="hs-identifier hs-var">l1</span></a></span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; UTCTime -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Linkable -&gt; UTCTime
+</span><a href="GHC.Linker.Types.html#linkableTime"><span class="hs-identifier hs-var">linkableTime</span></a></span><span> </span><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704418"><span class="hs-identifier hs-var">l2</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704417"><span class="hs-identifier hs-var">l1</span></a></span><span>
+</span><span id="line-232"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704418"><span class="hs-identifier hs-var">l2</span></a></span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Linkable"><span class="hs-identifier hs-type">Linkable</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-235"></span><span>  </span><span id="local-6989586621682704434"><span class="annot"><span class="annottext">ppr :: Linkable -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#LM"><span class="hs-identifier hs-type">LM</span></a></span><span> </span><span id="local-6989586621682704435"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621682704435"><span class="hs-identifier hs-var">when_made</span></a></span></span><span> </span><span id="local-6989586621682704436"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621682704436"><span class="hs-identifier hs-var">mod</span></a></span></span><span> </span><span id="local-6989586621682704437"><span class="annot"><span class="annottext">[Unlinked]
+</span><a href="#local-6989586621682704437"><span class="hs-identifier hs-var">unlinkeds</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-236"></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;LinkableM&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#parens"><span class="hs-identifier hs-var">parens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UTCTime -&gt; FilePath
+forall a. Show a =&gt; a -&gt; FilePath
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621682704435"><span class="hs-identifier hs-var">when_made</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Module -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621682704436"><span class="hs-identifier hs-var">mod</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-237"></span><span>       </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsDoc doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">$$</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#nest"><span class="hs-identifier hs-var">nest</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Unlinked] -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">[Unlinked]
+</span><a href="#local-6989586621682704437"><span class="hs-identifier hs-var">unlinkeds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span class="hs-keyword">type</span><span> </span><span id="ObjFile"><span class="annot"><a href="GHC.Linker.Types.html#ObjFile"><span class="hs-identifier hs-var">ObjFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-240"></span><span>
+</span><span id="line-241"></span><span class="annot"><span class="hs-comment">-- | Objects which have yet to be linked by the compiler</span></span><span>
+</span><span id="line-242"></span><span class="hs-keyword">data</span><span> </span><span id="Unlinked"><span class="annot"><a href="GHC.Linker.Types.html#Unlinked"><span class="hs-identifier hs-var">Unlinked</span></a></span></span><span>
+</span><span id="line-243"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="DotO"><span class="annot"><a href="GHC.Linker.Types.html#DotO"><span class="hs-identifier hs-var">DotO</span></a></span></span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#ObjFile"><span class="hs-identifier hs-type">ObjFile</span></a></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ An object file (.o)</span></span><span>
+</span><span id="line-244"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DotA"><span class="annot"><a href="GHC.Linker.Types.html#DotA"><span class="hs-identifier hs-var">DotA</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Static archive file (.a)</span></span><span>
+</span><span id="line-245"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DotDLL"><span class="annot"><a href="GHC.Linker.Types.html#DotDLL"><span class="hs-identifier hs-var">DotDLL</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Dynamically linked library file (.so, .dll, .dylib)</span></span><span>
+</span><span id="line-246"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CoreBindings"><span class="annot"><a href="GHC.Linker.Types.html#CoreBindings"><span class="hs-identifier hs-var">CoreBindings</span></a></span></span><span> </span><span class="annot"><a href="GHC.Unit.Module.WholeCoreBindings.html#WholeCoreBindings"><span class="hs-identifier hs-type">WholeCoreBindings</span></a></span><span> </span><span class="hs-comment">-- ^ Serialised core which we can turn into BCOs (or object files), or used by some other backend</span><span>
+</span><span id="line-247"></span><span>                       </span><span class="hs-comment">-- See Note [Interface Files with Core Definitions]</span><span>
+</span><span id="line-248"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LoadedBCOs"><span class="annot"><a href="GHC.Linker.Types.html#LoadedBCOs"><span class="hs-identifier hs-var">LoadedBCOs</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Linker.Types.html#Unlinked"><span class="hs-identifier hs-type">Unlinked</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-comment">-- ^ A list of BCOs, but hidden behind extra indirection to avoid</span><span>
+</span><span id="line-249"></span><span>                          </span><span class="hs-comment">-- being too strict.</span><span>
+</span><span id="line-250"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BCOs"><span class="annot"><a href="GHC.Linker.Types.html#BCOs"><span class="hs-identifier hs-var">BCOs</span></a></span></span><span> </span><span class="annot"><a href="GHC.ByteCode.Types.html#CompiledByteCode"><span class="hs-identifier hs-type">CompiledByteCode</span></a></span><span>
+</span><span id="line-251"></span><span>         </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Linker.Types.html#SptEntry"><span class="hs-identifier hs-type">SptEntry</span></a></span><span class="hs-special">]</span><span>    </span><span class="hs-comment">-- ^ A byte-code object, lives only in memory. Also</span><span>
+</span><span id="line-252"></span><span>                       </span><span class="hs-comment">-- carries some static pointer table entries which</span><span>
+</span><span id="line-253"></span><span>                       </span><span class="hs-comment">-- should be loaded along with the BCOs.</span><span>
+</span><span id="line-254"></span><span>                       </span><span class="hs-comment">-- See Note [Grand plan for static forms] in</span><span>
+</span><span id="line-255"></span><span>                       </span><span class="hs-comment">-- &quot;GHC.Iface.Tidy.StaticPtrTable&quot;.</span><span>
+</span><span id="line-256"></span><span>
+</span><span id="line-257"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Unlinked"><span class="hs-identifier hs-type">Unlinked</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-258"></span><span>  </span><span id="local-6989586621682704471"><span class="annot"><span class="annottext">ppr :: Unlinked -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DotO"><span class="hs-identifier hs-type">DotO</span></a></span><span> </span><span id="local-6989586621682704472"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704472"><span class="hs-identifier hs-var">path</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;DotO&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704472"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-259"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DotA"><span class="hs-identifier hs-type">DotA</span></a></span><span> </span><span id="local-6989586621682704473"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704473"><span class="hs-identifier hs-var">path</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;DotA&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704473"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-260"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DotDLL"><span class="hs-identifier hs-type">DotDLL</span></a></span><span> </span><span id="local-6989586621682704474"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704474"><span class="hs-identifier hs-var">path</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;DotDLL&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704474"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-261"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#BCOs"><span class="hs-identifier hs-type">BCOs</span></a></span><span> </span><span id="local-6989586621682704475"><span class="annot"><span class="annottext">CompiledByteCode
+</span><a href="#local-6989586621682704475"><span class="hs-identifier hs-var">bcos</span></a></span></span><span> </span><span id="local-6989586621682704476"><span class="annot"><span class="annottext">[SptEntry]
+</span><a href="#local-6989586621682704476"><span class="hs-identifier hs-var">spt</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;BCOs&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">CompiledByteCode -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">CompiledByteCode
+</span><a href="#local-6989586621682704475"><span class="hs-identifier hs-var">bcos</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">[SptEntry] -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">[SptEntry]
+</span><a href="#local-6989586621682704476"><span class="hs-identifier hs-var">spt</span></a></span><span>
+</span><span id="line-262"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#LoadedBCOs"><span class="hs-identifier hs-type">LoadedBCOs</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;LoadedBCOs&quot;</span></span><span>
+</span><span id="line-263"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#CoreBindings"><span class="hs-identifier hs-type">CoreBindings</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;FI&quot;</span></span><span>
+</span><span id="line-264"></span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- | An entry to be inserted into a module's static pointer table.</span><span>
+</span><span id="line-266"></span><span class="hs-comment">-- See Note [Grand plan for static forms] in &quot;GHC.Iface.Tidy.StaticPtrTable&quot;.</span><span>
+</span><span id="line-267"></span><span class="hs-keyword">data</span><span> </span><span id="SptEntry"><span class="annot"><a href="GHC.Linker.Types.html#SptEntry"><span class="hs-identifier hs-var">SptEntry</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SptEntry"><span class="annot"><a href="GHC.Linker.Types.html#SptEntry"><span class="hs-identifier hs-var">SptEntry</span></a></span></span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fingerprint</span></span><span>
+</span><span id="line-268"></span><span>
+</span><span id="line-269"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#SptEntry"><span class="hs-identifier hs-type">SptEntry</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-270"></span><span>  </span><span id="local-6989586621682704486"><span class="annot"><span class="annottext">ppr :: SptEntry -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#SptEntry"><span class="hs-identifier hs-type">SptEntry</span></a></span><span> </span><span id="local-6989586621682704487"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682704487"><span class="hs-identifier hs-var">id</span></a></span></span><span> </span><span id="local-6989586621682704488"><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621682704488"><span class="hs-identifier hs-var">fpr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Id -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682704487"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsLine doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#colon"><span class="hs-identifier hs-var">colon</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Fingerprint -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621682704488"><span class="hs-identifier hs-var">fpr</span></a></span><span>
+</span><span id="line-271"></span><span>
+</span><span id="line-272"></span><span>
+</span><span id="line-273"></span><span class="annot"><a href="GHC.Linker.Types.html#isObjectLinkable"><span class="hs-identifier hs-type">isObjectLinkable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Linkable"><span class="hs-identifier hs-type">Linkable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-274"></span><span id="isObjectLinkable"><span class="annot"><span class="annottext">isObjectLinkable :: Linkable -&gt; Bool
+</span><a href="GHC.Linker.Types.html#isObjectLinkable"><span class="hs-identifier hs-var hs-var">isObjectLinkable</span></a></span></span><span> </span><span id="local-6989586621682704491"><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704491"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Unlinked] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Unlinked]
+</span><a href="#local-6989586621682704494"><span class="hs-identifier hs-var">unlinked</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Unlinked -&gt; Bool) -&gt; [Unlinked] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">Unlinked -&gt; Bool
+</span><a href="GHC.Linker.Types.html#isObject"><span class="hs-identifier hs-var">isObject</span></a></span><span> </span><span class="annot"><span class="annottext">[Unlinked]
+</span><a href="#local-6989586621682704494"><span class="hs-identifier hs-var">unlinked</span></a></span><span>
+</span><span id="line-275"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621682704494"><span class="annot"><span class="annottext">unlinked :: [Unlinked]
+</span><a href="#local-6989586621682704494"><span class="hs-identifier hs-var hs-var">unlinked</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Linkable -&gt; [Unlinked]
+</span><a href="GHC.Linker.Types.html#linkableUnlinked"><span class="hs-identifier hs-var">linkableUnlinked</span></a></span><span> </span><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704491"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-276"></span><span>        </span><span class="hs-comment">-- A linkable with no Unlinked's is treated as a BCO.  We can</span><span>
+</span><span id="line-277"></span><span>        </span><span class="hs-comment">-- generate a linkable with no Unlinked's as a result of</span><span>
+</span><span id="line-278"></span><span>        </span><span class="hs-comment">-- compiling a module in NoBackend mode, and this choice</span><span>
+</span><span id="line-279"></span><span>        </span><span class="hs-comment">-- happens to work well with checkStability in module GHC.</span><span>
+</span><span id="line-280"></span><span>
+</span><span id="line-281"></span><span class="annot"><a href="GHC.Linker.Types.html#linkableObjs"><span class="hs-identifier hs-type">linkableObjs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Linkable"><span class="hs-identifier hs-type">Linkable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-282"></span><span id="linkableObjs"><span class="annot"><span class="annottext">linkableObjs :: Linkable -&gt; [FilePath]
+</span><a href="GHC.Linker.Types.html#linkableObjs"><span class="hs-identifier hs-var hs-var">linkableObjs</span></a></span></span><span> </span><span id="local-6989586621682704497"><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704497"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704498"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#DotO"><span class="hs-identifier hs-type">DotO</span></a></span><span> </span><span id="local-6989586621682704498"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704498"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Linkable -&gt; [Unlinked]
+</span><a href="GHC.Linker.Types.html#linkableUnlinked"><span class="hs-identifier hs-var">linkableUnlinked</span></a></span><span> </span><span class="annot"><span class="annottext">Linkable
+</span><a href="#local-6989586621682704497"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-283"></span><span>
+</span><span id="line-284"></span><span class="hs-comment">-------------------------------------------</span><span>
+</span><span id="line-285"></span><span>
+</span><span id="line-286"></span><span class="annot"><span class="hs-comment">-- | Is this an actual file on disk we can link in somehow?</span></span><span>
+</span><span id="line-287"></span><span class="annot"><a href="GHC.Linker.Types.html#isObject"><span class="hs-identifier hs-type">isObject</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Unlinked"><span class="hs-identifier hs-type">Unlinked</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-288"></span><span id="isObject"><span class="annot"><span class="annottext">isObject :: Unlinked -&gt; Bool
+</span><a href="GHC.Linker.Types.html#isObject"><span class="hs-identifier hs-var hs-var">isObject</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DotO"><span class="hs-identifier hs-type">DotO</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-289"></span><span class="annot"><a href="GHC.Linker.Types.html#isObject"><span class="hs-identifier hs-var">isObject</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DotA"><span class="hs-identifier hs-type">DotA</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-290"></span><span class="annot"><a href="GHC.Linker.Types.html#isObject"><span class="hs-identifier hs-var">isObject</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DotDLL"><span class="hs-identifier hs-type">DotDLL</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-291"></span><span class="annot"><a href="GHC.Linker.Types.html#isObject"><span class="hs-identifier hs-var">isObject</span></a></span><span> </span><span class="annot"><span class="annottext">Unlinked
+</span><span class="hs-identifier">_</span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-292"></span><span>
+</span><span id="line-293"></span><span class="annot"><span class="hs-comment">-- | Is this a bytecode linkable with no file on disk?</span></span><span>
+</span><span id="line-294"></span><span class="annot"><a href="GHC.Linker.Types.html#isInterpretable"><span class="hs-identifier hs-type">isInterpretable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Unlinked"><span class="hs-identifier hs-type">Unlinked</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-295"></span><span id="isInterpretable"><span class="annot"><span class="annottext">isInterpretable :: Unlinked -&gt; Bool
+</span><a href="GHC.Linker.Types.html#isInterpretable"><span class="hs-identifier hs-var hs-var">isInterpretable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (Unlinked -&gt; Bool) -&gt; Unlinked -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Unlinked -&gt; Bool
+</span><a href="GHC.Linker.Types.html#isObject"><span class="hs-identifier hs-var">isObject</span></a></span><span>
+</span><span id="line-296"></span><span>
+</span><span id="line-297"></span><span class="annot"><a href="GHC.Linker.Types.html#nameOfObject_maybe"><span class="hs-identifier hs-type">nameOfObject_maybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Unlinked"><span class="hs-identifier hs-type">Unlinked</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-298"></span><span id="nameOfObject_maybe"><span class="annot"><span class="annottext">nameOfObject_maybe :: Unlinked -&gt; Maybe FilePath
+</span><a href="GHC.Linker.Types.html#nameOfObject_maybe"><span class="hs-identifier hs-var hs-var">nameOfObject_maybe</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DotO"><span class="hs-identifier hs-type">DotO</span></a></span><span> </span><span id="local-6989586621682704499"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704499"><span class="hs-identifier hs-var">fn</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Maybe FilePath
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704499"><span class="hs-identifier hs-var">fn</span></a></span><span>
+</span><span id="line-299"></span><span class="annot"><a href="GHC.Linker.Types.html#nameOfObject_maybe"><span class="hs-identifier hs-var">nameOfObject_maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DotA"><span class="hs-identifier hs-type">DotA</span></a></span><span> </span><span id="local-6989586621682704500"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704500"><span class="hs-identifier hs-var">fn</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Maybe FilePath
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704500"><span class="hs-identifier hs-var">fn</span></a></span><span>
+</span><span id="line-300"></span><span class="annot"><a href="GHC.Linker.Types.html#nameOfObject_maybe"><span class="hs-identifier hs-var">nameOfObject_maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DotDLL"><span class="hs-identifier hs-type">DotDLL</span></a></span><span> </span><span id="local-6989586621682704501"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704501"><span class="hs-identifier hs-var">fn</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Maybe FilePath
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704501"><span class="hs-identifier hs-var">fn</span></a></span><span>
+</span><span id="line-301"></span><span class="annot"><a href="GHC.Linker.Types.html#nameOfObject_maybe"><span class="hs-identifier hs-var">nameOfObject_maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#CoreBindings"><span class="hs-identifier hs-type">CoreBindings</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe FilePath
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-302"></span><span class="annot"><a href="GHC.Linker.Types.html#nameOfObject_maybe"><span class="hs-identifier hs-var">nameOfObject_maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#LoadedBCOs"><span class="hs-identifier hs-type">LoadedBCOs</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe FilePath
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-303"></span><span class="annot"><a href="GHC.Linker.Types.html#nameOfObject_maybe"><span class="hs-identifier hs-var">nameOfObject_maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#BCOs"><span class="hs-identifier hs-type">BCOs</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe FilePath
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-304"></span><span>
+</span><span id="line-305"></span><span class="annot"><span class="hs-comment">-- | Retrieve the filename of the linkable if possible. Panic if it is a byte-code object</span></span><span>
+</span><span id="line-306"></span><span class="annot"><a href="GHC.Linker.Types.html#nameOfObject"><span class="hs-identifier hs-type">nameOfObject</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Unlinked"><span class="hs-identifier hs-type">Unlinked</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-307"></span><span id="nameOfObject"><span class="annot"><span class="annottext">nameOfObject :: Unlinked -&gt; FilePath
+</span><a href="GHC.Linker.Types.html#nameOfObject"><span class="hs-identifier hs-var hs-var">nameOfObject</span></a></span></span><span> </span><span id="local-6989586621682704502"><span class="annot"><span class="annottext">Unlinked
+</span><a href="#local-6989586621682704502"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Maybe FilePath -&gt; FilePath
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; SDoc -&gt; FilePath
+forall a. HasCallStack =&gt; FilePath -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;nameOfObject&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Unlinked -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Unlinked
+</span><a href="#local-6989586621682704502"><span class="hs-identifier hs-var">o</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Unlinked -&gt; Maybe FilePath
+</span><a href="GHC.Linker.Types.html#nameOfObject_maybe"><span class="hs-identifier hs-var">nameOfObject_maybe</span></a></span><span> </span><span class="annot"><span class="annottext">Unlinked
+</span><a href="#local-6989586621682704502"><span class="hs-identifier hs-var">o</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-308"></span><span>
+</span><span id="line-309"></span><span class="annot"><span class="hs-comment">-- | Retrieve the compiled byte-code if possible. Panic if it is a file-based linkable</span></span><span>
+</span><span id="line-310"></span><span class="annot"><a href="GHC.Linker.Types.html#byteCodeOfObject"><span class="hs-identifier hs-type">byteCodeOfObject</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#Unlinked"><span class="hs-identifier hs-type">Unlinked</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.ByteCode.Types.html#CompiledByteCode"><span class="hs-identifier hs-type">CompiledByteCode</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-311"></span><span id="byteCodeOfObject"><span class="annot"><span class="annottext">byteCodeOfObject :: Unlinked -&gt; [CompiledByteCode]
+</span><a href="GHC.Linker.Types.html#byteCodeOfObject"><span class="hs-identifier hs-var hs-var">byteCodeOfObject</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#BCOs"><span class="hs-identifier hs-type">BCOs</span></a></span><span> </span><span id="local-6989586621682704505"><span class="annot"><span class="annottext">CompiledByteCode
+</span><a href="#local-6989586621682704505"><span class="hs-identifier hs-var">bc</span></a></span></span><span> </span><span class="annot"><span class="annottext">[SptEntry]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">CompiledByteCode
+</span><a href="#local-6989586621682704505"><span class="hs-identifier hs-var">bc</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-312"></span><span class="annot"><a href="GHC.Linker.Types.html#byteCodeOfObject"><span class="hs-identifier hs-var">byteCodeOfObject</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#LoadedBCOs"><span class="hs-identifier hs-type">LoadedBCOs</span></a></span><span> </span><span id="local-6989586621682704506"><span class="annot"><span class="annottext">[Unlinked]
+</span><a href="#local-6989586621682704506"><span class="hs-identifier hs-var">ul</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Unlinked -&gt; [CompiledByteCode])
+-&gt; [Unlinked] -&gt; [CompiledByteCode]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="annot"><span class="annottext">Unlinked -&gt; [CompiledByteCode]
+</span><a href="GHC.Linker.Types.html#byteCodeOfObject"><span class="hs-identifier hs-var">byteCodeOfObject</span></a></span><span> </span><span class="annot"><span class="annottext">[Unlinked]
+</span><a href="#local-6989586621682704506"><span class="hs-identifier hs-var">ul</span></a></span><span>
+</span><span id="line-313"></span><span class="annot"><a href="GHC.Linker.Types.html#byteCodeOfObject"><span class="hs-identifier hs-var">byteCodeOfObject</span></a></span><span> </span><span id="local-6989586621682704508"><span class="annot"><span class="annottext">Unlinked
+</span><a href="#local-6989586621682704508"><span class="hs-identifier hs-var">other</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc -&gt; [CompiledByteCode]
+forall a. HasCallStack =&gt; FilePath -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;byteCodeOfObject&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Unlinked -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Unlinked
+</span><a href="#local-6989586621682704508"><span class="hs-identifier hs-var">other</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-314"></span><span>
+</span><span id="line-315"></span><span class="annot"><span class="hs-comment">{- **********************************************************************
+
+                Loading packages
+
+  ********************************************************************* -}</span></span><span>
+</span><span id="line-320"></span><span>
+</span><span id="line-321"></span><span class="hs-keyword">data</span><span> </span><span id="LibrarySpec"><span class="annot"><a href="GHC.Linker.Types.html#LibrarySpec"><span class="hs-identifier hs-var">LibrarySpec</span></a></span></span><span>
+</span><span id="line-322"></span><span>   </span><span class="hs-glyph">=</span><span> </span><span id="Objects"><span class="annot"><a href="GHC.Linker.Types.html#Objects"><span class="hs-identifier hs-var">Objects</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span> </span><span class="hs-comment">-- Full path names of set of .o files, including trailing .o</span><span>
+</span><span id="line-323"></span><span>                        </span><span class="hs-comment">-- We allow batched loading to ensure that cyclic symbol</span><span>
+</span><span id="line-324"></span><span>                        </span><span class="hs-comment">-- references can be resolved (see #13786).</span><span>
+</span><span id="line-325"></span><span>                        </span><span class="hs-comment">-- For dynamic objects only, try to find the object</span><span>
+</span><span id="line-326"></span><span>                        </span><span class="hs-comment">-- file in all the directories specified in</span><span>
+</span><span id="line-327"></span><span>                        </span><span class="hs-comment">-- v_Library_paths before giving up.</span><span>
+</span><span id="line-328"></span><span>
+</span><span id="line-329"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="Archive"><span class="annot"><a href="GHC.Linker.Types.html#Archive"><span class="hs-identifier hs-var">Archive</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>   </span><span class="hs-comment">-- Full path name of a .a file, including trailing .a</span><span>
+</span><span id="line-330"></span><span>
+</span><span id="line-331"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="DLL"><span class="annot"><a href="GHC.Linker.Types.html#DLL"><span class="hs-identifier hs-var">DLL</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>         </span><span class="hs-comment">-- &quot;Unadorned&quot; name of a .DLL/.so</span><span>
+</span><span id="line-332"></span><span>                        </span><span class="hs-comment">--  e.g.    On unix     &quot;qt&quot;  denotes &quot;libqt.so&quot;</span><span>
+</span><span id="line-333"></span><span>                        </span><span class="hs-comment">--          On Windows  &quot;burble&quot;  denotes &quot;burble.DLL&quot; or &quot;libburble.dll&quot;</span><span>
+</span><span id="line-334"></span><span>                        </span><span class="hs-comment">--  loadDLL is platform-specific and adds the lib/.so/.DLL</span><span>
+</span><span id="line-335"></span><span>                        </span><span class="hs-comment">--  suffixes platform-dependently</span><span>
+</span><span id="line-336"></span><span>
+</span><span id="line-337"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="DLLPath"><span class="annot"><a href="GHC.Linker.Types.html#DLLPath"><span class="hs-identifier hs-var">DLLPath</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>   </span><span class="hs-comment">-- Absolute or relative pathname to a dynamic library</span><span>
+</span><span id="line-338"></span><span>                        </span><span class="hs-comment">-- (ends with .dll or .so).</span><span>
+</span><span id="line-339"></span><span>
+</span><span id="line-340"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="Framework"><span class="annot"><a href="GHC.Linker.Types.html#Framework"><span class="hs-identifier hs-var">Framework</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>   </span><span class="hs-comment">-- Only used for darwin, but does no harm</span><span>
+</span><span id="line-341"></span><span>
+</span><span id="line-342"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Linker.Types.html#LibrarySpec"><span class="hs-identifier hs-type">LibrarySpec</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-343"></span><span>  </span><span id="local-6989586621682704533"><span class="annot"><span class="annottext">ppr :: LibrarySpec -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#Objects"><span class="hs-identifier hs-type">Objects</span></a></span><span> </span><span id="local-6989586621682704534"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621682704534"><span class="hs-identifier hs-var">objs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Objects&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(FilePath -&gt; SDoc) -&gt; [FilePath] -&gt; [SDoc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621682704534"><span class="hs-identifier hs-var">objs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-344"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#Archive"><span class="hs-identifier hs-type">Archive</span></a></span><span> </span><span id="local-6989586621682704535"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704535"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Archive&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704535"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-345"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DLL"><span class="hs-identifier hs-type">DLL</span></a></span><span> </span><span id="local-6989586621682704536"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704536"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;DLL&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704536"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-346"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#DLLPath"><span class="hs-identifier hs-type">DLLPath</span></a></span><span> </span><span id="local-6989586621682704537"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704537"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;DLLPath&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704537"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-347"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Linker.Types.html#Framework"><span class="hs-identifier hs-type">Framework</span></a></span><span> </span><span id="local-6989586621682704538"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704538"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Framework&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621682704538"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-348"></span></pre></body></html>

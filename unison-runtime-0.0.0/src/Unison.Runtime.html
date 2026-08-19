@@ -1,0 +1,89 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.html"><span class="hs-identifier">Unison.Runtime</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.html#Runtime"><span class="hs-identifier">Runtime</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.html#Runtime"><span class="hs-identifier">Runtime</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Runtime.html#terminate"><span class="hs-identifier">terminate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Runtime.html#evaluate"><span class="hs-identifier">evaluate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Runtime.html#compileTo"><span class="hs-identifier">compileTo</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Runtime.html#mainType"><span class="hs-identifier">mainType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Runtime.html#ioTestTypes"><span class="hs-identifier">ioTestTypes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Runtime.html#Error"><span class="hs-identifier">Error</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Runtime</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Rt</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnv</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PrettyPrintEnv</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Decompile.html"><span class="hs-identifier">Unison.Runtime.Decompile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Decompile.html#DecompError"><span class="hs-identifier">DecompError</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Decompile.html#DecompResult"><span class="hs-identifier">DecompResult</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Exception.html"><span class="hs-identifier">Unison.Runtime.Exception</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Exception.html#RuntimeExn"><span class="hs-identifier">RuntimeExn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.InternalError.html"><span class="hs-identifier">Unison.Runtime.InternalError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.InternalError.html#CompileExn"><span class="hs-identifier">CompileExn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html"><span class="hs-identifier">Unison.Runtime.Stack</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Stack.html#RuntimePanic"><span class="hs-identifier">RuntimePanic</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Val"><span class="hs-identifier">Val</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Symbol</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Symbol</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="Error"><span class="annot"><a href="Unison.Runtime.html#Error"><span class="hs-identifier hs-var">Error</span></a></span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | __TODO__: This constructor should go away, but there are still a few places that have unstructured errors.</span></span><span>
+</span><span id="line-27"></span><span>    </span><span id="UnstructuredError"><span class="annot"><a href="Unison.Runtime.html#UnstructuredError"><span class="hs-identifier hs-var">UnstructuredError</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CompileExn"><span class="annot"><a href="Unison.Runtime.html#CompileExn"><span class="hs-identifier hs-var">CompileExn</span></a></span></span><span> </span><span class="annot"><a href="Unison.Runtime.InternalError.html#CompileExn"><span class="hs-identifier hs-type">CompileExn</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RuntimeExn"><span class="annot"><a href="Unison.Runtime.html#RuntimeExn"><span class="hs-identifier hs-var">RuntimeExn</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnv</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Val"><span class="hs-identifier hs-type">Val</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Decompile.html#DecompResult"><span class="hs-identifier hs-type">DecompResult</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.Exception.html#RuntimeExn"><span class="hs-identifier hs-type">RuntimeExn</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RuntimePanic"><span class="annot"><a href="Unison.Runtime.html#RuntimePanic"><span class="hs-identifier hs-var">RuntimePanic</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnv</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Stack.html#Val"><span class="hs-identifier hs-type">Val</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Decompile.html#DecompResult"><span class="hs-identifier hs-type">DecompResult</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#RuntimePanic"><span class="hs-identifier hs-type">RuntimePanic</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">type</span><span> </span><span id="Runtime"><span class="annot"><a href="Unison.Runtime.html#Runtime"><span class="hs-identifier hs-var">Runtime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Rt.Runtime</span></span><span> </span><span class="annot"><a href="Unison.Runtime.html#Error"><span class="hs-identifier hs-type">Error</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Decompile.html#DecompError"><span class="hs-identifier hs-type">DecompError</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">pattern</span><span> </span><span id="Runtime"><span id="%24mRuntime"><span id="%24bRuntime"><span class="annot"><span class="annottext">$mRuntime :: forall {r} {e} {e'} {v}.
+Runtime e e' v
+-&gt; (IO ()
+    -&gt; (CodeLookup v IO ()
+        -&gt; PrettyPrintEnv
+        -&gt; ProfileSpec
+        -&gt; Term v
+        -&gt; IO (Either e (Response e', Term v)))
+    -&gt; (CompileOpts
+        -&gt; CodeLookup v IO ()
+        -&gt; PrettyPrintEnv
+        -&gt; Reference
+        -&gt; FilePath
+        -&gt; IO (Maybe e))
+    -&gt; Type v Ann
+    -&gt; NESet (Type v Ann)
+    -&gt; r)
+-&gt; ((# #) -&gt; r)
+-&gt; r
+$bRuntime :: forall {e} {e'} {v}.
+IO ()
+-&gt; (CodeLookup v IO ()
+    -&gt; PrettyPrintEnv
+    -&gt; ProfileSpec
+    -&gt; Term v
+    -&gt; IO (Either e (Response e', Term v)))
+-&gt; (CompileOpts
+    -&gt; CodeLookup v IO ()
+    -&gt; PrettyPrintEnv
+    -&gt; Reference
+    -&gt; FilePath
+    -&gt; IO (Maybe e))
+-&gt; Type v Ann
+-&gt; NESet (Type v Ann)
+-&gt; Runtime e e' v
+</span><a href="Unison.Runtime.html#Runtime"><span class="hs-identifier hs-var hs-var hs-var">Runtime</span></a></span></span></span></span><span> </span><span class="hs-special">{</span><span id="terminate"><span class="annot"><span class="annottext">forall {e} {e'} {v}. Runtime e e' v -&gt; IO ()
+</span><a href="Unison.Runtime.html#terminate"><span class="hs-identifier hs-var hs-var hs-var">terminate</span></a></span></span><span class="hs-special">,</span><span> </span><span id="evaluate"><span class="annot"><span class="annottext">forall {e} {e'} {v}.
+Runtime e e' v
+-&gt; CodeLookup v IO ()
+-&gt; PrettyPrintEnv
+-&gt; ProfileSpec
+-&gt; Term v
+-&gt; IO (Either e (Response e', Term v))
+</span><a href="Unison.Runtime.html#evaluate"><span class="hs-identifier hs-var hs-var hs-var">evaluate</span></a></span></span><span class="hs-special">,</span><span> </span><span id="compileTo"><span class="annot"><span class="annottext">forall {e} {e'} {v}.
+Runtime e e' v
+-&gt; CompileOpts
+-&gt; CodeLookup v IO ()
+-&gt; PrettyPrintEnv
+-&gt; Reference
+-&gt; FilePath
+-&gt; IO (Maybe e)
+</span><a href="Unison.Runtime.html#compileTo"><span class="hs-identifier hs-var hs-var hs-var">compileTo</span></a></span></span><span class="hs-special">,</span><span> </span><span id="mainType"><span class="annot"><span class="annottext">forall {e} {e'} {v}. Runtime e e' v -&gt; Type v Ann
+</span><a href="Unison.Runtime.html#mainType"><span class="hs-identifier hs-var hs-var hs-var">mainType</span></a></span></span><span class="hs-special">,</span><span> </span><span id="ioTestTypes"><span class="annot"><span class="annottext">forall {e} {e'} {v}. Runtime e e' v -&gt; NESet (Type v Ann)
+</span><a href="Unison.Runtime.html#ioTestTypes"><span class="hs-identifier hs-var hs-var hs-var">ioTestTypes</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Rt.Runtime</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621680730070"><span class="annot"><a href="#local-6989586621680730070"><span class="hs-identifier hs-var hs-var">terminate</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680730071"><span class="annot"><a href="#local-6989586621680730071"><span class="hs-identifier hs-var hs-var">evaluate</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680730072"><span class="annot"><a href="#local-6989586621680730072"><span class="hs-identifier hs-var hs-var">compileTo</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680730073"><span class="annot"><a href="#local-6989586621680730073"><span class="hs-identifier hs-var hs-var">mainType</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680730074"><span class="annot"><a href="#local-6989586621680730074"><span class="hs-identifier hs-var hs-var">ioTestTypes</span></a></span></span><span class="hs-special">}</span><span>
+</span><span id="line-36"></span></pre></body></html>

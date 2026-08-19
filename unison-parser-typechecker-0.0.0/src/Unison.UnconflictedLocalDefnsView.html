@@ -1,0 +1,163 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html"><span class="hs-identifier">Unison.UnconflictedLocalDefnsView</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#UnconflictedLocalDefnsView"><span class="hs-identifier">UnconflictedLocalDefnsView</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#empty"><span class="hs-identifier">Unison.UnconflictedLocalDefnsView.empty</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#fromDefns"><span class="hs-identifier">fromDefns</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.NameSegment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NameSegment</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Names</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Names</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">TypeReference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Referent</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Defns</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DefnsF</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Nametree</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Nametree</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unflattenNametrees</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- | A view of a namespace's dsefinition (everything outside of `lib`) that is unconflicted: each name refers to one</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- thing. The data contained within is all just different expressions of the same contents, for various use cases. The</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- intention is to use laziness to avoid recomputing data structures whenever possible.</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">data</span><span> </span><span id="UnconflictedLocalDefnsView"><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#UnconflictedLocalDefnsView"><span class="hs-identifier hs-var">UnconflictedLocalDefnsView</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UnconflictedLocalDefnsView"><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#UnconflictedLocalDefnsView"><span class="hs-identifier hs-var">UnconflictedLocalDefnsView</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="defns"><span class="annot"><span class="annottext">UnconflictedLocalDefnsView
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+</span><a href="Unison.UnconflictedLocalDefnsView.html#defns"><span class="hs-identifier hs-var hs-var">defns</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span id="nametree"><span class="annot"><span class="annottext">UnconflictedLocalDefnsView
+-&gt; Nametree (DefnsF (Map NameSegment) Referent TypeReference)
+</span><a href="Unison.UnconflictedLocalDefnsView.html#nametree"><span class="hs-identifier hs-var hs-var">nametree</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nametree</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DefnsF</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span id="names"><span class="annot"><span class="annottext">UnconflictedLocalDefnsView -&gt; Names
+</span><a href="Unison.UnconflictedLocalDefnsView.html#names"><span class="hs-identifier hs-var hs-var">names</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Names</span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680629138"><span id="local-6989586621680629140"><span class="annot"><span class="annottext">(forall x.
+ UnconflictedLocalDefnsView -&gt; Rep UnconflictedLocalDefnsView x)
+-&gt; (forall x.
+    Rep UnconflictedLocalDefnsView x -&gt; UnconflictedLocalDefnsView)
+-&gt; Generic UnconflictedLocalDefnsView
+forall x.
+Rep UnconflictedLocalDefnsView x -&gt; UnconflictedLocalDefnsView
+forall x.
+UnconflictedLocalDefnsView -&gt; Rep UnconflictedLocalDefnsView x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x.
+UnconflictedLocalDefnsView -&gt; Rep UnconflictedLocalDefnsView x
+from :: forall x.
+UnconflictedLocalDefnsView -&gt; Rep UnconflictedLocalDefnsView x
+$cto :: forall x.
+Rep UnconflictedLocalDefnsView x -&gt; UnconflictedLocalDefnsView
+to :: forall x.
+Rep UnconflictedLocalDefnsView x -&gt; UnconflictedLocalDefnsView
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680629146"><span id="local-6989586621680629159"><span id="local-6989586621680629163"><span class="annot"><span class="annottext">Int -&gt; UnconflictedLocalDefnsView -&gt; ShowS
+[UnconflictedLocalDefnsView] -&gt; ShowS
+UnconflictedLocalDefnsView -&gt; String
+(Int -&gt; UnconflictedLocalDefnsView -&gt; ShowS)
+-&gt; (UnconflictedLocalDefnsView -&gt; String)
+-&gt; ([UnconflictedLocalDefnsView] -&gt; ShowS)
+-&gt; Show UnconflictedLocalDefnsView
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; UnconflictedLocalDefnsView -&gt; ShowS
+showsPrec :: Int -&gt; UnconflictedLocalDefnsView -&gt; ShowS
+$cshow :: UnconflictedLocalDefnsView -&gt; String
+show :: UnconflictedLocalDefnsView -&gt; String
+$cshowList :: [UnconflictedLocalDefnsView] -&gt; ShowS
+showList :: [UnconflictedLocalDefnsView] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#UnconflictedLocalDefnsView"><span class="hs-identifier hs-type">UnconflictedLocalDefnsView</span></a></span><span>
+</span><span id="line-32"></span><span id="empty"><span class="annot"><span class="annottext">empty :: UnconflictedLocalDefnsView
+</span><a href="Unison.UnconflictedLocalDefnsView.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#UnconflictedLocalDefnsView"><span class="hs-identifier hs-type">UnconflictedLocalDefnsView</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">defns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+</span><a href="Unison.UnconflictedLocalDefnsView.html#defns"><span class="hs-identifier hs-var">defns</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BiMultimap Referent Name
+-&gt; BiMultimap TypeReference Name
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><span class="hs-identifier hs-var">Defns</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap Referent Name
+forall a b. (Ord a, Ord b) =&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.empty</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap TypeReference Name
+forall a b. (Ord a, Ord b) =&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.empty</span></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><span class="annottext">nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference)
+</span><a href="Unison.UnconflictedLocalDefnsView.html#nametree"><span class="hs-identifier hs-var">nametree</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DefnsF (Map NameSegment) Referent TypeReference
+-&gt; Map
+     NameSegment
+     (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
+-&gt; Nametree (DefnsF (Map NameSegment) Referent TypeReference)
+forall a. a -&gt; Map NameSegment (Nametree a) -&gt; Nametree a
+</span><span class="hs-identifier hs-var">Nametree</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map NameSegment Referent
+-&gt; Map NameSegment TypeReference
+-&gt; DefnsF (Map NameSegment) Referent TypeReference
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><span class="hs-identifier hs-var">Defns</span></span><span> </span><span class="annot"><span class="annottext">Map NameSegment Referent
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span> </span><span class="annot"><span class="annottext">Map NameSegment TypeReference
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map
+  NameSegment
+  (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>      </span><span class="annot"><span class="annottext">names :: Names
+</span><a href="Unison.UnconflictedLocalDefnsView.html#names"><span class="hs-identifier hs-var">names</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Names
+</span><span class="hs-identifier hs-var">Names.empty</span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#fromDefns"><span class="hs-identifier hs-type">fromDefns</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefnsF</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#UnconflictedLocalDefnsView"><span class="hs-identifier hs-type">UnconflictedLocalDefnsView</span></a></span><span>
+</span><span id="line-40"></span><span id="fromDefns"><span class="annot"><span class="annottext">fromDefns :: DefnsF (Map Name) Referent TypeReference
+-&gt; UnconflictedLocalDefnsView
+</span><a href="Unison.UnconflictedLocalDefnsView.html#fromDefns"><span class="hs-identifier hs-var hs-var">fromDefns</span></a></span></span><span> </span><span id="local-6989586621680629188"><span class="annot"><span class="annottext">DefnsF (Map Name) Referent TypeReference
+</span><a href="#local-6989586621680629188"><span class="hs-identifier hs-var">defns0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><a href="Unison.UnconflictedLocalDefnsView.html#UnconflictedLocalDefnsView"><span class="hs-identifier hs-type">UnconflictedLocalDefnsView</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">defns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+</span><a href="Unison.UnconflictedLocalDefnsView.html#defns"><span class="hs-identifier hs-var">defns</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Map Name Referent -&gt; BiMultimap Referent Name)
+-&gt; (Map Name TypeReference -&gt; BiMultimap TypeReference Name)
+-&gt; DefnsF (Map Name) Referent TypeReference
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">Map Name Referent -&gt; BiMultimap Referent Name
+forall a b. (Ord a, Ord b) =&gt; Map b a -&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.fromRange</span></span><span> </span><span class="annot"><span class="annottext">Map Name TypeReference -&gt; BiMultimap TypeReference Name
+forall a b. (Ord a, Ord b) =&gt; Map b a -&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.fromRange</span></span><span> </span><span class="annot"><span class="annottext">DefnsF (Map Name) Referent TypeReference
+</span><a href="#local-6989586621680629188"><span class="hs-identifier hs-var">defns0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>      </span><span class="annot"><span class="annottext">nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference)
+</span><a href="Unison.UnconflictedLocalDefnsView.html#nametree"><span class="hs-identifier hs-var">nametree</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DefnsF (Map Name) Referent TypeReference
+-&gt; Nametree (DefnsF (Map NameSegment) Referent TypeReference)
+forall term typ.
+(Ord term, Ord typ) =&gt;
+DefnsF (Map Name) term typ
+-&gt; Nametree (DefnsF (Map NameSegment) term typ)
+</span><span class="hs-identifier hs-var">unflattenNametrees</span></span><span> </span><span class="annot"><span class="annottext">DefnsF (Map Name) Referent TypeReference
+</span><a href="#local-6989586621680629188"><span class="hs-identifier hs-var">defns0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="annottext">names :: Names
+</span><a href="Unison.UnconflictedLocalDefnsView.html#names"><span class="hs-identifier hs-var">names</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+-&gt; Names
+</span><span class="hs-identifier hs-var">Names.fromUnconflictedRelation</span></span><span> </span><span class="annot"><span class="annottext">Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+</span><a href="#local-6989586621680629192"><span class="hs-identifier hs-var">defns</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="#local-6989586621680629192"><span class="hs-identifier hs-type">defns</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621680629192"><span class="annot"><span class="annottext">defns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+</span><a href="#local-6989586621680629192"><span class="hs-identifier hs-var hs-var">defns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-49"></span><span>      </span><span class="annot"><span class="annottext">(Map Name Referent -&gt; BiMultimap Referent Name)
+-&gt; (Map Name TypeReference -&gt; BiMultimap TypeReference Name)
+-&gt; DefnsF (Map Name) Referent TypeReference
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">Map Name Referent -&gt; BiMultimap Referent Name
+forall a b. (Ord a, Ord b) =&gt; Map b a -&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.fromRange</span></span><span> </span><span class="annot"><span class="annottext">Map Name TypeReference -&gt; BiMultimap TypeReference Name
+forall a b. (Ord a, Ord b) =&gt; Map b a -&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.fromRange</span></span><span> </span><span class="annot"><span class="annottext">DefnsF (Map Name) Referent TypeReference
+</span><a href="#local-6989586621680629188"><span class="hs-identifier hs-var">defns0</span></a></span><span>
+</span><span id="line-50"></span></pre></body></html>

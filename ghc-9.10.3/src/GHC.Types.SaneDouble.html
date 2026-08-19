@@ -1,0 +1,261 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="annot"><span class="hs-comment">-- | Double datatype with saner instances</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Types.SaneDouble.html"><span class="hs-identifier">GHC.Types.SaneDouble</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier">SaneDouble</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Binary.html"><span class="hs-identifier">GHC.Utils.Binary</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Float.html"><span class="hs-identifier">GHC.Float</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">castDoubleToWord64</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">castWord64ToDouble</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- | A newtype wrapper around 'Double' to ensure we never generate a 'Double'</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- that becomes a 'NaN', see instances for details on sanity.</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">newtype</span><span> </span><span id="SaneDouble"><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-var">SaneDouble</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SaneDouble"><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-var">SaneDouble</span></a></span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="unSaneDouble"><span class="annot"><span class="annottext">SaneDouble -&gt; Double
+</span><a href="GHC.Types.SaneDouble.html#unSaneDouble"><span class="hs-identifier hs-var hs-var">unSaneDouble</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682364237"><span id="local-6989586621682364242"><span id="local-6989586621682364246"><span class="annot"><span class="annottext">Num SaneDouble
+Num SaneDouble =&gt;
+(SaneDouble -&gt; SaneDouble -&gt; SaneDouble)
+-&gt; (SaneDouble -&gt; SaneDouble)
+-&gt; (Rational -&gt; SaneDouble)
+-&gt; Fractional SaneDouble
+Rational -&gt; SaneDouble
+SaneDouble -&gt; SaneDouble
+SaneDouble -&gt; SaneDouble -&gt; SaneDouble
+forall a.
+Num a =&gt;
+(a -&gt; a -&gt; a) -&gt; (a -&gt; a) -&gt; (Rational -&gt; a) -&gt; Fractional a
+$c/ :: SaneDouble -&gt; SaneDouble -&gt; SaneDouble
+/ :: SaneDouble -&gt; SaneDouble -&gt; SaneDouble
+$crecip :: SaneDouble -&gt; SaneDouble
+recip :: SaneDouble -&gt; SaneDouble
+$cfromRational :: Rational -&gt; SaneDouble
+fromRational :: Rational -&gt; SaneDouble
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Fractional</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682364254"><span id="local-6989586621682364259"><span id="local-6989586621682364263"><span id="local-6989586621682364267"><span id="local-6989586621682364271"><span id="local-6989586621682364275"><span id="local-6989586621682364279"><span class="annot"><span class="annottext">Integer -&gt; SaneDouble
+SaneDouble -&gt; SaneDouble
+SaneDouble -&gt; SaneDouble -&gt; SaneDouble
+(SaneDouble -&gt; SaneDouble -&gt; SaneDouble)
+-&gt; (SaneDouble -&gt; SaneDouble -&gt; SaneDouble)
+-&gt; (SaneDouble -&gt; SaneDouble -&gt; SaneDouble)
+-&gt; (SaneDouble -&gt; SaneDouble)
+-&gt; (SaneDouble -&gt; SaneDouble)
+-&gt; (SaneDouble -&gt; SaneDouble)
+-&gt; (Integer -&gt; SaneDouble)
+-&gt; Num SaneDouble
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+$c+ :: SaneDouble -&gt; SaneDouble -&gt; SaneDouble
++ :: SaneDouble -&gt; SaneDouble -&gt; SaneDouble
+$c- :: SaneDouble -&gt; SaneDouble -&gt; SaneDouble
+- :: SaneDouble -&gt; SaneDouble -&gt; SaneDouble
+$c* :: SaneDouble -&gt; SaneDouble -&gt; SaneDouble
+* :: SaneDouble -&gt; SaneDouble -&gt; SaneDouble
+$cnegate :: SaneDouble -&gt; SaneDouble
+negate :: SaneDouble -&gt; SaneDouble
+$cabs :: SaneDouble -&gt; SaneDouble
+abs :: SaneDouble -&gt; SaneDouble
+$csignum :: SaneDouble -&gt; SaneDouble
+signum :: SaneDouble -&gt; SaneDouble
+$cfromInteger :: Integer -&gt; SaneDouble
+fromInteger :: Integer -&gt; SaneDouble
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682364289"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span><span> </span><span id="local-6989586621682364298"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364298"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621682364299"><span class="annot"><span class="annottext">== :: SaneDouble -&gt; SaneDouble -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span><span> </span><span id="local-6989586621682364300"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364300"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364298"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364300"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Bool
+forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isNaN</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364298"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Bool
+forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isNaN</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364300"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682364308"><span id="local-6989586621682364312"><span id="local-6989586621682364315"><span id="local-6989586621682364318"><span id="local-6989586621682364321"><span id="local-6989586621682364324"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>    </span><span id="local-6989586621682364333"><span class="annot"><span class="annottext">compare :: SaneDouble -&gt; SaneDouble -&gt; Ordering
+</span><a href="#local-6989586621682364333"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span><span> </span><span id="local-6989586621682364335"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364335"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span><span> </span><span id="local-6989586621682364336"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364336"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Double -&gt; Maybe Double -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Maybe Double
+forall {a}. RealFloat a =&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682364337"><span class="hs-identifier hs-var">fromNaN</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364335"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Maybe Double
+forall {a}. RealFloat a =&gt; a -&gt; Maybe a
+</span><a href="#local-6989586621682364337"><span class="hs-identifier hs-var">fromNaN</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364336"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>        </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621682364337"><span class="annot"><span class="annottext">fromNaN :: a -&gt; Maybe a
+</span><a href="#local-6989586621682364337"><span class="hs-identifier hs-var hs-var">fromNaN</span></a></span></span><span> </span><span id="local-6989586621682364364"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682364364"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isNaN</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682364364"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-27"></span><span>                        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682364364"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682364366"><span id="local-6989586621682364371"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>    </span><span id="local-6989586621682364376"><span class="annot"><span class="annottext">show :: SaneDouble -&gt; String
+</span><a href="#local-6989586621682364376"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span><span> </span><span id="local-6989586621682364378"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364378"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364378"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- we need to preserve NaN and infinities, unfortunately the Binary instance for</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- Double does not do this</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682364381"><span class="annot"><a href="GHC.Utils.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621682364404"><span class="annot"><span class="annottext">put_ :: BinHandle -&gt; SaneDouble -&gt; IO ()
+</span><a href="#local-6989586621682364404"><span class="hs-identifier hs-var hs-var hs-var">put_</span></a></span></span><span> </span><span id="local-6989586621682364406"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682364406"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span><span> </span><span id="local-6989586621682364407"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364407"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Bool
+forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isNaN</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364407"><span class="hs-identifier hs-var">d</span></a></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682364406"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Bool
+forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isInfinite</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364407"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364407"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682364406"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Bool
+forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isInfinite</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364407"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364407"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682364406"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Bool
+forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isNegativeZero</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364407"><span class="hs-identifier hs-var">d</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682364406"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putByte"><span class="hs-identifier hs-var">putByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682364406"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word64 -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682364406"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Word64
+</span><span class="hs-identifier hs-var">castDoubleToWord64</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682364407"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621682364449"><span class="annot"><span class="annottext">get :: BinHandle -&gt; IO SaneDouble
+</span><a href="#local-6989586621682364449"><span class="hs-identifier hs-var hs-var hs-var">get</span></a></span></span><span> </span><span id="local-6989586621682364451"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682364451"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO Word8
+</span><a href="GHC.Utils.Binary.html#getByte"><span class="hs-identifier hs-var">getByte</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682364451"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">IO Word8 -&gt; (Word8 -&gt; IO SaneDouble) -&gt; IO SaneDouble
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SaneDouble -&gt; IO SaneDouble
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(SaneDouble -&gt; IO SaneDouble) -&gt; SaneDouble -&gt; IO SaneDouble
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; SaneDouble
+</span><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-var">SaneDouble</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span>    </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SaneDouble -&gt; IO SaneDouble
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(SaneDouble -&gt; IO SaneDouble) -&gt; SaneDouble -&gt; IO SaneDouble
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; SaneDouble
+</span><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-var">SaneDouble</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span>    </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SaneDouble -&gt; IO SaneDouble
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(SaneDouble -&gt; IO SaneDouble) -&gt; SaneDouble -&gt; IO SaneDouble
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; SaneDouble
+</span><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-var">SaneDouble</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SaneDouble -&gt; IO SaneDouble
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(SaneDouble -&gt; IO SaneDouble) -&gt; SaneDouble -&gt; IO SaneDouble
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; SaneDouble
+</span><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-var">SaneDouble</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Double -&gt; SaneDouble
+</span><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-var">SaneDouble</span></a></span><span> </span><span class="annot"><span class="annottext">(Double -&gt; SaneDouble)
+-&gt; (Word64 -&gt; Double) -&gt; Word64 -&gt; SaneDouble
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Double
+</span><span class="hs-identifier hs-var">castWord64ToDouble</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; SaneDouble) -&gt; IO Word64 -&gt; IO SaneDouble
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO Word64
+forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682364451"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621682364455"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621682364455"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO SaneDouble
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Binary get bh SaneDouble: invalid tag: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621682364455"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span></pre></body></html>

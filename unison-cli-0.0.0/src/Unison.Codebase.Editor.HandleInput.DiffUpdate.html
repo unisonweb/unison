@@ -1,0 +1,692 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | @diff.update@ input handler - shows a preview of what `update` would change.</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.DiffUpdate.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.DiffUpdate</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.DiffUpdate.html#handleDiffUpdate"><span class="hs-identifier">handleDiffUpdate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader.Class</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ask</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">TermReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TypeReferenceId</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier">Cli</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Env"><span class="hs-identifier">Env</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html"><span class="hs-identifier">Unison.Cli.MonadUtils</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.UpdateUtils.html"><span class="hs-identifier">Unison.Cli.UpdateUtils</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.UpdateUtils.html#getNamespaceDependentsOf"><span class="hs-identifier">getNamespaceDependentsOf</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Cli.UpdateUtils.html#hydrateRefs"><span class="hs-identifier">hydrateRefs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html"><span class="hs-identifier">Unison.Codebase.Editor.Output</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Output</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.DataDeclaration</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Decl</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.DeclCoherencyCheck</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">DeclCoherencyCheck</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Names</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Names</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Names</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Parser.Ann</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnv.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPE</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnvDecl</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPED</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Reference</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Symbol</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Symbol</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Syntax.Name</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Name</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Term</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Term</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Type</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.UnconflictedLocalDefnsView</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">UnconflictedLocalDefnsView</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.UnisonFile</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">UF</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.UnisonFile.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">UF</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Defns</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DefnsF</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Relation</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Relation</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.DiffUpdate.html#handleDiffUpdate"><span class="hs-identifier hs-type">handleDiffUpdate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span id="handleDiffUpdate"><span class="annot"><span class="annottext">handleDiffUpdate :: Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.DiffUpdate.html#handleDiffUpdate"><span class="hs-identifier hs-var hs-var">handleDiffUpdate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621681607832"><span class="annot"><a href="#local-6989586621681607832"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cli Env
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621681607833"><span class="annot"><a href="#local-6989586621681607833"><span class="hs-identifier hs-var">tuf</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html#expectLatestTypecheckedFile"><span class="hs-identifier hs-type">Cli.expectLatestTypecheckedFile</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621681607835"><span class="annot"><a href="#local-6989586621681607835"><span class="hs-identifier hs-var">currentBranch</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html#getCurrentBranch"><span class="hs-identifier hs-type">Cli.getCurrentBranch</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607837"><span class="annot"><a href="#local-6989586621681607837"><span class="hs-identifier hs-var hs-var">currentBranch0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Branch IO -&gt; Branch0 IO
+forall (m :: * -&gt; *). Branch m -&gt; Branch0 m
+</span><span class="hs-identifier hs-var">Branch.head</span></span><span> </span><span class="annot"><span class="annottext">Branch IO
+</span><a href="#local-6989586621681607835"><span class="hs-identifier hs-var">currentBranch</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607839"><span class="annot"><a href="#local-6989586621681607839"><span class="hs-identifier hs-var hs-var">namesIncludingLibdeps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Branch0 IO -&gt; Names
+forall (m :: * -&gt; *). Branch0 m -&gt; Names
+</span><span class="hs-identifier hs-var">Branch.toNames</span></span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621681607837"><span class="hs-identifier hs-var">currentBranch0</span></a></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-comment">-- Assert that the namespace doesn't have any conflicted names</span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621681607841"><span class="annot"><a href="#local-6989586621681607841"><span class="hs-identifier hs-var">unconflictedView</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">Branch.asUnconflicted</span></span><span> </span><span class="annot"><a href="#local-6989586621681607837"><span class="hs-identifier hs-type">currentBranch0</span></a></span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><span class="hs-operator hs-type">&amp;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">onLeft</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-type">Cli.returnEarly</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ConflictedDefn"><span class="hs-identifier hs-type">Output.ConflictedDefn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-comment">-- Assert that the namespace doesn't have any incoherent decls</span><span>
+</span><span id="line-55"></span><span>  </span><span id="local-6989586621681607848"><span class="annot"><a href="#local-6989586621681607848"><span class="hs-identifier hs-var">_declNameLookup</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><a href="Unison.Cli.Monad.html#runTransactionWithRollback"><span class="hs-identifier hs-type">Cli.runTransactionWithRollback</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681607850"><span class="annot"><span class="annottext">forall void. Output -&gt; Transaction void
+</span><a href="#local-6989586621681607850"><span class="hs-identifier hs-var">rollback</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-57"></span><span>      </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+-&gt; BranchHash
+-&gt; UnconflictedLocalDefnsView
+-&gt; Transaction (Either IncoherentDeclReasons DeclNameLookup)
+forall (m :: * -&gt; *) v a.
+Codebase m v a
+-&gt; BranchHash
+-&gt; UnconflictedLocalDefnsView
+-&gt; Transaction (Either IncoherentDeclReasons DeclNameLookup)
+</span><span class="hs-identifier hs-var">Codebase.getBranchDeclNameLookup</span></span><span> </span><span class="annot"><span class="annottext">Env
+</span><a href="#local-6989586621681607832"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">codebase</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch IO -&gt; BranchHash
+forall (m :: * -&gt; *). Branch m -&gt; BranchHash
+</span><span class="hs-identifier hs-var">Branch.namespaceHash</span></span><span> </span><span class="annot"><span class="annottext">Branch IO
+</span><a href="#local-6989586621681607835"><span class="hs-identifier hs-var">currentBranch</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UnconflictedLocalDefnsView
+</span><a href="#local-6989586621681607841"><span class="hs-identifier hs-var">unconflictedView</span></a></span><span>
+</span><span id="line-58"></span><span>        </span><span class="annot"><span class="annottext">Transaction (Either IncoherentDeclReasons DeclNameLookup)
+-&gt; (Transaction (Either IncoherentDeclReasons DeclNameLookup)
+    -&gt; Transaction DeclNameLookup)
+-&gt; Transaction DeclNameLookup
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(IncoherentDeclReasons -&gt; Transaction DeclNameLookup)
+-&gt; Transaction (Either IncoherentDeclReasons DeclNameLookup)
+-&gt; Transaction DeclNameLookup
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; m (Either a b) -&gt; m b
+</span><span class="hs-identifier hs-var">onLeftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Output -&gt; Transaction DeclNameLookup
+forall void. Output -&gt; Transaction void
+</span><a href="#local-6989586621681607850"><span class="hs-identifier hs-var">rollback</span></a></span><span> </span><span class="annot"><span class="annottext">(Output -&gt; Transaction DeclNameLookup)
+-&gt; (IncoherentDeclReasons -&gt; Output)
+-&gt; IncoherentDeclReasons
+-&gt; Transaction DeclNameLookup
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IncoherentDeclReason -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#IncoherentDeclDuringUpdate"><span class="hs-identifier hs-var">Output.IncoherentDeclDuringUpdate</span></a></span><span> </span><span class="annot"><span class="annottext">(IncoherentDeclReason -&gt; Output)
+-&gt; (IncoherentDeclReasons -&gt; IncoherentDeclReason)
+-&gt; IncoherentDeclReasons
+-&gt; Output
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IncoherentDeclReasons -&gt; IncoherentDeclReason
+</span><span class="hs-identifier hs-var">DeclCoherencyCheck.asOneRandomIncoherentDeclReason</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-comment">-- Get namespace bindings from the file (terms and types being added/updated)</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607856"><span class="hs-identifier hs-type">namespaceBindings</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefnsF</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span>
+</span><span id="line-62"></span><span>      </span><span id="local-6989586621681607856"><span class="annot"><a href="#local-6989586621681607856"><span class="hs-identifier hs-var hs-var">namespaceBindings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-63"></span><span>        </span><span class="annot"><span class="annottext">(Set Symbol -&gt; Set Name)
+-&gt; (Set Symbol -&gt; Set Name)
+-&gt; Defns (Set Symbol) (Set Symbol)
+-&gt; DefnsF Set Name Name
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Symbol -&gt; Name) -&gt; Set Symbol -&gt; Set Name
+forall b a. Ord b =&gt; (a -&gt; b) -&gt; Set a -&gt; Set b
+</span><span class="hs-identifier hs-var">Set.map</span></span><span> </span><span class="annot"><span class="annottext">Symbol -&gt; Name
+forall v. Var v =&gt; v -&gt; Name
+</span><span class="hs-identifier hs-var">Name.unsafeParseVar</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Symbol -&gt; Name) -&gt; Set Symbol -&gt; Set Name
+forall b a. Ord b =&gt; (a -&gt; b) -&gt; Set a -&gt; Set b
+</span><span class="hs-identifier hs-var">Set.map</span></span><span> </span><span class="annot"><span class="annottext">Symbol -&gt; Name
+forall v. Var v =&gt; v -&gt; Name
+</span><span class="hs-identifier hs-var">Name.unsafeParseVar</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypecheckedUnisonFile Symbol Ann -&gt; Defns (Set Symbol) (Set Symbol)
+forall v a. Ord v =&gt; TypecheckedUnisonFile v a -&gt; DefnsF Set v v
+</span><span class="hs-identifier hs-var">UF.namespaceBindings</span></span><span> </span><span class="annot"><span class="annottext">TypecheckedUnisonFile Symbol Ann
+</span><a href="#local-6989586621681607833"><span class="hs-identifier hs-var">tuf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-comment">-- Compute new vs updated definitions</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607861"><span class="annot"><a href="#local-6989586621681607861"><span class="hs-identifier hs-var hs-var">existingTermNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BiMultimap Referent Name -&gt; Set Name
+forall a b. BiMultimap a b -&gt; Set b
+</span><span class="hs-identifier hs-var">BiMultimap.ran</span></span><span> </span><span class="annot"><span class="annottext">UnconflictedLocalDefnsView
+</span><a href="#local-6989586621681607841"><span class="hs-identifier hs-var">unconflictedView</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">defns</span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607863"><span class="annot"><a href="#local-6989586621681607863"><span class="hs-identifier hs-var hs-var">existingTypeNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BiMultimap TypeReference Name -&gt; Set Name
+forall a b. BiMultimap a b -&gt; Set b
+</span><span class="hs-identifier hs-var">BiMultimap.ran</span></span><span> </span><span class="annot"><span class="annottext">UnconflictedLocalDefnsView
+</span><a href="#local-6989586621681607841"><span class="hs-identifier hs-var">unconflictedView</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">defns</span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607864"><span class="annot"><a href="#local-6989586621681607864"><span class="hs-identifier hs-var hs-var">newTermNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Set Name -&gt; Set Name
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.difference</span></span><span> </span><span class="annot"><span class="annottext">DefnsF Set Name Name
+</span><a href="#local-6989586621681607856"><span class="hs-identifier hs-var">namespaceBindings</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621681607861"><span class="hs-identifier hs-var">existingTermNames</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607866"><span class="annot"><a href="#local-6989586621681607866"><span class="hs-identifier hs-var hs-var">newTypeNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Set Name -&gt; Set Name
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.difference</span></span><span> </span><span class="annot"><span class="annottext">DefnsF Set Name Name
+</span><a href="#local-6989586621681607856"><span class="hs-identifier hs-var">namespaceBindings</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621681607863"><span class="hs-identifier hs-var">existingTypeNames</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607867"><span class="annot"><a href="#local-6989586621681607867"><span class="hs-identifier hs-var hs-var">updatedTermNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Set Name -&gt; Set Name
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.intersection</span></span><span> </span><span class="annot"><span class="annottext">DefnsF Set Name Name
+</span><a href="#local-6989586621681607856"><span class="hs-identifier hs-var">namespaceBindings</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621681607861"><span class="hs-identifier hs-var">existingTermNames</span></a></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607869"><span class="annot"><a href="#local-6989586621681607869"><span class="hs-identifier hs-var hs-var">updatedTypeNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Set Name -&gt; Set Name
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.intersection</span></span><span> </span><span class="annot"><span class="annottext">DefnsF Set Name Name
+</span><a href="#local-6989586621681607856"><span class="hs-identifier hs-var">namespaceBindings</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621681607863"><span class="hs-identifier hs-var">existingTypeNames</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-comment">-- Get dependents that would need retypechecking</span><span>
+</span><span id="line-75"></span><span>  </span><span id="local-6989586621681607870"><span class="annot"><a href="#local-6989586621681607870"><span class="hs-identifier hs-var">dependents</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-76"></span><span>    </span><span class="annot"><a href="Unison.Cli.Monad.html#runTransaction"><span class="hs-identifier hs-type">Cli.runTransaction</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-77"></span><span>      </span><span id="local-6989586621681607872"><span class="annot"><a href="#local-6989586621681607872"><span class="hs-identifier hs-var">dependents0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-78"></span><span>        </span><span class="annot"><a href="Unison.Cli.UpdateUtils.html#getNamespaceDependentsOf"><span class="hs-identifier hs-type">getNamespaceDependentsOf</span></a></span><span>
+</span><span id="line-79"></span><span>          </span><span class="annot"><span class="hs-identifier">unconflictedView</span></span><span class="hs-operator">.</span><span class="hs-identifier">defns</span><span>
+</span><span id="line-80"></span><span>          </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Names.references</span></span><span>
+</span><span id="line-81"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">Names</span></span><span>
+</span><span id="line-82"></span><span>                </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier hs-var">terms</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Relation.restrictDom</span></span><span> </span><span class="annot"><span class="hs-identifier">namespaceBindings</span></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="annot"><span class="hs-identifier">unconflictedView</span></span><span class="hs-operator">.</span><span class="hs-identifier">names</span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span class="hs-special">,</span><span>
+</span><span id="line-83"></span><span>                  </span><span class="annot"><span class="hs-identifier hs-var">types</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Relation.restrictDom</span></span><span> </span><span class="annot"><span class="hs-identifier">namespaceBindings</span></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span> </span><span class="annot"><span class="hs-identifier">unconflictedView</span></span><span class="hs-operator">.</span><span class="hs-identifier">names</span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span>
+</span><span id="line-84"></span><span>                </span><span class="hs-special">}</span><span>
+</span><span id="line-85"></span><span>          </span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>      </span><span class="hs-comment">-- Remove dependents that are also being updated directly by the file,</span><span>
+</span><span id="line-88"></span><span>      </span><span class="hs-comment">-- since they'll already appear in the &quot;updated definitions&quot; section</span><span>
+</span><span id="line-89"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607877"><span class="hs-identifier hs-type">dependents1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefnsF</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span>
+</span><span id="line-90"></span><span>          </span><span id="local-6989586621681607877"><span class="annot"><a href="#local-6989586621681607877"><span class="hs-identifier hs-var hs-var">dependents1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>            </span><span class="annot"><span class="annottext">(Map Name TermReferenceId -&gt; Map Name TermReferenceId)
+-&gt; (Map Name TermReferenceId -&gt; Map Name TermReferenceId)
+-&gt; DefnsF (Map Name) TermReferenceId TermReferenceId
+-&gt; DefnsF (Map Name) TermReferenceId TermReferenceId
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span>
+</span><span id="line-92"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Name TermReferenceId -&gt; Set Name -&gt; Map Name TermReferenceId
+forall k a. Ord k =&gt; Map k a -&gt; Set k -&gt; Map k a
+</span><span class="hs-operator hs-var">`Map.withoutKeys`</span></span><span> </span><span class="annot"><span class="annottext">DefnsF Set Name Name
+</span><a href="#local-6989586621681607856"><span class="hs-identifier hs-var">namespaceBindings</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Name TermReferenceId -&gt; Set Name -&gt; Map Name TermReferenceId
+forall k a. Ord k =&gt; Map k a -&gt; Set k -&gt; Map k a
+</span><span class="hs-operator hs-var">`Map.withoutKeys`</span></span><span> </span><span class="annot"><span class="annottext">DefnsF Set Name Name
+</span><a href="#local-6989586621681607856"><span class="hs-identifier hs-var">namespaceBindings</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>              </span><span class="annot"><span class="annottext">DefnsF (Map Name) TermReferenceId TermReferenceId
+</span><a href="#local-6989586621681607872"><span class="hs-identifier hs-var">dependents0</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621681607877"><span class="hs-identifier hs-type">dependents1</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-comment">-- Get the terms (body + type + refId) for new and updated terms from the typechecked file</span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-comment">-- hashTermsId returns: (ann, TermReferenceId, Maybe WatchKind, Term v a, Type v a)</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607879"><span class="hs-identifier hs-type">fileTermsWithRefIds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>      </span><span id="local-6989586621681607879"><span class="annot"><a href="#local-6989586621681607879"><span class="hs-identifier hs-var hs-var">fileTermsWithRefIds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-102"></span><span>        </span><span class="annot"><span class="annottext">[(Name, (TermReferenceId, Term Symbol Ann, Type Symbol Ann))]
+-&gt; Map Name (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span>
+</span><span id="line-103"></span><span>          </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Symbol -&gt; Name
+forall v. Var v =&gt; v -&gt; Name
+</span><span class="hs-identifier hs-var">Name.unsafeParseVar</span></span><span> </span><span class="annot"><span class="annottext">Symbol
+</span><a href="#local-6989586621681607881"><span class="hs-identifier hs-var">var</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607882"><span class="hs-identifier hs-var">refId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Term Symbol Ann
+</span><a href="#local-6989586621681607883"><span class="hs-identifier hs-var">term</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Type Symbol Ann
+</span><a href="#local-6989586621681607884"><span class="hs-identifier hs-var">typ</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681607881"><span class="annot"><span class="annottext">Symbol
+</span><a href="#local-6989586621681607881"><span class="hs-identifier hs-var">var</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681607882"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607882"><span class="hs-identifier hs-var">refId</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe WatchKind
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681607883"><span class="annot"><span class="annottext">Term Symbol Ann
+</span><a href="#local-6989586621681607883"><span class="hs-identifier hs-var">term</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681607884"><span class="annot"><span class="annottext">Type Symbol Ann
+</span><a href="#local-6989586621681607884"><span class="hs-identifier hs-var">typ</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map
+  Symbol
+  (Ann, TermReferenceId, Maybe WatchKind, Term Symbol Ann,
+   Type Symbol Ann)
+-&gt; [(Symbol,
+     (Ann, TermReferenceId, Maybe WatchKind, Term Symbol Ann,
+      Type Symbol Ann))]
+forall k a. Map k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">Map.toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypecheckedUnisonFile Symbol Ann
+-&gt; Map
+     Symbol
+     (Ann, TermReferenceId, Maybe WatchKind, Term Symbol Ann,
+      Type Symbol Ann)
+forall v a.
+TypecheckedUnisonFile v a
+-&gt; Map v (a, TermReferenceId, Maybe WatchKind, Term v a, Type v a)
+</span><span class="hs-identifier hs-var">UF.hashTermsId</span></span><span> </span><span class="annot"><span class="annottext">TypecheckedUnisonFile Symbol Ann
+</span><a href="#local-6989586621681607833"><span class="hs-identifier hs-var">tuf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>          </span><span class="hs-special">]</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607887"><span class="hs-identifier hs-type">fileTerms</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>      </span><span id="local-6989586621681607887"><span class="annot"><a href="#local-6989586621681607887"><span class="hs-identifier hs-var hs-var">fileTerms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+ -&gt; (Term Symbol Ann, Type Symbol Ann))
+-&gt; Map Name (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+-&gt; Map Name (Term Symbol Ann, Type Symbol Ann)
+forall a b k. (a -&gt; b) -&gt; Map k a -&gt; Map k b
+</span><span class="hs-identifier hs-var">Map.map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReferenceId
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681607889"><span class="annot"><span class="annottext">Term Symbol Ann
+</span><a href="#local-6989586621681607889"><span class="hs-identifier hs-var">term</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681607890"><span class="annot"><span class="annottext">Type Symbol Ann
+</span><a href="#local-6989586621681607890"><span class="hs-identifier hs-var">typ</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Term Symbol Ann
+</span><a href="#local-6989586621681607889"><span class="hs-identifier hs-var">term</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Type Symbol Ann
+</span><a href="#local-6989586621681607890"><span class="hs-identifier hs-var">typ</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map Name (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+</span><a href="#local-6989586621681607879"><span class="hs-identifier hs-var">fileTermsWithRefIds</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607891"><span class="hs-identifier hs-type">newTerms</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>      </span><span id="local-6989586621681607891"><span class="annot"><a href="#local-6989586621681607891"><span class="hs-identifier hs-var hs-var">newTerms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map Name (Term Symbol Ann, Type Symbol Ann)
+-&gt; Set Name -&gt; Map Name (Term Symbol Ann, Type Symbol Ann)
+forall k a. Ord k =&gt; Map k a -&gt; Set k -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.restrictKeys</span></span><span> </span><span class="annot"><span class="annottext">Map Name (Term Symbol Ann, Type Symbol Ann)
+</span><a href="#local-6989586621681607887"><span class="hs-identifier hs-var">fileTerms</span></a></span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621681607864"><span class="hs-identifier hs-var">newTermNames</span></a></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-comment">-- Terms from the file that are updates to existing codebase definitions (with new ref IDs)</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607893"><span class="hs-identifier hs-type">updatedFileTerms</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>      </span><span id="local-6989586621681607893"><span class="annot"><a href="#local-6989586621681607893"><span class="hs-identifier hs-var hs-var">updatedFileTerms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map Name (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+-&gt; Set Name
+-&gt; Map Name (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+forall k a. Ord k =&gt; Map k a -&gt; Set k -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.restrictKeys</span></span><span> </span><span class="annot"><span class="annottext">Map Name (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+</span><a href="#local-6989586621681607879"><span class="hs-identifier hs-var">fileTermsWithRefIds</span></a></span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621681607867"><span class="hs-identifier hs-var">updatedTermNames</span></a></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-comment">-- Get the old terms from the codebase for updated definitions</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-comment">-- First, get the term reference IDs for the updated names</span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607894"><span class="hs-identifier hs-type">updatedTermRefIds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span>
+</span><span id="line-120"></span><span>      </span><span id="local-6989586621681607894"><span class="annot"><a href="#local-6989586621681607894"><span class="hs-identifier hs-var hs-var">updatedTermRefIds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-121"></span><span>        </span><span class="annot"><span class="annottext">[(Name, TermReferenceId)] -&gt; Map Name TermReferenceId
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span>
+</span><span id="line-122"></span><span>          </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681607895"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607896"><span class="hs-identifier hs-var">refId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681607895"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681607895"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; [Name]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621681607867"><span class="hs-identifier hs-var">updatedTermNames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-124"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681607898"><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681607898"><span class="hs-identifier hs-var">referent</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Name -&gt; Map Name Referent -&gt; Maybe Referent
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681607895"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BiMultimap Referent Name -&gt; Map Name Referent
+forall a b. BiMultimap a b -&gt; Map b a
+</span><span class="hs-identifier hs-var">BiMultimap.range</span></span><span> </span><span class="annot"><span class="annottext">UnconflictedLocalDefnsView
+</span><a href="#local-6989586621681607841"><span class="hs-identifier hs-var">unconflictedView</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">defns</span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-125"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681607896"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607896"><span class="hs-identifier hs-var">refId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Referent -&gt; Maybe TermReferenceId
+</span><span class="hs-identifier hs-var">Referent.toTermReferenceId</span></span><span> </span><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681607898"><span class="hs-identifier hs-var">referent</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-126"></span><span>          </span><span class="hs-special">]</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-comment">-- Fetch the old terms from the codebase</span><span>
+</span><span id="line-129"></span><span>  </span><span id="local-6989586621681607902"><span class="annot"><a href="#local-6989586621681607902"><span class="hs-identifier hs-var">oldTerms</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#runTransaction"><span class="hs-identifier hs-type">Cli.runTransaction</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607905"><span class="annot"><a href="#local-6989586621681607905"><span class="hs-identifier hs-var hs-var">refIdSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[TermReferenceId] -&gt; Set TermReferenceId
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Name TermReferenceId -&gt; [TermReferenceId]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Name TermReferenceId
+</span><a href="#local-6989586621681607894"><span class="hs-identifier hs-var">updatedTermRefIds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>    </span><span id="local-6989586621681607908"><span class="annot"><a href="#local-6989586621681607908"><span class="hs-identifier hs-var">hydratedTerms</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Cli.UpdateUtils.html#hydrateRefs"><span class="hs-identifier hs-type">hydrateRefs</span></a></span><span> </span><span class="annot"><span class="hs-identifier">env</span></span><span class="hs-operator">.</span><span class="hs-identifier">codebase</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="annot"><a href="#local-6989586621681607905"><span class="hs-identifier hs-type">refIdSet</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-identifier">hydratedTerms</span></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-comment">-- Intersect old and new terms to find updated definitions</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-comment">-- Only include terms where the reference ID actually changed</span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607911"><span class="hs-identifier hs-type">updatedTerms</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>      </span><span id="local-6989586621681607911"><span class="annot"><a href="#local-6989586621681607911"><span class="hs-identifier hs-var hs-var">updatedTerms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-138"></span><span>        </span><span class="annot"><span class="annottext">(Maybe
+   ((Term Symbol Ann, Type Symbol Ann),
+    (Term Symbol Ann, Type Symbol Ann))
+ -&gt; Maybe
+      ((Term Symbol Ann, Type Symbol Ann),
+       (Term Symbol Ann, Type Symbol Ann)))
+-&gt; Map
+     Name
+     (Maybe
+        ((Term Symbol Ann, Type Symbol Ann),
+         (Term Symbol Ann, Type Symbol Ann)))
+-&gt; Map
+     Name
+     ((Term Symbol Ann, Type Symbol Ann),
+      (Term Symbol Ann, Type Symbol Ann))
+forall a b k. (a -&gt; Maybe b) -&gt; Map k a -&gt; Map k b
+</span><span class="hs-identifier hs-var">Map.mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">Maybe
+  ((Term Symbol Ann, Type Symbol Ann),
+   (Term Symbol Ann, Type Symbol Ann))
+-&gt; Maybe
+     ((Term Symbol Ann, Type Symbol Ann),
+      (Term Symbol Ann, Type Symbol Ann))
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">(Map
+   Name
+   (Maybe
+      ((Term Symbol Ann, Type Symbol Ann),
+       (Term Symbol Ann, Type Symbol Ann)))
+ -&gt; Map
+      Name
+      ((Term Symbol Ann, Type Symbol Ann),
+       (Term Symbol Ann, Type Symbol Ann)))
+-&gt; Map
+     Name
+     (Maybe
+        ((Term Symbol Ann, Type Symbol Ann),
+         (Term Symbol Ann, Type Symbol Ann)))
+-&gt; Map
+     Name
+     ((Term Symbol Ann, Type Symbol Ann),
+      (Term Symbol Ann, Type Symbol Ann))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-139"></span><span>          </span><span class="annot"><span class="annottext">(TermReferenceId
+ -&gt; (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+ -&gt; Maybe
+      ((Term Symbol Ann, Type Symbol Ann),
+       (Term Symbol Ann, Type Symbol Ann)))
+-&gt; Map Name TermReferenceId
+-&gt; Map Name (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+-&gt; Map
+     Name
+     (Maybe
+        ((Term Symbol Ann, Type Symbol Ann),
+         (Term Symbol Ann, Type Symbol Ann)))
+forall k a b c.
+Ord k =&gt;
+(a -&gt; b -&gt; c) -&gt; Map k a -&gt; Map k b -&gt; Map k c
+</span><span class="hs-identifier hs-var">Map.intersectionWith</span></span><span>
+</span><span id="line-140"></span><span>            </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681607915"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607915"><span class="hs-identifier hs-var">oldRefId</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681607916"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607916"><span class="hs-identifier hs-var">newRefId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681607917"><span class="annot"><span class="annottext">Term Symbol Ann
+</span><a href="#local-6989586621681607917"><span class="hs-identifier hs-var">newTerm</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681607918"><span class="annot"><span class="annottext">Type Symbol Ann
+</span><a href="#local-6989586621681607918"><span class="hs-identifier hs-var">newTyp</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-141"></span><span>                </span><span class="hs-comment">-- Skip terms where the hash hasn't changed (they're not actually updated)</span><span>
+</span><span id="line-142"></span><span>                </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607915"><span class="hs-identifier hs-var">oldRefId</span></a></span><span> </span><span class="annot"><span class="annottext">TermReferenceId -&gt; TermReferenceId -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607916"><span class="hs-identifier hs-var">newRefId</span></a></span><span>
+</span><span id="line-143"></span><span>                  </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe
+  ((Term Symbol Ann, Type Symbol Ann),
+   (Term Symbol Ann, Type Symbol Ann))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-144"></span><span>                  </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+-&gt; Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)
+-&gt; Maybe (Term Symbol Ann, Type Symbol Ann)
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607915"><span class="hs-identifier hs-var">oldRefId</span></a></span><span> </span><span class="annot"><span class="annottext">Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)
+</span><a href="#local-6989586621681607902"><span class="hs-identifier hs-var">oldTerms</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-145"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681607919"><span class="annot"><span class="annottext">(Term Symbol Ann, Type Symbol Ann)
+</span><a href="#local-6989586621681607919"><span class="hs-identifier hs-var">oldTerm</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">((Term Symbol Ann, Type Symbol Ann),
+ (Term Symbol Ann, Type Symbol Ann))
+-&gt; Maybe
+     ((Term Symbol Ann, Type Symbol Ann),
+      (Term Symbol Ann, Type Symbol Ann))
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Term Symbol Ann, Type Symbol Ann)
+</span><a href="#local-6989586621681607919"><span class="hs-identifier hs-var">oldTerm</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Term Symbol Ann
+</span><a href="#local-6989586621681607917"><span class="hs-identifier hs-var">newTerm</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Type Symbol Ann
+</span><a href="#local-6989586621681607918"><span class="hs-identifier hs-var">newTyp</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>                    </span><span class="annot"><span class="annottext">Maybe (Term Symbol Ann, Type Symbol Ann)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe
+  ((Term Symbol Ann, Type Symbol Ann),
+   (Term Symbol Ann, Type Symbol Ann))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-147"></span><span>            </span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>            </span><span class="annot"><span class="annottext">Map Name TermReferenceId
+</span><a href="#local-6989586621681607894"><span class="hs-identifier hs-var">updatedTermRefIds</span></a></span><span>
+</span><span id="line-149"></span><span>            </span><span class="annot"><span class="annottext">Map Name (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+</span><a href="#local-6989586621681607893"><span class="hs-identifier hs-var">updatedFileTerms</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-comment">-- File types with their reference IDs (for updated types rendering)</span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607920"><span class="hs-identifier hs-type">fileTypeDeclsWithRefIds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>      </span><span id="local-6989586621681607920"><span class="annot"><a href="#local-6989586621681607920"><span class="hs-identifier hs-var hs-var">fileTypeDeclsWithRefIds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-154"></span><span>        </span><span class="annot"><span class="annottext">[(Name, (TermReferenceId, Decl Symbol Ann))]
+-&gt; Map Name (TermReferenceId, Decl Symbol Ann)
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Name, (TermReferenceId, Decl Symbol Ann))]
+ -&gt; Map Name (TermReferenceId, Decl Symbol Ann))
+-&gt; [(Name, (TermReferenceId, Decl Symbol Ann))]
+-&gt; Map Name (TermReferenceId, Decl Symbol Ann)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-155"></span><span>          </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Symbol -&gt; Name
+forall v. Var v =&gt; v -&gt; Name
+</span><span class="hs-identifier hs-var">Name.unsafeParseVar</span></span><span> </span><span class="annot"><span class="annottext">Symbol
+</span><a href="#local-6989586621681607921"><span class="hs-identifier hs-var">var</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607922"><span class="hs-identifier hs-var">refId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DataDeclaration Symbol Ann -&gt; Decl Symbol Ann
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">DataDeclaration Symbol Ann
+</span><a href="#local-6989586621681607923"><span class="hs-identifier hs-var">decl</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681607921"><span class="annot"><span class="annottext">Symbol
+</span><a href="#local-6989586621681607921"><span class="hs-identifier hs-var">var</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681607922"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607922"><span class="hs-identifier hs-var">refId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681607923"><span class="annot"><span class="annottext">DataDeclaration Symbol Ann
+</span><a href="#local-6989586621681607923"><span class="hs-identifier hs-var">decl</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map Symbol (TermReferenceId, DataDeclaration Symbol Ann)
+-&gt; [(Symbol, (TermReferenceId, DataDeclaration Symbol Ann))]
+forall k a. Map k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">Map.toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypecheckedUnisonFile Symbol Ann
+-&gt; Map Symbol (TermReferenceId, DataDeclaration Symbol Ann)
+forall v a.
+TypecheckedUnisonFile v a
+-&gt; Map v (TermReferenceId, DataDeclaration v a)
+</span><span class="hs-identifier hs-var">UF.dataDeclarationsId'</span></span><span> </span><span class="annot"><span class="annottext">TypecheckedUnisonFile Symbol Ann
+</span><a href="#local-6989586621681607833"><span class="hs-identifier hs-var">tuf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>          </span><span class="hs-special">]</span><span>
+</span><span id="line-158"></span><span>            </span><span class="annot"><span class="annottext">[(Name, (TermReferenceId, Decl Symbol Ann))]
+-&gt; [(Name, (TermReferenceId, Decl Symbol Ann))]
+-&gt; [(Name, (TermReferenceId, Decl Symbol Ann))]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Symbol -&gt; Name
+forall v. Var v =&gt; v -&gt; Name
+</span><span class="hs-identifier hs-var">Name.unsafeParseVar</span></span><span> </span><span class="annot"><span class="annottext">Symbol
+</span><a href="#local-6989586621681607925"><span class="hs-identifier hs-var">var</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607926"><span class="hs-identifier hs-var">refId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EffectDeclaration Symbol Ann -&gt; Decl Symbol Ann
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">EffectDeclaration Symbol Ann
+</span><a href="#local-6989586621681607927"><span class="hs-identifier hs-var">decl</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681607925"><span class="annot"><span class="annottext">Symbol
+</span><a href="#local-6989586621681607925"><span class="hs-identifier hs-var">var</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681607926"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607926"><span class="hs-identifier hs-var">refId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681607927"><span class="annot"><span class="annottext">EffectDeclaration Symbol Ann
+</span><a href="#local-6989586621681607927"><span class="hs-identifier hs-var">decl</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map Symbol (TermReferenceId, EffectDeclaration Symbol Ann)
+-&gt; [(Symbol, (TermReferenceId, EffectDeclaration Symbol Ann))]
+forall k a. Map k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">Map.toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypecheckedUnisonFile Symbol Ann
+-&gt; Map Symbol (TermReferenceId, EffectDeclaration Symbol Ann)
+forall v a.
+TypecheckedUnisonFile v a
+-&gt; Map v (TermReferenceId, EffectDeclaration v a)
+</span><span class="hs-identifier hs-var">UF.effectDeclarationsId'</span></span><span> </span><span class="annot"><span class="annottext">TypecheckedUnisonFile Symbol Ann
+</span><a href="#local-6989586621681607833"><span class="hs-identifier hs-var">tuf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>               </span><span class="hs-special">]</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607929"><span class="hs-identifier hs-type">newTypes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>      </span><span id="local-6989586621681607929"><span class="annot"><a href="#local-6989586621681607929"><span class="hs-identifier hs-var hs-var">newTypes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map Name (TermReferenceId, Decl Symbol Ann)
+-&gt; Set Name -&gt; Map Name (TermReferenceId, Decl Symbol Ann)
+forall k a. Ord k =&gt; Map k a -&gt; Set k -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.restrictKeys</span></span><span> </span><span class="annot"><span class="annottext">Map Name (TermReferenceId, Decl Symbol Ann)
+</span><a href="#local-6989586621681607920"><span class="hs-identifier hs-var">fileTypeDeclsWithRefIds</span></a></span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621681607866"><span class="hs-identifier hs-var">newTypeNames</span></a></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-comment">-- Types from the file that are updates to existing codebase definitions</span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607930"><span class="hs-identifier hs-type">updatedFileTypes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>      </span><span id="local-6989586621681607930"><span class="annot"><a href="#local-6989586621681607930"><span class="hs-identifier hs-var hs-var">updatedFileTypes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map Name (TermReferenceId, Decl Symbol Ann)
+-&gt; Set Name -&gt; Map Name (TermReferenceId, Decl Symbol Ann)
+forall k a. Ord k =&gt; Map k a -&gt; Set k -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.restrictKeys</span></span><span> </span><span class="annot"><span class="annottext">Map Name (TermReferenceId, Decl Symbol Ann)
+</span><a href="#local-6989586621681607920"><span class="hs-identifier hs-var">fileTypeDeclsWithRefIds</span></a></span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621681607869"><span class="hs-identifier hs-var">updatedTypeNames</span></a></span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-comment">-- Get the old types from the codebase for updated definitions</span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-comment">-- First, get the type reference IDs for the updated names</span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607931"><span class="hs-identifier hs-type">updatedTypeRefIds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span>
+</span><span id="line-172"></span><span>      </span><span id="local-6989586621681607931"><span class="annot"><a href="#local-6989586621681607931"><span class="hs-identifier hs-var hs-var">updatedTypeRefIds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-173"></span><span>        </span><span class="annot"><span class="annottext">[(Name, TermReferenceId)] -&gt; Map Name TermReferenceId
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span>
+</span><span id="line-174"></span><span>          </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681607932"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607933"><span class="hs-identifier hs-var">refId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681607932"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681607932"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; [Name]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621681607869"><span class="hs-identifier hs-var">updatedTypeNames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-176"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681607934"><span class="annot"><span class="annottext">TypeReference
+</span><a href="#local-6989586621681607934"><span class="hs-identifier hs-var">typeRef</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Name -&gt; Map Name TypeReference -&gt; Maybe TypeReference
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681607932"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BiMultimap TypeReference Name -&gt; Map Name TypeReference
+forall a b. BiMultimap a b -&gt; Map b a
+</span><span class="hs-identifier hs-var">BiMultimap.range</span></span><span> </span><span class="annot"><span class="annottext">UnconflictedLocalDefnsView
+</span><a href="#local-6989586621681607841"><span class="hs-identifier hs-var">unconflictedView</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">defns</span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-177"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681607933"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607933"><span class="hs-identifier hs-var">refId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">TypeReference -&gt; Maybe TermReferenceId
+</span><span class="hs-identifier hs-var">Reference.toId</span></span><span> </span><span class="annot"><span class="annottext">TypeReference
+</span><a href="#local-6989586621681607934"><span class="hs-identifier hs-var">typeRef</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-178"></span><span>          </span><span class="hs-special">]</span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-comment">-- Fetch the old types from the codebase</span><span>
+</span><span id="line-181"></span><span>  </span><span id="local-6989586621681607936"><span class="annot"><a href="#local-6989586621681607936"><span class="hs-identifier hs-var">oldTypes</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#runTransaction"><span class="hs-identifier hs-type">Cli.runTransaction</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-182"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607939"><span class="annot"><a href="#local-6989586621681607939"><span class="hs-identifier hs-var hs-var">refIdSet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[TermReferenceId] -&gt; Set TermReferenceId
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Name TermReferenceId -&gt; [TermReferenceId]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Name TermReferenceId
+</span><a href="#local-6989586621681607931"><span class="hs-identifier hs-var">updatedTypeRefIds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>    </span><span id="local-6989586621681607940"><span class="annot"><a href="#local-6989586621681607940"><span class="hs-identifier hs-var">hydratedTypes</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Cli.UpdateUtils.html#hydrateRefs"><span class="hs-identifier hs-type">hydrateRefs</span></a></span><span> </span><span class="annot"><span class="hs-identifier">env</span></span><span class="hs-operator">.</span><span class="hs-identifier">codebase</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set.empty</span></span><span> </span><span class="annot"><a href="#local-6989586621681607939"><span class="hs-identifier hs-type">refIdSet</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-identifier">hydratedTypes</span></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span>  </span><span class="hs-comment">-- Intersect old and new types to find updated definitions</span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-comment">-- Only include types where the reference ID actually changed</span><span>
+</span><span id="line-188"></span><span>  </span><span class="hs-comment">-- Result: Map Name ((old refId, old decl), (new refId, new decl))</span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681607941"><span class="hs-identifier hs-type">updatedTypes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-190"></span><span>      </span><span id="local-6989586621681607941"><span class="annot"><a href="#local-6989586621681607941"><span class="hs-identifier hs-var hs-var">updatedTypes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-191"></span><span>        </span><span class="annot"><span class="annottext">(Maybe
+   ((TermReferenceId, Decl Symbol Ann),
+    (TermReferenceId, Decl Symbol Ann))
+ -&gt; Maybe
+      ((TermReferenceId, Decl Symbol Ann),
+       (TermReferenceId, Decl Symbol Ann)))
+-&gt; Map
+     Name
+     (Maybe
+        ((TermReferenceId, Decl Symbol Ann),
+         (TermReferenceId, Decl Symbol Ann)))
+-&gt; Map
+     Name
+     ((TermReferenceId, Decl Symbol Ann),
+      (TermReferenceId, Decl Symbol Ann))
+forall a b k. (a -&gt; Maybe b) -&gt; Map k a -&gt; Map k b
+</span><span class="hs-identifier hs-var">Map.mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">Maybe
+  ((TermReferenceId, Decl Symbol Ann),
+   (TermReferenceId, Decl Symbol Ann))
+-&gt; Maybe
+     ((TermReferenceId, Decl Symbol Ann),
+      (TermReferenceId, Decl Symbol Ann))
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">(Map
+   Name
+   (Maybe
+      ((TermReferenceId, Decl Symbol Ann),
+       (TermReferenceId, Decl Symbol Ann)))
+ -&gt; Map
+      Name
+      ((TermReferenceId, Decl Symbol Ann),
+       (TermReferenceId, Decl Symbol Ann)))
+-&gt; Map
+     Name
+     (Maybe
+        ((TermReferenceId, Decl Symbol Ann),
+         (TermReferenceId, Decl Symbol Ann)))
+-&gt; Map
+     Name
+     ((TermReferenceId, Decl Symbol Ann),
+      (TermReferenceId, Decl Symbol Ann))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-192"></span><span>          </span><span class="annot"><span class="annottext">(TermReferenceId
+ -&gt; (TermReferenceId, Decl Symbol Ann)
+ -&gt; Maybe
+      ((TermReferenceId, Decl Symbol Ann),
+       (TermReferenceId, Decl Symbol Ann)))
+-&gt; Map Name TermReferenceId
+-&gt; Map Name (TermReferenceId, Decl Symbol Ann)
+-&gt; Map
+     Name
+     (Maybe
+        ((TermReferenceId, Decl Symbol Ann),
+         (TermReferenceId, Decl Symbol Ann)))
+forall k a b c.
+Ord k =&gt;
+(a -&gt; b -&gt; c) -&gt; Map k a -&gt; Map k b -&gt; Map k c
+</span><span class="hs-identifier hs-var">Map.intersectionWith</span></span><span>
+</span><span id="line-193"></span><span>            </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681607942"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607942"><span class="hs-identifier hs-var">oldRefId</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681607943"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607943"><span class="hs-identifier hs-var">newRefId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681607944"><span class="annot"><span class="annottext">Decl Symbol Ann
+</span><a href="#local-6989586621681607944"><span class="hs-identifier hs-var">newDecl</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-194"></span><span>                </span><span class="hs-comment">-- Skip types where the hash hasn't changed (they're not actually updated)</span><span>
+</span><span id="line-195"></span><span>                </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607942"><span class="hs-identifier hs-var">oldRefId</span></a></span><span> </span><span class="annot"><span class="annottext">TermReferenceId -&gt; TermReferenceId -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607943"><span class="hs-identifier hs-var">newRefId</span></a></span><span>
+</span><span id="line-196"></span><span>                  </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe
+  ((TermReferenceId, Decl Symbol Ann),
+   (TermReferenceId, Decl Symbol Ann))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-197"></span><span>                  </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+-&gt; Map TermReferenceId (Decl Symbol Ann) -&gt; Maybe (Decl Symbol Ann)
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607942"><span class="hs-identifier hs-var">oldRefId</span></a></span><span> </span><span class="annot"><span class="annottext">Map TermReferenceId (Decl Symbol Ann)
+</span><a href="#local-6989586621681607936"><span class="hs-identifier hs-var">oldTypes</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-198"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681607945"><span class="annot"><span class="annottext">Decl Symbol Ann
+</span><a href="#local-6989586621681607945"><span class="hs-identifier hs-var">oldDecl</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">((TermReferenceId, Decl Symbol Ann),
+ (TermReferenceId, Decl Symbol Ann))
+-&gt; Maybe
+     ((TermReferenceId, Decl Symbol Ann),
+      (TermReferenceId, Decl Symbol Ann))
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607942"><span class="hs-identifier hs-var">oldRefId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Decl Symbol Ann
+</span><a href="#local-6989586621681607945"><span class="hs-identifier hs-var">oldDecl</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681607943"><span class="hs-identifier hs-var">newRefId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Decl Symbol Ann
+</span><a href="#local-6989586621681607944"><span class="hs-identifier hs-var">newDecl</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-199"></span><span>                    </span><span class="annot"><span class="annottext">Maybe (Decl Symbol Ann)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe
+  ((TermReferenceId, Decl Symbol Ann),
+   (TermReferenceId, Decl Symbol Ann))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-200"></span><span>            </span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>            </span><span class="annot"><span class="annottext">Map Name TermReferenceId
+</span><a href="#local-6989586621681607931"><span class="hs-identifier hs-var">updatedTypeRefIds</span></a></span><span>
+</span><span id="line-202"></span><span>            </span><span class="annot"><span class="annottext">Map Name (TermReferenceId, Decl Symbol Ann)
+</span><a href="#local-6989586621681607930"><span class="hs-identifier hs-var">updatedFileTypes</span></a></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-comment">-- Build the PPEs:</span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-comment">-- - ppedNew: for new definitions (file names shadowing namespace names)</span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-comment">-- - ppedOld: for old definitions (just namespace names, so old refs resolve properly)</span><span>
+</span><span id="line-207"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607946"><span class="annot"><a href="#local-6989586621681607946"><span class="hs-identifier hs-var hs-var">fileNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TypecheckedUnisonFile Symbol Ann -&gt; Names
+forall v a. Var v =&gt; TypecheckedUnisonFile v a -&gt; Names
+</span><span class="hs-identifier hs-var">UF.typecheckedToNames</span></span><span> </span><span class="annot"><span class="annottext">TypecheckedUnisonFile Symbol Ann
+</span><a href="#local-6989586621681607833"><span class="hs-identifier hs-var">tuf</span></a></span><span>
+</span><span id="line-208"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607948"><span class="annot"><a href="#local-6989586621681607948"><span class="hs-identifier hs-var hs-var">allNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621681607946"><span class="hs-identifier hs-var">fileNames</span></a></span><span> </span><span class="annot"><span class="annottext">Names -&gt; Names -&gt; Names
+</span><span class="hs-operator hs-var">`Names.shadowing`</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621681607839"><span class="hs-identifier hs-var">namesIncludingLibdeps</span></a></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607950"><span class="annot"><a href="#local-6989586621681607950"><span class="hs-identifier hs-var hs-var">ppedNew</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-210"></span><span>        </span><span class="annot"><span class="annottext">Namer -&gt; Suffixifier -&gt; PrettyPrintEnvDecl
+</span><span class="hs-identifier hs-var">PPED.makePPED</span></span><span>
+</span><span id="line-211"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Names -&gt; Namer
+</span><span class="hs-identifier hs-var">PPE.hqNamer</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621681607948"><span class="hs-identifier hs-var">allNames</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Names -&gt; Suffixifier
+</span><span class="hs-identifier hs-var">PPE.suffixifyByHash</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621681607948"><span class="hs-identifier hs-var">allNames</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681607954"><span class="annot"><a href="#local-6989586621681607954"><span class="hs-identifier hs-var hs-var">ppedOld</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-214"></span><span>        </span><span class="annot"><span class="annottext">Namer -&gt; Suffixifier -&gt; PrettyPrintEnvDecl
+</span><span class="hs-identifier hs-var">PPED.makePPED</span></span><span>
+</span><span id="line-215"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Names -&gt; Namer
+</span><span class="hs-identifier hs-var">PPE.hqNamer</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621681607839"><span class="hs-identifier hs-var">namesIncludingLibdeps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-216"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Names -&gt; Suffixifier
+</span><span class="hs-identifier hs-var">PPE.suffixifyByHash</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621681607839"><span class="hs-identifier hs-var">namesIncludingLibdeps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span>  </span><span class="hs-comment">-- Respond with the diff</span><span>
+</span><span id="line-219"></span><span>  </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-220"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShowUpdateDiff"><span class="hs-identifier hs-type">Output.ShowUpdateDiff</span></a></span><span>
+</span><span id="line-221"></span><span>      </span><span class="annot"><a href="#local-6989586621681607950"><span class="hs-identifier hs-type">ppedNew</span></a></span><span>
+</span><span id="line-222"></span><span>      </span><span class="annot"><a href="#local-6989586621681607954"><span class="hs-identifier hs-type">ppedOld</span></a></span><span>
+</span><span id="line-223"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="hs-identifier hs-var">terms</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681607891"><span class="hs-identifier hs-type">newTerms</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-var">types</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681607929"><span class="hs-identifier hs-type">newTypes</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-224"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="hs-identifier hs-var">terms</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681607911"><span class="hs-identifier hs-type">updatedTerms</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-var">types</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681607941"><span class="hs-identifier hs-type">updatedTypes</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-225"></span><span>      </span><span class="annot"><a href="#local-6989586621681607870"><span class="hs-identifier hs-type">dependents</span></a></span><span>
+</span><span id="line-226"></span></pre></body></html>

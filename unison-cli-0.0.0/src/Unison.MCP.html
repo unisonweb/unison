@@ -1,0 +1,155 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.MCP.html"><span class="hs-identifier">Unison.MCP</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.MCP.html#runOnStdIO"><span class="hs-identifier">runOnStdIO</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.MCP.html#initServer"><span class="hs-identifier">initServer</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.MCP.Server</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MCP</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.MCP.Server.StdIO</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MCP</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.MCP.Types</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Text.RawString.QQ</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">r</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Auth.HTTPClient.html"><span class="hs-identifier">Unison.Auth.HTTPClient</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">AuthN</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Codebase</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.MCP.Prompts.html"><span class="hs-identifier">Unison.MCP.Prompts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.MCP.Prompts.html#prompts"><span class="hs-identifier">prompts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.MCP.StaticResources.html"><span class="hs-identifier">Unison.MCP.StaticResources</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.MCP.StaticResources.html#staticResources"><span class="hs-identifier">staticResources</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.MCP.Tools.html"><span class="hs-identifier">Unison.MCP.Tools</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.MCP.Tools.html#tools"><span class="hs-identifier">tools</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.MCP.Types.html"><span class="hs-identifier">Unison.MCP.Types</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.MCP.Wrapper.html"><span class="hs-identifier">Unison.MCP.Wrapper</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MCPWrapper</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Parser.Ann</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Runtime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Runtime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Symbol</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Symbol</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="annot"><a href="Unison.MCP.html#serverDescription"><span class="hs-identifier hs-type">serverDescription</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-20"></span><span id="serverDescription"><span class="annot"><span class="annottext">serverDescription :: Text
+</span><a href="Unison.MCP.html#serverDescription"><span class="hs-identifier hs-var hs-var">serverDescription</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><span class="annottext">Text
+</span><span class="">[r|
+        This server provides tools for interacting with Unison Code locally, such as typechecking or reading
+        documentation, as well as tools for searching Unison Share, which is a platform for sharing Unison projects and
+        libraries.
+
+        It also provides some mechanisms for editing and updating local Unison projects, such as installing libraries
+        from Unison Share.
+
+        Before doing any work in unison please read the file://unison-guide resource for information on how to write
+        Unison.
+    |]</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><a href="Unison.MCP.html#initServer"><span class="hs-identifier hs-type">initServer</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Codebase</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Runtime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Runtime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><a href="Unison.Auth.HTTPClient.html#AuthenticatedHttpClient"><span class="hs-identifier hs-type">AuthN.AuthenticatedHttpClient</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-40"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">MCP.Server</span></span><span>
+</span><span id="line-41"></span><span id="initServer"><span class="annot"><span class="annottext">initServer :: Codebase IO Symbol Ann
+-&gt; Runtime Symbol
+-&gt; Runtime Symbol
+-&gt; Maybe String
+-&gt; Text
+-&gt; AuthenticatedHttpClient
+-&gt; IO Server
+</span><a href="Unison.MCP.html#initServer"><span class="hs-identifier hs-var hs-var">initServer</span></a></span></span><span> </span><span id="local-6989586621681638076"><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+</span><a href="#local-6989586621681638076"><span class="hs-identifier hs-var">codebase</span></a></span></span><span> </span><span id="local-6989586621681638077"><span class="annot"><span class="annottext">Runtime Symbol
+</span><a href="#local-6989586621681638077"><span class="hs-identifier hs-var">runtime</span></a></span></span><span> </span><span id="local-6989586621681638078"><span class="annot"><span class="annottext">Runtime Symbol
+</span><a href="#local-6989586621681638078"><span class="hs-identifier hs-var">sbRuntime</span></a></span></span><span> </span><span id="local-6989586621681638079"><span class="annot"><span class="annottext">Maybe String
+</span><a href="#local-6989586621681638079"><span class="hs-identifier hs-var">workDir</span></a></span></span><span> </span><span id="local-6989586621681638080"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681638080"><span class="hs-identifier hs-var">ucmVersion</span></a></span></span><span> </span><span id="local-6989586621681638081"><span class="annot"><span class="annottext">AuthenticatedHttpClient
+</span><a href="#local-6989586621681638081"><span class="hs-identifier hs-var">authenticatedHTTPClient</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681638082"><span class="annot"><span class="annottext">env :: Env
+</span><a href="#local-6989586621681638082"><span class="hs-identifier hs-var hs-var hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><a href="Unison.MCP.Types.html#Env"><span class="hs-identifier hs-type">Env</span></a></span><span>
+</span><span id="line-44"></span><span>          </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+codebase :: Codebase IO Symbol Ann
+codebase :: Codebase IO Symbol Ann
+</span><a href="#local-6989586621681638076"><span class="hs-identifier hs-var hs-var">codebase</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>            </span><span class="annot"><span class="annottext">Runtime Symbol
+runtime :: Runtime Symbol
+runtime :: Runtime Symbol
+</span><a href="#local-6989586621681638077"><span class="hs-identifier hs-var hs-var">runtime</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>            </span><span class="annot"><span class="annottext">Runtime Symbol
+sbRuntime :: Runtime Symbol
+sbRuntime :: Runtime Symbol
+</span><a href="#local-6989586621681638078"><span class="hs-identifier hs-var hs-var">sbRuntime</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>            </span><span class="annot"><span class="annottext">Text
+ucmVersion :: Text
+ucmVersion :: Text
+</span><a href="#local-6989586621681638080"><span class="hs-identifier hs-var hs-var">ucmVersion</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>            </span><span class="annot"><span class="annottext">Maybe String
+workDir :: Maybe String
+workDir :: Maybe String
+</span><a href="#local-6989586621681638079"><span class="hs-identifier hs-var hs-var">workDir</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>            </span><span class="annot"><span class="annottext">AuthenticatedHttpClient
+authenticatedHTTPClient :: AuthenticatedHttpClient
+authenticatedHTTPClient :: AuthenticatedHttpClient
+</span><a href="#local-6989586621681638081"><span class="hs-identifier hs-var hs-var">authenticatedHTTPClient</span></a></span><span>
+</span><span id="line-50"></span><span>          </span><span class="hs-special">}</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-comment">-- Create server</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681638092"><span class="annot"><span class="annottext">serverInfo :: Implementation
+</span><a href="#local-6989586621681638092"><span class="hs-identifier hs-var hs-var">serverInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Implementation
+</span><span class="hs-identifier hs-var">Implementation</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;unison-mcp&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;0.0.1&quot;</span></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="annottext">Env -&gt; MCP Server -&gt; IO Server
+forall a. Env -&gt; MCP a -&gt; IO a
+</span><a href="Unison.MCP.Types.html#runMCP"><span class="hs-identifier hs-var">runMCP</span></a></span><span> </span><span class="annot"><span class="annottext">Env
+</span><a href="#local-6989586621681638082"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">(MCP Server -&gt; IO Server) -&gt; MCP Server -&gt; IO Server
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Implementation
+-&gt; Text
+-&gt; StaticResources
+-&gt; [Tool MCP]
+-&gt; [Prompt MCP]
+-&gt; MCP Server
+forall (m :: * -&gt; *).
+MonadUnliftIO m =&gt;
+Implementation
+-&gt; Text -&gt; StaticResources -&gt; [Tool m] -&gt; [Prompt m] -&gt; m Server
+</span><a href="Unison.MCP.Wrapper.html#mkServer"><span class="hs-identifier hs-var">MCPWrapper.mkServer</span></a></span><span> </span><span class="annot"><span class="annottext">Implementation
+</span><a href="#local-6989586621681638092"><span class="hs-identifier hs-var">serverInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="Unison.MCP.html#serverDescription"><span class="hs-identifier hs-var">serverDescription</span></a></span><span> </span><span class="annot"><span class="annottext">StaticResources
+</span><a href="Unison.MCP.StaticResources.html#staticResources"><span class="hs-identifier hs-var">staticResources</span></a></span><span> </span><span class="annot"><span class="annottext">[Tool MCP]
+</span><a href="Unison.MCP.Tools.html#tools"><span class="hs-identifier hs-var">tools</span></a></span><span> </span><span class="annot"><span class="annottext">[Prompt MCP]
+</span><a href="Unison.MCP.Prompts.html#prompts"><span class="hs-identifier hs-var">prompts</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">-- | Run the MCP server until we hit EOF.</span></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Unison.MCP.html#runOnStdIO"><span class="hs-identifier hs-type">runOnStdIO</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Codebase</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Runtime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Runtime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="Unison.Auth.HTTPClient.html#AuthenticatedHttpClient"><span class="hs-identifier hs-type">AuthN.AuthenticatedHttpClient</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span id="runOnStdIO"><span class="annot"><span class="annottext">runOnStdIO :: Codebase IO Symbol Ann
+-&gt; Runtime Symbol
+-&gt; Runtime Symbol
+-&gt; String
+-&gt; Text
+-&gt; AuthenticatedHttpClient
+-&gt; IO ()
+</span><a href="Unison.MCP.html#runOnStdIO"><span class="hs-identifier hs-var hs-var">runOnStdIO</span></a></span></span><span> </span><span id="local-6989586621681638096"><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+</span><a href="#local-6989586621681638096"><span class="hs-identifier hs-var">codebase</span></a></span></span><span> </span><span id="local-6989586621681638097"><span class="annot"><span class="annottext">Runtime Symbol
+</span><a href="#local-6989586621681638097"><span class="hs-identifier hs-var">runtime</span></a></span></span><span> </span><span id="local-6989586621681638098"><span class="annot"><span class="annottext">Runtime Symbol
+</span><a href="#local-6989586621681638098"><span class="hs-identifier hs-var">sbRuntime</span></a></span></span><span> </span><span id="local-6989586621681638099"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681638099"><span class="hs-identifier hs-var">workDir</span></a></span></span><span> </span><span id="local-6989586621681638100"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681638100"><span class="hs-identifier hs-var">ucmVersion</span></a></span></span><span> </span><span id="local-6989586621681638101"><span class="annot"><span class="annottext">AuthenticatedHttpClient
+</span><a href="#local-6989586621681638101"><span class="hs-identifier hs-var">authenticatedHTTPClient</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621681638102"><span class="annot"><a href="#local-6989586621681638102"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+-&gt; Runtime Symbol
+-&gt; Runtime Symbol
+-&gt; Maybe String
+-&gt; Text
+-&gt; AuthenticatedHttpClient
+-&gt; IO Server
+</span><a href="Unison.MCP.html#initServer"><span class="hs-identifier hs-var">initServer</span></a></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+</span><a href="#local-6989586621681638096"><span class="hs-identifier hs-var">codebase</span></a></span><span> </span><span class="annot"><span class="annottext">Runtime Symbol
+</span><a href="#local-6989586621681638097"><span class="hs-identifier hs-var">runtime</span></a></span><span> </span><span class="annot"><span class="annottext">Runtime Symbol
+</span><a href="#local-6989586621681638098"><span class="hs-identifier hs-var">sbRuntime</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Maybe String
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681638099"><span class="hs-identifier hs-var">workDir</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681638100"><span class="hs-identifier hs-var">ucmVersion</span></a></span><span> </span><span class="annot"><span class="annottext">AuthenticatedHttpClient
+</span><a href="#local-6989586621681638101"><span class="hs-identifier hs-var">authenticatedHTTPClient</span></a></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-comment">-- Start the server with StdIO transport</span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">MCP.runServerWithSTDIO</span></span><span> </span><span class="annot"><a href="#local-6989586621681638102"><span class="hs-identifier hs-type">server</span></a></span><span>
+</span><span id="line-69"></span></pre></body></html>

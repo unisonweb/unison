@@ -1,0 +1,683 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html"><span class="hs-identifier">Network.TLS.Handshake.Server.ClientHello12</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#processClientHello12"><span class="hs-identifier">processClientHello12</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Cipher.html"><span class="hs-identifier">Network.TLS.Cipher</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html"><span class="hs-identifier">Network.TLS.Context.Internal</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html"><span class="hs-identifier">Network.TLS.Credentials</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.html"><span class="hs-identifier">Network.TLS.Crypto</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.ErrT.html"><span class="hs-identifier">Network.TLS.ErrT</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Extension.html"><span class="hs-identifier">Network.TLS.Extension</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.Server.Common.html"><span class="hs-identifier">Network.TLS.Handshake.Server.Common</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.Signature.html"><span class="hs-identifier">Network.TLS.Handshake.Signature</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Imports.html"><span class="hs-identifier">Network.TLS.Imports</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Parameters.html"><span class="hs-identifier">Network.TLS.Parameters</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.State.html"><span class="hs-identifier">Network.TLS.State</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Struct.html"><span class="hs-identifier">Network.TLS.Struct</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Types.html"><span class="hs-identifier">Network.TLS.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Types.Cipher.html#CipherId"><span class="hs-identifier">CipherId</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Types.html#Role"><span class="hs-identifier">Role</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- serverSupported sparams == ctxSupported ctx</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- TLS 1.2 or earlier</span><span>
+</span><span id="line-27"></span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#processClientHello12"><span class="hs-identifier hs-type">processClientHello12</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Parameters.html#ServerParams"><span class="hs-identifier hs-type">ServerParams</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Struct.html#CH"><span class="hs-identifier hs-type">CH</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html#Credential"><span class="hs-identifier hs-type">Credential</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span id="processClientHello12"><span class="annot"><span class="annottext">processClientHello12 :: ServerParams -&gt; Context -&gt; CH -&gt; IO (Cipher, Maybe Credential)
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#processClientHello12"><span class="hs-identifier hs-var hs-var">processClientHello12</span></a></span></span><span> </span><span id="local-6989586621679258241"><span class="annot"><span class="annottext">ServerParams
+</span><a href="#local-6989586621679258241"><span class="hs-identifier hs-var">sparams</span></a></span></span><span> </span><span id="local-6989586621679258242"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679258242"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621679258243"><span class="annot"><span class="annottext">CH
+</span><a href="#local-6989586621679258243"><span class="hs-identifier hs-var">ch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679258244"><span class="annot"><span class="annottext">secureRenegotiation :: Bool
+</span><a href="#local-6989586621679258244"><span class="hs-identifier hs-var hs-var hs-var">secureRenegotiation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Supported -&gt; Bool
+</span><a href="Network.TLS.Parameters.html#supportedSecureRenegotiation"><span class="hs-identifier hs-var">supportedSecureRenegotiation</span></a></span><span> </span><span class="annot"><span class="annottext">(Supported -&gt; Bool) -&gt; Supported -&gt; Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ServerParams -&gt; Supported
+</span><a href="Network.TLS.Parameters.html#serverSupported"><span class="hs-identifier hs-var">serverSupported</span></a></span><span> </span><span class="annot"><span class="annottext">ServerParams
+</span><a href="#local-6989586621679258241"><span class="hs-identifier hs-var">sparams</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258244"><span class="hs-identifier hs-var">secureRenegotiation</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; CH -&gt; IO ()
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#checkSecureRenegotiation"><span class="hs-identifier hs-var">checkSecureRenegotiation</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679258242"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">CH
+</span><a href="#local-6989586621679258243"><span class="hs-identifier hs-var">ch</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679258249"><span class="annot"><a href="#local-6989586621679258249"><span class="hs-identifier hs-var">serverName</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Context -&gt; TLSSt (Maybe [Char]) -&gt; IO (Maybe [Char])
+forall a. Context -&gt; TLSSt a -&gt; IO a
+</span><a href="Network.TLS.Context.Internal.html#usingState_"><span class="hs-identifier hs-var">usingState_</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679258242"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">TLSSt (Maybe [Char])
+</span><a href="Network.TLS.State.html#getClientSNI"><span class="hs-identifier hs-var">getClientSNI</span></a></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679258252"><span class="annot"><a href="#local-6989586621679258252"><span class="hs-identifier hs-var hs-var">hooks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ServerParams -&gt; ServerHooks
+</span><a href="Network.TLS.Parameters.html#serverHooks"><span class="hs-identifier hs-var">serverHooks</span></a></span><span> </span><span class="annot"><span class="annottext">ServerParams
+</span><a href="#local-6989586621679258241"><span class="hs-identifier hs-var">sparams</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span id="local-6989586621679258254"><span class="annot"><a href="#local-6989586621679258254"><span class="hs-identifier hs-var">extraCreds</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Network.TLS.Parameters.html#onServerNameIndication"><span class="hs-identifier hs-var">onServerNameIndication</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679258252"><span class="hs-identifier hs-type">hooks</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679258249"><span class="hs-identifier hs-type">serverName</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679258256"><span class="annot"><a href="#local-6989586621679258256"><span class="hs-identifier hs-var">creds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679258257"><span class="annot"><a href="#local-6989586621679258257"><span class="hs-identifier hs-var">signatureCreds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679258258"><span class="annot"><a href="#local-6989586621679258258"><span class="hs-identifier hs-var">ciphersFilteredVersion</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-39"></span><span>            </span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#credsTriple"><span class="hs-identifier hs-type">credsTriple</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679258241"><span class="hs-identifier hs-type">sparams</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679258243"><span class="hs-identifier hs-type">ch</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679258254"><span class="hs-identifier hs-type">extraCreds</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-comment">-- The shared cipherlist can become empty after filtering for compatible</span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-comment">-- creds, check now before calling onCipherChoosing, which does not handle</span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-comment">-- empty lists.</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">null</span></span><span> </span><span class="annot"><a href="#local-6989586621679258258"><span class="hs-identifier hs-type">ciphersFilteredVersion</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><a href="Network.TLS.Context.Internal.html#throwCore"><span class="hs-identifier hs-type">throwCore</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-45"></span><span>            </span><span class="annot"><a href="Network.TLS.Error.html#Error_Protocol"><span class="hs-identifier hs-type">Error_Protocol</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;no cipher in common with the TLS 1.2 client&quot;</span></span><span> </span><span class="annot"><a href="Network.TLS.Error.html#HandshakeFailure"><span class="hs-identifier hs-type">HandshakeFailure</span></a></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679258264"><span class="annot"><a href="#local-6989586621679258264"><span class="hs-identifier hs-var hs-var">usedCipher</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ServerHooks -&gt; Version -&gt; [Cipher] -&gt; Cipher
+</span><a href="Network.TLS.Parameters.html#onCipherChoosing"><span class="hs-identifier hs-var">onCipherChoosing</span></a></span><span> </span><span class="annot"><span class="annottext">ServerHooks
+</span><a href="#local-6989586621679258252"><span class="hs-identifier hs-var">hooks</span></a></span><span> </span><span class="annot"><span class="annottext">Version
+</span><a href="Network.TLS.Types.Version.html#TLS12"><span class="hs-identifier hs-var">TLS12</span></a></span><span> </span><span class="annot"><span class="annottext">[Cipher]
+</span><a href="#local-6989586621679258258"><span class="hs-identifier hs-var">ciphersFilteredVersion</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679258267"><span class="annot"><a href="#local-6989586621679258267"><span class="hs-identifier hs-var">mcred</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#chooseCreds"><span class="hs-identifier hs-type">chooseCreds</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679258264"><span class="hs-identifier hs-type">usedCipher</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679258256"><span class="hs-identifier hs-type">creds</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679258257"><span class="hs-identifier hs-type">signatureCreds</span></a></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679258264"><span class="hs-identifier hs-type">usedCipher</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679258267"><span class="hs-identifier hs-type">mcred</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#checkSecureRenegotiation"><span class="hs-identifier hs-type">checkSecureRenegotiation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Struct.html#CH"><span class="hs-identifier hs-type">CH</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span id="checkSecureRenegotiation"><span class="annot"><span class="annottext">checkSecureRenegotiation :: Context -&gt; CH -&gt; IO ()
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#checkSecureRenegotiation"><span class="hs-identifier hs-var hs-var">checkSecureRenegotiation</span></a></span></span><span> </span><span id="local-6989586621679258269"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679258269"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="annot"><a href="Network.TLS.Struct.html#CH"><span class="hs-identifier hs-type">CH</span></a></span><span class="hs-special">{</span><span id="local-6989586621679258271"><span id="local-6989586621679258272"><span id="local-6989586621679258273"><span class="annot"><span class="annottext">[CipherId]
+[ExtensionRaw]
+Session
+chSession :: Session
+chCiphers :: [CipherId]
+chExtensions :: [ExtensionRaw]
+chExtensions :: CH -&gt; [ExtensionRaw]
+chCiphers :: CH -&gt; [CipherId]
+chSession :: CH -&gt; Session
+</span><a href="#local-6989586621679258271"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-comment">-- RFC 5746: secure renegotiation</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-comment">-- TLS_EMPTY_RENEGOTIATION_INFO_SCSV: {0x00, 0xFF}</span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word16 -&gt; CipherId
+</span><a href="Network.TLS.Types.Cipher.html#CipherId"><span class="hs-identifier hs-var">CipherId</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0xff</span></span><span> </span><span class="annot"><span class="annottext">CipherId -&gt; [CipherId] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[CipherId]
+</span><a href="#local-6989586621679258272"><span class="hs-identifier hs-var">chCiphers</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="annottext">Context -&gt; TLSSt () -&gt; IO ()
+forall a. Context -&gt; TLSSt a -&gt; IO a
+</span><a href="Network.TLS.Context.Internal.html#usingState_"><span class="hs-identifier hs-var">usingState_</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679258269"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">(TLSSt () -&gt; IO ()) -&gt; TLSSt () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-56"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; TLSSt ()
+</span><a href="Network.TLS.State.html#setSecureRenegotiation"><span class="hs-identifier hs-var">setSecureRenegotiation</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ExtensionID -&gt; [ExtensionRaw] -&gt; Maybe ByteString
+</span><a href="Network.TLS.Extension.html#extensionLookup"><span class="hs-identifier hs-var">extensionLookup</span></a></span><span> </span><span class="annot"><span class="annottext">ExtensionID
+</span><a href="Network.TLS.Extension.html#EID_SecureRenegotiation"><span class="hs-identifier hs-var">EID_SecureRenegotiation</span></a></span><span> </span><span class="annot"><span class="annottext">[ExtensionRaw]
+</span><a href="#local-6989586621679258273"><span class="hs-identifier hs-var">chExtensions</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-58"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679258282"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679258282"><span class="hs-identifier hs-var">content</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Context -&gt; TLSSt () -&gt; IO ()
+forall a. Context -&gt; TLSSt a -&gt; IO a
+</span><a href="Network.TLS.Context.Internal.html#usingState_"><span class="hs-identifier hs-var">usingState_</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679258269"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">(TLSSt () -&gt; IO ()) -&gt; TLSSt () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-59"></span><span>            </span><span class="annot"><a href="Network.TLS.Struct.html#VerifyData"><span class="hs-identifier hs-type">VerifyData</span></a></span><span> </span><span id="local-6989586621679258284"><span class="annot"><a href="#local-6989586621679258284"><span class="hs-identifier hs-var">cvd</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Role -&gt; TLSSt VerifyData
+</span><a href="Network.TLS.State.html#getVerifyData"><span class="hs-identifier hs-var">getVerifyData</span></a></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="Network.TLS.Types.html#ClientRole"><span class="hs-identifier hs-var">ClientRole</span></a></span><span>
+</span><span id="line-60"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679258291"><span class="annot"><a href="#local-6989586621679258291"><span class="hs-identifier hs-var hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SecureRenegotiation -&gt; ByteString
+forall a. Extension a =&gt; a -&gt; ByteString
+</span><a href="Network.TLS.Extension.html#extensionEncode"><span class="hs-identifier hs-var">extensionEncode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; SecureRenegotiation
+</span><a href="Network.TLS.Extension.html#SecureRenegotiation"><span class="hs-identifier hs-var">SecureRenegotiation</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679258284"><span class="hs-identifier hs-var">cvd</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">unless</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679258291"><span class="hs-identifier hs-type">bs</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">==</span></span><span> </span><span class="annot"><a href="#local-6989586621679258282"><span class="hs-identifier hs-type">content</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-62"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">throwError</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-63"></span><span>                    </span><span class="annot"><a href="Network.TLS.Error.html#Error_Protocol"><span class="hs-identifier hs-type">Error_Protocol</span></a></span><span>
+</span><span id="line-64"></span><span>                        </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;client verified data not matching: &quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">show</span></span><span> </span><span class="annot"><a href="#local-6989586621679258284"><span class="hs-identifier hs-type">cvd</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="annot"><span class="hs-string">&quot;:&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">show</span></span><span> </span><span class="annot"><a href="#local-6989586621679258282"><span class="hs-identifier hs-type">content</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>                        </span><span class="annot"><a href="Network.TLS.Error.html#HandshakeFailure"><span class="hs-identifier hs-type">HandshakeFailure</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>            </span><span class="annot"><a href="Network.TLS.State.html#setSecureRenegotiation"><span class="hs-identifier hs-type">setSecureRenegotiation</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#credsTriple"><span class="hs-identifier hs-type">credsTriple</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Parameters.html#ServerParams"><span class="hs-identifier hs-type">ServerParams</span></a></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Struct.html#CH"><span class="hs-identifier hs-type">CH</span></a></span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-type">Credentials</span></a></span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-type">Credentials</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-type">Credentials</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span id="credsTriple"><span class="annot"><span class="annottext">credsTriple :: ServerParams
+-&gt; CH -&gt; Credentials -&gt; (Credentials, Credentials, [Cipher])
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#credsTriple"><span class="hs-identifier hs-var hs-var">credsTriple</span></a></span></span><span> </span><span id="local-6989586621679258297"><span class="annot"><span class="annottext">ServerParams
+</span><a href="#local-6989586621679258297"><span class="hs-identifier hs-var">sparams</span></a></span></span><span> </span><span class="annot"><a href="Network.TLS.Struct.html#CH"><span class="hs-identifier hs-type">CH</span></a></span><span class="hs-special">{</span><span id="local-6989586621679258298"><span id="local-6989586621679258299"><span id="local-6989586621679258300"><span class="annot"><span class="annottext">[CipherId]
+[ExtensionRaw]
+Session
+chExtensions :: CH -&gt; [ExtensionRaw]
+chCiphers :: CH -&gt; [CipherId]
+chSession :: CH -&gt; Session
+chSession :: Session
+chCiphers :: [CipherId]
+chExtensions :: [ExtensionRaw]
+</span><a href="Network.TLS.Struct.html#chExtensions"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679258301"><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258301"><span class="hs-identifier hs-var">extraCreds</span></a></span></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[Cipher] -&gt; Bool
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#cipherListCredentialFallback"><span class="hs-identifier hs-var">cipherListCredentialFallback</span></a></span><span> </span><span class="annot"><span class="annottext">[Cipher]
+</span><a href="#local-6989586621679258303"><span class="hs-identifier hs-var">cltCiphers</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258304"><span class="hs-identifier hs-var">allCreds</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258305"><span class="hs-identifier hs-var">sigAllCreds</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Cipher]
+</span><a href="#local-6989586621679258306"><span class="hs-identifier hs-var">allCiphers</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258307"><span class="hs-identifier hs-var">cltCreds</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258308"><span class="hs-identifier hs-var">sigCltCreds</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Cipher]
+</span><a href="#local-6989586621679258303"><span class="hs-identifier hs-var">cltCiphers</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621679258309"><span class="annot"><span class="annottext">ciphers :: [Cipher]
+</span><a href="#local-6989586621679258309"><span class="hs-identifier hs-var hs-var">ciphers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Supported -&gt; [Cipher]
+</span><a href="Network.TLS.Parameters.html#supportedCiphers"><span class="hs-identifier hs-var">supportedCiphers</span></a></span><span> </span><span class="annot"><span class="annottext">(Supported -&gt; [Cipher]) -&gt; Supported -&gt; [Cipher]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ServerParams -&gt; Supported
+</span><a href="Network.TLS.Parameters.html#serverSupported"><span class="hs-identifier hs-var">serverSupported</span></a></span><span> </span><span class="annot"><span class="annottext">ServerParams
+</span><a href="#local-6989586621679258297"><span class="hs-identifier hs-var">sparams</span></a></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679258311"><span class="annot"><span class="annottext">commonCiphers :: Credentials -&gt; Credentials -&gt; [Cipher]
+</span><a href="#local-6989586621679258311"><span class="hs-identifier hs-var hs-var">commonCiphers</span></a></span></span><span> </span><span id="local-6989586621679258312"><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258312"><span class="hs-identifier hs-var">creds</span></a></span></span><span> </span><span id="local-6989586621679258313"><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258313"><span class="hs-identifier hs-var">sigCreds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[CipherId] -&gt; [Cipher] -&gt; [Cipher]
+</span><a href="Network.TLS.Cipher.html#intersectCiphers"><span class="hs-identifier hs-var">intersectCiphers</span></a></span><span> </span><span class="annot"><span class="annottext">[CipherId]
+</span><a href="#local-6989586621679258299"><span class="hs-identifier hs-var">chCiphers</span></a></span><span> </span><span class="annot"><span class="annottext">[Cipher]
+</span><a href="#local-6989586621679258315"><span class="hs-identifier hs-var">availableCiphers</span></a></span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-85"></span><span>        </span><span id="local-6989586621679258315"><span class="annot"><span class="annottext">availableCiphers :: [Cipher]
+</span><a href="#local-6989586621679258315"><span class="hs-identifier hs-var hs-var">availableCiphers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Cipher] -&gt; Credentials -&gt; Credentials -&gt; [Cipher]
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#getCiphers"><span class="hs-identifier hs-var">getCiphers</span></a></span><span> </span><span class="annot"><span class="annottext">[Cipher]
+</span><a href="#local-6989586621679258309"><span class="hs-identifier hs-var">ciphers</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258312"><span class="hs-identifier hs-var">creds</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258313"><span class="hs-identifier hs-var">sigCreds</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621679258317"><span class="annot"><span class="annottext">p :: Group -&gt; Bool
+</span><a href="#local-6989586621679258317"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Version -&gt; [ExtensionRaw] -&gt; Group -&gt; Bool
+</span><a href="Network.TLS.Handshake.Server.Common.html#makeCredentialPredicate"><span class="hs-identifier hs-var">makeCredentialPredicate</span></a></span><span> </span><span class="annot"><span class="annottext">Version
+</span><a href="Network.TLS.Types.Version.html#TLS12"><span class="hs-identifier hs-var">TLS12</span></a></span><span> </span><span class="annot"><span class="annottext">[ExtensionRaw]
+</span><a href="#local-6989586621679258300"><span class="hs-identifier hs-var">chExtensions</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679258304"><span class="annot"><span class="annottext">allCreds :: Credentials
+</span><a href="#local-6989586621679258304"><span class="hs-identifier hs-var hs-var">allCreds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-89"></span><span>        </span><span class="annot"><span class="annottext">(Credential -&gt; Bool) -&gt; Credentials -&gt; Credentials
+</span><a href="Network.TLS.Handshake.Server.Common.html#filterCredentials"><span class="hs-identifier hs-var">filterCredentials</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Version -&gt; (Group -&gt; Bool) -&gt; Credential -&gt; Bool
+</span><a href="Network.TLS.Handshake.Server.Common.html#isCredentialAllowed"><span class="hs-identifier hs-var">isCredentialAllowed</span></a></span><span> </span><span class="annot"><span class="annottext">Version
+</span><a href="Network.TLS.Types.Version.html#TLS12"><span class="hs-identifier hs-var">TLS12</span></a></span><span> </span><span class="annot"><span class="annottext">Group -&gt; Bool
+</span><a href="#local-6989586621679258317"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Credentials -&gt; Credentials) -&gt; Credentials -&gt; Credentials
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-90"></span><span>            </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258301"><span class="hs-identifier hs-var">extraCreds</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials -&gt; Credentials -&gt; Credentials
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">Shared -&gt; Credentials
+</span><a href="Network.TLS.Parameters.html#sharedCredentials"><span class="hs-identifier hs-var">sharedCredentials</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ServerParams -&gt; Shared
+</span><a href="Network.TLS.Parameters.html#serverShared"><span class="hs-identifier hs-var">serverShared</span></a></span><span> </span><span class="annot"><span class="annottext">ServerParams
+</span><a href="#local-6989586621679258297"><span class="hs-identifier hs-var">sparams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-comment">-- When selecting a cipher we must ensure that it is allowed for the</span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-comment">-- TLS version but also that all its key-exchange requirements</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-comment">-- will be met.</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-comment">-- Some ciphers require a signature and a hash.  With TLS 1.2 the hash</span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-comment">-- algorithm is selected from a combination of server configuration and</span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-comment">-- the client &quot;supported_signatures&quot; extension.  So we cannot pick</span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-comment">-- such a cipher if no hash is available for it.  It's best to skip this</span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-comment">-- cipher and pick another one (with another key exchange).</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-comment">-- Cipher selection is performed in two steps: first server credentials</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-comment">-- are flagged as not suitable for signature if not compatible with</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-comment">-- negotiated signature parameters.  Then ciphers are evalutated from</span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-comment">-- the resulting credentials.</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621679258325"><span class="annot"><span class="annottext">supported :: Supported
+</span><a href="#local-6989586621679258325"><span class="hs-identifier hs-var hs-var">supported</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ServerParams -&gt; Supported
+</span><a href="Network.TLS.Parameters.html#serverSupported"><span class="hs-identifier hs-var">serverSupported</span></a></span><span> </span><span class="annot"><span class="annottext">ServerParams
+</span><a href="#local-6989586621679258297"><span class="hs-identifier hs-var">sparams</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679258326"><span class="annot"><span class="annottext">groups :: [Group]
+</span><a href="#local-6989586621679258326"><span class="hs-identifier hs-var hs-var">groups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Supported -&gt; [Group]
+</span><a href="Network.TLS.Parameters.html#supportedGroups"><span class="hs-identifier hs-var">supportedGroups</span></a></span><span> </span><span class="annot"><span class="annottext">Supported
+</span><a href="#local-6989586621679258325"><span class="hs-identifier hs-var">supported</span></a></span><span>
+</span><span id="line-109"></span><span>    </span><span id="local-6989586621679258328"><span class="annot"><span class="annottext">possibleGroups :: [Group]
+</span><a href="#local-6989586621679258328"><span class="hs-identifier hs-var hs-var">possibleGroups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Group] -&gt; [ExtensionRaw] -&gt; [Group]
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#negotiatedGroupsInCommon"><span class="hs-identifier hs-var">negotiatedGroupsInCommon</span></a></span><span> </span><span class="annot"><span class="annottext">[Group]
+</span><a href="#local-6989586621679258326"><span class="hs-identifier hs-var">groups</span></a></span><span> </span><span class="annot"><span class="annottext">[ExtensionRaw]
+</span><a href="#local-6989586621679258300"><span class="hs-identifier hs-var">chExtensions</span></a></span><span>
+</span><span id="line-110"></span><span>    </span><span id="local-6989586621679258331"><span class="annot"><span class="annottext">possibleECGroups :: [Group]
+</span><a href="#local-6989586621679258331"><span class="hs-identifier hs-var hs-var">possibleECGroups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Group]
+</span><a href="#local-6989586621679258328"><span class="hs-identifier hs-var">possibleGroups</span></a></span><span> </span><span class="annot"><span class="annottext">[Group] -&gt; [Group] -&gt; [Group]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">`intersect`</span></span><span> </span><span class="annot"><span class="annottext">[Group]
+</span><a href="Network.TLS.Crypto.Types.html#availableECGroups"><span class="hs-identifier hs-var">availableECGroups</span></a></span><span>
+</span><span id="line-111"></span><span>    </span><span id="local-6989586621679258335"><span class="annot"><span class="annottext">possibleFFGroups :: [Group]
+</span><a href="#local-6989586621679258335"><span class="hs-identifier hs-var hs-var">possibleFFGroups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Group]
+</span><a href="#local-6989586621679258328"><span class="hs-identifier hs-var">possibleGroups</span></a></span><span> </span><span class="annot"><span class="annottext">[Group] -&gt; [Group] -&gt; [Group]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">`intersect`</span></span><span> </span><span class="annot"><span class="annottext">[Group]
+</span><a href="Network.TLS.Crypto.Types.html#availableFFGroups"><span class="hs-identifier hs-var">availableFFGroups</span></a></span><span>
+</span><span id="line-112"></span><span>    </span><span id="local-6989586621679258338"><span class="annot"><span class="annottext">hasCommonGroupForECDHE :: Bool
+</span><a href="#local-6989586621679258338"><span class="hs-identifier hs-var hs-var">hasCommonGroupForECDHE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Group] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Group]
+</span><a href="#local-6989586621679258331"><span class="hs-identifier hs-var">possibleECGroups</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621679258341"><span class="annot"><span class="annottext">hasCommonGroupForFFDHE :: Bool
+</span><a href="#local-6989586621679258341"><span class="hs-identifier hs-var hs-var">hasCommonGroupForFFDHE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Group] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Group]
+</span><a href="#local-6989586621679258335"><span class="hs-identifier hs-var">possibleFFGroups</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621679258342"><span class="annot"><span class="annottext">hasCustomGroupForFFDHE :: Bool
+</span><a href="#local-6989586621679258342"><span class="hs-identifier hs-var hs-var">hasCustomGroupForFFDHE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe DHParams -&gt; Bool
+forall a. Maybe a -&gt; Bool
+</span><span class="hs-identifier hs-var">isJust</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ServerParams -&gt; Maybe DHParams
+</span><a href="Network.TLS.Parameters.html#serverDHEParams"><span class="hs-identifier hs-var">serverDHEParams</span></a></span><span> </span><span class="annot"><span class="annottext">ServerParams
+</span><a href="#local-6989586621679258297"><span class="hs-identifier hs-var">sparams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679258345"><span class="annot"><span class="annottext">canFFDHE :: Bool
+</span><a href="#local-6989586621679258345"><span class="hs-identifier hs-var hs-var">canFFDHE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258342"><span class="hs-identifier hs-var">hasCustomGroupForFFDHE</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258341"><span class="hs-identifier hs-var">hasCommonGroupForFFDHE</span></a></span><span>
+</span><span id="line-116"></span><span>    </span><span id="local-6989586621679258347"><span class="annot"><span class="annottext">hasCommonGroup :: Cipher -&gt; Bool
+</span><a href="#local-6989586621679258347"><span class="hs-identifier hs-var hs-var">hasCommonGroup</span></a></span></span><span> </span><span id="local-6989586621679258348"><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258348"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-117"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#cipherKeyExchange"><span class="hs-identifier hs-var">cipherKeyExchange</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258348"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-118"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DH_Anon"><span class="hs-identifier hs-var">CipherKeyExchange_DH_Anon</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258345"><span class="hs-identifier hs-var">canFFDHE</span></a></span><span>
+</span><span id="line-119"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DHE_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_DHE_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258345"><span class="hs-identifier hs-var">canFFDHE</span></a></span><span>
+</span><span id="line-120"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DHE_DSA"><span class="hs-identifier hs-var">CipherKeyExchange_DHE_DSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258345"><span class="hs-identifier hs-var">canFFDHE</span></a></span><span>
+</span><span id="line-121"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_ECDHE_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_ECDHE_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258338"><span class="hs-identifier hs-var">hasCommonGroupForECDHE</span></a></span><span>
+</span><span id="line-122"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_ECDHE_ECDSA"><span class="hs-identifier hs-var">CipherKeyExchange_ECDHE_ECDSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258338"><span class="hs-identifier hs-var">hasCommonGroupForECDHE</span></a></span><span>
+</span><span id="line-123"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-comment">-- group not used</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-comment">-- Ciphers are selected according to TLS version, availability of</span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-comment">-- (EC)DHE group and credential depending on key exchange.</span><span>
+</span><span id="line-127"></span><span>    </span><span id="local-6989586621679258355"><span class="annot"><span class="annottext">cipherAllowed :: Cipher -&gt; Bool
+</span><a href="#local-6989586621679258355"><span class="hs-identifier hs-var hs-var">cipherAllowed</span></a></span></span><span> </span><span id="local-6989586621679258356"><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258356"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Version -&gt; Cipher -&gt; Bool
+</span><a href="Network.TLS.Cipher.html#cipherAllowedForVersion"><span class="hs-identifier hs-var">cipherAllowedForVersion</span></a></span><span> </span><span class="annot"><span class="annottext">Version
+</span><a href="Network.TLS.Types.Version.html#TLS12"><span class="hs-identifier hs-var">TLS12</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258356"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; Bool
+</span><a href="#local-6989586621679258347"><span class="hs-identifier hs-var">hasCommonGroup</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258356"><span class="hs-identifier hs-var">cipher</span></a></span><span>
+</span><span id="line-128"></span><span>    </span><span id="local-6989586621679258359"><span class="annot"><span class="annottext">selectCipher :: Credentials -&gt; Credentials -&gt; [Cipher]
+</span><a href="#local-6989586621679258359"><span class="hs-identifier hs-var hs-var">selectCipher</span></a></span></span><span> </span><span id="local-6989586621679258360"><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258360"><span class="hs-identifier hs-var">credentials</span></a></span></span><span> </span><span id="local-6989586621679258361"><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258361"><span class="hs-identifier hs-var">signatureCredentials</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Cipher -&gt; Bool) -&gt; [Cipher] -&gt; [Cipher]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; Bool
+</span><a href="#local-6989586621679258355"><span class="hs-identifier hs-var">cipherAllowed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Credentials -&gt; Credentials -&gt; [Cipher]
+</span><a href="#local-6989586621679258311"><span class="hs-identifier hs-var">commonCiphers</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258360"><span class="hs-identifier hs-var">credentials</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258361"><span class="hs-identifier hs-var">signatureCredentials</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-comment">-- Build a list of all hash/signature algorithms in common between</span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-comment">-- client and server.</span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621679258362"><span class="annot"><span class="annottext">hashAndSignatures :: [HashAndSignatureAlgorithm]
+</span><a href="#local-6989586621679258362"><span class="hs-identifier hs-var hs-var">hashAndSignatures</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Supported -&gt; [HashAndSignatureAlgorithm]
+</span><a href="Network.TLS.Parameters.html#supportedHashSignatures"><span class="hs-identifier hs-var">supportedHashSignatures</span></a></span><span> </span><span class="annot"><span class="annottext">Supported
+</span><a href="#local-6989586621679258325"><span class="hs-identifier hs-var">supported</span></a></span><span>
+</span><span id="line-133"></span><span>    </span><span id="local-6989586621679258364"><span class="annot"><span class="annottext">possibleHashSigAlgs :: [HashAndSignatureAlgorithm]
+</span><a href="#local-6989586621679258364"><span class="hs-identifier hs-var hs-var">possibleHashSigAlgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[HashAndSignatureAlgorithm]
+-&gt; [ExtensionRaw] -&gt; [HashAndSignatureAlgorithm]
+</span><a href="Network.TLS.Handshake.Server.Common.html#hashAndSignaturesInCommon"><span class="hs-identifier hs-var">hashAndSignaturesInCommon</span></a></span><span> </span><span class="annot"><span class="annottext">[HashAndSignatureAlgorithm]
+</span><a href="#local-6989586621679258362"><span class="hs-identifier hs-var">hashAndSignatures</span></a></span><span> </span><span class="annot"><span class="annottext">[ExtensionRaw]
+</span><a href="#local-6989586621679258300"><span class="hs-identifier hs-var">chExtensions</span></a></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span>    </span><span class="hs-comment">-- Check that a candidate signature credential will be compatible with</span><span>
+</span><span id="line-136"></span><span>    </span><span class="hs-comment">-- client &amp; server hash/signature algorithms.  This returns Just Int</span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-comment">-- in order to sort credentials according to server hash/signature</span><span>
+</span><span id="line-138"></span><span>    </span><span class="hs-comment">-- preference.  When the certificate has no matching hash/signature in</span><span>
+</span><span id="line-139"></span><span>    </span><span class="hs-comment">-- 'possibleHashSigAlgs' the result is Nothing, and the credential will</span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-comment">-- not be used to sign.  This avoids a failure later in 'decideHashSig'.</span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621679258366"><span class="annot"><span class="annottext">signingRank :: Credential -&gt; Maybe Int
+</span><a href="#local-6989586621679258366"><span class="hs-identifier hs-var hs-var">signingRank</span></a></span></span><span> </span><span id="local-6989586621679258367"><span class="annot"><span class="annottext">Credential
+</span><a href="#local-6989586621679258367"><span class="hs-identifier hs-var">cred</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-142"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Credential -&gt; Maybe PubKey
+</span><a href="Network.TLS.Handshake.Server.Common.html#credentialDigitalSignatureKey"><span class="hs-identifier hs-var">credentialDigitalSignatureKey</span></a></span><span> </span><span class="annot"><span class="annottext">Credential
+</span><a href="#local-6989586621679258367"><span class="hs-identifier hs-var">cred</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-143"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679258369"><span class="annot"><span class="annottext">PubKey
+</span><a href="#local-6989586621679258369"><span class="hs-identifier hs-var">pub</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(HashAndSignatureAlgorithm -&gt; Bool)
+-&gt; [HashAndSignatureAlgorithm] -&gt; Maybe Int
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; Maybe Int
+</span><span class="hs-identifier hs-var">findIndex</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PubKey
+</span><a href="#local-6989586621679258369"><span class="hs-identifier hs-var">pub</span></a></span><span> </span><span class="annot"><span class="annottext">PubKey -&gt; HashAndSignatureAlgorithm -&gt; Bool
+</span><a href="Network.TLS.Handshake.Signature.html#signatureCompatible"><span class="hs-operator hs-var">`signatureCompatible`</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[HashAndSignatureAlgorithm]
+</span><a href="#local-6989586621679258364"><span class="hs-identifier hs-var">possibleHashSigAlgs</span></a></span><span>
+</span><span id="line-144"></span><span>            </span><span class="annot"><span class="annottext">Maybe PubKey
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-comment">-- Finally compute credential lists and resulting cipher list.</span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-comment">-- We try to keep certificates supported by the client, but</span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-comment">-- fallback to all credentials if this produces no suitable result</span><span>
+</span><span id="line-150"></span><span>    </span><span class="hs-comment">-- (see RFC 5246 section 7.4.2 and RFC 8446 section 4.4.2.2).</span><span>
+</span><span id="line-151"></span><span>    </span><span class="hs-comment">-- The condition is based on resulting (EC)DHE ciphers so that</span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-comment">-- filtering credentials does not give advantage to a less secure</span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-comment">-- key exchange like CipherKeyExchange_RSA or CipherKeyExchange_DH_Anon.</span><span>
+</span><span id="line-154"></span><span>    </span><span id="local-6989586621679258307"><span class="annot"><span class="annottext">cltCreds :: Credentials
+</span><a href="#local-6989586621679258307"><span class="hs-identifier hs-var hs-var">cltCreds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ExtensionRaw] -&gt; Credentials -&gt; Credentials
+</span><a href="Network.TLS.Handshake.Server.Common.html#filterCredentialsWithHashSignatures"><span class="hs-identifier hs-var">filterCredentialsWithHashSignatures</span></a></span><span> </span><span class="annot"><span class="annottext">[ExtensionRaw]
+</span><a href="#local-6989586621679258300"><span class="hs-identifier hs-var">chExtensions</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258304"><span class="hs-identifier hs-var">allCreds</span></a></span><span>
+</span><span id="line-155"></span><span>    </span><span id="local-6989586621679258308"><span class="annot"><span class="annottext">sigCltCreds :: Credentials
+</span><a href="#local-6989586621679258308"><span class="hs-identifier hs-var hs-var">sigCltCreds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Credential -&gt; Maybe Int) -&gt; Credentials -&gt; Credentials
+forall a.
+Ord a =&gt;
+(Credential -&gt; Maybe a) -&gt; Credentials -&gt; Credentials
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#filterSortCredentials"><span class="hs-identifier hs-var">filterSortCredentials</span></a></span><span> </span><span class="annot"><span class="annottext">Credential -&gt; Maybe Int
+</span><a href="#local-6989586621679258366"><span class="hs-identifier hs-var">signingRank</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258307"><span class="hs-identifier hs-var">cltCreds</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span id="local-6989586621679258305"><span class="annot"><span class="annottext">sigAllCreds :: Credentials
+</span><a href="#local-6989586621679258305"><span class="hs-identifier hs-var hs-var">sigAllCreds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Credential -&gt; Maybe Int) -&gt; Credentials -&gt; Credentials
+forall a.
+Ord a =&gt;
+(Credential -&gt; Maybe a) -&gt; Credentials -&gt; Credentials
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#filterSortCredentials"><span class="hs-identifier hs-var">filterSortCredentials</span></a></span><span> </span><span class="annot"><span class="annottext">Credential -&gt; Maybe Int
+</span><a href="#local-6989586621679258366"><span class="hs-identifier hs-var">signingRank</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258304"><span class="hs-identifier hs-var">allCreds</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span id="local-6989586621679258303"><span class="annot"><span class="annottext">cltCiphers :: [Cipher]
+</span><a href="#local-6989586621679258303"><span class="hs-identifier hs-var hs-var">cltCiphers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Credentials -&gt; Credentials -&gt; [Cipher]
+</span><a href="#local-6989586621679258359"><span class="hs-identifier hs-var">selectCipher</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258307"><span class="hs-identifier hs-var">cltCreds</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258308"><span class="hs-identifier hs-var">sigCltCreds</span></a></span><span>
+</span><span id="line-158"></span><span>    </span><span id="local-6989586621679258306"><span class="annot"><span class="annottext">allCiphers :: [Cipher]
+</span><a href="#local-6989586621679258306"><span class="hs-identifier hs-var hs-var">allCiphers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Credentials -&gt; Credentials -&gt; [Cipher]
+</span><a href="#local-6989586621679258359"><span class="hs-identifier hs-var">selectCipher</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258304"><span class="hs-identifier hs-var">allCreds</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258305"><span class="hs-identifier hs-var">sigAllCreds</span></a></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#chooseCreds"><span class="hs-identifier hs-type">chooseCreds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-type">Credentials</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-type">Credentials</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html#Credential"><span class="hs-identifier hs-type">Credential</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span id="chooseCreds"><span class="annot"><span class="annottext">chooseCreds :: Cipher -&gt; Credentials -&gt; Credentials -&gt; IO (Maybe Credential)
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#chooseCreds"><span class="hs-identifier hs-var hs-var">chooseCreds</span></a></span></span><span> </span><span id="local-6989586621679258377"><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258377"><span class="hs-identifier hs-var">usedCipher</span></a></span></span><span> </span><span id="local-6989586621679258378"><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258378"><span class="hs-identifier hs-var">creds</span></a></span></span><span> </span><span id="local-6989586621679258379"><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258379"><span class="hs-identifier hs-var">signatureCreds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#cipherKeyExchange"><span class="hs-identifier hs-var">cipherKeyExchange</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258377"><span class="hs-identifier hs-var">usedCipher</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-162"></span><span>    </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Credential -&gt; IO (Maybe Credential)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Credential -&gt; IO (Maybe Credential))
+-&gt; Maybe Credential -&gt; IO (Maybe Credential)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Credentials -&gt; Maybe Credential
+</span><a href="Network.TLS.Credentials.html#credentialsFindForDecrypting"><span class="hs-identifier hs-var">credentialsFindForDecrypting</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258378"><span class="hs-identifier hs-var">creds</span></a></span><span>
+</span><span id="line-163"></span><span>    </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DH_Anon"><span class="hs-identifier hs-var">CipherKeyExchange_DH_Anon</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Credential -&gt; IO (Maybe Credential)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe Credential
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-164"></span><span>    </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DHE_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_DHE_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Credential -&gt; IO (Maybe Credential)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Credential -&gt; IO (Maybe Credential))
+-&gt; Maybe Credential -&gt; IO (Maybe Credential)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg -&gt; Credentials -&gt; Maybe Credential
+</span><a href="Network.TLS.Credentials.html#credentialsFindForSigning"><span class="hs-identifier hs-var">credentialsFindForSigning</span></a></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg
+</span><a href="Network.TLS.Crypto.Types.html#KX_RSA"><span class="hs-identifier hs-var">KX_RSA</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258379"><span class="hs-identifier hs-var">signatureCreds</span></a></span><span>
+</span><span id="line-165"></span><span>    </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DHE_DSA"><span class="hs-identifier hs-var">CipherKeyExchange_DHE_DSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Credential -&gt; IO (Maybe Credential)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Credential -&gt; IO (Maybe Credential))
+-&gt; Maybe Credential -&gt; IO (Maybe Credential)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg -&gt; Credentials -&gt; Maybe Credential
+</span><a href="Network.TLS.Credentials.html#credentialsFindForSigning"><span class="hs-identifier hs-var">credentialsFindForSigning</span></a></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg
+</span><a href="Network.TLS.Crypto.Types.html#KX_DSA"><span class="hs-identifier hs-var">KX_DSA</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258379"><span class="hs-identifier hs-var">signatureCreds</span></a></span><span>
+</span><span id="line-166"></span><span>    </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_ECDHE_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_ECDHE_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Credential -&gt; IO (Maybe Credential)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Credential -&gt; IO (Maybe Credential))
+-&gt; Maybe Credential -&gt; IO (Maybe Credential)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg -&gt; Credentials -&gt; Maybe Credential
+</span><a href="Network.TLS.Credentials.html#credentialsFindForSigning"><span class="hs-identifier hs-var">credentialsFindForSigning</span></a></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg
+</span><a href="Network.TLS.Crypto.Types.html#KX_RSA"><span class="hs-identifier hs-var">KX_RSA</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258379"><span class="hs-identifier hs-var">signatureCreds</span></a></span><span>
+</span><span id="line-167"></span><span>    </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_ECDHE_ECDSA"><span class="hs-identifier hs-var">CipherKeyExchange_ECDHE_ECDSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Credential -&gt; IO (Maybe Credential)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Credential -&gt; IO (Maybe Credential))
+-&gt; Maybe Credential -&gt; IO (Maybe Credential)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg -&gt; Credentials -&gt; Maybe Credential
+</span><a href="Network.TLS.Credentials.html#credentialsFindForSigning"><span class="hs-identifier hs-var">credentialsFindForSigning</span></a></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg
+</span><a href="Network.TLS.Crypto.Types.html#KX_ECDSA"><span class="hs-identifier hs-var">KX_ECDSA</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258379"><span class="hs-identifier hs-var">signatureCreds</span></a></span><span>
+</span><span id="line-168"></span><span>    </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-169"></span><span>        </span><span class="annot"><span class="annottext">TLSError -&gt; IO (Maybe Credential)
+forall (m :: * -&gt; *) a. MonadIO m =&gt; TLSError -&gt; m a
+</span><a href="Network.TLS.Context.Internal.html#throwCore"><span class="hs-identifier hs-var">throwCore</span></a></span><span> </span><span class="annot"><span class="annottext">(TLSError -&gt; IO (Maybe Credential))
+-&gt; TLSError -&gt; IO (Maybe Credential)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-170"></span><span>            </span><span class="annot"><span class="annottext">[Char] -&gt; AlertDescription -&gt; TLSError
+</span><a href="Network.TLS.Error.html#Error_Protocol"><span class="hs-identifier hs-var">Error_Protocol</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;key exchange algorithm not implemented&quot;</span></span><span> </span><span class="annot"><span class="annottext">AlertDescription
+</span><a href="Network.TLS.Error.html#HandshakeFailure"><span class="hs-identifier hs-var">HandshakeFailure</span></a></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#negotiatedGroupsInCommon"><span class="hs-identifier hs-type">negotiatedGroupsInCommon</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Extension.html#ExtensionRaw"><span class="hs-identifier hs-type">ExtensionRaw</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-175"></span><span id="negotiatedGroupsInCommon"><span class="annot"><span class="annottext">negotiatedGroupsInCommon :: [Group] -&gt; [ExtensionRaw] -&gt; [Group]
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#negotiatedGroupsInCommon"><span class="hs-identifier hs-var hs-var">negotiatedGroupsInCommon</span></a></span></span><span> </span><span id="local-6989586621679258386"><span class="annot"><span class="annottext">[Group]
+</span><a href="#local-6989586621679258386"><span class="hs-identifier hs-var">serverGroups</span></a></span></span><span> </span><span id="local-6989586621679258387"><span class="annot"><span class="annottext">[ExtensionRaw]
+</span><a href="#local-6989586621679258387"><span class="hs-identifier hs-var">exts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-176"></span><span>    </span><span class="annot"><span class="annottext">ExtensionID
+-&gt; MessageType
+-&gt; [ExtensionRaw]
+-&gt; [Group]
+-&gt; (SupportedGroups -&gt; [Group])
+-&gt; [Group]
+forall e a.
+Extension e =&gt;
+ExtensionID -&gt; MessageType -&gt; [ExtensionRaw] -&gt; a -&gt; (e -&gt; a) -&gt; a
+</span><a href="Network.TLS.Extension.html#lookupAndDecode"><span class="hs-identifier hs-var">lookupAndDecode</span></a></span><span>
+</span><span id="line-177"></span><span>        </span><span class="annot"><span class="annottext">ExtensionID
+</span><a href="Network.TLS.Extension.html#EID_SupportedGroups"><span class="hs-identifier hs-var">EID_SupportedGroups</span></a></span><span>
+</span><span id="line-178"></span><span>        </span><span class="annot"><span class="annottext">MessageType
+</span><a href="Network.TLS.Extension.html#MsgTClientHello"><span class="hs-identifier hs-var">MsgTClientHello</span></a></span><span>
+</span><span id="line-179"></span><span>        </span><span class="annot"><span class="annottext">[ExtensionRaw]
+</span><a href="#local-6989586621679258387"><span class="hs-identifier hs-var">exts</span></a></span><span>
+</span><span id="line-180"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-181"></span><span>        </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Extension.html#SupportedGroups"><span class="hs-identifier hs-type">SupportedGroups</span></a></span><span> </span><span id="local-6989586621679258392"><span class="annot"><span class="annottext">[Group]
+</span><a href="#local-6989586621679258392"><span class="hs-identifier hs-var">clientGroups</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Group]
+</span><a href="#local-6989586621679258386"><span class="hs-identifier hs-var">serverGroups</span></a></span><span> </span><span class="annot"><span class="annottext">[Group] -&gt; [Group] -&gt; [Group]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">`intersect`</span></span><span> </span><span class="annot"><span class="annottext">[Group]
+</span><a href="#local-6989586621679258392"><span class="hs-identifier hs-var">clientGroups</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span id="local-6989586621679258176"><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#filterSortCredentials"><span class="hs-identifier hs-type">filterSortCredentials</span></a></span><span>
+</span><span id="line-186"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679258176"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Credentials.html#Credential"><span class="hs-identifier hs-type">Credential</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679258176"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-type">Credentials</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-type">Credentials</span></a></span></span><span>
+</span><span id="line-187"></span><span id="filterSortCredentials"><span class="annot"><span class="annottext">filterSortCredentials :: forall a.
+Ord a =&gt;
+(Credential -&gt; Maybe a) -&gt; Credentials -&gt; Credentials
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#filterSortCredentials"><span class="hs-identifier hs-var hs-var">filterSortCredentials</span></a></span></span><span> </span><span id="local-6989586621679258396"><span class="annot"><span class="annottext">Credential -&gt; Maybe a
+</span><a href="#local-6989586621679258396"><span class="hs-identifier hs-var">rankFun</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-type">Credentials</span></a></span><span> </span><span id="local-6989586621679258398"><span class="annot"><span class="annottext">[Credential]
+</span><a href="#local-6989586621679258398"><span class="hs-identifier hs-var">creds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-188"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679258403"><span class="annot"><span class="annottext">orderedPairs :: [(Maybe a, Credential)]
+</span><a href="#local-6989586621679258403"><span class="hs-identifier hs-var hs-var">orderedPairs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Maybe a, Credential) -&gt; Maybe a)
+-&gt; [(Maybe a, Credential)] -&gt; [(Maybe a, Credential)]
+forall b a. Ord b =&gt; (a -&gt; b) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">sortOn</span></span><span> </span><span class="annot"><span class="annottext">(Maybe a, Credential) -&gt; Maybe a
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Credential -&gt; Maybe a
+</span><a href="#local-6989586621679258396"><span class="hs-identifier hs-var">rankFun</span></a></span><span> </span><span class="annot"><span class="annottext">Credential
+</span><a href="#local-6989586621679258406"><span class="hs-identifier hs-var">cred</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Credential
+</span><a href="#local-6989586621679258406"><span class="hs-identifier hs-var">cred</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679258406"><span class="annot"><span class="annottext">Credential
+</span><a href="#local-6989586621679258406"><span class="hs-identifier hs-var">cred</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Credential]
+</span><a href="#local-6989586621679258398"><span class="hs-identifier hs-var">creds</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-189"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[Credential] -&gt; Credentials
+</span><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-var">Credentials</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Credential
+</span><a href="#local-6989586621679258407"><span class="hs-identifier hs-var">cred</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679258407"><span class="annot"><span class="annottext">Credential
+</span><a href="#local-6989586621679258407"><span class="hs-identifier hs-var">cred</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Maybe a, Credential)]
+</span><a href="#local-6989586621679258403"><span class="hs-identifier hs-var">orderedPairs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-190"></span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- returns True if certificate filtering with &quot;signature_algorithms_cert&quot; /</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- &quot;signature_algorithms&quot; produced no ephemeral D-H nor TLS13 cipher (so</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- handshake with lower security)</span><span>
+</span><span id="line-194"></span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#cipherListCredentialFallback"><span class="hs-identifier hs-type">cipherListCredentialFallback</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-195"></span><span id="cipherListCredentialFallback"><span class="annot"><span class="annottext">cipherListCredentialFallback :: [Cipher] -&gt; Bool
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#cipherListCredentialFallback"><span class="hs-identifier hs-var hs-var">cipherListCredentialFallback</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Cipher -&gt; Bool) -&gt; [Cipher] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; Bool
+</span><a href="#local-6989586621679258409"><span class="hs-identifier hs-var">nonDH</span></a></span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-197"></span><span>    </span><span id="local-6989586621679258409"><span class="annot"><span class="annottext">nonDH :: Cipher -&gt; Bool
+</span><a href="#local-6989586621679258409"><span class="hs-identifier hs-var hs-var">nonDH</span></a></span></span><span> </span><span id="local-6989586621679258410"><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258410"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#cipherKeyExchange"><span class="hs-identifier hs-var">cipherKeyExchange</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258410"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-198"></span><span>        </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DHE_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_DHE_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-199"></span><span>        </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DHE_DSA"><span class="hs-identifier hs-var">CipherKeyExchange_DHE_DSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-200"></span><span>        </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_ECDHE_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_ECDHE_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-201"></span><span>        </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_ECDHE_ECDSA"><span class="hs-identifier hs-var">CipherKeyExchange_ECDHE_ECDSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-202"></span><span>        </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_TLS13"><span class="hs-identifier hs-var">CipherKeyExchange_TLS13</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-203"></span><span>        </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- We filter our allowed ciphers here according to dynamic credential lists.</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- Credentials 'creds' come from server parameters but also SNI callback.</span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- When the key exchange requires a signature, we use a</span><span>
+</span><span id="line-208"></span><span class="hs-comment">-- subset of this list named 'sigCreds'.  This list has been filtered in order</span><span>
+</span><span id="line-209"></span><span class="hs-comment">-- to remove certificates that are not compatible with hash/signature</span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- restrictions (TLS 1.2).</span><span>
+</span><span id="line-211"></span><span class="annot"><a href="Network.TLS.Handshake.Server.ClientHello12.html#getCiphers"><span class="hs-identifier hs-type">getCiphers</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-type">Credentials</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Credentials.html#Credentials"><span class="hs-identifier hs-type">Credentials</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-212"></span><span id="getCiphers"><span class="annot"><span class="annottext">getCiphers :: [Cipher] -&gt; Credentials -&gt; Credentials -&gt; [Cipher]
+</span><a href="Network.TLS.Handshake.Server.ClientHello12.html#getCiphers"><span class="hs-identifier hs-var hs-var">getCiphers</span></a></span></span><span> </span><span id="local-6989586621679258412"><span class="annot"><span class="annottext">[Cipher]
+</span><a href="#local-6989586621679258412"><span class="hs-identifier hs-var">ciphers</span></a></span></span><span> </span><span id="local-6989586621679258413"><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258413"><span class="hs-identifier hs-var">creds</span></a></span></span><span> </span><span id="local-6989586621679258414"><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258414"><span class="hs-identifier hs-var">sigCreds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Cipher -&gt; Bool) -&gt; [Cipher] -&gt; [Cipher]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; Bool
+</span><a href="#local-6989586621679258415"><span class="hs-identifier hs-var">authorizedCKE</span></a></span><span> </span><span class="annot"><span class="annottext">[Cipher]
+</span><a href="#local-6989586621679258412"><span class="hs-identifier hs-var">ciphers</span></a></span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-214"></span><span>    </span><span id="local-6989586621679258415"><span class="annot"><span class="annottext">authorizedCKE :: Cipher -&gt; Bool
+</span><a href="#local-6989586621679258415"><span class="hs-identifier hs-var hs-var">authorizedCKE</span></a></span></span><span> </span><span id="local-6989586621679258416"><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258416"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-215"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#cipherKeyExchange"><span class="hs-identifier hs-var">cipherKeyExchange</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679258416"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-216"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258417"><span class="hs-identifier hs-var">canEncryptRSA</span></a></span><span>
+</span><span id="line-217"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DH_Anon"><span class="hs-identifier hs-var">CipherKeyExchange_DH_Anon</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-218"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DHE_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_DHE_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258418"><span class="hs-identifier hs-var">canSignRSA</span></a></span><span>
+</span><span id="line-219"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DHE_DSA"><span class="hs-identifier hs-var">CipherKeyExchange_DHE_DSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258419"><span class="hs-identifier hs-var">canSignDSA</span></a></span><span>
+</span><span id="line-220"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_ECDHE_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_ECDHE_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258418"><span class="hs-identifier hs-var">canSignRSA</span></a></span><span>
+</span><span id="line-221"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_ECDHE_ECDSA"><span class="hs-identifier hs-var">CipherKeyExchange_ECDHE_ECDSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679258420"><span class="hs-identifier hs-var">canSignECDSA</span></a></span><span>
+</span><span id="line-222"></span><span>            </span><span class="hs-comment">-- unimplemented: non ephemeral DH &amp; ECDH.</span><span>
+</span><span id="line-223"></span><span>            </span><span class="hs-comment">-- Note, these *should not* be implemented, and have</span><span>
+</span><span id="line-224"></span><span>            </span><span class="hs-comment">-- (for example) been removed in OpenSSL 1.1.0</span><span>
+</span><span id="line-225"></span><span>            </span><span class="hs-comment">--</span><span>
+</span><span id="line-226"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DH_DSA"><span class="hs-identifier hs-var">CipherKeyExchange_DH_DSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-227"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_DH_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_DH_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-228"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_ECDH_ECDSA"><span class="hs-identifier hs-var">CipherKeyExchange_ECDH_ECDSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-229"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_ECDH_RSA"><span class="hs-identifier hs-var">CipherKeyExchange_ECDH_RSA</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-230"></span><span>            </span><span class="annot"><span class="annottext">CipherKeyExchangeType
+</span><a href="Network.TLS.Types.Cipher.html#CipherKeyExchange_TLS13"><span class="hs-identifier hs-var">CipherKeyExchange_TLS13</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- not reached</span><span>
+</span><span id="line-231"></span><span>    </span><span id="local-6989586621679258419"><span class="annot"><span class="annottext">canSignDSA :: Bool
+</span><a href="#local-6989586621679258419"><span class="hs-identifier hs-var hs-var">canSignDSA</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg
+</span><a href="Network.TLS.Crypto.Types.html#KX_DSA"><span class="hs-identifier hs-var">KX_DSA</span></a></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg -&gt; [KeyExchangeSignatureAlg] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[KeyExchangeSignatureAlg]
+</span><a href="#local-6989586621679258428"><span class="hs-identifier hs-var">signingAlgs</span></a></span><span>
+</span><span id="line-232"></span><span>    </span><span id="local-6989586621679258418"><span class="annot"><span class="annottext">canSignRSA :: Bool
+</span><a href="#local-6989586621679258418"><span class="hs-identifier hs-var hs-var">canSignRSA</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg
+</span><a href="Network.TLS.Crypto.Types.html#KX_RSA"><span class="hs-identifier hs-var">KX_RSA</span></a></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg -&gt; [KeyExchangeSignatureAlg] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[KeyExchangeSignatureAlg]
+</span><a href="#local-6989586621679258428"><span class="hs-identifier hs-var">signingAlgs</span></a></span><span>
+</span><span id="line-233"></span><span>    </span><span id="local-6989586621679258420"><span class="annot"><span class="annottext">canSignECDSA :: Bool
+</span><a href="#local-6989586621679258420"><span class="hs-identifier hs-var hs-var">canSignECDSA</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg
+</span><a href="Network.TLS.Crypto.Types.html#KX_ECDSA"><span class="hs-identifier hs-var">KX_ECDSA</span></a></span><span> </span><span class="annot"><span class="annottext">KeyExchangeSignatureAlg -&gt; [KeyExchangeSignatureAlg] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[KeyExchangeSignatureAlg]
+</span><a href="#local-6989586621679258428"><span class="hs-identifier hs-var">signingAlgs</span></a></span><span>
+</span><span id="line-234"></span><span>    </span><span id="local-6989586621679258417"><span class="annot"><span class="annottext">canEncryptRSA :: Bool
+</span><a href="#local-6989586621679258417"><span class="hs-identifier hs-var hs-var">canEncryptRSA</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Credential -&gt; Bool
+forall a. Maybe a -&gt; Bool
+</span><span class="hs-identifier hs-var">isJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Credential -&gt; Bool) -&gt; Maybe Credential -&gt; Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Credentials -&gt; Maybe Credential
+</span><a href="Network.TLS.Credentials.html#credentialsFindForDecrypting"><span class="hs-identifier hs-var">credentialsFindForDecrypting</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258413"><span class="hs-identifier hs-var">creds</span></a></span><span>
+</span><span id="line-235"></span><span>    </span><span id="local-6989586621679258428"><span class="annot"><span class="annottext">signingAlgs :: [KeyExchangeSignatureAlg]
+</span><a href="#local-6989586621679258428"><span class="hs-identifier hs-var hs-var">signingAlgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Credentials -&gt; [KeyExchangeSignatureAlg]
+</span><a href="Network.TLS.Credentials.html#credentialsListSigningAlgorithms"><span class="hs-identifier hs-var">credentialsListSigningAlgorithms</span></a></span><span> </span><span class="annot"><span class="annottext">Credentials
+</span><a href="#local-6989586621679258414"><span class="hs-identifier hs-var">sigCreds</span></a></span><span>
+</span><span id="line-236"></span></pre></body></html>

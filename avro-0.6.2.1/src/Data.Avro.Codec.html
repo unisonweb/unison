@@ -1,0 +1,262 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns        #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings   #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes          #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html"><span class="hs-identifier">Data.Avro.Codec</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier">Codec</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#Decompress"><span class="hs-identifier">Decompress</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#nullCodec"><span class="hs-identifier">nullCodec</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#deflateCodec"><span class="hs-identifier">deflateCodec</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Codec.Compression.Zlib.Internal</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Zlib</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary.Get</span></span><span>                 </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">G</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lazy</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="annot"><span class="hs-comment">-- | Block decompression function for blocks of Avro.</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">type</span><span> </span><span id="Decompress"><span class="annot"><a href="Data.Avro.Codec.html#Decompress"><span class="hs-identifier hs-var">Decompress</span></a></span></span><span> </span><span id="local-6989586621679514047"><span class="annot"><a href="#local-6989586621679514047"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Get</span></span><span> </span><span class="annot"><a href="#local-6989586621679514047"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679514047"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- | A `Codec` allows for compression/decompression of a block in an</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- Avro container according to the Avro spec.</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">data</span><span> </span><span id="Codec"><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier hs-var">Codec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Codec"><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier hs-var">Codec</span></a></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">{</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="hs-comment">-- | The name of the codec according to the Avro spec.</span></span><span>
+</span><span id="line-25"></span><span>    </span><span id="codecName"><span class="annot"><span class="annottext">Codec -&gt; ByteString
+</span><a href="Data.Avro.Codec.html#codecName"><span class="hs-identifier hs-var hs-var">codecName</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-comment">-- | Execute a `G.Get` over a chunk of bytes possibly decompressing</span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-comment">-- the chunk incrementally.</span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-comment">-- The API is somewhat more complex than say `codecCompress` to allow</span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-comment">-- interleaving of decompression and binary decoding while still allowing</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-comment">-- proper error handling without resorting to async exceptions.</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="codecDecompress"><span class="annot"><span class="annottext">Codec -&gt; forall a. Decompress a
+</span><a href="Data.Avro.Codec.html#codecDecompress"><span class="hs-identifier hs-var hs-var">codecDecompress</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679513999"><span class="annot"><a href="#local-6989586621679513999"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#Decompress"><span class="hs-identifier hs-type">Decompress</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679513999"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="hs-comment">-- | Compresses a lazy stream of bytes.</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="codecCompress"><span class="annot"><span class="annottext">Codec -&gt; ByteString -&gt; ByteString
+</span><a href="Data.Avro.Codec.html#codecCompress"><span class="hs-identifier hs-var hs-var">codecCompress</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | `nullCodec` specifies @null@ required by Avro spec.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- (see &lt;https://avro.apache.org/docs/1.8.1/spec.html#null&gt;)</span><span>
+</span><span id="line-40"></span><span class="annot"><a href="Data.Avro.Codec.html#nullCodec"><span class="hs-identifier hs-type">nullCodec</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier hs-type">Codec</span></a></span><span>
+</span><span id="line-41"></span><span id="nullCodec"><span class="annot"><span class="annottext">nullCodec :: Codec
+</span><a href="Data.Avro.Codec.html#nullCodec"><span class="hs-identifier hs-var hs-var">nullCodec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier hs-type">Codec</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">{</span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="annottext">codecName :: ByteString
+</span><a href="Data.Avro.Codec.html#codecName"><span class="hs-identifier hs-var">codecName</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;null&quot;</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">codecDecompress :: forall a. Decompress a
+</span><a href="Data.Avro.Codec.html#codecDecompress"><span class="hs-identifier hs-var">codecDecompress</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679514052"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514052"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span id="local-6989586621679514053"><span class="annot"><span class="annottext">Get a
+</span><a href="#local-6989586621679514053"><span class="hs-identifier hs-var">parser</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-46"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Get a
+-&gt; ByteString
+-&gt; Either
+     (ByteString, ByteOffset, String) (ByteString, ByteOffset, a)
+forall a.
+Get a
+-&gt; ByteString
+-&gt; Either
+     (ByteString, ByteOffset, String) (ByteString, ByteOffset, a)
+</span><span class="hs-identifier hs-var">G.runGetOrFail</span></span><span> </span><span class="annot"><span class="annottext">Get a
+</span><a href="#local-6989586621679514053"><span class="hs-identifier hs-var">parser</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514052"><span class="hs-identifier hs-var">input</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-47"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679514055"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514055"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Either String a
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514055"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-48"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679514056"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679514056"><span class="hs-identifier hs-var">err</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679514056"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">codecCompress :: ByteString -&gt; ByteString
+</span><a href="Data.Avro.Codec.html#codecCompress"><span class="hs-identifier hs-var">codecCompress</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- | `deflateCodec` specifies @deflate@ codec required by Avro spec.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- (see &lt;https://avro.apache.org/docs/1.8.1/spec.html#deflate&gt;)</span><span>
+</span><span id="line-54"></span><span class="annot"><a href="Data.Avro.Codec.html#deflateCodec"><span class="hs-identifier hs-type">deflateCodec</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier hs-type">Codec</span></a></span><span>
+</span><span id="line-55"></span><span id="deflateCodec"><span class="annot"><span class="annottext">deflateCodec :: Codec
+</span><a href="Data.Avro.Codec.html#deflateCodec"><span class="hs-identifier hs-var hs-var">deflateCodec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier hs-type">Codec</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-special">{</span><span>
+</span><span id="line-58"></span><span>      </span><span class="annot"><span class="annottext">codecName :: ByteString
+</span><a href="Data.Avro.Codec.html#codecName"><span class="hs-identifier hs-var">codecName</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;deflate&quot;</span></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">codecDecompress :: forall a. Decompress a
+</span><a href="Data.Avro.Codec.html#codecDecompress"><span class="hs-identifier hs-var">codecDecompress</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Get a -&gt; Either String a
+forall a. Decompress a
+</span><a href="Data.Avro.Codec.html#deflateDecompress"><span class="hs-identifier hs-var">deflateDecompress</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">codecCompress :: ByteString -&gt; ByteString
+</span><a href="Data.Avro.Codec.html#codecCompress"><span class="hs-identifier hs-var">codecCompress</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="Data.Avro.Codec.html#deflateCompress"><span class="hs-identifier hs-var">deflateCompress</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Data.Avro.Codec.html#deflateCompress"><span class="hs-identifier hs-type">deflateCompress</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span>
+</span><span id="line-64"></span><span id="deflateCompress"><span class="annot"><span class="annottext">deflateCompress :: ByteString -&gt; ByteString
+</span><a href="Data.Avro.Codec.html#deflateCompress"><span class="hs-identifier hs-var hs-var">deflateCompress</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><span class="annottext">Format -&gt; CompressParams -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">Zlib.compress</span></span><span> </span><span class="annot"><span class="annottext">Format
+</span><span class="hs-identifier hs-var">Zlib.rawFormat</span></span><span> </span><span class="annot"><span class="annottext">CompressParams
+</span><span class="hs-identifier hs-var">Zlib.defaultCompressParams</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Internal type to help construct a lazy list of</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- decompressed bytes interleaved with errors if any.</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">data</span><span> </span><span id="Chunk"><span class="annot"><a href="Data.Avro.Codec.html#Chunk"><span class="hs-identifier hs-var">Chunk</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ChunkRest"><span class="annot"><a href="Data.Avro.Codec.html#ChunkRest"><span class="hs-identifier hs-var">ChunkRest</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ChunkBytes"><span class="annot"><a href="Data.Avro.Codec.html#ChunkBytes"><span class="hs-identifier hs-var">ChunkBytes</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ChunkError"><span class="annot"><a href="Data.Avro.Codec.html#ChunkError"><span class="hs-identifier hs-var">ChunkError</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Zlib.DecompressError</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="annot"><a href="Data.Avro.Codec.html#deflateDecompress"><span class="hs-identifier hs-type">deflateDecompress</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679514066"><span class="annot"><a href="#local-6989586621679514066"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Get</span></span><span> </span><span class="annot"><a href="#local-6989586621679514066"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679514066"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-77"></span><span id="deflateDecompress"><span class="annot"><span class="annottext">deflateDecompress :: forall a. Decompress a
+</span><a href="Data.Avro.Codec.html#deflateDecompress"><span class="hs-identifier hs-var hs-var">deflateDecompress</span></a></span></span><span> </span><span id="local-6989586621679514078"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514078"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span id="local-6989586621679514079"><span class="annot"><span class="annottext">Get a
+</span><a href="#local-6989586621679514079"><span class="hs-identifier hs-var">parser</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-keyword">let</span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-comment">-- N.B. this list is lazily created which allows us to</span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-comment">-- interleave decompression and binary decoding.</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><a href="#local-6989586621679514080"><span class="hs-identifier hs-type">chunks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Avro.Codec.html#Chunk"><span class="hs-identifier hs-type">Chunk</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679514080"><span class="annot"><span class="annottext">chunks :: [Chunk]
+</span><a href="#local-6989586621679514080"><span class="hs-identifier hs-var hs-var hs-var">chunks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-83"></span><span>      </span><span class="annot"><span class="annottext">(ByteString -&gt; [Chunk] -&gt; [Chunk])
+-&gt; (ByteString -&gt; [Chunk])
+-&gt; (DecompressError -&gt; [Chunk])
+-&gt; (forall s. DecompressStream (ST s))
+-&gt; ByteString
+-&gt; [Chunk]
+forall a.
+(ByteString -&gt; a -&gt; a)
+-&gt; (ByteString -&gt; a)
+-&gt; (DecompressError -&gt; a)
+-&gt; (forall s. DecompressStream (ST s))
+-&gt; ByteString
+-&gt; a
+</span><span class="hs-identifier hs-var">Zlib.foldDecompressStreamWithInput</span></span><span>
+</span><span id="line-84"></span><span>        </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679514082"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514082"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679514083"><span class="annot"><span class="annottext">[Chunk]
+</span><a href="#local-6989586621679514083"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Chunk
+</span><a href="Data.Avro.Codec.html#ChunkBytes"><span class="hs-identifier hs-var">ChunkBytes</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514082"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Chunk -&gt; [Chunk] -&gt; [Chunk]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Chunk]
+</span><a href="#local-6989586621679514083"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>        </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679514084"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514084"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ByteString -&gt; Chunk
+</span><a href="Data.Avro.Codec.html#ChunkRest"><span class="hs-identifier hs-var">ChunkRest</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514084"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>        </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679514085"><span class="annot"><span class="annottext">DecompressError
+</span><a href="#local-6989586621679514085"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">DecompressError -&gt; Chunk
+</span><a href="Data.Avro.Codec.html#ChunkError"><span class="hs-identifier hs-var">ChunkError</span></a></span><span> </span><span class="annot"><span class="annottext">DecompressError
+</span><a href="#local-6989586621679514085"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Format -&gt; DecompressParams -&gt; DecompressStream (ST s)
+forall s. Format -&gt; DecompressParams -&gt; DecompressStream (ST s)
+</span><span class="hs-identifier hs-var">Zlib.decompressST</span></span><span> </span><span class="annot"><span class="annottext">Format
+</span><span class="hs-identifier hs-var">Zlib.rawFormat</span></span><span> </span><span class="annot"><span class="annottext">DecompressParams
+</span><span class="hs-identifier hs-var">Zlib.defaultDecompressParams</span></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>        </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514078"><span class="hs-identifier hs-var">bytes</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><a href="#local-6989586621679514088"><span class="hs-identifier hs-type">decode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Decoder</span></span><span> </span><span class="annot"><a href="#local-6989586621679514066"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Avro.Codec.html#Chunk"><span class="hs-identifier hs-type">Chunk</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">G.Decoder</span></span><span> </span><span class="annot"><a href="#local-6989586621679514066"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621679514088"><span class="annot"><span class="annottext">decode :: Decoder a -&gt; [Chunk] -&gt; Either String (Decoder a)
+</span><a href="#local-6989586621679514088"><span class="hs-identifier hs-var hs-var hs-var">decode</span></a></span></span><span> </span><span id="local-6989586621679514089"><span class="annot"><span class="annottext">dec :: Decoder a
+</span><a href="#local-6989586621679514089"><span class="hs-identifier hs-var">dec</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">G.Fail</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="annot"><span class="annottext">[Chunk]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-92"></span><span>      </span><span class="hs-comment">-- short circuit if decoding failed</span><span>
+</span><span id="line-93"></span><span>      </span><span class="annot"><span class="annottext">Decoder a -&gt; Either String (Decoder a)
+forall a. a -&gt; Either String a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Decoder a
+</span><a href="#local-6989586621679514089"><span class="hs-identifier hs-var">dec</span></a></span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><a href="#local-6989586621679514088"><span class="hs-identifier hs-var">decode</span></a></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679514091"><span class="annot"><span class="annottext">Decoder a
+</span><a href="#local-6989586621679514091"><span class="hs-identifier hs-var">dec</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-95"></span><span>      </span><span class="annot"><span class="annottext">Decoder a -&gt; Either String (Decoder a)
+forall a. a -&gt; Either String a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Decoder a
+</span><a href="#local-6989586621679514091"><span class="hs-identifier hs-var">dec</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><a href="#local-6989586621679514088"><span class="hs-identifier hs-var">decode</span></a></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679514092"><span class="annot"><span class="annottext">Decoder a
+</span><a href="#local-6989586621679514092"><span class="hs-identifier hs-var">dec</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679514093"><span class="annot"><span class="annottext">Chunk
+</span><a href="#local-6989586621679514093"><span class="hs-identifier hs-var">inchunk</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679514094"><span class="annot"><span class="annottext">[Chunk]
+</span><a href="#local-6989586621679514094"><span class="hs-identifier hs-var">inchunks</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-97"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Chunk
+</span><a href="#local-6989586621679514093"><span class="hs-identifier hs-var">inchunk</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-98"></span><span>        </span><span class="annot"><a href="Data.Avro.Codec.html#ChunkBytes"><span class="hs-identifier hs-type">ChunkBytes</span></a></span><span> </span><span id="local-6989586621679514095"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514095"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-99"></span><span>          </span><span class="annot"><span class="annottext">Decoder a -&gt; [Chunk] -&gt; Either String (Decoder a)
+</span><a href="#local-6989586621679514088"><span class="hs-identifier hs-var">decode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Decoder a -&gt; ByteString -&gt; Decoder a
+forall a. Decoder a -&gt; ByteString -&gt; Decoder a
+</span><span class="hs-identifier hs-var">G.pushChunk</span></span><span> </span><span class="annot"><span class="annottext">Decoder a
+</span><a href="#local-6989586621679514092"><span class="hs-identifier hs-var">dec</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514095"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Chunk]
+</span><a href="#local-6989586621679514094"><span class="hs-identifier hs-var">inchunks</span></a></span><span>
+</span><span id="line-100"></span><span>        </span><span class="annot"><a href="Data.Avro.Codec.html#ChunkError"><span class="hs-identifier hs-type">ChunkError</span></a></span><span> </span><span id="local-6989586621679514097"><span class="annot"><span class="annottext">DecompressError
+</span><a href="#local-6989586621679514097"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-101"></span><span>          </span><span class="annot"><span class="annottext">String -&gt; Either String (Decoder a)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DecompressError -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">DecompressError
+</span><a href="#local-6989586621679514097"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>        </span><span class="annot"><a href="Data.Avro.Codec.html#ChunkRest"><span class="hs-identifier hs-type">ChunkRest</span></a></span><span> </span><span id="local-6989586621679514099"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514099"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-103"></span><span>          </span><span class="hs-keyword">let</span><span>
+</span><span id="line-104"></span><span>            </span><span id="local-6989586621679514100"><span class="annot"><span class="annottext">dec' :: Decoder a
+</span><a href="#local-6989586621679514100"><span class="hs-identifier hs-var hs-var">dec'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; Decoder a
+forall a. Decoder a -&gt; Decoder a
+</span><span class="hs-identifier hs-var">G.pushEndOfInput</span></span><span> </span><span class="annot"><span class="annottext">Decoder a
+</span><a href="#local-6989586621679514092"><span class="hs-identifier hs-var">dec</span></a></span><span>
+</span><span id="line-105"></span><span>          </span><span class="annot"><span class="annottext">Decoder a -&gt; Either String (Decoder a)
+forall a. a -&gt; Either String a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Decoder a -&gt; Either String (Decoder a))
+-&gt; Decoder a -&gt; Either String (Decoder a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; ByteString -&gt; Decoder a
+forall a. Decoder a -&gt; ByteString -&gt; Decoder a
+</span><span class="hs-identifier hs-var">G.pushChunks</span></span><span> </span><span class="annot"><span class="annottext">Decoder a
+</span><a href="#local-6989586621679514100"><span class="hs-identifier hs-var">dec'</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679514099"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621679514103"><span class="annot"><a href="#local-6989586621679514103"><span class="hs-identifier hs-var">dec</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; [Chunk] -&gt; Either String (Decoder a)
+</span><a href="#local-6989586621679514088"><span class="hs-identifier hs-var">decode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Get a -&gt; Decoder a
+forall a. Get a -&gt; Decoder a
+</span><span class="hs-identifier hs-var">G.runGetIncremental</span></span><span> </span><span class="annot"><span class="annottext">Get a
+</span><a href="#local-6989586621679514079"><span class="hs-identifier hs-var">parser</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Chunk]
+</span><a href="#local-6989586621679514080"><span class="hs-identifier hs-var">chunks</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679514103"><span class="hs-identifier hs-type">dec</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">G.Fail</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679514105"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679514105"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-111"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; Either String a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679514105"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-112"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">G.Partial</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-113"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; Either String a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;deflate: Not enough input&quot;</span></span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">G.Done</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679514108"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514108"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-115"></span><span>      </span><span class="annot"><span class="annottext">a -&gt; Either String a
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514108"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-116"></span></pre></body></html>

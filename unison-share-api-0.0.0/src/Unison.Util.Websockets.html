@@ -1,0 +1,804 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE InstanceSigs #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Util.Websockets.html"><span class="hs-identifier">Unison.Util.Websockets</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Util.Websockets.html#withQueues"><span class="hs-identifier">withQueues</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Util.Websockets.html#Queues"><span class="hs-identifier">Queues</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Util.Websockets.html#MsgOrError"><span class="hs-identifier">MsgOrError</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Util.Websockets.html#withCodeserverWebsocket"><span class="hs-identifier">withCodeserverWebsocket</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Codec.Serialise</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CBOR</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM.TBMQueue</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Profunctor</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Ki.Unlifted</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ki</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.Socket</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.WebSockets</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.WebSockets</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">WS</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Debug</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Debug</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Share.Types</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">UnliftIO</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Wuss</span></span><span> </span><span class="hs-keyword">qualified</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="annot"><span class="hs-comment">-- | Allows interfacing with a websocket as a pair of bounded queues.</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">data</span><span> </span><span id="Queues"><span class="annot"><a href="Unison.Util.Websockets.html#Queues"><span class="hs-identifier hs-var">Queues</span></a></span></span><span> </span><span id="local-6989586621680251301"><span class="annot"><a href="#local-6989586621680251301"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621680251302"><span class="annot"><a href="#local-6989586621680251302"><span class="hs-identifier hs-type">o</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Queues"><span class="annot"><a href="Unison.Util.Websockets.html#Queues"><span class="hs-identifier hs-var">Queues</span></a></span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">-- Receive from the other side. Returns Nothing if the connection is closed.</span><span>
+</span><span id="line-33"></span><span>    </span><span id="receive"><span class="annot"><span class="annottext">forall i o. Queues i o -&gt; STM (Maybe o)
+</span><a href="Unison.Util.Websockets.html#receive"><span class="hs-identifier hs-var hs-var">receive</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621680251302"><span class="hs-identifier hs-type">o</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-comment">-- Send to the other side. Returns False if the connection is closed.</span><span>
+</span><span id="line-35"></span><span>    </span><span id="send"><span class="annot"><span class="annottext">forall i o. Queues i o -&gt; i -&gt; STM Bool
+</span><a href="Unison.Util.Websockets.html#send"><span class="hs-identifier hs-var hs-var">send</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621680251301"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680251523"><span id="local-6989586621680251527"><span id="local-6989586621680251530"><span id="local-6989586621680251536"><span class="annot"><span class="hs-identifier hs-type">Profunctor</span></span><span> </span><span class="annot"><a href="Unison.Util.Websockets.html#Queues"><span class="hs-identifier hs-type">Queues</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621680251546"><span class="annot"><span class="annottext">dimap :: forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Queues b c -&gt; Queues a d
+</span><a href="#local-6989586621680251546"><span class="hs-identifier hs-var hs-var hs-var">dimap</span></a></span></span><span> </span><span id="local-6989586621680251548"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621680251548"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621680251549"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621680251549"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Websockets.html#Queues"><span class="hs-identifier hs-type">Queues</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621680251550"><span class="annot"><span class="annottext">STM (Maybe c)
+receive :: forall i o. Queues i o -&gt; STM (Maybe o)
+receive :: STM (Maybe c)
+</span><a href="Unison.Util.Websockets.html#receive"><span class="hs-identifier hs-var hs-var">receive</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680251551"><span class="annot"><span class="annottext">b -&gt; STM Bool
+send :: forall i o. Queues i o -&gt; i -&gt; STM Bool
+send :: b -&gt; STM Bool
+</span><a href="Unison.Util.Websockets.html#send"><span class="hs-identifier hs-var hs-var">send</span></a></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Unison.Util.Websockets.html#Queues"><span class="hs-identifier hs-type">Queues</span></a></span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">receive :: STM (Maybe d)
+</span><a href="Unison.Util.Websockets.html#receive"><span class="hs-identifier hs-var">receive</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(c -&gt; d) -&gt; Maybe c -&gt; Maybe d
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621680251549"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe c -&gt; Maybe d) -&gt; STM (Maybe c) -&gt; STM (Maybe d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">STM (Maybe c)
+</span><a href="#local-6989586621680251550"><span class="hs-identifier hs-var">receive</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>        </span><span class="annot"><span class="annottext">send :: a -&gt; STM Bool
+</span><a href="Unison.Util.Websockets.html#send"><span class="hs-identifier hs-var">send</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; STM Bool
+</span><a href="#local-6989586621680251551"><span class="hs-identifier hs-var">send</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; STM Bool) -&gt; (a -&gt; b) -&gt; a -&gt; STM Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621680251548"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Unison.Util.Websockets.html#withQueues"><span class="hs-identifier hs-type">withQueues</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680251351"><span class="annot"><a href="#local-6989586621680251351"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621680251353"><span class="annot"><a href="#local-6989586621680251353"><span class="hs-identifier hs-type">o</span></a></span></span><span> </span><span id="local-6989586621680251349"><span class="annot"><a href="#local-6989586621680251349"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621680251355"><span class="annot"><a href="#local-6989586621680251355"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadUnliftIO</span></span><span> </span><span class="annot"><a href="#local-6989586621680251349"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WebSocketsData</span></span><span> </span><span class="annot"><a href="#local-6989586621680251351"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WebSocketsData</span></span><span> </span><span class="annot"><a href="#local-6989586621680251353"><span class="hs-identifier hs-type">o</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Connection</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Websockets.html#Queues"><span class="hs-identifier hs-type">Queues</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251351"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251353"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680251349"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251355"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680251349"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ConnectionException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680251355"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680251353"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="hs-comment">{- Any leftover messages received from the other side after we've indicated we want to shut down. -}</span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span id="withQueues"><span class="annot"><span class="annottext">withQueues :: forall i o (m :: * -&gt; *) a.
+(MonadUnliftIO m, WebSocketsData i, WebSocketsData o) =&gt;
+Int
+-&gt; Int
+-&gt; Connection
+-&gt; (Queues i o -&gt; m a)
+-&gt; m (Either ConnectionException (a, [o]))
+</span><a href="Unison.Util.Websockets.html#withQueues"><span class="hs-identifier hs-var hs-var">withQueues</span></a></span></span><span> </span><span id="local-6989586621680251634"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680251634"><span class="hs-identifier hs-var">inputBuffer</span></a></span></span><span> </span><span id="local-6989586621680251635"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680251635"><span class="hs-identifier hs-var">outputBuffer</span></a></span></span><span> </span><span id="local-6989586621680251636"><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621680251636"><span class="hs-identifier hs-var">conn</span></a></span></span><span> </span><span id="local-6989586621680251637"><span class="annot"><span class="annottext">Queues i o -&gt; m a
+</span><a href="#local-6989586621680251637"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Scope -&gt; m (Either ConnectionException (a, [o])))
+-&gt; m (Either ConnectionException (a, [o]))
+forall a (m :: * -&gt; *). MonadUnliftIO m =&gt; (Scope -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">Ki.scoped</span></span><span> </span><span class="annot"><span class="annottext">((Scope -&gt; m (Either ConnectionException (a, [o])))
+ -&gt; m (Either ConnectionException (a, [o])))
+-&gt; (Scope -&gt; m (Either ConnectionException (a, [o])))
+-&gt; m (Either ConnectionException (a, [o]))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680251639"><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621680251639"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621680251640"><span class="annot"><a href="#local-6989586621680251640"><span class="hs-identifier hs-var">receiveQ</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (TBMQueue o) -&gt; m (TBMQueue o)
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (TBMQueue o) -&gt; m (TBMQueue o))
+-&gt; IO (TBMQueue o) -&gt; m (TBMQueue o)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO (TBMQueue o)
+forall a. Int -&gt; IO (TBMQueue a)
+</span><span class="hs-identifier hs-var">newTBMQueueIO</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680251634"><span class="hs-identifier hs-var">inputBuffer</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621680251643"><span class="annot"><a href="#local-6989586621680251643"><span class="hs-identifier hs-var">sendQ</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">newTBMQueueIO</span></span><span> </span><span class="annot"><a href="#local-6989586621680251635"><span class="hs-identifier hs-type">outputBuffer</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621680251644"><span class="annot"><a href="#local-6989586621680251644"><span class="hs-identifier hs-var">connectionClosedMVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">newEmptyTMVarIO</span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680251646"><span class="annot"><a href="#local-6989586621680251646"><span class="hs-identifier hs-var hs-var">receive</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="annot"><span class="annottext">TBMQueue o -&gt; STM (Maybe o)
+forall a. TBMQueue a -&gt; STM (Maybe a)
+</span><span class="hs-identifier hs-var">readTBMQueue</span></span><span> </span><span class="annot"><span class="annottext">TBMQueue o
+</span><a href="#local-6989586621680251640"><span class="hs-identifier hs-var">receiveQ</span></a></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680251648"><span class="annot"><a href="#local-6989586621680251648"><span class="hs-identifier hs-var hs-var">send</span></a></span></span><span> </span><span id="local-6989586621680251649"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621680251649"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-52"></span><span>        </span><span class="annot"><span class="annottext">TBMQueue i -&gt; i -&gt; STM ()
+forall a. TBMQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTBMQueue</span></span><span> </span><span class="annot"><span class="annottext">TBMQueue i
+</span><a href="#local-6989586621680251643"><span class="hs-identifier hs-var">sendQ</span></a></span><span> </span><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621680251649"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-53"></span><span>        </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; STM Bool -&gt; STM Bool
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">TBMQueue i -&gt; STM Bool
+forall a. TBMQueue a -&gt; STM Bool
+</span><span class="hs-identifier hs-var">isClosedTBMQueue</span></span><span> </span><span class="annot"><span class="annottext">TBMQueue i
+</span><a href="#local-6989586621680251643"><span class="hs-identifier hs-var">sendQ</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680251653"><span class="annot"><a href="#local-6989586621680251653"><span class="hs-identifier hs-var hs-var">queues</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Unison.Util.Websockets.html#Queues"><span class="hs-identifier hs-type">Queues</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">STM (Maybe o)
+receive :: STM (Maybe o)
+receive :: STM (Maybe o)
+</span><a href="Unison.Util.Websockets.html#receive"><span class="hs-identifier hs-var hs-var">receive</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">i -&gt; STM Bool
+send :: i -&gt; STM Bool
+send :: i -&gt; STM Bool
+</span><a href="Unison.Util.Websockets.html#send"><span class="hs-identifier hs-var hs-var">send</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ki.fork</span></span><span> </span><span class="annot"><a href="#local-6989586621680251639"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621680251655"><span class="hs-identifier hs-type">recvWorker</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251644"><span class="hs-identifier hs-type">connectionClosedMVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251640"><span class="hs-identifier hs-type">receiveQ</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621680251656"><span class="annot"><a href="#local-6989586621680251656"><span class="hs-identifier hs-var">sendWorkerThread</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ki.fork</span></span><span> </span><span class="annot"><a href="#local-6989586621680251639"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621680251657"><span class="hs-identifier hs-type">sendWorker</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251643"><span class="hs-identifier hs-type">sendQ</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680251658"><span class="annot"><a href="#local-6989586621680251658"><span class="hs-identifier hs-var hs-var">waitConnectionError</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM ConnectionException -&gt; m ConnectionException
+forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-59"></span><span>        </span><span class="annot"><span class="annottext">TMVar ConnectionException -&gt; STM ConnectionException
+forall a. TMVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTMVar</span></span><span> </span><span class="annot"><span class="annottext">TMVar ConnectionException
+</span><a href="#local-6989586621680251644"><span class="hs-identifier hs-var">connectionClosedMVar</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">race</span></span><span> </span><span class="annot"><a href="#local-6989586621680251658"><span class="hs-identifier hs-type">waitConnectionError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680251637"><span class="hs-identifier hs-type">action</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251653"><span class="hs-identifier hs-type">queues</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621680251662"><span class="annot"><span class="annottext">ConnectionException
+</span><a href="#local-6989586621680251662"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-62"></span><span>      </span><span class="hs-comment">-- An error occurred, return it.</span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><span class="annottext">Either ConnectionException (a, [o])
+-&gt; m (Either ConnectionException (a, [o]))
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ConnectionException -&gt; Either ConnectionException (a, [o])
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">ConnectionException
+</span><a href="#local-6989586621680251662"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621680251663"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680251663"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-65"></span><span>      </span><span class="hs-comment">-- The action completed, we need to close the connection gracefully</span><span>
+</span><span id="line-66"></span><span>      </span><span class="hs-comment">-- and drain any remaining messages.</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><span class="annottext">STM () -&gt; m ()
+forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; m ()) -&gt; STM () -&gt; m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-68"></span><span>        </span><span class="hs-comment">-- Close the send queue, then wait for all messages to be sent before we close.</span><span>
+</span><span id="line-69"></span><span>        </span><span class="annot"><span class="annottext">TBMQueue i -&gt; STM ()
+forall a. TBMQueue a -&gt; STM ()
+</span><span class="hs-identifier hs-var">closeTBMQueue</span></span><span> </span><span class="annot"><span class="annottext">TBMQueue i
+</span><a href="#local-6989586621680251643"><span class="hs-identifier hs-var">sendQ</span></a></span><span>
+</span><span id="line-70"></span><span>      </span><span class="annot"><span class="annottext">STM () -&gt; m ()
+forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; m ()) -&gt; STM () -&gt; m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Thread () -&gt; STM ()
+forall a. Thread a -&gt; STM a
+</span><span class="hs-identifier hs-var">Ki.await</span></span><span> </span><span class="annot"><span class="annottext">Thread ()
+</span><a href="#local-6989586621680251656"><span class="hs-identifier hs-var">sendWorkerThread</span></a></span><span>
+</span><span id="line-71"></span><span>      </span><span class="hs-comment">-- Now we can close and drain any remaining messages.</span><span>
+</span><span id="line-72"></span><span>      </span><span id="local-6989586621680251666"><span class="annot"><a href="#local-6989586621680251666"><span class="hs-identifier hs-var">msgs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TBMQueue o -&gt; m [o]
+</span><a href="#local-6989586621680251667"><span class="hs-identifier hs-var">selfClose</span></a></span><span> </span><span class="annot"><span class="annottext">TBMQueue o
+</span><a href="#local-6989586621680251640"><span class="hs-identifier hs-var">receiveQ</span></a></span><span>
+</span><span id="line-73"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680251663"><span class="hs-identifier hs-type">result</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621680251666"><span class="hs-identifier hs-type">msgs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-comment">-- Shut down the connection gracefully, returning any remaining messages.</span><span>
+</span><span id="line-76"></span><span>    </span><span class="annot"><a href="#local-6989586621680251667"><span class="hs-identifier hs-type">selfClose</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TBMQueue</span></span><span> </span><span class="annot"><a href="#local-6989586621680251353"><span class="hs-identifier hs-type">o</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680251349"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680251353"><span class="hs-identifier hs-type">o</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621680251667"><span class="annot"><span class="annottext">selfClose :: TBMQueue o -&gt; m [o]
+</span><a href="#local-6989586621680251667"><span class="hs-identifier hs-var hs-var">selfClose</span></a></span></span><span> </span><span id="local-6989586621680251668"><span class="annot"><span class="annottext">TBMQueue o
+</span><a href="#local-6989586621680251668"><span class="hs-identifier hs-var">receiveQ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-comment">-- We've requested to close the connection.</span><span>
+</span><span id="line-79"></span><span>      </span><span class="annot"><span class="annottext">IO () -&gt; m ()
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; m ()) -&gt; IO () -&gt; m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Connection -&gt; Text -&gt; IO ()
+forall a. WebSocketsData a =&gt; Connection -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">sendClose</span></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621680251636"><span class="hs-identifier hs-var">conn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Done&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621680251670"><span class="hs-identifier hs-type">drainMessages</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621680251349"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680251353"><span class="hs-identifier hs-type">o</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>          </span><span id="local-6989586621680251670"><span class="annot"><span class="annottext">drainMessages :: m [o]
+</span><a href="#local-6989586621680251670"><span class="hs-identifier hs-var hs-var">drainMessages</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-82"></span><span>            </span><span class="hs-comment">-- Read messages until the queue is closed, which indicates the other side has also closed their connection.</span><span>
+</span><span id="line-83"></span><span>            </span><span class="annot"><span class="annottext">STM (Maybe o) -&gt; m (Maybe o)
+forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TBMQueue o -&gt; STM (Maybe o)
+forall a. TBMQueue a -&gt; STM (Maybe a)
+</span><span class="hs-identifier hs-var">readTBMQueue</span></span><span> </span><span class="annot"><span class="annottext">TBMQueue o
+</span><a href="#local-6989586621680251668"><span class="hs-identifier hs-var">receiveQ</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (Maybe o) -&gt; (Maybe o -&gt; m [o]) -&gt; m [o]
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-84"></span><span>              </span><span class="annot"><span class="annottext">Maybe o
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[o] -&gt; m [o]
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-85"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680251671"><span class="annot"><span class="annottext">o
+</span><a href="#local-6989586621680251671"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-86"></span><span>                </span><span id="local-6989586621680251672"><span class="annot"><a href="#local-6989586621680251672"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m [o]
+</span><a href="#local-6989586621680251670"><span class="hs-identifier hs-var">drainMessages</span></a></span><span>
+</span><span id="line-87"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680251671"><span class="hs-identifier hs-type">msg</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="#local-6989586621680251672"><span class="hs-identifier hs-type">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>      </span><span class="annot"><span class="annottext">m [o]
+</span><a href="#local-6989586621680251670"><span class="hs-identifier hs-var">drainMessages</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><a href="#local-6989586621680251655"><span class="hs-identifier hs-type">recvWorker</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TMVar</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ConnectionException</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TBMQueue</span></span><span> </span><span class="annot"><a href="#local-6989586621680251353"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680251349"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621680251655"><span class="annot"><span class="annottext">recvWorker :: TMVar ConnectionException -&gt; TBMQueue o -&gt; m ()
+</span><a href="#local-6989586621680251655"><span class="hs-identifier hs-var hs-var">recvWorker</span></a></span></span><span> </span><span id="local-6989586621680251673"><span class="annot"><span class="annottext">TMVar ConnectionException
+</span><a href="#local-6989586621680251673"><span class="hs-identifier hs-var">errMVar</span></a></span></span><span> </span><span id="local-6989586621680251674"><span class="annot"><span class="annottext">TBMQueue o
+</span><a href="#local-6989586621680251674"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-92"></span><span>      </span><span id="local-6989586621680251675"><span class="annot"><a href="#local-6989586621680251675"><span class="hs-identifier hs-var">closed</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(ConnectionException -&gt; m Bool) -&gt; m Bool -&gt; m Bool
+forall (m :: * -&gt; *) e a.
+(MonadUnliftIO m, Exception e) =&gt;
+(e -&gt; m a) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">UnliftIO.handle</span></span><span> </span><span class="annot"><span class="annottext">ConnectionException -&gt; m Bool
+</span><a href="#local-6989586621680251677"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="annot"><span class="annottext">(m Bool -&gt; m Bool) -&gt; m Bool -&gt; m Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-93"></span><span>        </span><span id="local-6989586621680251678"><span class="annot"><a href="#local-6989586621680251678"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO o -&gt; m o
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO o -&gt; m o) -&gt; IO o -&gt; m o
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Connection -&gt; IO o
+forall a. WebSocketsData a =&gt; Connection -&gt; IO a
+</span><span class="hs-identifier hs-var">receiveData</span></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621680251636"><span class="hs-identifier hs-var">conn</span></a></span><span>
+</span><span id="line-94"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">atomically</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">writeTBMQueue</span></span><span> </span><span class="annot"><a href="#local-6989586621680251674"><span class="hs-identifier hs-type">q</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251678"><span class="hs-identifier hs-type">msg</span></a></span><span>
+</span><span id="line-95"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span>
+</span><span id="line-96"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">not</span></span><span> </span><span class="annot"><a href="#local-6989586621680251675"><span class="hs-identifier hs-type">closed</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621680251655"><span class="hs-identifier hs-type">recvWorker</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251673"><span class="hs-identifier hs-type">errMVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251674"><span class="hs-identifier hs-type">q</span></a></span><span>
+</span><span id="line-97"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>        </span><span class="annot"><a href="#local-6989586621680251677"><span class="hs-identifier hs-type">handler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ConnectionException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680251349"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-99"></span><span>        </span><span id="local-6989586621680251677"><span class="annot"><span class="annottext">handler :: ConnectionException -&gt; m Bool
+</span><a href="#local-6989586621680251677"><span class="hs-identifier hs-var hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-100"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">CloseRequest</span></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-101"></span><span>            </span><span class="hs-comment">-- The other side requested a close, we close the recv channel to indicate</span><span>
+</span><span id="line-102"></span><span>            </span><span class="hs-comment">-- we won't receive any more messages.</span><span>
+</span><span id="line-103"></span><span>            </span><span class="annot"><span class="annottext">STM () -&gt; m ()
+forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; m ()) -&gt; STM () -&gt; m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-104"></span><span>              </span><span class="annot"><span class="annottext">TBMQueue o -&gt; STM ()
+forall a. TBMQueue a -&gt; STM ()
+</span><span class="hs-identifier hs-var">closeTBMQueue</span></span><span> </span><span class="annot"><span class="annottext">TBMQueue o
+</span><a href="#local-6989586621680251674"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-105"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>          </span><span class="hs-comment">-- Other cases are exceptional, set the error var</span><span>
+</span><span id="line-108"></span><span>          </span><span id="local-6989586621680251682"><span class="annot"><span class="annottext">ConnectionException
+</span><a href="#local-6989586621680251682"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-109"></span><span>            </span><span class="annot"><span class="annottext">STM () -&gt; m ()
+forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; m ()) -&gt; STM () -&gt; m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-110"></span><span>              </span><span class="annot"><span class="annottext">STM Bool -&gt; STM ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(STM Bool -&gt; STM ()) -&gt; STM Bool -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TMVar ConnectionException -&gt; ConnectionException -&gt; STM Bool
+forall a. TMVar a -&gt; a -&gt; STM Bool
+</span><span class="hs-identifier hs-var">tryPutTMVar</span></span><span> </span><span class="annot"><span class="annottext">TMVar ConnectionException
+</span><a href="#local-6989586621680251673"><span class="hs-identifier hs-var">errMVar</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionException
+</span><a href="#local-6989586621680251682"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-111"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; m Bool
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><a href="#local-6989586621680251657"><span class="hs-identifier hs-type">sendWorker</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TBMQueue</span></span><span> </span><span class="annot"><a href="#local-6989586621680251351"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680251349"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621680251657"><span class="annot"><span class="annottext">sendWorker :: TBMQueue i -&gt; m ()
+</span><a href="#local-6989586621680251657"><span class="hs-identifier hs-var hs-var">sendWorker</span></a></span></span><span> </span><span id="local-6989586621680251685"><span class="annot"><span class="annottext">TBMQueue i
+</span><a href="#local-6989586621680251685"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-115"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621680251686"><span class="hs-identifier hs-type">flushQ</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680251351"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>          </span><span id="local-6989586621680251686"><span class="annot"><span class="annottext">flushQ :: STM ([i], Bool)
+</span><a href="#local-6989586621680251686"><span class="hs-identifier hs-var hs-var hs-var">flushQ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-117"></span><span>            </span><span class="annot"><span class="annottext">STM (Maybe i) -&gt; STM (Maybe (Maybe i))
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f (Maybe a)
+</span><span class="hs-identifier hs-var">optional</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TBMQueue i -&gt; STM (Maybe i)
+forall a. TBMQueue a -&gt; STM (Maybe a)
+</span><span class="hs-identifier hs-var">readTBMQueue</span></span><span> </span><span class="annot"><span class="annottext">TBMQueue i
+</span><a href="#local-6989586621680251685"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">STM (Maybe (Maybe i))
+-&gt; (Maybe (Maybe i) -&gt; STM ([i], Bool)) -&gt; STM ([i], Bool)
+forall a b. STM a -&gt; (a -&gt; STM b) -&gt; STM b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-118"></span><span>              </span><span class="hs-comment">-- No messages, but queue is still open</span><span>
+</span><span id="line-119"></span><span>              </span><span class="annot"><span class="annottext">Maybe (Maybe i)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">STM ([i], Bool)
+forall a. STM a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-120"></span><span>              </span><span class="hs-comment">-- Queue is closed</span><span>
+</span><span id="line-121"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Maybe i
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">([i], Bool) -&gt; STM ([i], Bool)
+forall a. a -&gt; STM a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>              </span><span class="hs-comment">-- Got a message, keep flushing</span><span>
+</span><span id="line-123"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680251689"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621680251689"><span class="hs-identifier hs-var">outMsg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-124"></span><span>                </span><span class="hs-special">(</span><span id="local-6989586621680251690"><span class="annot"><a href="#local-6989586621680251690"><span class="hs-identifier hs-var">outMsgs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680251691"><span class="annot"><a href="#local-6989586621680251691"><span class="hs-identifier hs-var">isClosed</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">STM ([i], Bool)
+</span><a href="#local-6989586621680251686"><span class="hs-identifier hs-var">flushQ</span></a></span><span> </span><span class="annot"><span class="annottext">STM ([i], Bool) -&gt; STM ([i], Bool) -&gt; STM ([i], Bool)
+forall a. STM a -&gt; STM a -&gt; STM a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">([i], Bool) -&gt; STM ([i], Bool)
+forall a. a -&gt; STM a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680251689"><span class="hs-identifier hs-type">outMsg</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="#local-6989586621680251690"><span class="hs-identifier hs-type">outMsgs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621680251691"><span class="hs-identifier hs-type">isClosed</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621680251693"><span class="annot"><a href="#local-6989586621680251693"><span class="hs-identifier hs-var">outMsgs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680251694"><span class="annot"><a href="#local-6989586621680251694"><span class="hs-identifier hs-var">isClosed</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">STM ([i], Bool) -&gt; m ([i], Bool)
+forall (m :: * -&gt; *) a. MonadIO m =&gt; STM a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM ([i], Bool) -&gt; m ([i], Bool))
+-&gt; STM ([i], Bool) -&gt; m ([i], Bool)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">STM ([i], Bool)
+</span><a href="#local-6989586621680251686"><span class="hs-identifier hs-var">flushQ</span></a></span><span>
+</span><span id="line-127"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">sendBinaryDatas</span></span><span> </span><span class="annot"><a href="#local-6989586621680251636"><span class="hs-identifier hs-type">conn</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251693"><span class="hs-identifier hs-type">outMsgs</span></a></span><span>
+</span><span id="line-128"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">not</span></span><span> </span><span class="annot"><a href="#local-6989586621680251694"><span class="hs-identifier hs-type">isClosed</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621680251657"><span class="hs-identifier hs-type">sendWorker</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251685"><span class="hs-identifier hs-type">q</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- | Connect a websocket to the codeserver at the given URI.</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- The action will be called with a 'Queues' to send and receive messages,</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- when the action completes, the websocket connection will be closed.</span><span>
+</span><span id="line-133"></span><span class="annot"><a href="Unison.Util.Websockets.html#withCodeserverWebsocket"><span class="hs-identifier hs-type">withCodeserverWebsocket</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680251417"><span class="annot"><a href="#local-6989586621680251417"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621680251418"><span class="annot"><a href="#local-6989586621680251418"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621680251419"><span class="annot"><a href="#local-6989586621680251419"><span class="hs-identifier hs-type">o</span></a></span></span><span> </span><span id="local-6989586621680251423"><span class="annot"><a href="#local-6989586621680251423"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span id="local-6989586621680251422"><span class="annot"><a href="#local-6989586621680251422"><span class="hs-identifier hs-type">e</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadUnliftIO</span></span><span> </span><span class="annot"><a href="#local-6989586621680251417"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WebSocketsData</span></span><span> </span><span class="annot"><a href="#local-6989586621680251418"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WebSocketsData</span></span><span> </span><span class="annot"><a href="#local-6989586621680251419"><span class="hs-identifier hs-type">o</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CodeserverURI</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CodeserverId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621680251422"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Websockets.html#Queues"><span class="hs-identifier hs-type">Queues</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251418"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251419"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680251417"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251423"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680251417"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ConnectionException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680251423"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680251419"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="hs-comment">{- Any leftover messages received from the server after we've indicated we want to shut down. -}</span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span id="withCodeserverWebsocket"><span class="annot"><span class="annottext">withCodeserverWebsocket :: forall (m :: * -&gt; *) i o r e.
+(MonadUnliftIO m, WebSocketsData i, WebSocketsData o) =&gt;
+Int
+-&gt; CodeserverURI
+-&gt; (CodeserverId -&gt; IO (Either e Text))
+-&gt; String
+-&gt; (Queues i o -&gt; m r)
+-&gt; m (Either ConnectionException (r, [o]))
+</span><a href="Unison.Util.Websockets.html#withCodeserverWebsocket"><span class="hs-identifier hs-var hs-var">withCodeserverWebsocket</span></a></span></span><span> </span><span id="local-6989586621680251768"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680251768"><span class="hs-identifier hs-var">msgBufferSize</span></a></span></span><span> </span><span id="local-6989586621680251769"><span class="annot"><span class="annottext">CodeserverURI
+</span><a href="#local-6989586621680251769"><span class="hs-identifier hs-var">codeserver</span></a></span></span><span> </span><span id="local-6989586621680251770"><span class="annot"><span class="annottext">CodeserverId -&gt; IO (Either e Text)
+</span><a href="#local-6989586621680251770"><span class="hs-identifier hs-var">tokenProvider</span></a></span></span><span> </span><span id="local-6989586621680251771"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251771"><span class="hs-identifier hs-var">codeserverPath</span></a></span></span><span> </span><span id="local-6989586621680251772"><span class="annot"><span class="annottext">Queues i o -&gt; m r
+</span><a href="#local-6989586621680251772"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680251773"><span class="annot"><span class="annottext">host :: String
+</span><a href="#local-6989586621680251773"><span class="hs-identifier hs-var hs-var hs-var">host</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CodeserverURI -&gt; String
+</span><span class="hs-identifier hs-var">codeserverRegName</span></span><span> </span><span class="annot"><span class="annottext">CodeserverURI
+</span><a href="#local-6989586621680251769"><span class="hs-identifier hs-var">codeserver</span></a></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680251775"><span class="annot"><span class="annottext">connectionOptions :: ConnectionOptions
+</span><a href="#local-6989586621680251775"><span class="hs-identifier hs-var hs-var hs-var">connectionOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><span class="hs-identifier hs-var">WS.defaultConnectionOptions</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="hs-identifier hs-var">WS.connectionCompressionOptions</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.PermessageDeflateCompression</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.defaultPermessageDeflate</span></span><span class="hs-special">}</span><span>
+</span><span id="line-137"></span><span>  </span><span id="local-6989586621680251780"><span class="annot"><a href="#local-6989586621680251780"><span class="hs-identifier hs-var">headers</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-138"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO (Either e Text) -&gt; m (Either e Text)
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CodeserverId -&gt; IO (Either e Text)
+</span><a href="#local-6989586621680251770"><span class="hs-identifier hs-var">tokenProvider</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CodeserverURI -&gt; CodeserverId
+</span><span class="hs-identifier hs-var">codeserverIdFromCodeserverURI</span></span><span> </span><span class="annot"><span class="annottext">CodeserverURI
+</span><a href="#local-6989586621680251769"><span class="hs-identifier hs-var">codeserver</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (Either e Text)
+-&gt; (Either e Text -&gt; [(CI ByteString, ByteString)])
+-&gt; m [(CI ByteString, ByteString)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-139"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-140"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621680251783"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680251783"><span class="hs-identifier hs-var">token</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">CI ByteString
+</span><span class="hs-string">&quot;Authorization&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;Bearer &quot;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">Text.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680251783"><span class="hs-identifier hs-var">token</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680251785"><span class="annot"><a href="#local-6989586621680251785"><span class="hs-identifier hs-var hs-var">wsRunner</span></a></span></span><span> </span><span id="local-6989586621680251786"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251786"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621680251787"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621680251787"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621680251788"><span class="annot"><span class="annottext">[(CI ByteString, ByteString)]
+</span><a href="#local-6989586621680251788"><span class="hs-identifier hs-var">headers</span></a></span></span><span> </span><span id="local-6989586621680251789"><span class="annot"><span class="annottext">ClientApp (Either ConnectionException (r, [o]))
+</span><a href="#local-6989586621680251789"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CodeserverURI -&gt; Scheme
+</span><span class="hs-identifier hs-var">codeserverScheme</span></span><span> </span><span class="annot"><span class="annottext">CodeserverURI
+</span><a href="#local-6989586621680251769"><span class="hs-identifier hs-var">codeserver</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-143"></span><span>        </span><span class="annot"><span class="annottext">Scheme
+</span><span class="hs-identifier hs-var">Https</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-144"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680251793"><span class="annot"><span class="annottext">tlsPort :: PortNumber
+</span><a href="#local-6989586621680251793"><span class="hs-identifier hs-var hs-var">tlsPort</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><span class="hs-number">443</span></span><span>
+</span><span id="line-145"></span><span>              </span><span id="local-6989586621680251794"><span class="annot"><span class="annottext">port :: PortNumber
+</span><a href="#local-6989586621680251794"><span class="hs-identifier hs-var hs-var">port</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PortNumber -&gt; (Int -&gt; PortNumber) -&gt; Maybe Int -&gt; PortNumber
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621680251793"><span class="hs-identifier hs-var">tlsPort</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; PortNumber
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; PortNumber) -&gt; Maybe Int -&gt; PortNumber
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CodeserverURI -&gt; Maybe Int
+</span><span class="hs-identifier hs-var">codeserverPort</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">CodeserverURI
+</span><a href="#local-6989586621680251769"><span class="hs-identifier hs-var">codeserver</span></a></span><span>
+</span><span id="line-146"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-147"></span><span>                </span><span class="annot"><span class="annottext">DebugFlag -&gt; String -&gt; IO ()
+forall (m :: * -&gt; *). Monad m =&gt; DebugFlag -&gt; String -&gt; m ()
+</span><span class="hs-identifier hs-var">Debug.debugLogM</span></span><span> </span><span class="annot"><span class="annottext">DebugFlag
+</span><span class="hs-identifier hs-var">Debug.Websockets</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO ()) -&gt; String -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Connecting to codeserver via WSS: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(String, PortNumber, String, [(CI ByteString, ByteString)])
+-&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251773"><span class="hs-identifier hs-var">host</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621680251794"><span class="hs-identifier hs-var">port</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251771"><span class="hs-identifier hs-var">codeserverPath</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[(CI ByteString, ByteString)]
+</span><a href="#local-6989586621680251788"><span class="hs-identifier hs-var">headers</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>                </span><span class="annot"><span class="annottext">String
+-&gt; PortNumber
+-&gt; String
+-&gt; ConnectionOptions
+-&gt; [(CI ByteString, ByteString)]
+-&gt; ClientApp (Either ConnectionException (r, [o]))
+-&gt; IO (Either ConnectionException (r, [o]))
+forall (m :: * -&gt; *) a.
+(MonadIO m, MonadMask m) =&gt;
+String
+-&gt; PortNumber
+-&gt; String
+-&gt; ConnectionOptions
+-&gt; [(CI ByteString, ByteString)]
+-&gt; ClientApp a
+-&gt; m a
+</span><span class="hs-identifier hs-var">Wuss.runSecureClientWith</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251773"><span class="hs-identifier hs-var">host</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621680251794"><span class="hs-identifier hs-var">port</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251786"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621680251787"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">[(CI ByteString, ByteString)]
+</span><a href="#local-6989586621680251788"><span class="hs-identifier hs-var">headers</span></a></span><span> </span><span class="annot"><span class="annottext">ClientApp (Either ConnectionException (r, [o]))
+</span><a href="#local-6989586621680251789"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-149"></span><span>        </span><span class="annot"><span class="annottext">Scheme
+</span><span class="hs-identifier hs-var">Http</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-150"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680251802"><span class="annot"><span class="annottext">defaultPort :: Int
+</span><a href="#local-6989586621680251802"><span class="hs-identifier hs-var hs-var">defaultPort</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">80</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-151"></span><span>              </span><span id="local-6989586621680251803"><span class="annot"><span class="annottext">port :: Int
+</span><a href="#local-6989586621680251803"><span class="hs-identifier hs-var hs-var">port</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; Int) -&gt; Maybe Int -&gt; Int
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680251802"><span class="hs-identifier hs-var">defaultPort</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Int) -&gt; Maybe Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CodeserverURI -&gt; Maybe Int
+</span><span class="hs-identifier hs-var">codeserverPort</span></span><span> </span><span class="annot"><span class="annottext">CodeserverURI
+</span><a href="#local-6989586621680251769"><span class="hs-identifier hs-var">codeserver</span></a></span><span>
+</span><span id="line-152"></span><span>              </span><span id="local-6989586621680251805"><span class="annot"><span class="annottext">fixedHost :: String
+</span><a href="#local-6989586621680251805"><span class="hs-identifier hs-var hs-var">fixedHost</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251773"><span class="hs-identifier hs-var">host</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-153"></span><span>                </span><span class="hs-comment">-- The haskell ws client has issues with &quot;localhost&quot;</span><span>
+</span><span id="line-154"></span><span>                </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;localhost&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;127.0.0.1&quot;</span></span><span>
+</span><span id="line-155"></span><span>                </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251773"><span class="hs-identifier hs-var">host</span></a></span><span>
+</span><span id="line-156"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-157"></span><span>                </span><span class="annot"><span class="annottext">DebugFlag -&gt; String -&gt; IO ()
+forall (m :: * -&gt; *). Monad m =&gt; DebugFlag -&gt; String -&gt; m ()
+</span><span class="hs-identifier hs-var">Debug.debugLogM</span></span><span> </span><span class="annot"><span class="annottext">DebugFlag
+</span><span class="hs-identifier hs-var">Debug.Websockets</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO ()) -&gt; String -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Connecting to codeserver via WS: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(String, Int, String, [(CI ByteString, ByteString)]) -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251805"><span class="hs-identifier hs-var">fixedHost</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680251803"><span class="hs-identifier hs-var">port</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251771"><span class="hs-identifier hs-var">codeserverPath</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[(CI ByteString, ByteString)]
+</span><a href="#local-6989586621680251788"><span class="hs-identifier hs-var">headers</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>                </span><span class="annot"><span class="annottext">String
+-&gt; Int
+-&gt; String
+-&gt; ConnectionOptions
+-&gt; [(CI ByteString, ByteString)]
+-&gt; ClientApp (Either ConnectionException (r, [o]))
+-&gt; IO (Either ConnectionException (r, [o]))
+forall a.
+String
+-&gt; Int
+-&gt; String
+-&gt; ConnectionOptions
+-&gt; [(CI ByteString, ByteString)]
+-&gt; ClientApp a
+-&gt; IO a
+</span><span class="hs-identifier hs-var">WS.runClientWith</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251805"><span class="hs-identifier hs-var">fixedHost</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680251803"><span class="hs-identifier hs-var">port</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680251786"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621680251787"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">[(CI ByteString, ByteString)]
+</span><a href="#local-6989586621680251788"><span class="hs-identifier hs-var">headers</span></a></span><span> </span><span class="annot"><span class="annottext">ClientApp (Either ConnectionException (r, [o]))
+</span><a href="#local-6989586621680251789"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-159"></span><span>  </span><span id="local-6989586621680251807"><span class="annot"><a href="#local-6989586621680251807"><span class="hs-identifier hs-var">toIO</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">askRunInIO</span></span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">withSocketsDo</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680251785"><span class="hs-identifier hs-type">wsRunner</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251771"><span class="hs-identifier hs-type">codeserverPath</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251775"><span class="hs-identifier hs-type">connectionOptions</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251780"><span class="hs-identifier hs-type">headers</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680251810"><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621680251810"><span class="hs-identifier hs-var">conn</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-161"></span><span>    </span><span class="annot"><span class="annottext">Int
+-&gt; Int
+-&gt; Connection
+-&gt; (Queues i o -&gt; IO r)
+-&gt; IO (Either ConnectionException (r, [o]))
+forall i o (m :: * -&gt; *) a.
+(MonadUnliftIO m, WebSocketsData i, WebSocketsData o) =&gt;
+Int
+-&gt; Int
+-&gt; Connection
+-&gt; (Queues i o -&gt; m a)
+-&gt; m (Either ConnectionException (a, [o]))
+</span><a href="Unison.Util.Websockets.html#withQueues"><span class="hs-identifier hs-var">withQueues</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680251768"><span class="hs-identifier hs-var">msgBufferSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680251768"><span class="hs-identifier hs-var">msgBufferSize</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621680251810"><span class="hs-identifier hs-var">conn</span></a></span><span> </span><span class="annot"><span class="annottext">((Queues i o -&gt; IO r) -&gt; IO (Either ConnectionException (r, [o])))
+-&gt; (Queues i o -&gt; IO r) -&gt; IO (Either ConnectionException (r, [o]))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680251811"><span class="annot"><span class="annottext">Queues i o
+</span><a href="#local-6989586621680251811"><span class="hs-identifier hs-var">queues</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-162"></span><span>      </span><span class="annot"><span class="annottext">m r -&gt; IO r
+</span><a href="#local-6989586621680251807"><span class="hs-identifier hs-var">toIO</span></a></span><span> </span><span class="annot"><span class="annottext">(m r -&gt; IO r) -&gt; m r -&gt; IO r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Queues i o -&gt; m r
+</span><a href="#local-6989586621680251772"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">Queues i o
+</span><a href="#local-6989586621680251811"><span class="hs-identifier hs-var">queues</span></a></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="annot"><span class="hs-comment">-- | Type used for websocket messages that can either be a message or an error.</span></span><span>
+</span><span id="line-165"></span><span class="hs-keyword">data</span><span> </span><span id="MsgOrError"><span class="annot"><a href="Unison.Util.Websockets.html#MsgOrError"><span class="hs-identifier hs-var">MsgOrError</span></a></span></span><span> </span><span id="local-6989586621680251502"><span class="annot"><a href="#local-6989586621680251502"><span class="hs-identifier hs-type">err</span></a></span></span><span> </span><span id="local-6989586621680251501"><span class="annot"><a href="#local-6989586621680251501"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Msg"><span class="annot"><a href="Unison.Util.Websockets.html#Msg"><span class="hs-identifier hs-var">Msg</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621680251501"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UserErr"><span class="annot"><a href="Unison.Util.Websockets.html#UserErr"><span class="hs-identifier hs-var">UserErr</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621680251502"><span class="hs-identifier hs-type">err</span></a></span><span>
+</span><span id="line-168"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DeserialiseFailure"><span class="annot"><a href="Unison.Util.Websockets.html#DeserialiseFailure"><span class="hs-identifier hs-var">DeserialiseFailure</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680251818"><span id="local-6989586621680251828"><span id="local-6989586621680251832"><span class="annot"><span class="annottext">Int -&gt; MsgOrError err a -&gt; String -&gt; String
+[MsgOrError err a] -&gt; String -&gt; String
+MsgOrError err a -&gt; String
+(Int -&gt; MsgOrError err a -&gt; String -&gt; String)
+-&gt; (MsgOrError err a -&gt; String)
+-&gt; ([MsgOrError err a] -&gt; String -&gt; String)
+-&gt; Show (MsgOrError err a)
+forall a.
+(Int -&gt; a -&gt; String -&gt; String)
+-&gt; (a -&gt; String) -&gt; ([a] -&gt; String -&gt; String) -&gt; Show a
+forall err a.
+(Show a, Show err) =&gt;
+Int -&gt; MsgOrError err a -&gt; String -&gt; String
+forall err a.
+(Show a, Show err) =&gt;
+[MsgOrError err a] -&gt; String -&gt; String
+forall err a. (Show a, Show err) =&gt; MsgOrError err a -&gt; String
+$cshowsPrec :: forall err a.
+(Show a, Show err) =&gt;
+Int -&gt; MsgOrError err a -&gt; String -&gt; String
+showsPrec :: Int -&gt; MsgOrError err a -&gt; String -&gt; String
+$cshow :: forall err a. (Show a, Show err) =&gt; MsgOrError err a -&gt; String
+show :: MsgOrError err a -&gt; String
+$cshowList :: forall err a.
+(Show a, Show err) =&gt;
+[MsgOrError err a] -&gt; String -&gt; String
+showList :: [MsgOrError err a] -&gt; String -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680251839"><span id="local-6989586621680251848"><span class="annot"><span class="annottext">MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+(MsgOrError err a -&gt; MsgOrError err a -&gt; Bool)
+-&gt; (MsgOrError err a -&gt; MsgOrError err a -&gt; Bool)
+-&gt; Eq (MsgOrError err a)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall err a.
+(Eq a, Eq err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+$c== :: forall err a.
+(Eq a, Eq err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+== :: MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+$c/= :: forall err a.
+(Eq a, Eq err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+/= :: MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680251859"><span id="local-6989586621680251865"><span id="local-6989586621680251870"><span id="local-6989586621680251874"><span id="local-6989586621680251877"><span id="local-6989586621680251880"><span id="local-6989586621680251883"><span class="annot"><span class="annottext">Eq (MsgOrError err a)
+Eq (MsgOrError err a) =&gt;
+(MsgOrError err a -&gt; MsgOrError err a -&gt; Ordering)
+-&gt; (MsgOrError err a -&gt; MsgOrError err a -&gt; Bool)
+-&gt; (MsgOrError err a -&gt; MsgOrError err a -&gt; Bool)
+-&gt; (MsgOrError err a -&gt; MsgOrError err a -&gt; Bool)
+-&gt; (MsgOrError err a -&gt; MsgOrError err a -&gt; Bool)
+-&gt; (MsgOrError err a -&gt; MsgOrError err a -&gt; MsgOrError err a)
+-&gt; (MsgOrError err a -&gt; MsgOrError err a -&gt; MsgOrError err a)
+-&gt; Ord (MsgOrError err a)
+MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+MsgOrError err a -&gt; MsgOrError err a -&gt; Ordering
+MsgOrError err a -&gt; MsgOrError err a -&gt; MsgOrError err a
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall err a. (Ord a, Ord err) =&gt; Eq (MsgOrError err a)
+forall err a.
+(Ord a, Ord err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+forall err a.
+(Ord a, Ord err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; Ordering
+forall err a.
+(Ord a, Ord err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; MsgOrError err a
+$ccompare :: forall err a.
+(Ord a, Ord err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; Ordering
+compare :: MsgOrError err a -&gt; MsgOrError err a -&gt; Ordering
+$c&lt; :: forall err a.
+(Ord a, Ord err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+&lt; :: MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+$c&lt;= :: forall err a.
+(Ord a, Ord err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+&lt;= :: MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+$c&gt; :: forall err a.
+(Ord a, Ord err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+&gt; :: MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+$c&gt;= :: forall err a.
+(Ord a, Ord err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+&gt;= :: MsgOrError err a -&gt; MsgOrError err a -&gt; Bool
+$cmax :: forall err a.
+(Ord a, Ord err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; MsgOrError err a
+max :: MsgOrError err a -&gt; MsgOrError err a -&gt; MsgOrError err a
+$cmin :: forall err a.
+(Ord a, Ord err) =&gt;
+MsgOrError err a -&gt; MsgOrError err a -&gt; MsgOrError err a
+min :: MsgOrError err a -&gt; MsgOrError err a -&gt; MsgOrError err a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- | Roundtrip test:</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- &gt;&gt;&gt; import qualified Codec.Serialise as CBOR</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- &gt;&gt;&gt; CBOR.deserialise (CBOR.serialise (Msg &quot;test&quot; :: MsgOrError Text Text)) == Msg &quot;test&quot;</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- &gt;&gt;&gt; CBOR.deserialise (CBOR.serialise (Err &quot;error&quot; :: MsgOrError Text Text)) == Err &quot;error&quot;</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-177"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680251495"><span id="local-6989586621680251496"><span id="local-6989586621680251896"><span id="local-6989586621680251900"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CBOR.Serialise</span></span><span> </span><span class="annot"><a href="#local-6989586621680251495"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CBOR.Serialise</span></span><span> </span><span class="annot"><a href="#local-6989586621680251496"><span class="hs-identifier hs-type">err</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CBOR.Serialise</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Websockets.html#MsgOrError"><span class="hs-identifier hs-type">MsgOrError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251496"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251495"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-178"></span><span>  </span><span id="local-6989586621680251915"><span class="annot"><span class="annottext">encode :: MsgOrError err a -&gt; Encoding
+</span><a href="#local-6989586621680251915"><span class="hs-identifier hs-var hs-var hs-var">encode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-179"></span><span>    </span><span class="annot"><a href="Unison.Util.Websockets.html#Msg"><span class="hs-identifier hs-type">Msg</span></a></span><span> </span><span id="local-6989586621680251917"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680251917"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Encoding
+forall a. Serialise a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encode</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Encoding
+forall a. Serialise a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encode</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680251917"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-180"></span><span>    </span><span class="annot"><a href="Unison.Util.Websockets.html#UserErr"><span class="hs-identifier hs-type">UserErr</span></a></span><span> </span><span id="local-6989586621680251918"><span class="annot"><span class="annottext">err
+</span><a href="#local-6989586621680251918"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Encoding
+forall a. Serialise a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encode</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">err -&gt; Encoding
+forall a. Serialise a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encode</span></span><span> </span><span class="annot"><span class="annottext">err
+</span><a href="#local-6989586621680251918"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-181"></span><span>    </span><span class="annot"><a href="Unison.Util.Websockets.html#DeserialiseFailure"><span class="hs-identifier hs-type">DeserialiseFailure</span></a></span><span> </span><span id="local-6989586621680251919"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680251919"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Encoding
+forall a. Serialise a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encode</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Encoding
+forall a. Serialise a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encode</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680251919"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span>  </span><span id="local-6989586621680251944"><span class="annot"><span class="annottext">decode :: forall s. Decoder s (MsgOrError err a)
+</span><a href="#local-6989586621680251944"><span class="hs-identifier hs-var hs-var hs-var">decode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-184"></span><span>    </span><span id="local-6989586621680251946"><span class="annot"><a href="#local-6989586621680251946"><span class="hs-identifier hs-var">tag</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a s. Serialise a =&gt; Decoder s a
+</span><span class="hs-identifier hs-var">CBOR.decode</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-185"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621680251946"><span class="hs-identifier hs-type">tag</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-186"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; MsgOrError err a
+forall err a. a -&gt; MsgOrError err a
+</span><a href="Unison.Util.Websockets.html#Msg"><span class="hs-identifier hs-var">Msg</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; MsgOrError err a)
+-&gt; Decoder s a -&gt; Decoder s (MsgOrError err a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Decoder s a
+forall s. Decoder s a
+forall a s. Serialise a =&gt; Decoder s a
+</span><span class="hs-identifier hs-var">CBOR.decode</span></span><span>
+</span><span id="line-187"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">err -&gt; MsgOrError err a
+forall err a. err -&gt; MsgOrError err a
+</span><a href="Unison.Util.Websockets.html#UserErr"><span class="hs-identifier hs-var">UserErr</span></a></span><span> </span><span class="annot"><span class="annottext">(err -&gt; MsgOrError err a)
+-&gt; Decoder s err -&gt; Decoder s (MsgOrError err a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Decoder s err
+forall s. Decoder s err
+forall a s. Serialise a =&gt; Decoder s a
+</span><span class="hs-identifier hs-var">CBOR.decode</span></span><span>
+</span><span id="line-188"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; MsgOrError err a
+forall err a. Text -&gt; MsgOrError err a
+</span><a href="Unison.Util.Websockets.html#DeserialiseFailure"><span class="hs-identifier hs-var">DeserialiseFailure</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; MsgOrError err a)
+-&gt; Decoder s Text -&gt; Decoder s (MsgOrError err a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Decoder s Text
+forall s. Decoder s Text
+forall a s. Serialise a =&gt; Decoder s a
+</span><span class="hs-identifier hs-var">CBOR.decode</span></span><span>
+</span><span id="line-189"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Decoder s (MsgOrError err a)
+forall a. String -&gt; Decoder s a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Decoder s (MsgOrError err a))
+-&gt; String -&gt; Decoder s (MsgOrError err a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unknown MsgOrError tag: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680251946"><span class="hs-identifier hs-var">tag</span></a></span><span>
+</span><span id="line-190"></span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- | Roundtrip test:</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- &gt;&gt;&gt; import qualified Network.WebSockets as WS</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- &gt;&gt;&gt; let msgVal = Msg &quot;test&quot; :: MsgOrError Text Text</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- &gt;&gt;&gt; WS.fromLazyByteString (WS.toLazyByteString msgVal) == msgVal</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- &gt;&gt;&gt; let errVal = UserErr &quot;whoops&quot; :: MsgOrError Text Text</span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- &gt;&gt;&gt; WS.fromLazyByteString (WS.toLazyByteString errVal) == errVal</span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-199"></span><span class="hs-comment">--</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- &gt;&gt;&gt; let errVal = DeserialiseFailure &quot;whoops&quot; :: MsgOrError Text Text</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- &gt;&gt;&gt; WS.fromLazyByteString (WS.toLazyByteString errVal) == errVal</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- &gt;&gt;&gt; let dataMsg = WS.Binary (WS.toLazyByteString msgVal)</span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- &gt;&gt;&gt; WS.fromDataMessage dataMsg == msgVal</span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-206"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680251510"><span id="local-6989586621680251511"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CBOR.Serialise</span></span><span> </span><span class="annot"><a href="#local-6989586621680251510"><span class="hs-identifier hs-type">msg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CBOR.Serialise</span></span><span> </span><span class="annot"><a href="#local-6989586621680251511"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WebSocketsData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Websockets.html#MsgOrError"><span class="hs-identifier hs-type">MsgOrError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251511"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680251510"><span class="hs-identifier hs-type">msg</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-207"></span><span>  </span><span id="local-6989586621680251957"><span class="annot"><span class="annottext">fromLazyByteString :: ByteString -&gt; MsgOrError e msg
+</span><a href="#local-6989586621680251957"><span class="hs-identifier hs-var hs-var hs-var">fromLazyByteString</span></a></span></span><span> </span><span id="local-6989586621680251959"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680251959"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-208"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either DeserialiseFailure (MsgOrError e msg)
+forall a. Serialise a =&gt; ByteString -&gt; Either DeserialiseFailure a
+</span><span class="hs-identifier hs-var">CBOR.deserialiseOrFail</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680251959"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-209"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621680251961"><span class="annot"><span class="annottext">DeserialiseFailure
+</span><a href="#local-6989586621680251961"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; MsgOrError e msg
+forall err a. Text -&gt; MsgOrError err a
+</span><a href="Unison.Util.Websockets.html#DeserialiseFailure"><span class="hs-identifier hs-var">DeserialiseFailure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">Text.pack</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DeserialiseFailure -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">DeserialiseFailure
+</span><a href="#local-6989586621680251961"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-210"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621680251963"><span class="annot"><span class="annottext">MsgOrError e msg
+</span><a href="#local-6989586621680251963"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MsgOrError e msg
+</span><a href="#local-6989586621680251963"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span>  </span><span id="local-6989586621680251965"><span class="annot"><span class="annottext">toLazyByteString :: MsgOrError e msg -&gt; ByteString
+</span><a href="#local-6989586621680251965"><span class="hs-identifier hs-var hs-var hs-var">toLazyByteString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MsgOrError e msg -&gt; ByteString
+forall a. Serialise a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">CBOR.serialise</span></span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span>  </span><span id="local-6989586621680251970"><span class="annot"><span class="annottext">fromDataMessage :: DataMessage -&gt; MsgOrError e msg
+</span><a href="#local-6989586621680251970"><span class="hs-identifier hs-var hs-var hs-var">fromDataMessage</span></a></span></span><span> </span><span id="local-6989586621680251972"><span class="annot"><span class="annottext">DataMessage
+</span><a href="#local-6989586621680251972"><span class="hs-identifier hs-var">dm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-215"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">DataMessage
+</span><a href="#local-6989586621680251972"><span class="hs-identifier hs-var">dm</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-216"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">WS.Text</span></span><span> </span><span id="local-6989586621680251974"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680251974"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; MsgOrError e msg
+forall a. WebSocketsData a =&gt; ByteString -&gt; a
+</span><span class="hs-identifier hs-var">WS.fromLazyByteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680251974"><span class="hs-identifier hs-var">bytes</span></a></span><span>
+</span><span id="line-217"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">WS.Binary</span></span><span> </span><span id="local-6989586621680251976"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680251976"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; MsgOrError e msg
+forall a. WebSocketsData a =&gt; ByteString -&gt; a
+</span><span class="hs-identifier hs-var">WS.fromLazyByteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680251976"><span class="hs-identifier hs-var">bytes</span></a></span><span>
+</span><span id="line-218"></span></pre></body></html>

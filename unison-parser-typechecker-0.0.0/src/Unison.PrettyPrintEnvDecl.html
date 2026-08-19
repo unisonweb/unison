@@ -1,0 +1,144 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html"><span class="hs-identifier">Unison.PrettyPrintEnvDecl</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier">PrettyPrintEnvDecl</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#makePPED"><span class="hs-identifier">makePPED</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#biasTo"><span class="hs-identifier">biasTo</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#empty"><span class="hs-identifier">empty</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#addFallback"><span class="hs-identifier">addFallback</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#leftBiased"><span class="hs-identifier">leftBiased</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.html"><span class="hs-identifier">Unison.PrettyPrintEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier">PrettyPrintEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.html"><span class="hs-identifier">Unison.PrettyPrintEnv</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPE</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.Names.html"><span class="hs-identifier">Unison.PrettyPrintEnv.Names</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPE</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- A pair of PrettyPrintEnvs:</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--   - suffixifiedPPE uses the shortest unique suffix</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--   - unsuffixifiedPPE uses the shortest full name</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- Generally, we want declarations LHS (the `x` in `x = 23`) to use the</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- unsuffixified names, so the LHS is an accurate description of where in the</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- namespace the definition lives. For everywhere else, we can use the</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- suffixified version.</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="PrettyPrintEnvDecl"><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-var">PrettyPrintEnvDecl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PrettyPrintEnvDecl"><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-var">PrettyPrintEnvDecl</span></a></span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="unsuffixifiedPPE"><span class="annot"><span class="annottext">PrettyPrintEnvDecl -&gt; PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnvDecl.html#unsuffixifiedPPE"><span class="hs-identifier hs-var hs-var">unsuffixifiedPPE</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span id="suffixifiedPPE"><span class="annot"><span class="annottext">PrettyPrintEnvDecl -&gt; PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnvDecl.html#suffixifiedPPE"><span class="hs-identifier hs-var hs-var">suffixifiedPPE</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680626286"><span id="local-6989586621680626288"><span class="annot"><span class="annottext">(forall x. PrettyPrintEnvDecl -&gt; Rep PrettyPrintEnvDecl x)
+-&gt; (forall x. Rep PrettyPrintEnvDecl x -&gt; PrettyPrintEnvDecl)
+-&gt; Generic PrettyPrintEnvDecl
+forall x. Rep PrettyPrintEnvDecl x -&gt; PrettyPrintEnvDecl
+forall x. PrettyPrintEnvDecl -&gt; Rep PrettyPrintEnvDecl x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. PrettyPrintEnvDecl -&gt; Rep PrettyPrintEnvDecl x
+from :: forall x. PrettyPrintEnvDecl -&gt; Rep PrettyPrintEnvDecl x
+$cto :: forall x. Rep PrettyPrintEnvDecl x -&gt; PrettyPrintEnvDecl
+to :: forall x. Rep PrettyPrintEnvDecl x -&gt; PrettyPrintEnvDecl
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680626294"><span id="local-6989586621680626301"><span id="local-6989586621680626305"><span class="annot"><span class="annottext">Int -&gt; PrettyPrintEnvDecl -&gt; ShowS
+[PrettyPrintEnvDecl] -&gt; ShowS
+PrettyPrintEnvDecl -&gt; String
+(Int -&gt; PrettyPrintEnvDecl -&gt; ShowS)
+-&gt; (PrettyPrintEnvDecl -&gt; String)
+-&gt; ([PrettyPrintEnvDecl] -&gt; ShowS)
+-&gt; Show PrettyPrintEnvDecl
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PrettyPrintEnvDecl -&gt; ShowS
+showsPrec :: Int -&gt; PrettyPrintEnvDecl -&gt; ShowS
+$cshow :: PrettyPrintEnvDecl -&gt; String
+show :: PrettyPrintEnvDecl -&gt; String
+$cshowList :: [PrettyPrintEnvDecl] -&gt; ShowS
+showList :: [PrettyPrintEnvDecl] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#makePPED"><span class="hs-identifier hs-type">makePPED</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.Names.html#Namer"><span class="hs-identifier hs-type">PPE.Namer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.Names.html#Suffixifier"><span class="hs-identifier hs-type">PPE.Suffixifier</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span>
+</span><span id="line-32"></span><span id="makePPED"><span class="annot"><span class="annottext">makePPED :: Namer -&gt; Suffixifier -&gt; PrettyPrintEnvDecl
+</span><a href="Unison.PrettyPrintEnvDecl.html#makePPED"><span class="hs-identifier hs-var hs-var">makePPED</span></a></span></span><span> </span><span id="local-6989586621680626309"><span class="annot"><span class="annottext">Namer
+</span><a href="#local-6989586621680626309"><span class="hs-identifier hs-var">namer</span></a></span></span><span> </span><span id="local-6989586621680626310"><span class="annot"><span class="annottext">Suffixifier
+</span><a href="#local-6989586621680626310"><span class="hs-identifier hs-var">suffixifier</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">unsuffixifiedPPE :: PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnvDecl.html#unsuffixifiedPPE"><span class="hs-identifier hs-var">unsuffixifiedPPE</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Namer -&gt; Suffixifier -&gt; PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnv.Names.html#makePPE"><span class="hs-identifier hs-var">PPE.makePPE</span></a></span><span> </span><span class="annot"><span class="annottext">Namer
+</span><a href="#local-6989586621680626309"><span class="hs-identifier hs-var">namer</span></a></span><span> </span><span class="annot"><span class="annottext">Suffixifier
+</span><a href="Unison.PrettyPrintEnv.Names.html#dontSuffixify"><span class="hs-identifier hs-var">PPE.dontSuffixify</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><span class="annottext">suffixifiedPPE :: PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnvDecl.html#suffixifiedPPE"><span class="hs-identifier hs-var">suffixifiedPPE</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Namer -&gt; Suffixifier -&gt; PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnv.Names.html#makePPE"><span class="hs-identifier hs-var">PPE.makePPE</span></a></span><span> </span><span class="annot"><span class="annottext">Namer
+</span><a href="#local-6989586621680626309"><span class="hs-identifier hs-var">namer</span></a></span><span> </span><span class="annot"><span class="annottext">Suffixifier
+</span><a href="#local-6989586621680626310"><span class="hs-identifier hs-var">suffixifier</span></a></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><span class="hs-comment">-- | Lifts 'biasTo' over a PrettyPrintEnvDecl</span></span><span>
+</span><span id="line-39"></span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#biasTo"><span class="hs-identifier hs-type">biasTo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span>
+</span><span id="line-40"></span><span id="biasTo"><span class="annot"><span class="annottext">biasTo :: [Name] -&gt; PrettyPrintEnvDecl -&gt; PrettyPrintEnvDecl
+</span><a href="Unison.PrettyPrintEnvDecl.html#biasTo"><span class="hs-identifier hs-var hs-var">biasTo</span></a></span></span><span> </span><span id="local-6989586621680626313"><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621680626313"><span class="hs-identifier hs-var">targets</span></a></span></span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621680626314"><span class="annot"><span class="annottext">PrettyPrintEnv
+unsuffixifiedPPE :: PrettyPrintEnvDecl -&gt; PrettyPrintEnv
+unsuffixifiedPPE :: PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnvDecl.html#unsuffixifiedPPE"><span class="hs-identifier hs-var hs-var">unsuffixifiedPPE</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680626315"><span class="annot"><span class="annottext">PrettyPrintEnv
+suffixifiedPPE :: PrettyPrintEnvDecl -&gt; PrettyPrintEnv
+suffixifiedPPE :: PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnvDecl.html#suffixifiedPPE"><span class="hs-identifier hs-var hs-var">suffixifiedPPE</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">unsuffixifiedPPE :: PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnvDecl.html#unsuffixifiedPPE"><span class="hs-identifier hs-var">unsuffixifiedPPE</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Name] -&gt; PrettyPrintEnv -&gt; PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnv.html#biasTo"><span class="hs-identifier hs-var">PPE.biasTo</span></a></span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621680626313"><span class="hs-identifier hs-var">targets</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680626314"><span class="hs-identifier hs-var">unsuffixifiedPPE</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>      </span><span class="annot"><span class="annottext">suffixifiedPPE :: PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnvDecl.html#suffixifiedPPE"><span class="hs-identifier hs-var">suffixifiedPPE</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Name] -&gt; PrettyPrintEnv -&gt; PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnv.html#biasTo"><span class="hs-identifier hs-var">PPE.biasTo</span></a></span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621680626313"><span class="hs-identifier hs-var">targets</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680626315"><span class="hs-identifier hs-var">suffixifiedPPE</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span>
+</span><span id="line-47"></span><span id="empty"><span class="annot"><span class="annottext">empty :: PrettyPrintEnvDecl
+</span><a href="Unison.PrettyPrintEnvDecl.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; PrettyPrintEnv -&gt; PrettyPrintEnvDecl
+</span><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-var">PrettyPrintEnvDecl</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnv.html#empty"><span class="hs-identifier hs-var">PPE.empty</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnv.html#empty"><span class="hs-identifier hs-var">PPE.empty</span></a></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | Will use names from the fallback pped if no names were found in the primary.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- @addFallback primary fallback@</span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#addFallback"><span class="hs-identifier hs-type">addFallback</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span>
+</span><span id="line-52"></span><span id="addFallback"><span class="annot"><span class="annottext">addFallback :: PrettyPrintEnvDecl -&gt; PrettyPrintEnvDecl -&gt; PrettyPrintEnvDecl
+</span><a href="Unison.PrettyPrintEnvDecl.html#addFallback"><span class="hs-identifier hs-var hs-var">addFallback</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span> </span><span id="local-6989586621680626318"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680626318"><span class="hs-identifier hs-var">unsuff1</span></a></span></span><span> </span><span id="local-6989586621680626319"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680626319"><span class="hs-identifier hs-var">suff1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span> </span><span id="local-6989586621680626320"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680626320"><span class="hs-identifier hs-var">unsuff2</span></a></span></span><span> </span><span id="local-6989586621680626321"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680626321"><span class="hs-identifier hs-var">suff2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; PrettyPrintEnv -&gt; PrettyPrintEnvDecl
+</span><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-var">PrettyPrintEnvDecl</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680626318"><span class="hs-identifier hs-var">unsuff1</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; PrettyPrintEnv -&gt; PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnv.html#addFallback"><span class="hs-operator hs-var">`PPE.addFallback`</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680626320"><span class="hs-identifier hs-var">unsuff2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680626319"><span class="hs-identifier hs-var">suff1</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; PrettyPrintEnv -&gt; PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnv.html#addFallback"><span class="hs-operator hs-var">`PPE.addFallback`</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680626321"><span class="hs-identifier hs-var">suff2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#leftBiased"><span class="hs-identifier hs-type">leftBiased</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnvDecl.html#PrettyPrintEnvDecl"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></a></span><span>
+</span><span id="line-56"></span><span id="leftBiased"><span class="annot"><span class="annottext">leftBiased :: [PrettyPrintEnvDecl] -&gt; PrettyPrintEnvDecl
+</span><a href="Unison.PrettyPrintEnvDecl.html#leftBiased"><span class="hs-identifier hs-var hs-var">leftBiased</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnvDecl
+</span><a href="Unison.PrettyPrintEnvDecl.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621680626323"><span class="annot"><span class="annottext">PrettyPrintEnvDecl
+</span><a href="#local-6989586621680626323"><span class="hs-identifier hs-var">ppe</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680626324"><span class="annot"><span class="annottext">[PrettyPrintEnvDecl]
+</span><a href="#local-6989586621680626324"><span class="hs-identifier hs-var">ppes</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[PrettyPrintEnvDecl]
+</span><a href="#local-6989586621680626324"><span class="hs-identifier hs-var">ppes</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-60"></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnvDecl
+</span><a href="#local-6989586621680626323"><span class="hs-identifier hs-var">ppe</span></a></span><span>
+</span><span id="line-61"></span><span>      </span><span class="annot"><span class="annottext">[PrettyPrintEnvDecl]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnvDecl
+</span><a href="#local-6989586621680626323"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnvDecl -&gt; PrettyPrintEnvDecl -&gt; PrettyPrintEnvDecl
+</span><a href="Unison.PrettyPrintEnvDecl.html#addFallback"><span class="hs-operator hs-var">`addFallback`</span></a></span><span> </span><span class="annot"><span class="annottext">[PrettyPrintEnvDecl] -&gt; PrettyPrintEnvDecl
+</span><a href="Unison.PrettyPrintEnvDecl.html#leftBiased"><span class="hs-identifier hs-var">leftBiased</span></a></span><span> </span><span class="annot"><span class="annottext">[PrettyPrintEnvDecl]
+</span><a href="#local-6989586621680626324"><span class="hs-identifier hs-var">ppes</span></a></span><span>
+</span><span id="line-62"></span></pre></body></html>

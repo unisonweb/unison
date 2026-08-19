@@ -1,0 +1,188 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Avro.Internal.Time.html"><span class="hs-identifier">Data.Avro.Internal.Time</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Utility functions to work with times</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromJust</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock.POSIX</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">posixSecondsToUTCTime</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,9,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Format.Internal</span></span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Time.Format</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-15"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#epoch"><span class="hs-identifier hs-type">epoch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-16"></span><span id="epoch"><span class="annot"><span class="annottext">epoch :: UTCTime
+</span><a href="Data.Avro.Internal.Time.html#epoch"><span class="hs-identifier hs-var hs-var">epoch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">POSIXTime -&gt; UTCTime
+</span><span class="hs-identifier hs-var">posixSecondsToUTCTime</span></span><span> </span><span class="annot"><span class="annottext">POSIXTime
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-17"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.Time.html#epoch"><span class="hs-pragma hs-type">epoch</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#epochDate"><span class="hs-identifier hs-type">epochDate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Day</span></span><span>
+</span><span id="line-20"></span><span id="epochDate"><span class="annot"><span class="annottext">epochDate :: Day
+</span><a href="Data.Avro.Internal.Time.html#epochDate"><span class="hs-identifier hs-var hs-var">epochDate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Day -&gt; Day
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Day -&gt; Day) -&gt; Maybe Day -&gt; Day
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TimeLocale -&gt; [(Char, String)] -&gt; Maybe Day
+forall t. ParseTime t =&gt; TimeLocale -&gt; [(Char, String)] -&gt; Maybe t
+</span><span class="hs-identifier hs-var">buildTime</span></span><span> </span><span class="annot"><span class="annottext">TimeLocale
+</span><span class="hs-identifier hs-var">defaultTimeLocale</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#daysSinceEpoch"><span class="hs-identifier hs-type">daysSinceEpoch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Day</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-23"></span><span id="daysSinceEpoch"><span class="annot"><span class="annottext">daysSinceEpoch :: Day -&gt; Integer
+</span><a href="Data.Avro.Internal.Time.html#daysSinceEpoch"><span class="hs-identifier hs-var hs-var">daysSinceEpoch</span></a></span></span><span> </span><span id="local-6989586621679514173"><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679514173"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Day -&gt; Day -&gt; Integer
+</span><span class="hs-identifier hs-var">diffDays</span></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679514173"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="Data.Avro.Internal.Time.html#epochDate"><span class="hs-identifier hs-var">epochDate</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#fromDaysSinceEpoch"><span class="hs-identifier hs-type">fromDaysSinceEpoch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Day</span></span><span>
+</span><span id="line-26"></span><span id="fromDaysSinceEpoch"><span class="annot"><span class="annottext">fromDaysSinceEpoch :: Integer -&gt; Day
+</span><a href="Data.Avro.Internal.Time.html#fromDaysSinceEpoch"><span class="hs-identifier hs-var hs-var">fromDaysSinceEpoch</span></a></span></span><span> </span><span id="local-6989586621679514176"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679514176"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Day -&gt; Day
+</span><span class="hs-identifier hs-var">addDays</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679514176"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="Data.Avro.Internal.Time.html#epochDate"><span class="hs-identifier hs-var">epochDate</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#diffTimeToMicros"><span class="hs-identifier hs-type">diffTimeToMicros</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-29"></span><span id="diffTimeToMicros"><span class="annot"><span class="annottext">diffTimeToMicros :: DiffTime -&gt; Integer
+</span><a href="Data.Avro.Internal.Time.html#diffTimeToMicros"><span class="hs-identifier hs-var hs-var">diffTimeToMicros</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1000000</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer)
+-&gt; (DiffTime -&gt; Integer) -&gt; DiffTime -&gt; Integer
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">DiffTime -&gt; Integer
+</span><span class="hs-identifier hs-var">diffTimeToPicoseconds</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#microsToDiffTime"><span class="hs-identifier hs-type">microsToDiffTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span><span>
+</span><span id="line-32"></span><span id="microsToDiffTime"><span class="annot"><span class="annottext">microsToDiffTime :: Integer -&gt; DiffTime
+</span><a href="Data.Avro.Internal.Time.html#microsToDiffTime"><span class="hs-identifier hs-var hs-var">microsToDiffTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; DiffTime
+</span><span class="hs-identifier hs-var">picosecondsToDiffTime</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; DiffTime)
+-&gt; (Integer -&gt; Integer) -&gt; Integer -&gt; DiffTime
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1000000</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#diffTimeToMillis"><span class="hs-identifier hs-type">diffTimeToMillis</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-35"></span><span id="diffTimeToMillis"><span class="annot"><span class="annottext">diffTimeToMillis :: DiffTime -&gt; Integer
+</span><a href="Data.Avro.Internal.Time.html#diffTimeToMillis"><span class="hs-identifier hs-var hs-var">diffTimeToMillis</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1000000000</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer)
+-&gt; (DiffTime -&gt; Integer) -&gt; DiffTime -&gt; Integer
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">DiffTime -&gt; Integer
+</span><span class="hs-identifier hs-var">diffTimeToPicoseconds</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#millisToDiffTime"><span class="hs-identifier hs-type">millisToDiffTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span><span>
+</span><span id="line-38"></span><span id="millisToDiffTime"><span class="annot"><span class="annottext">millisToDiffTime :: Integer -&gt; DiffTime
+</span><a href="Data.Avro.Internal.Time.html#millisToDiffTime"><span class="hs-identifier hs-var hs-var">millisToDiffTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; DiffTime
+</span><span class="hs-identifier hs-var">picosecondsToDiffTime</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; DiffTime)
+-&gt; (Integer -&gt; Integer) -&gt; Integer -&gt; DiffTime
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1000000000</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#utcTimeToMicros"><span class="hs-identifier hs-type">utcTimeToMicros</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-41"></span><span id="utcTimeToMicros"><span class="annot"><span class="annottext">utcTimeToMicros :: UTCTime -&gt; Integer
+</span><a href="Data.Avro.Internal.Time.html#utcTimeToMicros"><span class="hs-identifier hs-var hs-var">utcTimeToMicros</span></a></span></span><span> </span><span id="local-6989586621679514188"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679514188"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DiffTime -&gt; Integer
+</span><span class="hs-identifier hs-var">diffTimeToPicoseconds</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">POSIXTime -&gt; DiffTime
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UTCTime -&gt; UTCTime -&gt; POSIXTime
+</span><span class="hs-identifier hs-var">diffUTCTime</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679514188"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="Data.Avro.Internal.Time.html#epoch"><span class="hs-identifier hs-var">epoch</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1000000</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#utcTimeToMillis"><span class="hs-identifier hs-type">utcTimeToMillis</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-44"></span><span id="utcTimeToMillis"><span class="annot"><span class="annottext">utcTimeToMillis :: UTCTime -&gt; Integer
+</span><a href="Data.Avro.Internal.Time.html#utcTimeToMillis"><span class="hs-identifier hs-var hs-var">utcTimeToMillis</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1000</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer) -&gt; (UTCTime -&gt; Integer) -&gt; UTCTime -&gt; Integer
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; Integer
+</span><a href="Data.Avro.Internal.Time.html#utcTimeToMicros"><span class="hs-identifier hs-var">utcTimeToMicros</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#microsToUTCTime"><span class="hs-identifier hs-type">microsToUTCTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-47"></span><span id="microsToUTCTime"><span class="annot"><span class="annottext">microsToUTCTime :: Integer -&gt; UTCTime
+</span><a href="Data.Avro.Internal.Time.html#microsToUTCTime"><span class="hs-identifier hs-var hs-var">microsToUTCTime</span></a></span></span><span> </span><span id="local-6989586621679514192"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679514192"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">POSIXTime -&gt; UTCTime -&gt; UTCTime
+</span><span class="hs-identifier hs-var">addUTCTime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DiffTime -&gt; POSIXTime
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">(DiffTime -&gt; POSIXTime) -&gt; DiffTime -&gt; POSIXTime
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; DiffTime
+</span><span class="hs-identifier hs-var">picosecondsToDiffTime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679514192"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1000000</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="Data.Avro.Internal.Time.html#epoch"><span class="hs-identifier hs-var">epoch</span></a></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#millisToUTCTime"><span class="hs-identifier hs-type">millisToUTCTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-50"></span><span id="millisToUTCTime"><span class="annot"><span class="annottext">millisToUTCTime :: Integer -&gt; UTCTime
+</span><a href="Data.Avro.Internal.Time.html#millisToUTCTime"><span class="hs-identifier hs-var hs-var">millisToUTCTime</span></a></span></span><span> </span><span id="local-6989586621679514195"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679514195"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">POSIXTime -&gt; UTCTime -&gt; UTCTime
+</span><span class="hs-identifier hs-var">addUTCTime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DiffTime -&gt; POSIXTime
+forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="annot"><span class="annottext">(DiffTime -&gt; POSIXTime) -&gt; DiffTime -&gt; POSIXTime
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; DiffTime
+</span><span class="hs-identifier hs-var">picosecondsToDiffTime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679514195"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1000000000</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="Data.Avro.Internal.Time.html#epoch"><span class="hs-identifier hs-var">epoch</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#localTimeToMicros"><span class="hs-identifier hs-type">localTimeToMicros</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">LocalTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-53"></span><span id="localTimeToMicros"><span class="annot"><span class="annottext">localTimeToMicros :: LocalTime -&gt; Integer
+</span><a href="Data.Avro.Internal.Time.html#localTimeToMicros"><span class="hs-identifier hs-var hs-var">localTimeToMicros</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; Integer
+</span><a href="Data.Avro.Internal.Time.html#utcTimeToMicros"><span class="hs-identifier hs-var">utcTimeToMicros</span></a></span><span> </span><span class="annot"><span class="annottext">(UTCTime -&gt; Integer)
+-&gt; (LocalTime -&gt; UTCTime) -&gt; LocalTime -&gt; Integer
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">TimeZone -&gt; LocalTime -&gt; UTCTime
+</span><span class="hs-identifier hs-var">localTimeToUTC</span></span><span> </span><span class="annot"><span class="annottext">TimeZone
+</span><span class="hs-identifier hs-var">utc</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#localTimeToMillis"><span class="hs-identifier hs-type">localTimeToMillis</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">LocalTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-56"></span><span id="localTimeToMillis"><span class="annot"><span class="annottext">localTimeToMillis :: LocalTime -&gt; Integer
+</span><a href="Data.Avro.Internal.Time.html#localTimeToMillis"><span class="hs-identifier hs-var hs-var">localTimeToMillis</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; Integer
+</span><a href="Data.Avro.Internal.Time.html#utcTimeToMillis"><span class="hs-identifier hs-var">utcTimeToMillis</span></a></span><span> </span><span class="annot"><span class="annottext">(UTCTime -&gt; Integer)
+-&gt; (LocalTime -&gt; UTCTime) -&gt; LocalTime -&gt; Integer
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">TimeZone -&gt; LocalTime -&gt; UTCTime
+</span><span class="hs-identifier hs-var">localTimeToUTC</span></span><span> </span><span class="annot"><span class="annottext">TimeZone
+</span><span class="hs-identifier hs-var">utc</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#microsToLocalTime"><span class="hs-identifier hs-type">microsToLocalTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">LocalTime</span></span><span>
+</span><span id="line-59"></span><span id="microsToLocalTime"><span class="annot"><span class="annottext">microsToLocalTime :: Integer -&gt; LocalTime
+</span><a href="Data.Avro.Internal.Time.html#microsToLocalTime"><span class="hs-identifier hs-var hs-var">microsToLocalTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TimeZone -&gt; UTCTime -&gt; LocalTime
+</span><span class="hs-identifier hs-var">utcToLocalTime</span></span><span> </span><span class="annot"><span class="annottext">TimeZone
+</span><span class="hs-identifier hs-var">utc</span></span><span> </span><span class="annot"><span class="annottext">(UTCTime -&gt; LocalTime)
+-&gt; (Integer -&gt; UTCTime) -&gt; Integer -&gt; LocalTime
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; UTCTime
+</span><a href="Data.Avro.Internal.Time.html#microsToUTCTime"><span class="hs-identifier hs-var">microsToUTCTime</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Data.Avro.Internal.Time.html#millisToLocalTime"><span class="hs-identifier hs-type">millisToLocalTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">LocalTime</span></span><span>
+</span><span id="line-62"></span><span id="millisToLocalTime"><span class="annot"><span class="annottext">millisToLocalTime :: Integer -&gt; LocalTime
+</span><a href="Data.Avro.Internal.Time.html#millisToLocalTime"><span class="hs-identifier hs-var hs-var">millisToLocalTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TimeZone -&gt; UTCTime -&gt; LocalTime
+</span><span class="hs-identifier hs-var">utcToLocalTime</span></span><span> </span><span class="annot"><span class="annottext">TimeZone
+</span><span class="hs-identifier hs-var">utc</span></span><span> </span><span class="annot"><span class="annottext">(UTCTime -&gt; LocalTime)
+-&gt; (Integer -&gt; UTCTime) -&gt; Integer -&gt; LocalTime
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; UTCTime
+</span><a href="Data.Avro.Internal.Time.html#millisToUTCTime"><span class="hs-identifier hs-var">millisToUTCTime</span></a></span><span>
+</span><span id="line-63"></span></pre></body></html>

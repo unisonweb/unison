@@ -1,0 +1,113 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.Tridiag.html"><span class="hs-identifier">Bench.Vector.Algo.Tridiag</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.Tridiag.html#tridiag"><span class="hs-identifier">tridiag</span></a></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Unboxed</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="annot"><a href="Bench.Vector.Algo.Tridiag.html#tridiag"><span class="hs-identifier hs-type">tridiag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.Tridiag.html#tridiag"><span class="hs-pragma hs-type">tridiag</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-8"></span><span id="tridiag"><span class="annot"><span class="annottext">tridiag :: (Vector Double, Vector Double, Vector Double, Vector Double)
+-&gt; Vector Double
+</span><a href="Bench.Vector.Algo.Tridiag.html#tridiag"><span class="hs-identifier hs-var hs-var">tridiag</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072534"><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679072534"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072535"><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679072535"><span class="hs-identifier hs-var">bs</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072536"><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679072536"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072537"><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679072537"><span class="hs-identifier hs-var">ds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Double, Double) -&gt; Double -&gt; Double)
+-&gt; Double -&gt; Vector (Double, Double) -&gt; Vector Double
+forall a b.
+(Unbox a, Unbox b) =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; Vector a -&gt; Vector b
+</span><span class="hs-identifier hs-var">V.prescanr'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679072539"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679072539"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072540"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679072540"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679072541"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679072541"><span class="hs-identifier hs-var">x'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679072540"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679072539"><span class="hs-identifier hs-var">c</span></a></span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679072541"><span class="hs-identifier hs-var">x'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-9"></span><span>                      </span><span class="annot"><span class="annottext">(Vector (Double, Double) -&gt; Vector Double)
+-&gt; Vector (Double, Double) -&gt; Vector Double
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((Double, Double)
+ -&gt; ((Double, Double), (Double, Double)) -&gt; (Double, Double))
+-&gt; (Double, Double)
+-&gt; Vector ((Double, Double), (Double, Double))
+-&gt; Vector (Double, Double)
+forall a b.
+(Unbox a, Unbox b) =&gt;
+(a -&gt; b -&gt; a) -&gt; a -&gt; Vector b -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.prescanl'</span></span><span> </span><span class="annot"><span class="annottext">(Double, Double)
+-&gt; ((Double, Double), (Double, Double)) -&gt; (Double, Double)
+forall {b}. Fractional b =&gt; (b, b) -&gt; ((b, b), (b, b)) -&gt; (b, b)
+</span><a href="#local-6989586621679072544"><span class="hs-identifier hs-var">modify</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>                      </span><span class="annot"><span class="annottext">(Vector ((Double, Double), (Double, Double))
+ -&gt; Vector (Double, Double))
+-&gt; Vector ((Double, Double), (Double, Double))
+-&gt; Vector (Double, Double)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Vector (Double, Double)
+-&gt; Vector (Double, Double)
+-&gt; Vector ((Double, Double), (Double, Double))
+forall a b.
+(Unbox a, Unbox b) =&gt;
+Vector a -&gt; Vector b -&gt; Vector (a, b)
+</span><span class="hs-identifier hs-var">V.zip</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Double -&gt; Vector Double -&gt; Vector (Double, Double)
+forall a b.
+(Unbox a, Unbox b) =&gt;
+Vector a -&gt; Vector b -&gt; Vector (a, b)
+</span><span class="hs-identifier hs-var">V.zip</span></span><span> </span><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679072534"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679072535"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Double -&gt; Vector Double -&gt; Vector (Double, Double)
+forall a b.
+(Unbox a, Unbox b) =&gt;
+Vector a -&gt; Vector b -&gt; Vector (a, b)
+</span><span class="hs-identifier hs-var">V.zip</span></span><span> </span><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679072536"><span class="hs-identifier hs-var">cs</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679072537"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>      </span><span id="local-6989586621679072544"><span class="annot"><span class="annottext">modify :: (b, b) -&gt; ((b, b), (b, b)) -&gt; (b, b)
+</span><a href="#local-6989586621679072544"><span class="hs-identifier hs-var hs-var">modify</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072553"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072553"><span class="hs-identifier hs-var">c'</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072554"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072554"><span class="hs-identifier hs-var">d'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679072555"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072555"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072556"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072556"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span class="hs-special">(</span><span id="local-6989586621679072557"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072557"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072558"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072558"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-13"></span><span>                   </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679072564"><span class="annot"><span class="annottext">id :: b
+</span><a href="#local-6989586621679072564"><span class="hs-identifier hs-var hs-var">id</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; b -&gt; b
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072556"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; b -&gt; b
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072553"><span class="hs-identifier hs-var">c'</span></a></span><span class="annot"><span class="annottext">b -&gt; b -&gt; b
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072555"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>                   </span><span class="hs-keyword">in</span><span>
+</span><span id="line-15"></span><span>                   </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072564"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; (b, b) -&gt; (b, b)
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072557"><span class="hs-identifier hs-var">c</span></a></span><span class="annot"><span class="annottext">b -&gt; b -&gt; b
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072564"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072558"><span class="hs-identifier hs-var">d</span></a></span><span class="annot"><span class="annottext">b -&gt; b -&gt; b
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072554"><span class="hs-identifier hs-var">d'</span></a></span><span class="annot"><span class="annottext">b -&gt; b -&gt; b
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072555"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">b -&gt; b -&gt; b
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072564"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span></pre></body></html>

@@ -1,0 +1,433 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BlockArguments #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE ViewPatterns #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="U.Util.Term.html"><span class="hs-identifier">U.Util.Term</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Writer</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">execWriter</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">tell</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">for_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">traverse_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Term</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">F'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MatchCase</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Pattern</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Term</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Term</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">U.Core.ABT</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ABT</span></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span id="local-6989586621679068772"><span id="local-6989586621679068773"><span id="local-6989586621679068774"><span id="local-6989586621679068775"><span id="local-6989586621679068776"><span id="local-6989586621679068777"><span id="local-6989586621679068778"><span id="local-6989586621679068780"><span class="annot"><a href="U.Util.Term.html#text"><span class="hs-identifier hs-type">text</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679068772"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ABT.Term</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term.F'</span></span><span> </span><span class="annot"><a href="#local-6989586621679068773"><span class="hs-identifier hs-type">text</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068774"><span class="hs-identifier hs-type">termRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068775"><span class="hs-identifier hs-type">typeRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068776"><span class="hs-identifier hs-type">termLink</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068777"><span class="hs-identifier hs-type">typeLink</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068778"><span class="hs-identifier hs-type">vt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679068772"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068780"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679068773"><span class="hs-identifier hs-type">text</span></a></span><span class="hs-special">]</span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-15"></span><span id="text"><span class="annot"><span class="annottext">text :: forall v text termRef typeRef termLink typeLink vt a.
+Ord v =&gt;
+Term (F' text termRef typeRef termLink typeLink vt) v a -&gt; [text]
+</span><a href="U.Util.Term.html#text"><span class="hs-identifier hs-var hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-16"></span><span>  </span><span class="annot"><span class="annottext">Writer
+  [text] (Term (F' text termRef typeRef termLink typeLink vt) v a)
+-&gt; [text]
+forall w a. Writer w a -&gt; w
+</span><span class="hs-identifier hs-var">execWriter</span></span><span> </span><span class="annot"><span class="annottext">(Writer
+   [text] (Term (F' text termRef typeRef termLink typeLink vt) v a)
+ -&gt; [text])
+-&gt; (Term (F' text termRef typeRef termLink typeLink vt) v a
+    -&gt; Writer
+         [text] (Term (F' text termRef typeRef termLink typeLink vt) v a))
+-&gt; Term (F' text termRef typeRef termLink typeLink vt) v a
+-&gt; [text]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(F'
+   text
+   termRef
+   typeRef
+   termLink
+   typeLink
+   vt
+   (Term (F' text termRef typeRef termLink typeLink vt) v a)
+ -&gt; WriterT [text] Identity ())
+-&gt; Term (F' text termRef typeRef termLink typeLink vt) v a
+-&gt; Writer
+     [text] (Term (F' text termRef typeRef termLink typeLink vt) v a)
+forall (f :: * -&gt; *) (g :: * -&gt; *) v a.
+(Traversable f, Applicative g, Ord v) =&gt;
+(f (Term f v a) -&gt; g ()) -&gt; Term f v a -&gt; g (Term f v a)
+</span><span class="hs-identifier hs-var">ABT.visit_</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span id="local-6989586621679068911"><span class="annot"><span class="annottext">text
+</span><a href="#local-6989586621679068911"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[text] -&gt; WriterT [text] Identity ()
+forall w (m :: * -&gt; *). MonadWriter w m =&gt; w -&gt; m ()
+</span><span class="hs-identifier hs-var">tell</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">text
+</span><a href="#local-6989586621679068911"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="annottext">F'
+  text
+  termRef
+  typeRef
+  termLink
+  typeLink
+  vt
+  (Term (F' text termRef typeRef termLink typeLink vt) v a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; WriterT [text] Identity ()
+forall a. a -&gt; WriterT [text] Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span id="local-6989586621679068818"><span id="local-6989586621679068819"><span id="local-6989586621679068820"><span id="local-6989586621679068821"><span id="local-6989586621679068822"><span id="local-6989586621679068823"><span id="local-6989586621679068824"><span id="local-6989586621679068825"><span class="annot"><a href="U.Util.Term.html#dependencies"><span class="hs-identifier hs-type">dependencies</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679068818"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-22"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ABT.Term</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term.F'</span></span><span> </span><span class="annot"><a href="#local-6989586621679068819"><span class="hs-identifier hs-type">text</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068820"><span class="hs-identifier hs-type">termRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068821"><span class="hs-identifier hs-type">typeRef</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068822"><span class="hs-identifier hs-type">termLink</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068823"><span class="hs-identifier hs-type">typeLink</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068824"><span class="hs-identifier hs-type">vt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679068818"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679068825"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679068820"><span class="hs-identifier hs-type">termRef</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679068821"><span class="hs-identifier hs-type">typeRef</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679068822"><span class="hs-identifier hs-type">termLink</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679068823"><span class="hs-identifier hs-type">typeLink</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-24"></span><span id="dependencies"><span class="annot"><span class="annottext">dependencies :: forall v text termRef typeRef termLink typeLink vt a.
+Ord v =&gt;
+Term (F' text termRef typeRef termLink typeLink vt) v a
+-&gt; ([termRef], [typeRef], [termLink], [typeLink])
+</span><a href="U.Util.Term.html#dependencies"><span class="hs-identifier hs-var hs-var">dependencies</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><span class="annottext">Writer
+  ([termRef], [typeRef], [termLink], [typeLink])
+  (Term (F' text termRef typeRef termLink typeLink vt) v a)
+-&gt; ([termRef], [typeRef], [termLink], [typeLink])
+forall w a. Writer w a -&gt; w
+</span><span class="hs-identifier hs-var">execWriter</span></span><span> </span><span class="annot"><span class="annottext">(Writer
+   ([termRef], [typeRef], [termLink], [typeLink])
+   (Term (F' text termRef typeRef termLink typeLink vt) v a)
+ -&gt; ([termRef], [typeRef], [termLink], [typeLink]))
+-&gt; (Term (F' text termRef typeRef termLink typeLink vt) v a
+    -&gt; Writer
+         ([termRef], [typeRef], [termLink], [typeLink])
+         (Term (F' text termRef typeRef termLink typeLink vt) v a))
+-&gt; Term (F' text termRef typeRef termLink typeLink vt) v a
+-&gt; ([termRef], [typeRef], [termLink], [typeLink])
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(F'
+   text
+   termRef
+   typeRef
+   termLink
+   typeLink
+   vt
+   (Term (F' text termRef typeRef termLink typeLink vt) v a)
+ -&gt; WriterT
+      ([termRef], [typeRef], [termLink], [typeLink]) Identity ())
+-&gt; Term (F' text termRef typeRef termLink typeLink vt) v a
+-&gt; Writer
+     ([termRef], [typeRef], [termLink], [typeLink])
+     (Term (F' text termRef typeRef termLink typeLink vt) v a)
+forall (f :: * -&gt; *) (g :: * -&gt; *) v a.
+(Traversable f, Applicative g, Ord v) =&gt;
+(f (Term f v a) -&gt; g ()) -&gt; Term f v a -&gt; g (Term f v a)
+</span><span class="hs-identifier hs-var">ABT.visit_</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Ref</span></span><span> </span><span id="local-6989586621679068961"><span class="annot"><span class="annottext">termRef
+</span><a href="#local-6989586621679068961"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">termRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall {f :: * -&gt; *} {a} {b} {c} {d} {m :: * -&gt; *}.
+(MonadWriter (f a, b, c, d) m, Monoid b, Monoid c, Monoid d,
+ Monoid (f a), Applicative f) =&gt;
+a -&gt; m ()
+</span><a href="#local-6989586621679068962"><span class="hs-identifier hs-var">termRef</span></a></span><span> </span><span class="annot"><span class="annottext">termRef
+</span><a href="#local-6989586621679068961"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Constructor</span></span><span> </span><span id="local-6989586621679068964"><span class="annot"><span class="annottext">typeRef
+</span><a href="#local-6989586621679068964"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall {a} {f :: * -&gt; *} {a} {c} {d} {m :: * -&gt; *}.
+(MonadWriter (a, f a, c, d) m, Monoid a, Monoid c, Monoid d,
+ Monoid (f a), Applicative f) =&gt;
+a -&gt; m ()
+</span><a href="#local-6989586621679068965"><span class="hs-identifier hs-var">typeRef</span></a></span><span> </span><span class="annot"><span class="annottext">typeRef
+</span><a href="#local-6989586621679068964"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Request</span></span><span> </span><span id="local-6989586621679068967"><span class="annot"><span class="annottext">typeRef
+</span><a href="#local-6989586621679068967"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall {a} {f :: * -&gt; *} {a} {c} {d} {m :: * -&gt; *}.
+(MonadWriter (a, f a, c, d) m, Monoid a, Monoid c, Monoid d,
+ Monoid (f a), Applicative f) =&gt;
+a -&gt; m ()
+</span><a href="#local-6989586621679068965"><span class="hs-identifier hs-var">typeRef</span></a></span><span> </span><span class="annot"><span class="annottext">typeRef
+</span><a href="#local-6989586621679068967"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Match</span></span><span> </span><span class="annot"><span class="annottext">Term (F' text termRef typeRef termLink typeLink vt) v a
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679068969"><span class="annot"><span class="annottext">[MatchCase
+   text
+   typeRef
+   (Term (F' text termRef typeRef termLink typeLink vt) v a)]
+</span><a href="#local-6989586621679068969"><span class="hs-identifier hs-var">cases</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[MatchCase
+   text
+   typeRef
+   (Term (F' text termRef typeRef termLink typeLink vt) v a)]
+-&gt; (MatchCase
+      text
+      typeRef
+      (Term (F' text termRef typeRef termLink typeLink vt) v a)
+    -&gt; WriterT
+         ([termRef], [typeRef], [termLink], [typeLink]) Identity ())
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Foldable t, Applicative f) =&gt;
+t a -&gt; (a -&gt; f b) -&gt; f ()
+</span><span class="hs-identifier hs-var">for_</span></span><span> </span><span class="annot"><span class="annottext">[MatchCase
+   text
+   typeRef
+   (Term (F' text termRef typeRef termLink typeLink vt) v a)]
+</span><a href="#local-6989586621679068969"><span class="hs-identifier hs-var">cases</span></a></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-30"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">MatchCase</span></span><span> </span><span id="local-6989586621679068971"><span class="annot"><span class="annottext">Pattern text typeRef
+</span><a href="#local-6989586621679068971"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621679068972"><span class="annot"><span class="annottext">Maybe (Term (F' text termRef typeRef termLink typeLink vt) v a)
+</span><a href="#local-6989586621679068972"><span class="hs-identifier hs-var">_guard</span></a></span></span><span> </span><span id="local-6989586621679068973"><span class="annot"><span class="annottext">Term (F' text termRef typeRef termLink typeLink vt) v a
+</span><a href="#local-6989586621679068973"><span class="hs-identifier hs-var">_body</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pattern text typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall {t}.
+Pattern t typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+</span><a href="#local-6989586621679068974"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern text typeRef
+</span><a href="#local-6989586621679068971"><span class="hs-identifier hs-var">pat</span></a></span><span>
+</span><span id="line-31"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>          </span><span id="local-6989586621679068974"><span class="annot"><span class="annottext">go :: Pattern t typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+</span><a href="#local-6989586621679068974"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-33"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">PConstructor</span></span><span> </span><span id="local-6989586621679069017"><span class="annot"><span class="annottext">typeRef
+</span><a href="#local-6989586621679069017"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679069018"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679069018"><span class="hs-identifier hs-var">_i</span></a></span></span><span> </span><span id="local-6989586621679069019"><span class="annot"><span class="annottext">[Pattern t typeRef]
+</span><a href="#local-6989586621679069019"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall {a} {f :: * -&gt; *} {a} {c} {d} {m :: * -&gt; *}.
+(MonadWriter (a, f a, c, d) m, Monoid a, Monoid c, Monoid d,
+ Monoid (f a), Applicative f) =&gt;
+a -&gt; m ()
+</span><a href="#local-6989586621679068965"><span class="hs-identifier hs-var">typeRef</span></a></span><span> </span><span class="annot"><span class="annottext">typeRef
+</span><a href="#local-6989586621679069017"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">WriterT ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall a b.
+WriterT ([termRef], [typeRef], [termLink], [typeLink]) Identity a
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity b
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Pattern t typeRef
+ -&gt; WriterT
+      ([termRef], [typeRef], [termLink], [typeLink]) Identity ())
+-&gt; [Pattern t typeRef]
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Foldable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f ()
+</span><span class="hs-identifier hs-var">traverse_</span></span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+</span><a href="#local-6989586621679068974"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Pattern t typeRef]
+</span><a href="#local-6989586621679069019"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-34"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">PAs</span></span><span> </span><span id="local-6989586621679069021"><span class="annot"><span class="annottext">Pattern t typeRef
+</span><a href="#local-6989586621679069021"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+</span><a href="#local-6989586621679068974"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+</span><a href="#local-6989586621679069021"><span class="hs-identifier hs-var">pat</span></a></span><span>
+</span><span id="line-35"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">PEffectPure</span></span><span> </span><span id="local-6989586621679069023"><span class="annot"><span class="annottext">Pattern t typeRef
+</span><a href="#local-6989586621679069023"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+</span><a href="#local-6989586621679068974"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+</span><a href="#local-6989586621679069023"><span class="hs-identifier hs-var">pat</span></a></span><span>
+</span><span id="line-36"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">PEffectBind</span></span><span> </span><span id="local-6989586621679069025"><span class="annot"><span class="annottext">typeRef
+</span><a href="#local-6989586621679069025"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679069026"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621679069026"><span class="hs-identifier hs-var">_i</span></a></span></span><span> </span><span id="local-6989586621679069027"><span class="annot"><span class="annottext">[Pattern t typeRef]
+</span><a href="#local-6989586621679069027"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span id="local-6989586621679069028"><span class="annot"><span class="annottext">Pattern t typeRef
+</span><a href="#local-6989586621679069028"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall {a} {f :: * -&gt; *} {a} {c} {d} {m :: * -&gt; *}.
+(MonadWriter (a, f a, c, d) m, Monoid a, Monoid c, Monoid d,
+ Monoid (f a), Applicative f) =&gt;
+a -&gt; m ()
+</span><a href="#local-6989586621679068965"><span class="hs-identifier hs-var">typeRef</span></a></span><span> </span><span class="annot"><span class="annottext">typeRef
+</span><a href="#local-6989586621679069025"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">WriterT ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall a b.
+WriterT ([termRef], [typeRef], [termLink], [typeLink]) Identity a
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity b
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Pattern t typeRef
+ -&gt; WriterT
+      ([termRef], [typeRef], [termLink], [typeLink]) Identity ())
+-&gt; [Pattern t typeRef]
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Foldable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f ()
+</span><span class="hs-identifier hs-var">traverse_</span></span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+</span><a href="#local-6989586621679068974"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Pattern t typeRef]
+</span><a href="#local-6989586621679069027"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="annot"><span class="annottext">WriterT ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall a b.
+WriterT ([termRef], [typeRef], [termLink], [typeLink]) Identity a
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity b
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+</span><a href="#local-6989586621679068974"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+</span><a href="#local-6989586621679069028"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-37"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">PSequenceLiteral</span></span><span> </span><span id="local-6989586621679069030"><span class="annot"><span class="annottext">[Pattern t typeRef]
+</span><a href="#local-6989586621679069030"><span class="hs-identifier hs-var">pats</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Pattern t typeRef
+ -&gt; WriterT
+      ([termRef], [typeRef], [termLink], [typeLink]) Identity ())
+-&gt; [Pattern t typeRef]
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Foldable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f ()
+</span><span class="hs-identifier hs-var">traverse_</span></span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+</span><a href="#local-6989586621679068974"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Pattern t typeRef]
+</span><a href="#local-6989586621679069030"><span class="hs-identifier hs-var">pats</span></a></span><span>
+</span><span id="line-38"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">PSequenceOp</span></span><span> </span><span id="local-6989586621679069032"><span class="annot"><span class="annottext">Pattern t typeRef
+</span><a href="#local-6989586621679069032"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679069033"><span class="annot"><span class="annottext">SeqOp
+</span><a href="#local-6989586621679069033"><span class="hs-identifier hs-var">_op</span></a></span></span><span> </span><span id="local-6989586621679069034"><span class="annot"><span class="annottext">Pattern t typeRef
+</span><a href="#local-6989586621679069034"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+</span><a href="#local-6989586621679068974"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+</span><a href="#local-6989586621679069032"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">WriterT ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall a b.
+WriterT ([termRef], [typeRef], [termLink], [typeLink]) Identity a
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity b
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+</span><a href="#local-6989586621679068974"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern t typeRef
+</span><a href="#local-6989586621679069034"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-39"></span><span>            </span><span class="annot"><span class="annottext">Pattern t typeRef
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">()
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall a.
+a
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">TermLink</span></span><span> </span><span id="local-6989586621679069036"><span class="annot"><span class="annottext">termLink
+</span><a href="#local-6989586621679069036"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">termLink
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall {a} {b} {f :: * -&gt; *} {a} {d} {m :: * -&gt; *}.
+(MonadWriter (a, b, f a, d) m, Monoid a, Monoid b, Monoid d,
+ Monoid (f a), Applicative f) =&gt;
+a -&gt; m ()
+</span><a href="#local-6989586621679069037"><span class="hs-identifier hs-var">termLink</span></a></span><span> </span><span class="annot"><span class="annottext">termLink
+</span><a href="#local-6989586621679069036"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">TypeLink</span></span><span> </span><span id="local-6989586621679069039"><span class="annot"><span class="annottext">typeLink
+</span><a href="#local-6989586621679069039"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">typeLink
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall {a} {b} {c} {f :: * -&gt; *} {a} {m :: * -&gt; *}.
+(MonadWriter (a, b, c, f a) m, Monoid a, Monoid b, Monoid c,
+ Monoid (f a), Applicative f) =&gt;
+a -&gt; m ()
+</span><a href="#local-6989586621679069040"><span class="hs-identifier hs-var">typeLink</span></a></span><span> </span><span class="annot"><span class="annottext">typeLink
+</span><a href="#local-6989586621679069039"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><span class="annottext">F'
+  text
+  termRef
+  typeRef
+  termLink
+  typeLink
+  vt
+  (Term (F' text termRef typeRef termLink typeLink vt) v a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">()
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity ()
+forall a.
+a
+-&gt; WriterT
+     ([termRef], [typeRef], [termLink], [typeLink]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>    </span><span id="local-6989586621679068962"><span class="annot"><span class="annottext">termRef :: a -&gt; m ()
+</span><a href="#local-6989586621679068962"><span class="hs-identifier hs-var hs-var">termRef</span></a></span></span><span> </span><span id="local-6989586621679069076"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679069076"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f a, b, c, d) -&gt; m ()
+forall w (m :: * -&gt; *). MonadWriter w m =&gt; w -&gt; m ()
+</span><span class="hs-identifier hs-var">tell</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; f a
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679069076"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">d
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>    </span><span id="local-6989586621679068965"><span class="annot"><span class="annottext">typeRef :: a -&gt; m ()
+</span><a href="#local-6989586621679068965"><span class="hs-identifier hs-var hs-var">typeRef</span></a></span></span><span> </span><span id="local-6989586621679069108"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679069108"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, f a, c, d) -&gt; m ()
+forall w (m :: * -&gt; *). MonadWriter w m =&gt; w -&gt; m ()
+</span><span class="hs-identifier hs-var">tell</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a -&gt; f a
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679069108"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">d
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679069037"><span class="annot"><span class="annottext">termLink :: a -&gt; m ()
+</span><a href="#local-6989586621679069037"><span class="hs-identifier hs-var hs-var">termLink</span></a></span></span><span> </span><span id="local-6989586621679069140"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679069140"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, b, f a, d) -&gt; m ()
+forall w (m :: * -&gt; *). MonadWriter w m =&gt; w -&gt; m ()
+</span><span class="hs-identifier hs-var">tell</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a -&gt; f a
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679069140"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">d
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679069040"><span class="annot"><span class="annottext">typeLink :: a -&gt; m ()
+</span><a href="#local-6989586621679069040"><span class="hs-identifier hs-var hs-var">typeLink</span></a></span></span><span> </span><span id="local-6989586621679069172"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679069172"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, b, c, f a) -&gt; m ()
+forall w (m :: * -&gt; *). MonadWriter w m =&gt; w -&gt; m ()
+</span><span class="hs-identifier hs-var">tell</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a -&gt; f a
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679069172"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span></pre></body></html>

@@ -1,0 +1,215 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- LSP wrappers for common Unison functionality</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.LSP.Util.Wrappers.html"><span class="hs-identifier">Unison.LSP.Util.Wrappers</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.Util.Wrappers.html#editDefinitionByFQN"><span class="hs-identifier">editDefinitionByFQN</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Except</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Message</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Msg</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LSP</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Server</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">sendRequest</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.ShowDefinition.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.ShowDefinition</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.ShowDefinition.html#renderToFile"><span class="hs-identifier">renderToFile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Input.html"><span class="hs-identifier">Unison.Codebase.Editor.Input</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Input.html#RelativeToFold"><span class="hs-identifier">RelativeToFold</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Debug</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Debug</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HashQualified</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HQ</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.FileAnalysis.html"><span class="hs-identifier">Unison.LSP.FileAnalysis</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">FA</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html"><span class="hs-identifier">Unison.LSP.Types</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.NamesWithHistory</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Names</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.Backend</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Backend</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Syntax.Name</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Names</span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="annot"><a href="Unison.LSP.Util.Wrappers.html#editDefinitionByFQN"><span class="hs-identifier hs-type">editDefinitionByFQN</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">LSP.Uri</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Fully qualified name of the definition to edit</span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-comment">-- Returns 'True' if the definition was added to the file, False if it was already present</span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-31"></span><span id="editDefinitionByFQN"><span class="annot"><span class="annottext">editDefinitionByFQN :: Uri -&gt; Text -&gt; ExceptT Text Lsp Bool
+</span><a href="Unison.LSP.Util.Wrappers.html#editDefinitionByFQN"><span class="hs-identifier hs-var hs-var">editDefinitionByFQN</span></a></span></span><span> </span><span id="local-6989586621681624247"><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621681624247"><span class="hs-identifier hs-var">fileURI</span></a></span></span><span> </span><span id="local-6989586621681624248"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624248"><span class="hs-identifier hs-var">fqn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><a href="Unison.LSP.Types.html#Env"><span class="hs-identifier hs-type">Env</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681624250"><span class="annot"><a href="#local-6989586621681624250"><span class="hs-identifier hs-var hs-var">codebase</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ExceptT Text Lsp Env
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621681624253"><span class="annot"><a href="#local-6989586621681624253"><span class="hs-identifier hs-var">nameSearch</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#getNameSearch"><span class="hs-identifier hs-type">getNameSearch</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span id="local-6989586621681624255"><span class="annot"><a href="#local-6989586621681624255"><span class="hs-identifier hs-var">lastTouchedFileV</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">asks</span></span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#lastTouchedFileVar"><span class="hs-identifier hs-var">lastTouchedFileVar</span></a></span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621681624258"><span class="annot"><a href="#local-6989586621681624258"><span class="hs-identifier hs-var">mayLastTouchedFile</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">atomically</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">readTVar</span></span><span> </span><span class="annot"><a href="#local-6989586621681624255"><span class="hs-identifier hs-type">lastTouchedFileV</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621681624262"><span class="annot"><a href="#local-6989586621681624262"><span class="hs-identifier hs-var">mayUnisonFile</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681624263"><span class="annot"><a href="#local-6989586621681624263"><span class="hs-identifier hs-var">fileUri</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681624264"><span class="annot"><a href="#local-6989586621681624264"><span class="hs-identifier hs-var">fp</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621681624258"><span class="hs-identifier hs-type">mayLastTouchedFile</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="annottext">Maybe Uri
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Maybe
+   (Either
+      (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann)),
+ Uri, FilePath)
+-&gt; ExceptT
+     Text
+     Lsp
+     (Maybe
+        (Either
+           (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann)),
+      Uri, FilePath)
+forall a. a -&gt; ExceptT Text Lsp a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe
+  (Either (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621681624247"><span class="hs-identifier hs-var">fileURI</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Maybe FilePath -&gt; FilePath
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;scratch.u&quot;</span></span><span> </span><span class="annot"><span class="annottext">(Maybe FilePath -&gt; FilePath) -&gt; Maybe FilePath -&gt; FilePath
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Uri -&gt; Maybe FilePath
+</span><span class="hs-identifier hs-var">uriToFilePath</span></span><span> </span><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621681624247"><span class="hs-identifier hs-var">fileURI</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681624267"><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621681624267"><span class="hs-identifier hs-var">uri</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-39"></span><span>      </span><span id="local-6989586621681624268"><span class="annot"><a href="#local-6989586621681624268"><span class="hs-identifier hs-var">mayTypecheckedFile</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MaybeT
+  (ExceptT Text Lsp)
+  (Either (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann))
+-&gt; ExceptT
+     Text
+     Lsp
+     (Maybe
+        (Either
+           (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann)))
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><span class="hs-identifier hs-var">runMaybeT</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><a href="Unison.LSP.Types.html#FileAnalysis"><span class="hs-identifier hs-type">FileAnalysis</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681624271"><span class="annot"><a href="#local-6989586621681624271"><span class="hs-identifier hs-var hs-var">parsedFile</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681624273"><span class="annot"><a href="#local-6989586621681624273"><span class="hs-identifier hs-var hs-var">typecheckedFile</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Uri -&gt; MaybeT (ExceptT Text Lsp) FileAnalysis
+forall (m :: * -&gt; *). Lspish m =&gt; Uri -&gt; MaybeT m FileAnalysis
+</span><a href="Unison.LSP.FileAnalysis.html#getFileAnalysis"><span class="hs-identifier hs-var">FA.getFileAnalysis</span></a></span><span> </span><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621681624267"><span class="hs-identifier hs-var">uri</span></a></span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">hoistMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621681624273"><span class="hs-identifier hs-type">typecheckedFile</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621681624271"><span class="hs-identifier hs-type">parsedFile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681624268"><span class="hs-identifier hs-type">mayTypecheckedFile</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681624267"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">fromMaybe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;scratch.u&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">uriToFilePath</span></span><span> </span><span class="annot"><a href="#local-6989586621681624267"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621681624279"><span class="annot"><a href="#local-6989586621681624279"><span class="hs-identifier hs-var">parsedFQN</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Names.parseTextEither</span></span><span> </span><span class="annot"><a href="#local-6989586621681624248"><span class="hs-identifier hs-type">fqn</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621681624281"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624281"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ExceptT Text Lsp Name
+forall a. Text -&gt; ExceptT Text Lsp a
+forall e (m :: * -&gt; *) a. MonadError e m =&gt; e -&gt; m a
+</span><span class="hs-identifier hs-var">throwError</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624281"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621681624283"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681624283"><span class="hs-identifier hs-var">parsedFQN</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="annottext">Name -&gt; ExceptT Text Lsp Name
+forall a. a -&gt; ExceptT Text Lsp a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681624283"><span class="hs-identifier hs-var">parsedFQN</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Backend.DefinitionResults</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681624285"><span class="annot"><a href="#local-6989586621681624285"><span class="hs-identifier hs-var hs-var">termResults</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681624287"><span class="annot"><a href="#local-6989586621681624287"><span class="hs-identifier hs-var hs-var">typeResults</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Codebase.runTransaction</span></span><span> </span><span class="annot"><a href="#local-6989586621681624250"><span class="hs-identifier hs-type">codebase</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Backend.definitionsByName</span></span><span> </span><span class="annot"><a href="#local-6989586621681624250"><span class="hs-identifier hs-type">codebase</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624253"><span class="hs-identifier hs-type">nameSearch</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Backend.IncludeCycles</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Names.ExactName</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set.singleton</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HQ.NameOnly</span></span><span> </span><span class="annot"><a href="#local-6989586621681624279"><span class="hs-identifier hs-type">parsedFQN</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621681624295"><span class="annot"><a href="#local-6989586621681624295"><span class="hs-identifier hs-var">pped</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#currentPPED"><span class="hs-identifier hs-type">currentPPED</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621681624297"><span class="annot"><a href="#local-6989586621681624297"><span class="hs-identifier hs-var">toIO</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">lift</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">askRunInIO</span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681624300"><span class="annot"><a href="#local-6989586621681624300"><span class="hs-identifier hs-var hs-var">appendText</span></a></span></span><span> </span><span id="local-6989586621681624301"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624301"><span class="hs-identifier hs-var">_fp</span></a></span></span><span> </span><span id="local-6989586621681624302"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624302"><span class="hs-identifier hs-var">rendered</span></a></span></span><span> </span><span id="local-6989586621681624303"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681624303"><span class="hs-identifier hs-var">_aboveFold</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Lsp () -&gt; IO ()
+</span><a href="#local-6989586621681624297"><span class="hs-identifier hs-var">toIO</span></a></span><span> </span><span class="annot"><span class="annottext">(Lsp () -&gt; IO ()) -&gt; Lsp () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-52"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681624309"><span class="annot"><span class="annottext">range :: Range
+</span><a href="#local-6989586621681624309"><span class="hs-identifier hs-var hs-var hs-var">range</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Position -&gt; Position -&gt; Range
+</span><span class="hs-identifier hs-var">Range</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Position
+</span><span class="hs-identifier hs-var">Position</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Position
+</span><span class="hs-identifier hs-var">Position</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681624312"><span class="annot"><span class="annottext">description :: Text
+</span><a href="#local-6989586621681624312"><span class="hs-identifier hs-var hs-var hs-var">description</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Edit definition: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624248"><span class="hs-identifier hs-var">fqn</span></a></span><span>
+</span><span id="line-54"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681624313"><span class="annot"><span class="annottext">params :: ApplyWorkspaceEditParams
+</span><a href="#local-6989586621681624313"><span class="hs-identifier hs-var hs-var hs-var">params</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-55"></span><span>              </span><span class="annot"><span class="annottext">Maybe Text -&gt; WorkspaceEdit -&gt; ApplyWorkspaceEditParams
+</span><span class="hs-identifier hs-var">ApplyWorkspaceEditParams</span></span><span>
+</span><span id="line-56"></span><span>                </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624312"><span class="hs-identifier hs-var">description</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>                </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe (Map Uri [TextEdit])
+-&gt; Maybe
+     [TextDocumentEdit |? (CreateFile |? (RenameFile |? DeleteFile))]
+-&gt; Maybe (Map ChangeAnnotationIdentifier ChangeAnnotation)
+-&gt; WorkspaceEdit
+</span><span class="hs-identifier hs-var">WorkspaceEdit</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Uri [TextEdit] -&gt; Maybe (Map Uri [TextEdit])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Uri -&gt; [TextEdit] -&gt; Map Uri [TextEdit]
+forall k a. k -&gt; a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.singleton</span></span><span> </span><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621681624263"><span class="hs-identifier hs-var">fileUri</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Range -&gt; Text -&gt; TextEdit
+</span><span class="hs-identifier hs-var">TextEdit</span></span><span> </span><span class="annot"><span class="annottext">Range
+</span><a href="#local-6989586621681624309"><span class="hs-identifier hs-var">range</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681624302"><span class="hs-identifier hs-var">rendered</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\n\n&quot;</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe
+  [TextDocumentEdit |? (CreateFile |? (RenameFile |? DeleteFile))]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Map ChangeAnnotationIdentifier ChangeAnnotation)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>        </span><span class="annot"><span class="annottext">DebugFlag -&gt; FilePath -&gt; ApplyWorkspaceEditParams -&gt; Lsp ()
+forall a (m :: * -&gt; *).
+(Show a, Monad m) =&gt;
+DebugFlag -&gt; FilePath -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">Debug.debugM</span></span><span> </span><span class="annot"><span class="annottext">DebugFlag
+</span><span class="hs-identifier hs-var">Debug.LSP</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Applying workspace edit for editDefinitionByFQN&quot;</span></span><span> </span><span class="annot"><span class="annottext">ApplyWorkspaceEditParams
+</span><a href="#local-6989586621681624313"><span class="hs-identifier hs-var">params</span></a></span><span>
+</span><span id="line-59"></span><span>        </span><span class="annot"><span class="annottext">Lsp (LspId 'Method_WorkspaceApplyEdit) -&gt; Lsp ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(Lsp (LspId 'Method_WorkspaceApplyEdit) -&gt; Lsp ())
+-&gt; Lsp (LspId 'Method_WorkspaceApplyEdit) -&gt; Lsp ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SServerMethod 'Method_WorkspaceApplyEdit
+-&gt; MessageParams 'Method_WorkspaceApplyEdit
+-&gt; (Either
+      (TResponseError 'Method_WorkspaceApplyEdit)
+      (MessageResult 'Method_WorkspaceApplyEdit)
+    -&gt; Lsp ())
+-&gt; Lsp (LspId 'Method_WorkspaceApplyEdit)
+forall (m :: Method 'ServerToClient 'Request) (f :: * -&gt; *) config.
+MonadLsp config f =&gt;
+SServerMethod m
+-&gt; MessageParams m
+-&gt; (Either (TResponseError m) (MessageResult m) -&gt; f ())
+-&gt; f (LspId m)
+</span><span class="hs-identifier hs-var">sendRequest</span></span><span> </span><span class="annot"><span class="annottext">SServerMethod 'Method_WorkspaceApplyEdit
+</span><span class="hs-identifier hs-var">Msg.SMethod_WorkspaceApplyEdit</span></span><span> </span><span class="annot"><span class="annottext">ApplyWorkspaceEditParams
+MessageParams 'Method_WorkspaceApplyEdit
+</span><a href="#local-6989586621681624313"><span class="hs-identifier hs-var">params</span></a></span><span> </span><span class="annot"><span class="annottext">((Either
+    (TResponseError 'Method_WorkspaceApplyEdit)
+    (MessageResult 'Method_WorkspaceApplyEdit)
+  -&gt; Lsp ())
+ -&gt; Lsp (LspId 'Method_WorkspaceApplyEdit))
+-&gt; (Either
+      (TResponseError 'Method_WorkspaceApplyEdit)
+      (MessageResult 'Method_WorkspaceApplyEdit)
+    -&gt; Lsp ())
+-&gt; Lsp (LspId 'Method_WorkspaceApplyEdit)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-60"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621681624322"><span class="annot"><span class="annottext">TResponseError 'Method_WorkspaceApplyEdit
+</span><a href="#local-6989586621681624322"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DebugFlag
+-&gt; FilePath -&gt; TResponseError 'Method_WorkspaceApplyEdit -&gt; Lsp ()
+forall a (m :: * -&gt; *).
+(Show a, Monad m) =&gt;
+DebugFlag -&gt; FilePath -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">Debug.debugM</span></span><span> </span><span class="annot"><span class="annottext">DebugFlag
+</span><span class="hs-identifier hs-var">Debug.LSP</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Error applying workspace edit&quot;</span></span><span> </span><span class="annot"><span class="annottext">TResponseError 'Method_WorkspaceApplyEdit
+</span><a href="#local-6989586621681624322"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-61"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="annottext">MessageResult 'Method_WorkspaceApplyEdit
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; Lsp ()
+forall a. a -&gt; Lsp a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621681624323"><span class="annot"><a href="#local-6989586621681624323"><span class="hs-identifier hs-var">numRendered</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.ShowDefinition.html#renderToFile"><span class="hs-identifier hs-type">renderToFile</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624250"><span class="hs-identifier hs-type">codebase</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">const</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621681624300"><span class="hs-identifier hs-type">appendText</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624262"><span class="hs-identifier hs-type">mayUnisonFile</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624264"><span class="hs-identifier hs-type">fp</span></a></span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Input.html#WithinFold"><span class="hs-identifier hs-type">WithinFold</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624295"><span class="hs-identifier hs-type">pped</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624285"><span class="hs-identifier hs-type">termResults</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681624287"><span class="hs-identifier hs-type">typeResults</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681624323"><span class="hs-identifier hs-type">numRendered</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span></pre></body></html>

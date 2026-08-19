@@ -1,0 +1,684 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html"><span class="hs-identifier">Unison.Runtime.ANF.Serialize.Tags</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html"><span class="hs-identifier">Unison.Runtime.Serialize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Serialize.html#Tag"><span class="hs-identifier">Tag</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#unknownTag"><span class="hs-identifier">unknownTag</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">data</span><span> </span><span id="TmTag"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#TmTag"><span class="hs-identifier hs-var">TmTag</span></a></span></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="VarT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#VarT"><span class="hs-identifier hs-var">VarT</span></a></span></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ForceT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#ForceT"><span class="hs-identifier hs-var">ForceT</span></a></span></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="AppT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#AppT"><span class="hs-identifier hs-var">AppT</span></a></span></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HandleT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#HandleT"><span class="hs-identifier hs-var">HandleT</span></a></span></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ShiftT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#ShiftT"><span class="hs-identifier hs-var">ShiftT</span></a></span></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MatchT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MatchT"><span class="hs-identifier hs-var">MatchT</span></a></span></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LitT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#LitT"><span class="hs-identifier hs-var">LitT</span></a></span></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NameRefT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#NameRefT"><span class="hs-identifier hs-var">NameRefT</span></a></span></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NameVarT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#NameVarT"><span class="hs-identifier hs-var">NameVarT</span></a></span></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LetDirT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#LetDirT"><span class="hs-identifier hs-var">LetDirT</span></a></span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LetIndT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#LetIndT"><span class="hs-identifier hs-var">LetIndT</span></a></span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BxLitT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#BxLitT"><span class="hs-identifier hs-var">BxLitT</span></a></span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">data</span><span> </span><span id="FnTag"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FnTag"><span class="hs-identifier hs-var">FnTag</span></a></span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="FVarT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FVarT"><span class="hs-identifier hs-var">FVarT</span></a></span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FCombT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FCombT"><span class="hs-identifier hs-var">FCombT</span></a></span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FContT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FContT"><span class="hs-identifier hs-var">FContT</span></a></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FConT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FConT"><span class="hs-identifier hs-var">FConT</span></a></span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FReqT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FReqT"><span class="hs-identifier hs-var">FReqT</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FPrimT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FPrimT"><span class="hs-identifier hs-var">FPrimT</span></a></span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FForeignT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FForeignT"><span class="hs-identifier hs-var">FForeignT</span></a></span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">data</span><span> </span><span id="MtTag"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MtTag"><span class="hs-identifier hs-var">MtTag</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="MIntT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MIntT"><span class="hs-identifier hs-var">MIntT</span></a></span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MTextT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MTextT"><span class="hs-identifier hs-var">MTextT</span></a></span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MReqT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MReqT"><span class="hs-identifier hs-var">MReqT</span></a></span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MEmptyT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MEmptyT"><span class="hs-identifier hs-var">MEmptyT</span></a></span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MDataT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MDataT"><span class="hs-identifier hs-var">MDataT</span></a></span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MSumT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MSumT"><span class="hs-identifier hs-var">MSumT</span></a></span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MNumT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MNumT"><span class="hs-identifier hs-var">MNumT</span></a></span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MBytesT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MBytesT"><span class="hs-identifier hs-var">MBytesT</span></a></span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">data</span><span> </span><span id="LtTag"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#LtTag"><span class="hs-identifier hs-var">LtTag</span></a></span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="IT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#IT"><span class="hs-identifier hs-var">IT</span></a></span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#NT"><span class="hs-identifier hs-var">NT</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FT"><span class="hs-identifier hs-var">FT</span></a></span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#TT"><span class="hs-identifier hs-var">TT</span></a></span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#CT"><span class="hs-identifier hs-var">CT</span></a></span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LMT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#LMT"><span class="hs-identifier hs-var">LMT</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LYT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#LYT"><span class="hs-identifier hs-var">LYT</span></a></span></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">data</span><span> </span><span id="BLTag"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#BLTag"><span class="hs-identifier hs-var">BLTag</span></a></span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="TextT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#TextT"><span class="hs-identifier hs-var">TextT</span></a></span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ListT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#ListT"><span class="hs-identifier hs-var">ListT</span></a></span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TmLinkT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#TmLinkT"><span class="hs-identifier hs-var">TmLinkT</span></a></span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TyLinkT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#TyLinkT"><span class="hs-identifier hs-var">TyLinkT</span></a></span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BytesT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#BytesT"><span class="hs-identifier hs-var">BytesT</span></a></span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="QuoteT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#QuoteT"><span class="hs-identifier hs-var">QuoteT</span></a></span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CodeT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#CodeT"><span class="hs-identifier hs-var">CodeT</span></a></span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BArrT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#BArrT"><span class="hs-identifier hs-var">BArrT</span></a></span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PosT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#PosT"><span class="hs-identifier hs-var">PosT</span></a></span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NegT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#NegT"><span class="hs-identifier hs-var">NegT</span></a></span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CharT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#CharT"><span class="hs-identifier hs-var">CharT</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FloatT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FloatT"><span class="hs-identifier hs-var">FloatT</span></a></span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ArrT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#ArrT"><span class="hs-identifier hs-var">ArrT</span></a></span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CachedCodeT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#CachedCodeT"><span class="hs-identifier hs-var">CachedCodeT</span></a></span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MapT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MapT"><span class="hs-identifier hs-var">MapT</span></a></span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BigIntT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#BigIntT"><span class="hs-identifier hs-var">BigIntT</span></a></span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BigNatT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#BigNatT"><span class="hs-identifier hs-var">BigNatT</span></a></span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">data</span><span> </span><span id="VaTag"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#VaTag"><span class="hs-identifier hs-var">VaTag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PartialT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#PartialT"><span class="hs-identifier hs-var">PartialT</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="DataT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#DataT"><span class="hs-identifier hs-var">DataT</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ContT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#ContT"><span class="hs-identifier hs-var">ContT</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="BLitT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#BLitT"><span class="hs-identifier hs-var">BLitT</span></a></span></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">data</span><span> </span><span id="CoTag"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#CoTag"><span class="hs-identifier hs-var">CoTag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="KET"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#KET"><span class="hs-identifier hs-var">KET</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="MarkT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MarkT"><span class="hs-identifier hs-var">MarkT</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="PushT"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#PushT"><span class="hs-identifier hs-var">PushT</span></a></span></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#Tag"><span class="hs-identifier hs-type">Tag</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#TmTag"><span class="hs-identifier hs-type">TmTag</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>  </span><span id="local-6989586621680727478"><span class="annot"><span class="annottext">tag2word :: TmTag -&gt; Word8
+</span><a href="#local-6989586621680727478"><span class="hs-identifier hs-var hs-var hs-var">tag2word</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-72"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#VarT"><span class="hs-identifier hs-var">VarT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ForceT"><span class="hs-identifier hs-var">ForceT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-74"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#AppT"><span class="hs-identifier hs-var">AppT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-75"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#HandleT"><span class="hs-identifier hs-var">HandleT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-76"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ShiftT"><span class="hs-identifier hs-var">ShiftT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-77"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MatchT"><span class="hs-identifier hs-var">MatchT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#LitT"><span class="hs-identifier hs-var">LitT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">7</span></span><span>
+</span><span id="line-79"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#NameRefT"><span class="hs-identifier hs-var">NameRefT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#NameVarT"><span class="hs-identifier hs-var">NameVarT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">9</span></span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#LetDirT"><span class="hs-identifier hs-var">LetDirT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#LetIndT"><span class="hs-identifier hs-var">LetIndT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">11</span></span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BxLitT"><span class="hs-identifier hs-var">BxLitT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">12</span></span><span>
+</span><span id="line-84"></span><span>  </span><span id="local-6989586621680727526"><span class="annot"><span class="annottext">word2tag :: forall (m :: * -&gt; *). PrimBase m =&gt; Word8 -&gt; Get m TmTag
+</span><a href="#local-6989586621680727526"><span class="hs-identifier hs-var hs-var hs-var">word2tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-85"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#VarT"><span class="hs-identifier hs-var">VarT</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ForceT"><span class="hs-identifier hs-var">ForceT</span></a></span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#AppT"><span class="hs-identifier hs-var">AppT</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#HandleT"><span class="hs-identifier hs-var">HandleT</span></a></span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ShiftT"><span class="hs-identifier hs-var">ShiftT</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MatchT"><span class="hs-identifier hs-var">MatchT</span></a></span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">7</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#LitT"><span class="hs-identifier hs-var">LitT</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#NameRefT"><span class="hs-identifier hs-var">NameRefT</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">9</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#NameVarT"><span class="hs-identifier hs-var">NameVarT</span></a></span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#LetDirT"><span class="hs-identifier hs-var">LetDirT</span></a></span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">11</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#LetIndT"><span class="hs-identifier hs-var">LetIndT</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">12</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TmTag -&gt; Get m TmTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TmTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BxLitT"><span class="hs-identifier hs-var">BxLitT</span></a></span><span>
+</span><span id="line-97"></span><span>    </span><span id="local-6989586621680727528"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727528"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Word8 -&gt; Get m TmTag
+forall (m :: * -&gt; *) a. PrimBase m =&gt; String -&gt; Word8 -&gt; Get m a
+</span><a href="Unison.Runtime.Serialize.html#unknownTag"><span class="hs-identifier hs-var">unknownTag</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TmTag&quot;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727528"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#Tag"><span class="hs-identifier hs-type">Tag</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#FnTag"><span class="hs-identifier hs-type">FnTag</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621680727539"><span class="annot"><span class="annottext">tag2word :: FnTag -&gt; Word8
+</span><a href="Unison.Runtime.Serialize.html#tag2word"><span class="hs-identifier hs-var hs-var hs-var">tag2word</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-101"></span><span>    </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FVarT"><span class="hs-identifier hs-var">FVarT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FCombT"><span class="hs-identifier hs-var">FCombT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-103"></span><span>    </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FContT"><span class="hs-identifier hs-var">FContT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FConT"><span class="hs-identifier hs-var">FConT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FReqT"><span class="hs-identifier hs-var">FReqT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FPrimT"><span class="hs-identifier hs-var">FPrimT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FForeignT"><span class="hs-identifier hs-var">FForeignT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span>  </span><span id="local-6989586621680727566"><span class="annot"><span class="annottext">word2tag :: forall (m :: * -&gt; *). PrimBase m =&gt; Word8 -&gt; Get m FnTag
+</span><a href="Unison.Runtime.Serialize.html#word2tag"><span class="hs-identifier hs-var hs-var hs-var">word2tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FnTag -&gt; Get m FnTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FVarT"><span class="hs-identifier hs-var">FVarT</span></a></span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FnTag -&gt; Get m FnTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FCombT"><span class="hs-identifier hs-var">FCombT</span></a></span><span>
+</span><span id="line-112"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FnTag -&gt; Get m FnTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FContT"><span class="hs-identifier hs-var">FContT</span></a></span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FnTag -&gt; Get m FnTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FConT"><span class="hs-identifier hs-var">FConT</span></a></span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FnTag -&gt; Get m FnTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FReqT"><span class="hs-identifier hs-var">FReqT</span></a></span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FnTag -&gt; Get m FnTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FPrimT"><span class="hs-identifier hs-var">FPrimT</span></a></span><span>
+</span><span id="line-116"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FnTag -&gt; Get m FnTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">FnTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FForeignT"><span class="hs-identifier hs-var">FForeignT</span></a></span><span>
+</span><span id="line-117"></span><span>    </span><span id="local-6989586621680727567"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727567"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Word8 -&gt; Get m FnTag
+forall (m :: * -&gt; *) a. PrimBase m =&gt; String -&gt; Word8 -&gt; Get m a
+</span><a href="Unison.Runtime.Serialize.html#unknownTag"><span class="hs-identifier hs-var">unknownTag</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FnTag&quot;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727567"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#Tag"><span class="hs-identifier hs-type">Tag</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#MtTag"><span class="hs-identifier hs-type">MtTag</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>  </span><span id="local-6989586621680727579"><span class="annot"><span class="annottext">tag2word :: MtTag -&gt; Word8
+</span><a href="Unison.Runtime.Serialize.html#tag2word"><span class="hs-identifier hs-var hs-var hs-var">tag2word</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MIntT"><span class="hs-identifier hs-var">MIntT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-122"></span><span>    </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MTextT"><span class="hs-identifier hs-var">MTextT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-123"></span><span>    </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MReqT"><span class="hs-identifier hs-var">MReqT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MEmptyT"><span class="hs-identifier hs-var">MEmptyT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MDataT"><span class="hs-identifier hs-var">MDataT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MSumT"><span class="hs-identifier hs-var">MSumT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MNumT"><span class="hs-identifier hs-var">MNumT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-128"></span><span>    </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MBytesT"><span class="hs-identifier hs-var">MBytesT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">7</span></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621680727609"><span class="annot"><span class="annottext">word2tag :: forall (m :: * -&gt; *). PrimBase m =&gt; Word8 -&gt; Get m MtTag
+</span><a href="Unison.Runtime.Serialize.html#word2tag"><span class="hs-identifier hs-var hs-var hs-var">word2tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MtTag -&gt; Get m MtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MIntT"><span class="hs-identifier hs-var">MIntT</span></a></span><span>
+</span><span id="line-132"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MtTag -&gt; Get m MtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MTextT"><span class="hs-identifier hs-var">MTextT</span></a></span><span>
+</span><span id="line-133"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MtTag -&gt; Get m MtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MReqT"><span class="hs-identifier hs-var">MReqT</span></a></span><span>
+</span><span id="line-134"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MtTag -&gt; Get m MtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MEmptyT"><span class="hs-identifier hs-var">MEmptyT</span></a></span><span>
+</span><span id="line-135"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MtTag -&gt; Get m MtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MDataT"><span class="hs-identifier hs-var">MDataT</span></a></span><span>
+</span><span id="line-136"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MtTag -&gt; Get m MtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MSumT"><span class="hs-identifier hs-var">MSumT</span></a></span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MtTag -&gt; Get m MtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MNumT"><span class="hs-identifier hs-var">MNumT</span></a></span><span>
+</span><span id="line-138"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">7</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MtTag -&gt; Get m MtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">MtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MBytesT"><span class="hs-identifier hs-var">MBytesT</span></a></span><span>
+</span><span id="line-139"></span><span>    </span><span id="local-6989586621680727610"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727610"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Word8 -&gt; Get m MtTag
+forall (m :: * -&gt; *) a. PrimBase m =&gt; String -&gt; Word8 -&gt; Get m a
+</span><a href="Unison.Runtime.Serialize.html#unknownTag"><span class="hs-identifier hs-var">unknownTag</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;MtTag&quot;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727610"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#Tag"><span class="hs-identifier hs-type">Tag</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#LtTag"><span class="hs-identifier hs-type">LtTag</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-142"></span><span>  </span><span id="local-6989586621680727621"><span class="annot"><span class="annottext">tag2word :: LtTag -&gt; Word8
+</span><a href="Unison.Runtime.Serialize.html#tag2word"><span class="hs-identifier hs-var hs-var hs-var">tag2word</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-143"></span><span>    </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#IT"><span class="hs-identifier hs-var">IT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#NT"><span class="hs-identifier hs-var">NT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FT"><span class="hs-identifier hs-var">FT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-146"></span><span>    </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TT"><span class="hs-identifier hs-var">TT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-147"></span><span>    </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CT"><span class="hs-identifier hs-var">CT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-148"></span><span>    </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#LMT"><span class="hs-identifier hs-var">LMT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-149"></span><span>    </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#LYT"><span class="hs-identifier hs-var">LYT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span>  </span><span id="local-6989586621680727648"><span class="annot"><span class="annottext">word2tag :: forall (m :: * -&gt; *). PrimBase m =&gt; Word8 -&gt; Get m LtTag
+</span><a href="Unison.Runtime.Serialize.html#word2tag"><span class="hs-identifier hs-var hs-var hs-var">word2tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-152"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LtTag -&gt; Get m LtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#IT"><span class="hs-identifier hs-var">IT</span></a></span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LtTag -&gt; Get m LtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#NT"><span class="hs-identifier hs-var">NT</span></a></span><span>
+</span><span id="line-154"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LtTag -&gt; Get m LtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FT"><span class="hs-identifier hs-var">FT</span></a></span><span>
+</span><span id="line-155"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LtTag -&gt; Get m LtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TT"><span class="hs-identifier hs-var">TT</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LtTag -&gt; Get m LtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CT"><span class="hs-identifier hs-var">CT</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LtTag -&gt; Get m LtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#LMT"><span class="hs-identifier hs-var">LMT</span></a></span><span>
+</span><span id="line-158"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LtTag -&gt; Get m LtTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">LtTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#LYT"><span class="hs-identifier hs-var">LYT</span></a></span><span>
+</span><span id="line-159"></span><span>    </span><span id="local-6989586621680727649"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727649"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Word8 -&gt; Get m LtTag
+forall (m :: * -&gt; *) a. PrimBase m =&gt; String -&gt; Word8 -&gt; Get m a
+</span><a href="Unison.Runtime.Serialize.html#unknownTag"><span class="hs-identifier hs-var">unknownTag</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;LtTag&quot;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727649"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#Tag"><span class="hs-identifier hs-type">Tag</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#BLTag"><span class="hs-identifier hs-type">BLTag</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-162"></span><span>  </span><span id="local-6989586621680727670"><span class="annot"><span class="annottext">tag2word :: BLTag -&gt; Word8
+</span><a href="Unison.Runtime.Serialize.html#tag2word"><span class="hs-identifier hs-var hs-var hs-var">tag2word</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-163"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TextT"><span class="hs-identifier hs-var">TextT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-164"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ListT"><span class="hs-identifier hs-var">ListT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-165"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TmLinkT"><span class="hs-identifier hs-var">TmLinkT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-166"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TyLinkT"><span class="hs-identifier hs-var">TyLinkT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-167"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BytesT"><span class="hs-identifier hs-var">BytesT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-168"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#QuoteT"><span class="hs-identifier hs-var">QuoteT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-169"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CodeT"><span class="hs-identifier hs-var">CodeT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-170"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BArrT"><span class="hs-identifier hs-var">BArrT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">7</span></span><span>
+</span><span id="line-171"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PosT"><span class="hs-identifier hs-var">PosT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-172"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#NegT"><span class="hs-identifier hs-var">NegT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">9</span></span><span>
+</span><span id="line-173"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CharT"><span class="hs-identifier hs-var">CharT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-174"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FloatT"><span class="hs-identifier hs-var">FloatT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">11</span></span><span>
+</span><span id="line-175"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ArrT"><span class="hs-identifier hs-var">ArrT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">12</span></span><span>
+</span><span id="line-176"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CachedCodeT"><span class="hs-identifier hs-var">CachedCodeT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">13</span></span><span>
+</span><span id="line-177"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MapT"><span class="hs-identifier hs-var">MapT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">14</span></span><span>
+</span><span id="line-178"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BigIntT"><span class="hs-identifier hs-var">BigIntT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">15</span></span><span>
+</span><span id="line-179"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BigNatT"><span class="hs-identifier hs-var">BigNatT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#tag2word"><span class="hs-pragma hs-type">tag2word</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span>  </span><span id="local-6989586621680727727"><span class="annot"><span class="annottext">word2tag :: forall (m :: * -&gt; *). PrimBase m =&gt; Word8 -&gt; Get m BLTag
+</span><a href="Unison.Runtime.Serialize.html#word2tag"><span class="hs-identifier hs-var hs-var hs-var">word2tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-183"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TextT"><span class="hs-identifier hs-var">TextT</span></a></span><span>
+</span><span id="line-184"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ListT"><span class="hs-identifier hs-var">ListT</span></a></span><span>
+</span><span id="line-185"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TmLinkT"><span class="hs-identifier hs-var">TmLinkT</span></a></span><span>
+</span><span id="line-186"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TyLinkT"><span class="hs-identifier hs-var">TyLinkT</span></a></span><span>
+</span><span id="line-187"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BytesT"><span class="hs-identifier hs-var">BytesT</span></a></span><span>
+</span><span id="line-188"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">5</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#QuoteT"><span class="hs-identifier hs-var">QuoteT</span></a></span><span>
+</span><span id="line-189"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">6</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CodeT"><span class="hs-identifier hs-var">CodeT</span></a></span><span>
+</span><span id="line-190"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">7</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BArrT"><span class="hs-identifier hs-var">BArrT</span></a></span><span>
+</span><span id="line-191"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PosT"><span class="hs-identifier hs-var">PosT</span></a></span><span>
+</span><span id="line-192"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">9</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#NegT"><span class="hs-identifier hs-var">NegT</span></a></span><span>
+</span><span id="line-193"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CharT"><span class="hs-identifier hs-var">CharT</span></a></span><span>
+</span><span id="line-194"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">11</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FloatT"><span class="hs-identifier hs-var">FloatT</span></a></span><span>
+</span><span id="line-195"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">12</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ArrT"><span class="hs-identifier hs-var">ArrT</span></a></span><span>
+</span><span id="line-196"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">13</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CachedCodeT"><span class="hs-identifier hs-var">CachedCodeT</span></a></span><span>
+</span><span id="line-197"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">14</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MapT"><span class="hs-identifier hs-var">MapT</span></a></span><span>
+</span><span id="line-198"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">15</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BigIntT"><span class="hs-identifier hs-var">BigIntT</span></a></span><span>
+</span><span id="line-199"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Get m BLTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BigNatT"><span class="hs-identifier hs-var">BigNatT</span></a></span><span>
+</span><span id="line-200"></span><span>    </span><span id="local-6989586621680727728"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727728"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Word8 -&gt; Get m BLTag
+forall (m :: * -&gt; *) a. PrimBase m =&gt; String -&gt; Word8 -&gt; Get m a
+</span><a href="Unison.Runtime.Serialize.html#unknownTag"><span class="hs-identifier hs-var">unknownTag</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;BLTag&quot;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727728"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#word2tag"><span class="hs-pragma hs-type">word2tag</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#Tag"><span class="hs-identifier hs-type">Tag</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#VaTag"><span class="hs-identifier hs-type">VaTag</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-204"></span><span>  </span><span id="local-6989586621680727736"><span class="annot"><span class="annottext">tag2word :: VaTag -&gt; Word8
+</span><a href="Unison.Runtime.Serialize.html#tag2word"><span class="hs-identifier hs-var hs-var hs-var">tag2word</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-205"></span><span>    </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PartialT"><span class="hs-identifier hs-var">PartialT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-206"></span><span>    </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#DataT"><span class="hs-identifier hs-var">DataT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-207"></span><span>    </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ContT"><span class="hs-identifier hs-var">ContT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-208"></span><span>    </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BLitT"><span class="hs-identifier hs-var">BLitT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#tag2word"><span class="hs-pragma hs-type">tag2word</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span>  </span><span id="local-6989586621680727754"><span class="annot"><span class="annottext">word2tag :: forall (m :: * -&gt; *). PrimBase m =&gt; Word8 -&gt; Get m VaTag
+</span><a href="Unison.Runtime.Serialize.html#word2tag"><span class="hs-identifier hs-var hs-var hs-var">word2tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-212"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">VaTag -&gt; Get m VaTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PartialT"><span class="hs-identifier hs-var">PartialT</span></a></span><span>
+</span><span id="line-213"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">VaTag -&gt; Get m VaTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#DataT"><span class="hs-identifier hs-var">DataT</span></a></span><span>
+</span><span id="line-214"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">VaTag -&gt; Get m VaTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ContT"><span class="hs-identifier hs-var">ContT</span></a></span><span>
+</span><span id="line-215"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">VaTag -&gt; Get m VaTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BLitT"><span class="hs-identifier hs-var">BLitT</span></a></span><span>
+</span><span id="line-216"></span><span>    </span><span id="local-6989586621680727755"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727755"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Word8 -&gt; Get m VaTag
+forall (m :: * -&gt; *) a. PrimBase m =&gt; String -&gt; Word8 -&gt; Get m a
+</span><a href="Unison.Runtime.Serialize.html#unknownTag"><span class="hs-identifier hs-var">unknownTag</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;VaTag&quot;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727755"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-217"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#word2tag"><span class="hs-pragma hs-type">word2tag</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#Tag"><span class="hs-identifier hs-type">Tag</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html#CoTag"><span class="hs-identifier hs-type">CoTag</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-220"></span><span>  </span><span id="local-6989586621680727762"><span class="annot"><span class="annottext">tag2word :: CoTag -&gt; Word8
+</span><a href="Unison.Runtime.Serialize.html#tag2word"><span class="hs-identifier hs-var hs-var hs-var">tag2word</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-221"></span><span>    </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#KET"><span class="hs-identifier hs-var">KET</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-222"></span><span>    </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MarkT"><span class="hs-identifier hs-var">MarkT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-223"></span><span>    </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PushT"><span class="hs-identifier hs-var">PushT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-224"></span><span>  </span><span id="local-6989586621680727777"><span class="annot"><span class="annottext">word2tag :: forall (m :: * -&gt; *). PrimBase m =&gt; Word8 -&gt; Get m CoTag
+</span><a href="Unison.Runtime.Serialize.html#word2tag"><span class="hs-identifier hs-var hs-var hs-var">word2tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-225"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CoTag -&gt; Get m CoTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#KET"><span class="hs-identifier hs-var">KET</span></a></span><span>
+</span><span id="line-226"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CoTag -&gt; Get m CoTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MarkT"><span class="hs-identifier hs-var">MarkT</span></a></span><span>
+</span><span id="line-227"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CoTag -&gt; Get m CoTag
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PushT"><span class="hs-identifier hs-var">PushT</span></a></span><span>
+</span><span id="line-228"></span><span>    </span><span id="local-6989586621680727778"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727778"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Word8 -&gt; Get m CoTag
+forall (m :: * -&gt; *) a. PrimBase m =&gt; String -&gt; Word8 -&gt; Get m a
+</span><a href="Unison.Runtime.Serialize.html#unknownTag"><span class="hs-identifier hs-var">unknownTag</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CoTag&quot;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621680727778"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-229"></span></pre></body></html>

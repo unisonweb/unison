@@ -1,0 +1,466 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE QuantifiedConstraints #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE UndecidableSuperClasses #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-orphans #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html"><span class="hs-identifier">Language.LSP.Protocol.Message.Method</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson.Types</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Function</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">on</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.GADT.Compare</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isPrefixOf</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Type.Equality</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">dataToTag#</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-19"></span><span>  </span><span class="annot"><span class="hs-identifier">KnownSymbol</span></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>  </span><span class="annot"><span class="hs-identifier">sameSymbol</span></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><span class="hs-identifier">symbolVal</span></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Method</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Meta.html"><span class="hs-identifier">Language.LSP.Protocol.Message.Meta</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unsafe.Coerce</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">---------------</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- SomeMethod</span><span>
+</span><span id="line-31"></span><span class="hs-comment">---------------</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><span class="hs-comment">-- | Is this an &quot;optional&quot; method which servers and clients are allowed to ignore?</span></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#isOptionalMethod"><span class="hs-identifier hs-type">isOptionalMethod</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#dollarRequests</span><span>
+</span><span id="line-36"></span><span id="isOptionalMethod"><span class="annot"><span class="annottext">isOptionalMethod :: SomeMethod -&gt; Bool
+</span><a href="Language.LSP.Protocol.Message.Method.html#isOptionalMethod"><span class="hs-identifier hs-var hs-var">isOptionalMethod</span></a></span></span><span> </span><span id="local-6989586621682633223"><span class="annot"><span class="annottext">SomeMethod
+</span><a href="#local-6989586621682633223"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;$/&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; Bool
+</span><span class="hs-operator hs-var">`isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">SomeMethod -&gt; [Char]
+</span><a href="Language.LSP.Protocol.Internal.Method.html#someMethodToMethodString"><span class="hs-identifier hs-var">someMethodToMethodString</span></a></span><span> </span><span class="annot"><span class="annottext">SomeMethod
+</span><a href="#local-6989586621682633223"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span id="local-6989586621682633226"><span id="local-6989586621682633228"><span id="local-6989586621682633232"><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span></span></span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682633238"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621682633244"><span class="annot"><span class="annottext">== :: SomeMethod -&gt; SomeMethod -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">(==)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; [Char] -&gt; Bool)
+-&gt; (SomeMethod -&gt; [Char]) -&gt; SomeMethod -&gt; SomeMethod -&gt; Bool
+forall b c a. (b -&gt; b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">`on`</span></span><span> </span><span class="annot"><span class="annottext">SomeMethod -&gt; [Char]
+</span><a href="Language.LSP.Protocol.Internal.Method.html#someMethodToMethodString"><span class="hs-identifier hs-var">someMethodToMethodString</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682633249"><span id="local-6989586621682633253"><span id="local-6989586621682633256"><span id="local-6989586621682633259"><span id="local-6989586621682633262"><span id="local-6989586621682633265"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621682633272"><span class="annot"><span class="annottext">compare :: SomeMethod -&gt; SomeMethod -&gt; Ordering
+</span><a href="#local-6989586621682633272"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; [Char] -&gt; Ordering)
+-&gt; (SomeMethod -&gt; [Char]) -&gt; SomeMethod -&gt; SomeMethod -&gt; Ordering
+forall b c a. (b -&gt; b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">`on`</span></span><span> </span><span class="annot"><span class="annottext">SomeMethod -&gt; [Char]
+</span><a href="Language.LSP.Protocol.Internal.Method.html#someMethodToMethodString"><span class="hs-identifier hs-var">someMethodToMethodString</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682633276"><span id="local-6989586621682633280"><span id="local-6989586621682633283"><span id="local-6989586621682633286"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621682633293"><span class="annot"><span class="annottext">toJSON :: SomeMethod -&gt; Value
+</span><a href="#local-6989586621682633293"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span id="local-6989586621682633295"><span class="annot"><span class="annottext">SomeMethod
+</span><a href="#local-6989586621682633295"><span class="hs-identifier hs-var">sm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Value) -&gt; [Char] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeMethod -&gt; [Char]
+</span><a href="Language.LSP.Protocol.Internal.Method.html#someMethodToMethodString"><span class="hs-identifier hs-var">someMethodToMethodString</span></a></span><span> </span><span class="annot"><span class="annottext">SomeMethod
+</span><a href="#local-6989586621682633295"><span class="hs-identifier hs-var">sm</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682633298"><span id="local-6989586621682633302"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621682633313"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser SomeMethod
+</span><a href="#local-6989586621682633313"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span id="local-6989586621682633315"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682633315"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621682633316"><span class="annot"><a href="#local-6989586621682633316"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser [Char]
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682633315"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#methodStringToSomeMethod"><span class="hs-identifier hs-type">methodStringToSomeMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682633316"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span id="local-6989586621682633319"><span id="local-6989586621682633325"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pretty</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span></span></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">---------------</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- SMethod</span><span>
+</span><span id="line-56"></span><span class="hs-comment">---------------</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- This instance is written manually rather than derived to avoid a dependency</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- on 'dependent-sum-template'.</span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GEq</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621682633338"><span class="annot"><span class="annottext">geq :: forall (a :: Method f t) (b :: Method f t).
+SMethod a -&gt; SMethod b -&gt; Maybe (a :~: b)
+</span><a href="#local-6989586621682633338"><span class="hs-identifier hs-var hs-var hs-var">geq</span></a></span></span><span> </span><span id="local-6989586621682633340"><span class="annot"><span class="annottext">SMethod a
+</span><a href="#local-6989586621682633340"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682633341"><span class="annot"><span class="annottext">SMethod b
+</span><a href="#local-6989586621682633341"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SMethod a -&gt; SMethod b -&gt; GOrdering a b
+forall k (f :: k -&gt; *) (a :: k) (b :: k).
+GCompare f =&gt;
+f a -&gt; f b -&gt; GOrdering a b
+forall (a :: Method f t) (b :: Method f t).
+SMethod a -&gt; SMethod b -&gt; GOrdering a b
+</span><span class="hs-identifier hs-var">gcompare</span></span><span> </span><span class="annot"><span class="annottext">SMethod a
+</span><a href="#local-6989586621682633340"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">SMethod b
+</span><a href="#local-6989586621682633341"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="annottext">GOrdering a b
+</span><span class="hs-identifier hs-var">GLT</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (a :~: b)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="annottext">GOrdering a b
+</span><span class="hs-identifier hs-var">GEQ</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a :~: b) -&gt; Maybe (a :~: b)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a :~: a
+a :~: b
+forall {k} (a :: k). a :~: a
+</span><span class="hs-identifier hs-var">Refl</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">GOrdering a b
+</span><span class="hs-identifier hs-var">GGT</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (a :~: b)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- This instance is written manually rather than derived to avoid a dependency</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- on 'dependent-sum-template'.</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GCompare</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>  </span><span id="local-6989586621682633356"><span class="annot"><span class="annottext">gcompare :: forall (a :: Method f t) (b :: Method f t).
+SMethod a -&gt; SMethod b -&gt; GOrdering a b
+</span><span class="hs-identifier hs-var hs-var hs-var">gcompare</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod_CustomMethod"><span class="hs-identifier hs-type">SMethod_CustomMethod</span></a></span><span> </span><span id="local-6989586621682633360"><span class="annot"><span class="annottext">Proxy s
+</span><a href="#local-6989586621682633360"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod_CustomMethod"><span class="hs-identifier hs-type">SMethod_CustomMethod</span></a></span><span> </span><span id="local-6989586621682633367"><span class="annot"><span class="annottext">Proxy s
+</span><a href="#local-6989586621682633367"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; [Char]
+forall (n :: Symbol) (proxy :: Symbol -&gt; *).
+KnownSymbol n =&gt;
+proxy n -&gt; [Char]
+</span><span class="hs-identifier hs-var">symbolVal</span></span><span> </span><span class="annot"><span class="annottext">Proxy s
+</span><a href="#local-6989586621682633360"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-operator hs-var">`compare`</span></span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; [Char]
+forall (n :: Symbol) (proxy :: Symbol -&gt; *).
+KnownSymbol n =&gt;
+proxy n -&gt; [Char]
+</span><span class="hs-identifier hs-var">symbolVal</span></span><span> </span><span class="annot"><span class="annottext">Proxy s
+</span><a href="#local-6989586621682633367"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-70"></span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GOrdering a b
+forall {k} (a :: k) (b :: k). GOrdering a b
+</span><span class="hs-identifier hs-var">GLT</span></span><span>
+</span><span id="line-71"></span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GOrdering (ZonkAny 5) (ZonkAny 5) -&gt; GOrdering a b
+forall a b. a -&gt; b
+</span><span class="hs-identifier hs-var">unsafeCoerce</span></span><span> </span><span class="annot"><span class="annottext">GOrdering (ZonkAny 5) (ZonkAny 5)
+forall {k} (a :: k). GOrdering a a
+</span><span class="hs-identifier hs-var">GEQ</span></span><span>
+</span><span id="line-72"></span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GOrdering a b
+forall {k} (a :: k) (b :: k). GOrdering a b
+</span><span class="hs-identifier hs-var">GGT</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-comment">-- This is much more compact than matching on every pair of constructors, which</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-comment">-- is what we would need to do for GHC to 'see' that this is correct. Nonetheless</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-comment">-- it is safe: since there is only one constructor of 'SMethod' for each 'Method',</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-comment">-- the argument types can only be equal if the constructor tag is equal.</span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">gcompare</span></span><span> </span><span id="local-6989586621682633369"><span class="annot"><span class="annottext">SMethod a
+</span><a href="#local-6989586621682633369"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682633370"><span class="annot"><span class="annottext">SMethod b
+</span><a href="#local-6989586621682633370"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SMethod a -&gt; Int#
+forall a. DataToTag a =&gt; a -&gt; Int#
+</span><span class="hs-identifier hs-var">dataToTag#</span></span><span> </span><span class="annot"><span class="annottext">SMethod a
+</span><a href="#local-6989586621682633369"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-operator hs-var">`compare`</span></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SMethod b -&gt; Int#
+forall a. DataToTag a =&gt; a -&gt; Int#
+</span><span class="hs-identifier hs-var">dataToTag#</span></span><span> </span><span class="annot"><span class="annottext">SMethod b
+</span><a href="#local-6989586621682633370"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GOrdering a b
+forall {k} (a :: k) (b :: k). GOrdering a b
+</span><span class="hs-identifier hs-var">GLT</span></span><span>
+</span><span id="line-79"></span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GOrdering (ZonkAny 7) (ZonkAny 7) -&gt; GOrdering a b
+forall a b. a -&gt; b
+</span><span class="hs-identifier hs-var">unsafeCoerce</span></span><span> </span><span class="annot"><span class="annottext">GOrdering (ZonkAny 7) (ZonkAny 7)
+forall {k} (a :: k). GOrdering a a
+</span><span class="hs-identifier hs-var">GEQ</span></span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GOrdering a b
+forall {k} (a :: k) (b :: k). GOrdering a b
+</span><span class="hs-identifier hs-var">GGT</span></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682632563"><span id="local-6989586621682633373"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632563"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-comment">-- This defers to 'GEq', ensuring that this version is compatible.</span><span>
+</span><span id="line-84"></span><span>  </span><span id="local-6989586621682633377"><span class="annot"><span class="annottext">== :: SMethod m -&gt; SMethod m -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">(==)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SMethod m -&gt; SMethod m -&gt; Bool
+forall {k} (f :: k -&gt; *) (a :: k) (b :: k).
+GEq f =&gt;
+f a -&gt; f b -&gt; Bool
+</span><span class="hs-identifier hs-var">defaultEq</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682632573"><span id="local-6989586621682633383"><span id="local-6989586621682633387"><span id="local-6989586621682633390"><span id="local-6989586621682633393"><span id="local-6989586621682633396"><span id="local-6989586621682633399"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632573"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-comment">-- This defers to 'GCompare', ensuring that this version is compatible.</span><span>
+</span><span id="line-88"></span><span>  </span><span id="local-6989586621682633402"><span class="annot"><span class="annottext">compare :: SMethod m -&gt; SMethod m -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var">compare</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SMethod m -&gt; SMethod m -&gt; Ordering
+forall {k} (f :: k -&gt; *) (a :: k) (b :: k).
+GCompare f =&gt;
+f a -&gt; f b -&gt; Ordering
+</span><span class="hs-identifier hs-var">defaultCompare</span></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span id="local-6989586621682633405"><span id="local-6989586621682633407"><span id="local-6989586621682633410"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682632580"><span class="annot"><a href="#local-6989586621682632580"><span class="hs-keyword hs-type">stock</span></a></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632580"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682632586"><span id="local-6989586621682633414"><span id="local-6989586621682633418"><span id="local-6989586621682633421"><span id="local-6989586621682633424"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632586"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621682633427"><span class="annot"><span class="annottext">toJSON :: SMethod m -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span id="local-6989586621682633428"><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682633428"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SomeMethod -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SMethod m -&gt; SomeMethod
+forall {f :: MessageDirection} {t :: MessageKind}
+       (m :: Method f t).
+SMethod m -&gt; SomeMethod
+</span><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-var">SomeMethod</span></a></span><span> </span><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682633428"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682632593"><span id="local-6989586621682632594"><span id="local-6989586621682632595"><span id="local-6989586621682633433"><span id="local-6989586621682633437"><span class="annot"><span class="hs-identifier hs-type">KnownSymbol</span></span><span> </span><span class="annot"><a href="#local-6989586621682632593"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">'</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#Method_CustomMethod"><span class="hs-identifier hs-type">Method_CustomMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632593"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632594"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632595"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-96"></span><span>  </span><span id="local-6989586621682633443"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser (SMethod ('Method_CustomMethod s))
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span id="local-6989586621682633444"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682633444"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-97"></span><span>    </span><span id="local-6989586621682633445"><span class="annot"><a href="#local-6989586621682633445"><span class="hs-identifier hs-var">sm</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser SomeMethod
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682633444"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621682633445"><span class="hs-identifier hs-type">sm</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod_CustomMethod"><span class="hs-identifier hs-type">SMethod_CustomMethod</span></a></span><span> </span><span id="local-6989586621682633451"><span class="annot"><span class="annottext">Proxy s
+</span><a href="#local-6989586621682633451"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; Proxy s -&gt; Maybe (s :~: s)
+forall (a :: Symbol) (b :: Symbol) (proxy1 :: Symbol -&gt; *)
+       (proxy2 :: Symbol -&gt; *).
+(KnownSymbol a, KnownSymbol b) =&gt;
+proxy1 a -&gt; proxy2 b -&gt; Maybe (a :~: b)
+</span><span class="hs-identifier hs-var">sameSymbol</span></span><span> </span><span class="annot"><span class="annottext">Proxy s
+</span><a href="#local-6989586621682633451"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy s
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621682632593"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-100"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">s :~: s
+</span><span class="hs-identifier hs-var">Refl</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SMethod ('Method_CustomMethod s)
+-&gt; Parser (SMethod ('Method_CustomMethod s))
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(SMethod ('Method_CustomMethod s)
+ -&gt; Parser (SMethod ('Method_CustomMethod s)))
+-&gt; SMethod ('Method_CustomMethod s)
+-&gt; Parser (SMethod ('Method_CustomMethod s))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; SMethod ('Method_CustomMethod s)
+forall {f :: MessageDirection} {t :: MessageKind} (s :: Symbol).
+KnownSymbol s =&gt;
+Proxy s -&gt; SMethod ('Method_CustomMethod s)
+</span><a href="Language.LSP.Protocol.Internal.Method.html#SMethod_CustomMethod"><span class="hs-identifier hs-var">SMethod_CustomMethod</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy s
+Proxy s
+</span><a href="#local-6989586621682633451"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="annottext">Maybe (s :~: s)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser (SMethod ('Method_CustomMethod s))
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-102"></span><span>      </span><span class="annot"><span class="annottext">SomeMethod
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser (SMethod ('Method_CustomMethod s))
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- TODO: generate these with everything else?</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- Generates lots of instances like this in terms of the FromJSON SomeMethod instance</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- instance FromJSON (SMethod Method_X)</span><span>
+</span><span id="line-107"></span><span id="local-6989586621682632608"><span id="local-6989586621682633458"><span id="local-6989586621682633463"><span id="local-6989586621682633467"><span id="local-6989586621682633470"><span id="local-6989586621682633475"><span id="local-6989586621682633479"><span id="local-6989586621682633482"><span id="local-6989586621682633487"><span id="local-6989586621682633491"><span id="local-6989586621682633494"><span id="local-6989586621682633499"><span id="local-6989586621682633503"><span id="local-6989586621682633506"><span id="local-6989586621682633511"><span id="local-6989586621682633515"><span id="local-6989586621682633518"><span id="local-6989586621682633523"><span id="local-6989586621682633527"><span id="local-6989586621682633530"><span id="local-6989586621682633535"><span id="local-6989586621682633539"><span id="local-6989586621682633542"><span id="local-6989586621682633547"><span id="local-6989586621682633551"><span id="local-6989586621682633554"><span id="local-6989586621682633559"><span id="local-6989586621682633563"><span id="local-6989586621682633566"><span id="local-6989586621682633571"><span id="local-6989586621682633575"><span id="local-6989586621682633578"><span id="local-6989586621682633583"><span id="local-6989586621682633587"><span id="local-6989586621682633590"><span id="local-6989586621682633595"><span id="local-6989586621682633599"><span id="local-6989586621682633602"><span id="local-6989586621682633607"><span id="local-6989586621682633611"><span id="local-6989586621682633614"><span id="local-6989586621682633619"><span id="local-6989586621682633623"><span id="local-6989586621682633626"><span id="local-6989586621682633631"><span id="local-6989586621682633635"><span id="local-6989586621682633638"><span id="local-6989586621682633643"><span id="local-6989586621682633647"><span id="local-6989586621682633650"><span id="local-6989586621682633655"><span id="local-6989586621682633659"><span id="local-6989586621682633662"><span id="local-6989586621682633667"><span id="local-6989586621682633671"><span id="local-6989586621682633674"><span id="local-6989586621682633679"><span id="local-6989586621682633683"><span id="local-6989586621682633686"><span id="local-6989586621682633691"><span id="local-6989586621682633695"><span id="local-6989586621682633698"><span id="local-6989586621682633703"><span id="local-6989586621682633707"><span id="local-6989586621682633710"><span id="local-6989586621682633715"><span id="local-6989586621682633719"><span id="local-6989586621682633722"><span id="local-6989586621682633727"><span id="local-6989586621682633731"><span id="local-6989586621682633734"><span id="local-6989586621682633739"><span id="local-6989586621682633743"><span id="local-6989586621682633746"><span id="local-6989586621682633751"><span id="local-6989586621682633755"><span id="local-6989586621682633758"><span id="local-6989586621682633763"><span id="local-6989586621682633767"><span id="local-6989586621682633770"><span id="local-6989586621682633775"><span id="local-6989586621682633779"><span id="local-6989586621682633782"><span id="local-6989586621682633787"><span id="local-6989586621682633791"><span id="local-6989586621682633794"><span id="local-6989586621682633799"><span id="local-6989586621682633803"><span id="local-6989586621682633806"><span id="local-6989586621682633811"><span id="local-6989586621682633815"><span id="local-6989586621682633818"><span id="local-6989586621682633823"><span id="local-6989586621682633827"><span id="local-6989586621682633830"><span id="local-6989586621682633835"><span id="local-6989586621682633839"><span id="local-6989586621682633842"><span id="local-6989586621682633847"><span id="local-6989586621682633851"><span id="local-6989586621682633854"><span id="local-6989586621682633859"><span id="local-6989586621682633863"><span id="local-6989586621682633866"><span id="local-6989586621682633871"><span id="local-6989586621682633875"><span id="local-6989586621682633878"><span id="local-6989586621682633883"><span id="local-6989586621682633887"><span id="local-6989586621682633890"><span id="local-6989586621682633895"><span id="local-6989586621682633899"><span id="local-6989586621682633902"><span id="local-6989586621682633907"><span id="local-6989586621682633911"><span id="local-6989586621682633914"><span id="local-6989586621682633919"><span id="local-6989586621682633923"><span id="local-6989586621682633926"><span id="local-6989586621682633931"><span id="local-6989586621682633935"><span id="local-6989586621682633938"><span id="local-6989586621682633943"><span id="local-6989586621682633947"><span id="local-6989586621682633950"><span id="local-6989586621682633955"><span id="local-6989586621682633959"><span id="local-6989586621682633962"><span id="local-6989586621682633967"><span id="local-6989586621682633971"><span id="local-6989586621682633974"><span id="local-6989586621682633979"><span id="local-6989586621682633983"><span id="local-6989586621682633986"><span id="local-6989586621682633991"><span id="local-6989586621682633995"><span id="local-6989586621682633998"><span id="local-6989586621682634003"><span id="local-6989586621682634007"><span id="local-6989586621682634010"><span id="local-6989586621682634015"><span id="local-6989586621682634019"><span id="local-6989586621682634022"><span id="local-6989586621682634027"><span id="local-6989586621682634031"><span id="local-6989586621682634034"><span id="local-6989586621682634039"><span id="local-6989586621682634043"><span id="local-6989586621682634046"><span id="local-6989586621682634051"><span id="local-6989586621682634055"><span id="local-6989586621682634058"><span id="local-6989586621682634063"><span id="local-6989586621682634067"><span id="local-6989586621682634070"><span id="local-6989586621682634075"><span id="local-6989586621682634079"><span id="local-6989586621682634082"><span id="local-6989586621682634087"><span id="local-6989586621682634091"><span id="local-6989586621682634094"><span id="local-6989586621682634099"><span id="local-6989586621682634103"><span id="local-6989586621682634106"><span id="local-6989586621682634111"><span id="local-6989586621682634115"><span id="local-6989586621682634118"><span id="local-6989586621682634123"><span id="local-6989586621682634127"><span id="local-6989586621682634130"><span id="local-6989586621682634135"><span id="local-6989586621682634139"><span id="local-6989586621682634142"><span id="local-6989586621682634147"><span id="local-6989586621682634151"><span id="local-6989586621682634154"><span id="local-6989586621682634159"><span id="local-6989586621682634163"><span id="local-6989586621682634166"><span id="local-6989586621682634171"><span id="local-6989586621682634175"><span id="local-6989586621682634178"><span id="local-6989586621682634183"><span id="local-6989586621682634187"><span id="local-6989586621682634190"><span id="local-6989586621682634195"><span id="local-6989586621682634199"><span id="local-6989586621682634202"><span id="local-6989586621682634207"><span id="local-6989586621682634211"><span id="local-6989586621682634214"><span id="local-6989586621682634219"><span id="local-6989586621682634223"><span id="local-6989586621682634226"><span id="local-6989586621682634231"><span id="local-6989586621682634235"><span id="local-6989586621682634238"><span id="local-6989586621682634243"><span id="local-6989586621682634247"><span id="local-6989586621682634250"><span id="local-6989586621682634255"><span id="local-6989586621682634259"><span id="local-6989586621682634262"><span id="local-6989586621682634267"><span id="local-6989586621682634271"><span id="local-6989586621682634274"><span id="local-6989586621682634279"><span id="local-6989586621682634283"><span id="local-6989586621682634286"><span id="local-6989586621682634291"><span id="local-6989586621682634295"><span id="local-6989586621682634298"><span id="local-6989586621682634303"><span id="local-6989586621682634307"><span id="local-6989586621682634310"><span id="local-6989586621682634315"><span id="local-6989586621682634319"><span id="local-6989586621682634322"><span id="local-6989586621682634327"><span id="local-6989586621682634331"><span id="local-6989586621682634334"><span id="local-6989586621682634339"><span id="local-6989586621682634343"><span id="local-6989586621682634346"><span id="local-6989586621682634351"><span id="local-6989586621682634355"><span id="local-6989586621682634358"><span id="local-6989586621682634363"><span id="local-6989586621682634367"><span id="local-6989586621682634370"><span id="local-6989586621682634375"><span id="local-6989586621682634379"><span id="local-6989586621682634382"><span id="local-6989586621682634387"><span id="local-6989586621682634391"><span id="local-6989586621682634394"><span id="local-6989586621682634399"><span id="local-6989586621682634403"><span id="local-6989586621682634406"><span id="local-6989586621682634411"><span id="local-6989586621682634415"><span id="local-6989586621682634418"><span id="local-6989586621682634423"><span id="local-6989586621682634427"><span id="local-6989586621682634430"><span id="local-6989586621682634435"><span id="local-6989586621682634439"><span id="local-6989586621682634442"><span id="local-6989586621682634447"><span id="local-6989586621682634451"><span id="local-6989586621682634454"><span id="local-6989586621682634459"><span id="local-6989586621682634463"><span id="local-6989586621682634466"><span id="local-6989586621682634471"><span id="local-6989586621682634475"><span id="local-6989586621682634478"><span id="local-6989586621682634483"><span id="local-6989586621682634487"><span id="local-6989586621682634490"><span id="local-6989586621682634495"><span id="local-6989586621682634499"><span id="local-6989586621682634502"><span id="local-6989586621682634507"><span id="local-6989586621682634511"><span id="local-6989586621682634514"><span id="local-6989586621682634519"><span id="local-6989586621682634523"><span id="local-6989586621682634526"><span id="local-6989586621682634531"><span id="local-6989586621682634535"><span class="hs-identifier">makeSingletonFromJSON</span><span> </span><span class="hs-special">'</span><span class="hs-identifier">SomeMethod</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">SMethod</span><span> </span><span class="hs-special">[</span><span class="hs-special">'</span><span class="hs-identifier">SMethod_CustomMethod</span><span class="hs-special">]</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span id="local-6989586621682634987"><span id="local-6989586621682634992"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">via</span><span> </span><span id="local-6989586621682632894"><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632894"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pretty</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632894"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-comment">---------------</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- Extras</span><span>
+</span><span id="line-113"></span><span class="hs-comment">---------------</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- Some useful type synonyms</span><span>
+</span><span id="line-116"></span><span class="hs-keyword">type</span><span> </span><span id="SClientMethod"><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SClientMethod"><span class="hs-identifier hs-var">SClientMethod</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682634998"><span id="local-6989586621682634999"><span class="annot"><a href="#local-6989586621682634999"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Meta.html#ClientToServer"><span class="hs-identifier hs-type">ClientToServer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682634998"><span class="hs-identifier hs-type">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682634999"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-117"></span><span class="hs-keyword">type</span><span> </span><span id="SServerMethod"><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SServerMethod"><span class="hs-identifier hs-var">SServerMethod</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682635001"><span id="local-6989586621682635002"><span class="annot"><a href="#local-6989586621682635002"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Meta.html#ServerToClient"><span class="hs-identifier hs-type">ServerToClient</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635001"><span class="hs-identifier hs-type">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635002"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">data</span><span> </span><span id="SomeClientMethod"><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-var">SomeClientMethod</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621682635003"><span class="annot"><a href="#local-6989586621682635003"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682635004"><span class="annot"><a href="#local-6989586621682635004"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Meta.html#ClientToServer"><span class="hs-identifier hs-type">ClientToServer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635003"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span class="hs-operator">.</span><span> </span><span id="SomeClientMethod"><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-var">SomeClientMethod</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635004"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span id="local-6989586621682635007"><span id="local-6989586621682635009"><span id="local-6989586621682635013"><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-type">SomeClientMethod</span></a></span></span></span></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-keyword">data</span><span> </span><span id="SomeServerMethod"><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-var">SomeServerMethod</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621682635015"><span class="annot"><a href="#local-6989586621682635015"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682635016"><span class="annot"><a href="#local-6989586621682635016"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#Method"><span class="hs-identifier hs-type">Method</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Meta.html#ServerToClient"><span class="hs-identifier hs-type">ServerToClient</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635015"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span class="hs-operator">.</span><span> </span><span id="SomeServerMethod"><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-var">SomeServerMethod</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635016"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span id="local-6989586621682635019"><span id="local-6989586621682635021"><span id="local-6989586621682635025"><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-type">SomeServerMethod</span></a></span></span></span></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span id="local-6989586621682632899"><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#someClientMethod"><span class="hs-identifier hs-type">someClientMethod</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632899"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-type">SomeClientMethod</span></a></span></span><span>
+</span><span id="line-126"></span><span id="someClientMethod"><span class="annot"><span class="annottext">someClientMethod :: forall {f :: MessageDirection} {t :: MessageKind}
+       (m :: Method f t).
+SMethod m -&gt; Maybe SomeClientMethod
+</span><a href="Language.LSP.Protocol.Message.Method.html#someClientMethod"><span class="hs-identifier hs-var hs-var">someClientMethod</span></a></span></span><span> </span><span id="local-6989586621682635028"><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682635028"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SMethod m -&gt; SMessageDirection f
+forall (f :: MessageDirection) (t :: MessageKind)
+       (m :: Method f t).
+SMethod m -&gt; SMessageDirection f
+</span><a href="Language.LSP.Protocol.Internal.Method.html#messageDirection"><span class="hs-identifier hs-var">messageDirection</span></a></span><span> </span><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682635028"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><span class="annottext">SMessageDirection f
+</span><a href="Language.LSP.Protocol.Message.Meta.html#SClientToServer"><span class="hs-identifier hs-var">SClientToServer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SomeClientMethod -&gt; Maybe SomeClientMethod
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(SomeClientMethod -&gt; Maybe SomeClientMethod)
+-&gt; SomeClientMethod -&gt; Maybe SomeClientMethod
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SMethod m -&gt; SomeClientMethod
+forall (t :: MessageKind) (m :: Method 'ClientToServer t).
+SMethod m -&gt; SomeClientMethod
+</span><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-var">SomeClientMethod</span></a></span><span> </span><span class="annot"><span class="annottext">SMethod m
+SMethod m
+</span><a href="#local-6989586621682635028"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-128"></span><span>  </span><span class="annot"><span class="annottext">SMessageDirection f
+</span><a href="Language.LSP.Protocol.Message.Meta.html#SServerToClient"><span class="hs-identifier hs-var">SServerToClient</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe SomeClientMethod
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-comment">-- See Note [Parsing methods that go both ways]</span><span>
+</span><span id="line-130"></span><span>  </span><span class="annot"><span class="annottext">SMessageDirection f
+</span><a href="Language.LSP.Protocol.Message.Meta.html#SBothDirections"><span class="hs-identifier hs-var">SBothDirections</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SomeClientMethod -&gt; Maybe SomeClientMethod
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(SomeClientMethod -&gt; Maybe SomeClientMethod)
+-&gt; SomeClientMethod -&gt; Maybe SomeClientMethod
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SMethod (ZonkAny 3) -&gt; SomeClientMethod
+forall (t :: MessageKind) (m :: Method 'ClientToServer t).
+SMethod m -&gt; SomeClientMethod
+</span><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-var">SomeClientMethod</span></a></span><span> </span><span class="annot"><span class="annottext">(SMethod (ZonkAny 3) -&gt; SomeClientMethod)
+-&gt; SMethod (ZonkAny 3) -&gt; SomeClientMethod
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SMethod m -&gt; SMethod (ZonkAny 3)
+forall a b. a -&gt; b
+</span><span class="hs-identifier hs-var">unsafeCoerce</span></span><span> </span><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682635028"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span id="local-6989586621682632911"><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#someServerMethod"><span class="hs-identifier hs-type">someServerMethod</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SMethod"><span class="hs-identifier hs-type">SMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682632911"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-type">SomeServerMethod</span></a></span></span><span>
+</span><span id="line-133"></span><span id="someServerMethod"><span class="annot"><span class="annottext">someServerMethod :: forall {f :: MessageDirection} {t :: MessageKind}
+       (m :: Method f t).
+SMethod m -&gt; Maybe SomeServerMethod
+</span><a href="Language.LSP.Protocol.Message.Method.html#someServerMethod"><span class="hs-identifier hs-var hs-var">someServerMethod</span></a></span></span><span> </span><span id="local-6989586621682635036"><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682635036"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SMethod m -&gt; SMessageDirection f
+forall (f :: MessageDirection) (t :: MessageKind)
+       (m :: Method f t).
+SMethod m -&gt; SMessageDirection f
+</span><a href="Language.LSP.Protocol.Internal.Method.html#messageDirection"><span class="hs-identifier hs-var">messageDirection</span></a></span><span> </span><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682635036"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-134"></span><span>  </span><span class="annot"><span class="annottext">SMessageDirection f
+</span><a href="Language.LSP.Protocol.Message.Meta.html#SServerToClient"><span class="hs-identifier hs-var">SServerToClient</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SomeServerMethod -&gt; Maybe SomeServerMethod
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(SomeServerMethod -&gt; Maybe SomeServerMethod)
+-&gt; SomeServerMethod -&gt; Maybe SomeServerMethod
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SMethod m -&gt; SomeServerMethod
+forall (t :: MessageKind) (m :: Method 'ServerToClient t).
+SMethod m -&gt; SomeServerMethod
+</span><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-var">SomeServerMethod</span></a></span><span> </span><span class="annot"><span class="annottext">SMethod m
+SMethod m
+</span><a href="#local-6989586621682635036"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-135"></span><span>  </span><span class="annot"><span class="annottext">SMessageDirection f
+</span><a href="Language.LSP.Protocol.Message.Meta.html#SClientToServer"><span class="hs-identifier hs-var">SClientToServer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe SomeServerMethod
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-comment">-- See Note [Parsing methods that go both ways]</span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><span class="annottext">SMessageDirection f
+</span><a href="Language.LSP.Protocol.Message.Meta.html#SBothDirections"><span class="hs-identifier hs-var">SBothDirections</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SomeServerMethod -&gt; Maybe SomeServerMethod
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(SomeServerMethod -&gt; Maybe SomeServerMethod)
+-&gt; SomeServerMethod -&gt; Maybe SomeServerMethod
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SMethod (ZonkAny 1) -&gt; SomeServerMethod
+forall (t :: MessageKind) (m :: Method 'ServerToClient t).
+SMethod m -&gt; SomeServerMethod
+</span><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-var">SomeServerMethod</span></a></span><span> </span><span class="annot"><span class="annottext">(SMethod (ZonkAny 1) -&gt; SomeServerMethod)
+-&gt; SMethod (ZonkAny 1) -&gt; SomeServerMethod
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SMethod m -&gt; SMethod (ZonkAny 1)
+forall a b. a -&gt; b
+</span><span class="hs-identifier hs-var">unsafeCoerce</span></span><span> </span><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682635036"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682635041"><span id="local-6989586621682635045"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-type">SomeClientMethod</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-140"></span><span>  </span><span id="local-6989586621682635049"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser SomeClientMethod
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span id="local-6989586621682635050"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682635050"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-141"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span><span> </span><span id="local-6989586621682635053"><span class="annot"><a href="#local-6989586621682635053"><span class="hs-identifier hs-var">sm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser SomeMethod
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682635050"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-142"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#someClientMethod"><span class="hs-identifier hs-type">someClientMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635053"><span class="hs-identifier hs-type">sm</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-143"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682635054"><span class="annot"><span class="annottext">SomeClientMethod
+</span><a href="#local-6989586621682635054"><span class="hs-identifier hs-var">scm</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SomeClientMethod -&gt; Parser SomeClientMethod
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">SomeClientMethod
+</span><a href="#local-6989586621682635054"><span class="hs-identifier hs-var">scm</span></a></span><span>
+</span><span id="line-144"></span><span>      </span><span class="annot"><span class="annottext">Maybe SomeClientMethod
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser SomeClientMethod
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682635057"><span id="local-6989586621682635061"><span id="local-6989586621682635064"><span id="local-6989586621682635067"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-type">SomeClientMethod</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>  </span><span id="local-6989586621682635069"><span class="annot"><span class="annottext">toJSON :: SomeClientMethod -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-type">SomeClientMethod</span></a></span><span> </span><span id="local-6989586621682635072"><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682635072"><span class="hs-identifier hs-var">sm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Value) -&gt; [Char] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeMethod -&gt; [Char]
+</span><a href="Language.LSP.Protocol.Internal.Method.html#someMethodToMethodString"><span class="hs-identifier hs-var">someMethodToMethodString</span></a></span><span> </span><span class="annot"><span class="annottext">(SomeMethod -&gt; [Char]) -&gt; SomeMethod -&gt; [Char]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SMethod m -&gt; SomeMethod
+forall {f :: MessageDirection} {t :: MessageKind}
+       (m :: Method f t).
+SMethod m -&gt; SomeMethod
+</span><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-var">SomeMethod</span></a></span><span> </span><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682635072"><span class="hs-identifier hs-var">sm</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span id="local-6989586621682635074"><span id="local-6989586621682635079"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-type">SomeClientMethod</span></a></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pretty</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeClientMethod"><span class="hs-identifier hs-type">SomeClientMethod</span></a></span></span></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682635086"><span id="local-6989586621682635090"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-type">SomeServerMethod</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-152"></span><span>  </span><span id="local-6989586621682635094"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser SomeServerMethod
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span id="local-6989586621682635095"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682635095"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-type">SomeMethod</span></a></span><span> </span><span id="local-6989586621682635098"><span class="annot"><a href="#local-6989586621682635098"><span class="hs-identifier hs-var">sm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser SomeMethod
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621682635095"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#someServerMethod"><span class="hs-identifier hs-type">someServerMethod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635098"><span class="hs-identifier hs-type">sm</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-155"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682635099"><span class="annot"><span class="annottext">SomeServerMethod
+</span><a href="#local-6989586621682635099"><span class="hs-identifier hs-var">scm</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SomeServerMethod -&gt; Parser SomeServerMethod
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">SomeServerMethod
+</span><a href="#local-6989586621682635099"><span class="hs-identifier hs-var">scm</span></a></span><span>
+</span><span id="line-156"></span><span>      </span><span class="annot"><span class="annottext">Maybe SomeServerMethod
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser SomeServerMethod
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682635102"><span id="local-6989586621682635106"><span id="local-6989586621682635109"><span id="local-6989586621682635112"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-type">SomeServerMethod</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-159"></span><span>  </span><span id="local-6989586621682635114"><span class="annot"><span class="annottext">toJSON :: SomeServerMethod -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-type">SomeServerMethod</span></a></span><span> </span><span id="local-6989586621682635117"><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682635117"><span class="hs-identifier hs-var">sm</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Value) -&gt; [Char] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeMethod -&gt; [Char]
+</span><a href="Language.LSP.Protocol.Internal.Method.html#someMethodToMethodString"><span class="hs-identifier hs-var">someMethodToMethodString</span></a></span><span> </span><span class="annot"><span class="annottext">(SomeMethod -&gt; [Char]) -&gt; SomeMethod -&gt; [Char]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SMethod m -&gt; SomeMethod
+forall {f :: MessageDirection} {t :: MessageKind}
+       (m :: Method f t).
+SMethod m -&gt; SomeMethod
+</span><a href="Language.LSP.Protocol.Internal.Method.html#SomeMethod"><span class="hs-identifier hs-var">SomeMethod</span></a></span><span> </span><span class="annot"><span class="annottext">SMethod m
+</span><a href="#local-6989586621682635117"><span class="hs-identifier hs-var">sm</span></a></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span id="local-6989586621682635119"><span id="local-6989586621682635124"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-type">SomeServerMethod</span></a></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pretty</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Message.Method.html#SomeServerMethod"><span class="hs-identifier hs-type">SomeServerMethod</span></a></span></span></span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span class="hs-comment">{- Note [Parsing methods that go both ways]
+
+In order to parse a method as a client or server method, we use 'messageDirection'
+to get a proof that the message direction is what we say it is. But this just doesn't
+work for the both directions case: because we are awkwardly representing &quot;both directions&quot;
+as &quot;the type variable is free&quot;. So the types don't line up and we use an awful hack.
+
+A better solution might be to move away from using an unconstrained type parameter to
+mean &quot;both directions&quot;.
+-}</span><span>
+</span><span id="line-173"></span></pre></body></html>

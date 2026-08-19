@@ -1,0 +1,391 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module: Data.Binary.IEEE754</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright: 2010 John Millikin</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License: MIT</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer: jmillikin@gmail.com</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Portability: portable</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html"><span class="hs-identifier">Data.Binary.IEEE754</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-12"></span><span>	</span><span class="annot"><span class="hs-comment">-- * Parsing</span></span><span>
+</span><span id="line-13"></span><span>	  </span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat16be"><span class="hs-identifier">getFloat16be</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat16le"><span class="hs-identifier">getFloat16le</span></a></span><span>
+</span><span id="line-14"></span><span>	</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat32be"><span class="hs-identifier">getFloat32be</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat32le"><span class="hs-identifier">getFloat32le</span></a></span><span>
+</span><span id="line-15"></span><span>	</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat64be"><span class="hs-identifier">getFloat64be</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat64le"><span class="hs-identifier">getFloat64le</span></a></span><span>
+</span><span id="line-16"></span><span>	</span><span>
+</span><span id="line-17"></span><span>	</span><span class="annot"><span class="hs-comment">-- * Serializing</span></span><span>
+</span><span id="line-18"></span><span>	</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#putFloat32be"><span class="hs-identifier">putFloat32be</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#putFloat32le"><span class="hs-identifier">putFloat32le</span></a></span><span>
+</span><span id="line-19"></span><span>	</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#putFloat64be"><span class="hs-identifier">putFloat64be</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#putFloat64le"><span class="hs-identifier">putFloat64le</span></a></span><span>
+</span><span id="line-20"></span><span>	</span><span>
+</span><span id="line-21"></span><span>	</span><span class="annot"><span class="hs-comment">-- * Float &lt;-&gt; Word conversion</span></span><span>
+</span><span id="line-22"></span><span>	</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#floatToWord"><span class="hs-identifier">floatToWord</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#wordToFloat"><span class="hs-identifier">wordToFloat</span></a></span><span>
+</span><span id="line-23"></span><span>	</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#doubleToWord"><span class="hs-identifier">doubleToWord</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Binary.IEEE754.html#wordToDouble"><span class="hs-identifier">wordToDouble</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">exp</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">shiftL</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">shiftR</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.|.)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.&amp;.)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Foreign</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">F</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafePerformIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary.Get</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">G</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary.Put</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat16be"><span class="hs-identifier hs-type">getFloat16be</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span>
+</span><span id="line-35"></span><span id="getFloat16be"><span class="annot"><span class="annottext">getFloat16be :: Get Float
+</span><a href="Data.Binary.IEEE754.html#getFloat16be"><span class="hs-identifier hs-var hs-var">getFloat16be</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word16 -&gt; Float) -&gt; Get Word16 -&gt; Get Float
+forall a b. (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Float
+</span><a href="Data.Binary.IEEE754.html#toFloat16"><span class="hs-identifier hs-var">toFloat16</span></a></span><span> </span><span class="annot"><span class="annottext">Get Word16
+</span><span class="hs-identifier hs-var">G.getWord16be</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat16le"><span class="hs-identifier hs-type">getFloat16le</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span>
+</span><span id="line-38"></span><span id="getFloat16le"><span class="annot"><span class="annottext">getFloat16le :: Get Float
+</span><a href="Data.Binary.IEEE754.html#getFloat16le"><span class="hs-identifier hs-var hs-var">getFloat16le</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word16 -&gt; Float) -&gt; Get Word16 -&gt; Get Float
+forall a b. (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Float
+</span><a href="Data.Binary.IEEE754.html#toFloat16"><span class="hs-identifier hs-var">toFloat16</span></a></span><span> </span><span class="annot"><span class="annottext">Get Word16
+</span><span class="hs-identifier hs-var">G.getWord16le</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat32be"><span class="hs-identifier hs-type">getFloat32be</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span>
+</span><span id="line-41"></span><span id="getFloat32be"><span class="annot"><span class="annottext">getFloat32be :: Get Float
+</span><a href="Data.Binary.IEEE754.html#getFloat32be"><span class="hs-identifier hs-var hs-var">getFloat32be</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word32 -&gt; Float) -&gt; Get Word32 -&gt; Get Float
+forall a b. (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Float
+forall word float. (Storable word, Storable float) =&gt; word -&gt; float
+</span><a href="Data.Binary.IEEE754.html#toFloat"><span class="hs-identifier hs-var">toFloat</span></a></span><span> </span><span class="annot"><span class="annottext">Get Word32
+</span><span class="hs-identifier hs-var">G.getWord32be</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat32le"><span class="hs-identifier hs-type">getFloat32le</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span>
+</span><span id="line-44"></span><span id="getFloat32le"><span class="annot"><span class="annottext">getFloat32le :: Get Float
+</span><a href="Data.Binary.IEEE754.html#getFloat32le"><span class="hs-identifier hs-var hs-var">getFloat32le</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word32 -&gt; Float) -&gt; Get Word32 -&gt; Get Float
+forall a b. (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Float
+forall word float. (Storable word, Storable float) =&gt; word -&gt; float
+</span><a href="Data.Binary.IEEE754.html#toFloat"><span class="hs-identifier hs-var">toFloat</span></a></span><span> </span><span class="annot"><span class="annottext">Get Word32
+</span><span class="hs-identifier hs-var">G.getWord32le</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat64be"><span class="hs-identifier hs-type">getFloat64be</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-47"></span><span id="getFloat64be"><span class="annot"><span class="annottext">getFloat64be :: Get Double
+</span><a href="Data.Binary.IEEE754.html#getFloat64be"><span class="hs-identifier hs-var hs-var">getFloat64be</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Double) -&gt; Get Word64 -&gt; Get Double
+forall a b. (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Double
+forall word float. (Storable word, Storable float) =&gt; word -&gt; float
+</span><a href="Data.Binary.IEEE754.html#toFloat"><span class="hs-identifier hs-var">toFloat</span></a></span><span> </span><span class="annot"><span class="annottext">Get Word64
+</span><span class="hs-identifier hs-var">G.getWord64be</span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Data.Binary.IEEE754.html#getFloat64le"><span class="hs-identifier hs-type">getFloat64le</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">G.Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-50"></span><span id="getFloat64le"><span class="annot"><span class="annottext">getFloat64le :: Get Double
+</span><a href="Data.Binary.IEEE754.html#getFloat64le"><span class="hs-identifier hs-var hs-var">getFloat64le</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Double) -&gt; Get Word64 -&gt; Get Double
+forall a b. (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Double
+forall word float. (Storable word, Storable float) =&gt; word -&gt; float
+</span><a href="Data.Binary.IEEE754.html#toFloat"><span class="hs-identifier hs-var">toFloat</span></a></span><span> </span><span class="annot"><span class="annottext">Get Word64
+</span><span class="hs-identifier hs-var">G.getWord64le</span></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Data.Binary.IEEE754.html#putFloat32be"><span class="hs-identifier hs-type">putFloat32be</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Put</span></span><span>
+</span><span id="line-53"></span><span id="putFloat32be"><span class="annot"><span class="annottext">putFloat32be :: Float -&gt; Put
+</span><a href="Data.Binary.IEEE754.html#putFloat32be"><span class="hs-identifier hs-var hs-var">putFloat32be</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Put
+</span><span class="hs-identifier hs-var">P.putWord32be</span></span><span> </span><span class="annot"><span class="annottext">(Word32 -&gt; Put) -&gt; (Float -&gt; Word32) -&gt; Float -&gt; Put
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Float -&gt; Word32
+forall word float. (Storable word, Storable float) =&gt; float -&gt; word
+</span><a href="Data.Binary.IEEE754.html#fromFloat"><span class="hs-identifier hs-var">fromFloat</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><a href="Data.Binary.IEEE754.html#putFloat32le"><span class="hs-identifier hs-type">putFloat32le</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Put</span></span><span>
+</span><span id="line-56"></span><span id="putFloat32le"><span class="annot"><span class="annottext">putFloat32le :: Float -&gt; Put
+</span><a href="Data.Binary.IEEE754.html#putFloat32le"><span class="hs-identifier hs-var hs-var">putFloat32le</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Put
+</span><span class="hs-identifier hs-var">P.putWord32le</span></span><span> </span><span class="annot"><span class="annottext">(Word32 -&gt; Put) -&gt; (Float -&gt; Word32) -&gt; Float -&gt; Put
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Float -&gt; Word32
+forall word float. (Storable word, Storable float) =&gt; float -&gt; word
+</span><a href="Data.Binary.IEEE754.html#fromFloat"><span class="hs-identifier hs-var">fromFloat</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="annot"><a href="Data.Binary.IEEE754.html#putFloat64be"><span class="hs-identifier hs-type">putFloat64be</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Put</span></span><span>
+</span><span id="line-59"></span><span id="putFloat64be"><span class="annot"><span class="annottext">putFloat64be :: Double -&gt; Put
+</span><a href="Data.Binary.IEEE754.html#putFloat64be"><span class="hs-identifier hs-var hs-var">putFloat64be</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Put
+</span><span class="hs-identifier hs-var">P.putWord64be</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Put) -&gt; (Double -&gt; Word64) -&gt; Double -&gt; Put
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Word64
+forall word float. (Storable word, Storable float) =&gt; float -&gt; word
+</span><a href="Data.Binary.IEEE754.html#fromFloat"><span class="hs-identifier hs-var">fromFloat</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Data.Binary.IEEE754.html#putFloat64le"><span class="hs-identifier hs-type">putFloat64le</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Put</span></span><span>
+</span><span id="line-62"></span><span id="putFloat64le"><span class="annot"><span class="annottext">putFloat64le :: Double -&gt; Put
+</span><a href="Data.Binary.IEEE754.html#putFloat64le"><span class="hs-identifier hs-var hs-var">putFloat64le</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Put
+</span><span class="hs-identifier hs-var">P.putWord64le</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Put) -&gt; (Double -&gt; Word64) -&gt; Double -&gt; Put
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Word64
+forall word float. (Storable word, Storable float) =&gt; float -&gt; word
+</span><a href="Data.Binary.IEEE754.html#fromFloat"><span class="hs-identifier hs-var">fromFloat</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><a href="Data.Binary.IEEE754.html#floatToWord"><span class="hs-identifier hs-type">floatToWord</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">F.Word32</span></span><span>
+</span><span id="line-65"></span><span id="floatToWord"><span class="annot"><span class="annottext">floatToWord :: Float -&gt; Word32
+</span><a href="Data.Binary.IEEE754.html#floatToWord"><span class="hs-identifier hs-var hs-var">floatToWord</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Float -&gt; Word32
+forall word float. (Storable word, Storable float) =&gt; float -&gt; word
+</span><a href="Data.Binary.IEEE754.html#fromFloat"><span class="hs-identifier hs-var">fromFloat</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Data.Binary.IEEE754.html#wordToFloat"><span class="hs-identifier hs-type">wordToFloat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">F.Word32</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span>
+</span><span id="line-68"></span><span id="wordToFloat"><span class="annot"><span class="annottext">wordToFloat :: Word32 -&gt; Float
+</span><a href="Data.Binary.IEEE754.html#wordToFloat"><span class="hs-identifier hs-var hs-var">wordToFloat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Float
+forall word float. (Storable word, Storable float) =&gt; word -&gt; float
+</span><a href="Data.Binary.IEEE754.html#toFloat"><span class="hs-identifier hs-var">toFloat</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="annot"><a href="Data.Binary.IEEE754.html#doubleToWord"><span class="hs-identifier hs-type">doubleToWord</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">F.Word64</span></span><span>
+</span><span id="line-71"></span><span id="doubleToWord"><span class="annot"><span class="annottext">doubleToWord :: Double -&gt; Word64
+</span><a href="Data.Binary.IEEE754.html#doubleToWord"><span class="hs-identifier hs-var hs-var">doubleToWord</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Word64
+forall word float. (Storable word, Storable float) =&gt; float -&gt; word
+</span><a href="Data.Binary.IEEE754.html#fromFloat"><span class="hs-identifier hs-var">fromFloat</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><a href="Data.Binary.IEEE754.html#wordToDouble"><span class="hs-identifier hs-type">wordToDouble</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">F.Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-74"></span><span id="wordToDouble"><span class="annot"><span class="annottext">wordToDouble :: Word64 -&gt; Double
+</span><a href="Data.Binary.IEEE754.html#wordToDouble"><span class="hs-identifier hs-var hs-var">wordToDouble</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Double
+forall word float. (Storable word, Storable float) =&gt; word -&gt; float
+</span><a href="Data.Binary.IEEE754.html#toFloat"><span class="hs-identifier hs-var">toFloat</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span id="local-6989586621679030455"><span id="local-6989586621679030456"><span class="annot"><a href="Data.Binary.IEEE754.html#toFloat"><span class="hs-identifier hs-type">toFloat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">F.Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679030455"><span class="hs-identifier hs-type">word</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">F.Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679030456"><span class="hs-identifier hs-type">float</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679030455"><span class="hs-identifier hs-type">word</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679030456"><span class="hs-identifier hs-type">float</span></a></span></span></span><span>
+</span><span id="line-77"></span><span id="toFloat"><span class="annot"><span class="annottext">toFloat :: forall word float. (Storable word, Storable float) =&gt; word -&gt; float
+</span><a href="Data.Binary.IEEE754.html#toFloat"><span class="hs-identifier hs-var hs-var">toFloat</span></a></span></span><span> </span><span id="local-6989586621679030582"><span class="annot"><span class="annottext">word
+</span><a href="#local-6989586621679030582"><span class="hs-identifier hs-var">word</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO float -&gt; float
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO float -&gt; float) -&gt; IO float -&gt; float
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Ptr float -&gt; IO float) -&gt; IO float
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">F.alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr float -&gt; IO float) -&gt; IO float)
+-&gt; (Ptr float -&gt; IO float) -&gt; IO float
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679030584"><span class="annot"><span class="annottext">Ptr float
+</span><a href="#local-6989586621679030584"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-78"></span><span>	</span><span class="annot"><span class="annottext">Ptr word -&gt; word -&gt; IO ()
+forall a. Storable a =&gt; Ptr a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">F.poke</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr float -&gt; Ptr word
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">F.castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr float
+</span><a href="#local-6989586621679030584"><span class="hs-identifier hs-var">buf</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">word
+</span><a href="#local-6989586621679030582"><span class="hs-identifier hs-var">word</span></a></span><span>
+</span><span id="line-79"></span><span>	</span><span class="annot"><span class="annottext">Ptr float -&gt; IO float
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">F.peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr float
+</span><a href="#local-6989586621679030584"><span class="hs-identifier hs-var">buf</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span id="local-6989586621679030461"><span id="local-6989586621679030462"><span class="annot"><a href="Data.Binary.IEEE754.html#fromFloat"><span class="hs-identifier hs-type">fromFloat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">F.Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679030461"><span class="hs-identifier hs-type">word</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">F.Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679030462"><span class="hs-identifier hs-type">float</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679030462"><span class="hs-identifier hs-type">float</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679030461"><span class="hs-identifier hs-type">word</span></a></span></span></span><span>
+</span><span id="line-82"></span><span id="fromFloat"><span class="annot"><span class="annottext">fromFloat :: forall word float. (Storable word, Storable float) =&gt; float -&gt; word
+</span><a href="Data.Binary.IEEE754.html#fromFloat"><span class="hs-identifier hs-var hs-var">fromFloat</span></a></span></span><span> </span><span id="local-6989586621679030594"><span class="annot"><span class="annottext">float
+</span><a href="#local-6989586621679030594"><span class="hs-identifier hs-var">float</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO word -&gt; word
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO word -&gt; word) -&gt; IO word -&gt; word
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Ptr word -&gt; IO word) -&gt; IO word
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">F.alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr word -&gt; IO word) -&gt; IO word)
+-&gt; (Ptr word -&gt; IO word) -&gt; IO word
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679030595"><span class="annot"><span class="annottext">Ptr word
+</span><a href="#local-6989586621679030595"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-83"></span><span>	</span><span class="annot"><span class="annottext">Ptr float -&gt; float -&gt; IO ()
+forall a. Storable a =&gt; Ptr a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">F.poke</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr word -&gt; Ptr float
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">F.castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr word
+</span><a href="#local-6989586621679030595"><span class="hs-identifier hs-var">buf</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">float
+</span><a href="#local-6989586621679030594"><span class="hs-identifier hs-var">float</span></a></span><span>
+</span><span id="line-84"></span><span>	</span><span class="annot"><span class="annottext">Ptr word -&gt; IO word
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">F.peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr word
+</span><a href="#local-6989586621679030595"><span class="hs-identifier hs-var">buf</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="annot"><a href="Data.Binary.IEEE754.html#toFloat16"><span class="hs-identifier hs-type">toFloat16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">F.Word16</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span>
+</span><span id="line-87"></span><span id="toFloat16"><span class="annot"><span class="annottext">toFloat16 :: Word16 -&gt; Float
+</span><a href="Data.Binary.IEEE754.html#toFloat16"><span class="hs-identifier hs-var hs-var">toFloat16</span></a></span></span><span> </span><span id="local-6989586621679030596"><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030596"><span class="hs-identifier hs-var">word16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Float
+forall word float. (Storable word, Storable float) =&gt; word -&gt; float
+</span><a href="Data.Binary.IEEE754.html#toFloat"><span class="hs-identifier hs-var">toFloat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030597"><span class="hs-identifier hs-var">sign32</span></a></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Word32 -&gt; Word32
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030598"><span class="hs-identifier hs-var">word32</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-88"></span><span>	</span><span id="local-6989586621679030601"><span class="annot"><span class="annottext">sign16 :: Word16
+</span><a href="#local-6989586621679030601"><span class="hs-identifier hs-var hs-var">sign16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030596"><span class="hs-identifier hs-var">word16</span></a></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Word16
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0x8000</span></span><span>
+</span><span id="line-89"></span><span>	</span><span id="local-6989586621679030604"><span class="annot"><span class="annottext">exp16 :: Word16
+</span><a href="#local-6989586621679030604"><span class="hs-identifier hs-var hs-var">exp16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030596"><span class="hs-identifier hs-var">word16</span></a></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Word16
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0x7C00</span></span><span>
+</span><span id="line-90"></span><span>	</span><span id="local-6989586621679030607"><span class="annot"><span class="annottext">frac16 :: Word16
+</span><a href="#local-6989586621679030607"><span class="hs-identifier hs-var hs-var">frac16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030596"><span class="hs-identifier hs-var">word16</span></a></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Word16
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0x3FF</span></span><span>
+</span><span id="line-91"></span><span>	</span><span>
+</span><span id="line-92"></span><span>	</span><span id="local-6989586621679030597"><span class="annot"><span class="annottext">sign32 :: Word32
+</span><a href="#local-6989586621679030597"><span class="hs-identifier hs-var hs-var">sign32</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030601"><span class="hs-identifier hs-var">sign16</span></a></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-93"></span><span>		</span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0x80000000</span></span><span> </span><span class="hs-comment">-- -0.0</span><span>
+</span><span id="line-94"></span><span>		</span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-95"></span><span>	</span><span>
+</span><span id="line-96"></span><span>	</span><span class="annot"><a href="#local-6989586621679030598"><span class="hs-identifier hs-type">word32</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">F.Word32</span></span><span>
+</span><span id="line-97"></span><span>	</span><span id="local-6989586621679030598"><span class="annot"><span class="annottext">word32 :: Word32
+</span><a href="#local-6989586621679030598"><span class="hs-identifier hs-var hs-var">word32</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030596"><span class="hs-identifier hs-var">word16</span></a></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Word16
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0x7FFF</span></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-98"></span><span>	       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030604"><span class="hs-identifier hs-var">exp16</span></a></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0x7C00</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030614"><span class="hs-identifier hs-var">special</span></a></span><span>
+</span><span id="line-99"></span><span>	       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int -&gt; Word32
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftL</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030615"><span class="hs-identifier hs-var">exp32</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">23</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Word32 -&gt; Word32
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int -&gt; Word32
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftL</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030616"><span class="hs-identifier hs-var">frac32</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">13</span></span><span>
+</span><span id="line-100"></span><span>	</span><span>
+</span><span id="line-101"></span><span>	</span><span id="local-6989586621679030614"><span class="annot"><span class="annottext">special :: Word32
+</span><a href="#local-6989586621679030614"><span class="hs-identifier hs-var hs-var">special</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030607"><span class="hs-identifier hs-var">frac16</span></a></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-102"></span><span>		</span><span class="hs-comment">-- Infinity</span><span>
+</span><span id="line-103"></span><span>		</span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0x7F800000</span></span><span>
+</span><span id="line-104"></span><span>		</span><span>
+</span><span id="line-105"></span><span>		</span><span class="hs-comment">-- NaN; signals are maintained in lower 10 bits</span><span>
+</span><span id="line-106"></span><span>		</span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0x7FC00000</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Word32 -&gt; Word32
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word32
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030607"><span class="hs-identifier hs-var">frac16</span></a></span><span>
+</span><span id="line-107"></span><span>	</span><span>
+</span><span id="line-108"></span><span>	</span><span class="hs-special">(</span><span id="local-6989586621679030615"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030615"><span class="hs-identifier hs-var">exp32</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679030616"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030616"><span class="hs-identifier hs-var">frac32</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030604"><span class="hs-identifier hs-var">exp16</span></a></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-109"></span><span>		</span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">(Word32, Word32)
+</span><a href="#local-6989586621679030629"><span class="hs-identifier hs-var">normalised</span></a></span><span>
+</span><span id="line-110"></span><span>		</span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">(Word32, Word32)
+</span><a href="#local-6989586621679030630"><span class="hs-identifier hs-var">denormalised</span></a></span><span>
+</span><span id="line-111"></span><span>	</span><span>
+</span><span id="line-112"></span><span>	</span><span id="local-6989586621679030629"><span class="annot"><span class="annottext">normalised :: (Word32, Word32)
+</span><a href="#local-6989586621679030629"><span class="hs-identifier hs-var hs-var">normalised</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030631"><span class="hs-identifier hs-var">exp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030632"><span class="hs-identifier hs-var">frac</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>		</span><span id="local-6989586621679030631"><span class="annot"><span class="annottext">exp :: Word32
+</span><a href="#local-6989586621679030631"><span class="hs-identifier hs-var hs-var">exp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word16 -&gt; Word32
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030604"><span class="hs-identifier hs-var">exp16</span></a></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int -&gt; Word32
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Word32 -&gt; Word32
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">15</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Word32 -&gt; Word32
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">127</span></span><span>
+</span><span id="line-114"></span><span>		</span><span id="local-6989586621679030632"><span class="annot"><span class="annottext">frac :: Word32
+</span><a href="#local-6989586621679030632"><span class="hs-identifier hs-var hs-var">frac</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word32
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030607"><span class="hs-identifier hs-var">frac16</span></a></span><span>
+</span><span id="line-115"></span><span>	</span><span>
+</span><span id="line-116"></span><span>	</span><span id="local-6989586621679030630"><span class="annot"><span class="annottext">denormalised :: (Word32, Word32)
+</span><a href="#local-6989586621679030630"><span class="hs-identifier hs-var hs-var">denormalised</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030644"><span class="hs-identifier hs-var">exp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030645"><span class="hs-identifier hs-var">frac</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-117"></span><span>		</span><span id="local-6989586621679030644"><span class="annot"><span class="annottext">exp :: Word32
+</span><a href="#local-6989586621679030644"><span class="hs-identifier hs-var hs-var">exp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word16 -&gt; Word32
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030604"><span class="hs-identifier hs-var">exp16</span></a></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int -&gt; Word32
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Word32 -&gt; Word32
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">15</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Word32 -&gt; Word32
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">127</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Word32 -&gt; Word32
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030655"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-118"></span><span>		</span><span class="hs-special">(</span><span id="local-6989586621679030655"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030655"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679030645"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679030645"><span class="hs-identifier hs-var">frac</span></a></span></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Word16 -&gt; (Word32, Word32)
+forall {a} {b} {a}.
+(Bits a, Bits b, Integral a, Num a, Num b) =&gt;
+a -&gt; a -&gt; (a, b)
+</span><a href="#local-6989586621679030664"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word16 -&gt; Int -&gt; Word16
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftL</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679030607"><span class="hs-identifier hs-var">frac16</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-119"></span><span>			</span><span id="local-6989586621679030664"><span class="annot"><span class="annottext">step :: a -&gt; a -&gt; (a, b)
+</span><a href="#local-6989586621679030664"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span id="local-6989586621679030699"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679030699"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679030700"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679030700"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679030700"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0x400</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-120"></span><span>				</span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; (a, b)
+</span><a href="#local-6989586621679030664"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679030699"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int -&gt; a
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftL</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679030700"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>				</span><span class="hs-keyword">else</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679030699"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679030700"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; b -&gt; b
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-number">0x3FF</span></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span></pre></body></html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE PartialTypeSignatures #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Module      :  GHC.StgToJS.Linker.Types</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Maintainer  :  Jeffrey Young  &lt;jeffrey.young@iohk.io&gt;</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--                Luite Stegeman &lt;luite.stegeman@iohk.io&gt;</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--                Sylvain Henry  &lt;sylvain.henry@iohk.io&gt;</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--                Josh Meredith  &lt;josh.meredith@iohk.io&gt;</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Types.html"><span class="hs-identifier">GHC.StgToJS.Linker.Types</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#JSLinkConfig"><span class="hs-identifier">JSLinkConfig</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#LinkPlan"><span class="hs-identifier">LinkPlan</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Object.html"><span class="hs-identifier">GHC.StgToJS.Object</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html"><span class="hs-identifier">GHC.Unit.Types</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier">Outputable</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span class="annot"><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier">text</span></a></span><span class="hs-special">,</span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier">ppr</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#hang"><span class="hs-identifier">hang</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#IsDoc"><span class="hs-identifier">IsDoc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier">vcat</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#IsLine"><span class="hs-identifier">IsLine</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#hcat"><span class="hs-identifier">hcat</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Map.Strict.html"><span class="hs-identifier">Data.Map.Strict</span></a></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Map.Internal.html#Map"><span class="hs-identifier">Map</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Set.html"><span class="hs-identifier">Data.Set</span></a></span><span>             </span><span class="hs-special">(</span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#Set"><span class="hs-identifier">Set</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Set.html"><span class="hs-identifier">Data.Set</span></a></span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/System.IO.html"><span class="hs-identifier">System.IO</span></a></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- Linker Config</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">data</span><span> </span><span id="JSLinkConfig"><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#JSLinkConfig"><span class="hs-identifier hs-var">JSLinkConfig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="JSLinkConfig"><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#JSLinkConfig"><span class="hs-identifier hs-var">JSLinkConfig</span></a></span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="lcNoJSExecutables"><span class="annot"><span class="annottext">JSLinkConfig -&gt; Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcNoJSExecutables"><span class="hs-identifier hs-var hs-var">lcNoJSExecutables</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Dont' build JS executables</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lcNoHsMain"><span class="annot"><span class="annottext">JSLinkConfig -&gt; Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcNoHsMain"><span class="hs-identifier hs-var hs-var">lcNoHsMain</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Don't generate Haskell main entry</span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lcNoRts"><span class="annot"><span class="annottext">JSLinkConfig -&gt; Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcNoRts"><span class="hs-identifier hs-var hs-var">lcNoRts</span></a></span></span><span>           </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Don't dump the generated RTS</span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lcNoStats"><span class="annot"><span class="annottext">JSLinkConfig -&gt; Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcNoStats"><span class="hs-identifier hs-var hs-var">lcNoStats</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Disable .stats file generation</span></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lcForeignRefs"><span class="annot"><span class="annottext">JSLinkConfig -&gt; Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcForeignRefs"><span class="hs-identifier hs-var hs-var">lcForeignRefs</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Dump .frefs (foreign references) files</span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lcCombineAll"><span class="annot"><span class="annottext">JSLinkConfig -&gt; Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcCombineAll"><span class="hs-identifier hs-var hs-var">lcCombineAll</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Generate all.js (combined js) + wrappers</span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lcForceEmccRts"><span class="annot"><span class="annottext">JSLinkConfig -&gt; Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcForceEmccRts"><span class="hs-identifier hs-var hs-var">lcForceEmccRts</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-comment">-- ^ Force the link with the emcc rts. Use this if you plan to dynamically</span><span>
+</span><span id="line-51"></span><span>      </span><span class="hs-comment">-- load wasm modules made from C files (e.g. in iserv).</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lcLinkCsources"><span class="annot"><span class="annottext">JSLinkConfig -&gt; Bool
+</span><a href="GHC.StgToJS.Linker.Types.html#lcLinkCsources"><span class="hs-identifier hs-var hs-var">lcLinkCsources</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-53"></span><span>      </span><span class="hs-comment">-- ^ Link C sources (compiled to JS/Wasm) with Haskell code compiled to</span><span>
+</span><span id="line-54"></span><span>      </span><span class="hs-comment">-- JS. This implies the use of the Emscripten RTS to load this code.</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">data</span><span> </span><span id="LinkPlan"><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#LinkPlan"><span class="hs-identifier hs-var">LinkPlan</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="LinkPlan"><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#LinkPlan"><span class="hs-identifier hs-var">LinkPlan</span></a></span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="lkp_block_info"><span class="annot"><span class="annottext">LinkPlan -&gt; Map Module LocatedBlockInfo
+</span><a href="GHC.StgToJS.Linker.Types.html#lkp_block_info"><span class="hs-identifier hs-var hs-var">lkp_block_info</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Map.Internal.html#Map"><span class="hs-identifier hs-type">Map</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Module"><span class="hs-identifier hs-type">Module</span></a></span><span> </span><span class="annot"><a href="GHC.StgToJS.Object.html#LocatedBlockInfo"><span class="hs-identifier hs-type">LocatedBlockInfo</span></a></span><span>
+</span><span id="line-59"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Block information</span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lkp_dep_blocks"><span class="annot"><span class="annottext">LinkPlan -&gt; Set BlockRef
+</span><a href="GHC.StgToJS.Linker.Types.html#lkp_dep_blocks"><span class="hs-identifier hs-var hs-var">lkp_dep_blocks</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#Set"><span class="hs-identifier hs-type">Set</span></a></span><span> </span><span class="annot"><a href="GHC.StgToJS.Object.html#BlockRef"><span class="hs-identifier hs-type">BlockRef</span></a></span><span>
+</span><span id="line-62"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Blocks to link</span></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lkp_archives"><span class="annot"><span class="annottext">LinkPlan -&gt; Set FilePath
+</span><a href="GHC.StgToJS.Linker.Types.html#lkp_archives"><span class="hs-identifier hs-var hs-var">lkp_archives</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#Set"><span class="hs-identifier hs-type">Set</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>      </span><span class="hs-comment">-- ^ Archives to load JS and Cc sources from (JS code corresponding to</span><span>
+</span><span id="line-66"></span><span>      </span><span class="hs-comment">-- Haskell code is handled with blocks above)</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lkp_objs_js"><span class="annot"><span class="annottext">LinkPlan -&gt; Set FilePath
+</span><a href="GHC.StgToJS.Linker.Types.html#lkp_objs_js"><span class="hs-identifier hs-var hs-var">lkp_objs_js</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#Set"><span class="hs-identifier hs-type">Set</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ JS objects to link</span></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="lkp_objs_cc"><span class="annot"><span class="annottext">LinkPlan -&gt; Set FilePath
+</span><a href="GHC.StgToJS.Linker.Types.html#lkp_objs_cc"><span class="hs-identifier hs-var hs-var">lkp_objs_cc</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#Set"><span class="hs-identifier hs-type">Set</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Cc objects to link</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Types.html#LinkPlan"><span class="hs-identifier hs-type">LinkPlan</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621682525338"><span class="annot"><span class="annottext">ppr :: LinkPlan -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span id="local-6989586621682525339"><span class="annot"><span class="annottext">LinkPlan
+</span><a href="#local-6989586621682525339"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#hang"><span class="hs-identifier hs-var">hang</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;LinkPlan&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">(SDoc -&gt; SDoc) -&gt; SDoc -&gt; SDoc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span>
+</span><span id="line-77"></span><span>            </span><span class="hs-comment">-- Hidden because it's too verbose and it's not really part of the</span><span>
+</span><span id="line-78"></span><span>            </span><span class="hs-comment">-- plan, just meta info used to retrieve actual block contents</span><span>
+</span><span id="line-79"></span><span>            </span><span class="hs-comment">-- [ hcat [ text &quot;Block info: &quot;, ppr (lkp_block_info s)]</span><span>
+</span><span id="line-80"></span><span>            </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsLine doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#hcat"><span class="hs-identifier hs-var">hcat</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Blocks: &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set BlockRef -&gt; Int
+forall a. Set a -&gt; Int
+</span><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#size"><span class="hs-identifier hs-var">S.size</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LinkPlan -&gt; Set BlockRef
+</span><a href="GHC.StgToJS.Linker.Types.html#lkp_dep_blocks"><span class="hs-identifier hs-var">lkp_dep_blocks</span></a></span><span> </span><span class="annot"><span class="annottext">LinkPlan
+</span><a href="#local-6989586621682525339"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#hang"><span class="hs-identifier hs-var">hang</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Archives:&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(FilePath -&gt; SDoc) -&gt; [FilePath] -&gt; [SDoc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set FilePath -&gt; [FilePath]
+forall a. Set a -&gt; [a]
+</span><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#toList"><span class="hs-identifier hs-var">S.toList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LinkPlan -&gt; Set FilePath
+</span><a href="GHC.StgToJS.Linker.Types.html#lkp_archives"><span class="hs-identifier hs-var">lkp_archives</span></a></span><span> </span><span class="annot"><span class="annottext">LinkPlan
+</span><a href="#local-6989586621682525339"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#hang"><span class="hs-identifier hs-var">hang</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Extra JS objects:&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(FilePath -&gt; SDoc) -&gt; [FilePath] -&gt; [SDoc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set FilePath -&gt; [FilePath]
+forall a. Set a -&gt; [a]
+</span><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#toList"><span class="hs-identifier hs-var">S.toList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LinkPlan -&gt; Set FilePath
+</span><a href="GHC.StgToJS.Linker.Types.html#lkp_objs_js"><span class="hs-identifier hs-var">lkp_objs_js</span></a></span><span> </span><span class="annot"><span class="annottext">LinkPlan
+</span><a href="#local-6989586621682525339"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#hang"><span class="hs-identifier hs-var">hang</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Extra Cc objects:&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(FilePath -&gt; SDoc) -&gt; [FilePath] -&gt; [SDoc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; SDoc
+forall doc. IsLine doc =&gt; FilePath -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set FilePath -&gt; [FilePath]
+forall a. Set a -&gt; [a]
+</span><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#toList"><span class="hs-identifier hs-var">S.toList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LinkPlan -&gt; Set FilePath
+</span><a href="GHC.StgToJS.Linker.Types.html#lkp_objs_cc"><span class="hs-identifier hs-var">lkp_objs_cc</span></a></span><span> </span><span class="annot"><span class="annottext">LinkPlan
+</span><a href="#local-6989586621682525339"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>            </span><span class="hs-special">]</span><span>
+</span><span id="line-85"></span></pre></body></html>

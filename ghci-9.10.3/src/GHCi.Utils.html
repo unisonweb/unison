@@ -1,0 +1,50 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;libraries/ghci/GHCi/Utils.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHCi.Utils.html"><span class="hs-identifier">GHCi.Utils</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHCi.Utils.html#getGhcHandle"><span class="hs-identifier">getGhcHandle</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHCi.Utils.html#readGhcHandle"><span class="hs-identifier">readGhcHandle</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Foreign.C.html"><span class="hs-identifier">Foreign.C</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.IO.Handle.html"><span class="hs-identifier">GHC.IO.Handle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Handle</span></span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LINE 26 &quot;libraries/ghci/GHCi/Utils.hsc&quot; #-}</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.html"><span class="hs-identifier">System.Posix</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-pragma">{-# LINE 28 &quot;libraries/ghci/GHCi/Utils.hsc&quot; #-}</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><span class="hs-comment">-- | Gets a GHC Handle File description from the given OS Handle or POSIX fd.</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-pragma">{-# LINE 52 &quot;libraries/ghci/GHCi/Utils.hsc&quot; #-}</span><span>
+</span><span id="line-52"></span><span class="annot"><a href="GHCi.Utils.html#getGhcHandle"><span class="hs-identifier hs-type">getGhcHandle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span>
+</span><span id="line-53"></span><span id="getGhcHandle"><span class="annot"><span class="annottext">getGhcHandle :: CInt -&gt; IO Handle
+</span><a href="GHCi.Utils.html#getGhcHandle"><span class="hs-identifier hs-var hs-var">getGhcHandle</span></a></span></span><span> </span><span id="local-6989586621679119716"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679119716"><span class="hs-identifier hs-var">fd</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Fd -&gt; IO Handle
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.IO.Common.html#fdToHandle"><span class="hs-identifier hs-var">fdToHandle</span></a></span><span> </span><span class="annot"><span class="annottext">(Fd -&gt; IO Handle) -&gt; Fd -&gt; IO Handle
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Fd
+</span><span class="hs-identifier hs-var">Fd</span></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679119716"><span class="hs-identifier hs-var">fd</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-pragma">{-# LINE 55 &quot;libraries/ghci/GHCi/Utils.hsc&quot; #-}</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">-- | Read a handle passed on the command-line and prepare it to be used with the IO manager</span></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="GHCi.Utils.html#readGhcHandle"><span class="hs-identifier hs-type">readGhcHandle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span>
+</span><span id="line-58"></span><span id="readGhcHandle"><span class="annot"><span class="annottext">readGhcHandle :: String -&gt; IO Handle
+</span><a href="GHCi.Utils.html#readGhcHandle"><span class="hs-identifier hs-var hs-var">readGhcHandle</span></a></span></span><span> </span><span id="local-6989586621679119719"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679119719"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-pragma">{-# LINE 68 &quot;libraries/ghci/GHCi/Utils.hsc&quot; #-}</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679119722"><span class="annot"><span class="annottext">fd :: CInt
+</span><a href="#local-6989586621679119722"><span class="hs-identifier hs-var hs-var">fd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; CInt
+forall a. Read a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">Prelude.read</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679119719"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-pragma">{-# LINE 70 &quot;libraries/ghci/GHCi/Utils.hsc&quot; #-}</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-identifier">getGhcHandle</span><span> </span><span class="hs-identifier">fd</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span></pre></body></html>

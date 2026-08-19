@@ -1,0 +1,1345 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+(c) The GRASP/AQUA Project, Glasgow University, 1992-1998
+
+\section[PrimOp]{Primitive operations (machine-level)}
+-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html"><span class="hs-identifier">GHC.Builtin.PrimOps</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-11"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier">PrimOp</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpVecCat"><span class="hs-identifier">PrimOpVecCat</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#allThePrimOps"><span class="hs-identifier">allThePrimOps</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpType"><span class="hs-identifier">primOpType</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpSig"><span class="hs-identifier">primOpSig</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpResultType"><span class="hs-identifier">primOpResultType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier">primOpTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#maxPrimOpTag"><span class="hs-identifier">maxPrimOpTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpOcc"><span class="hs-identifier">primOpOcc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpWrapperId"><span class="hs-identifier">primOpWrapperId</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#pprPrimOp"><span class="hs-identifier">pprPrimOp</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#tagToEnumKey"><span class="hs-identifier">tagToEnumKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpOutOfLine"><span class="hs-identifier">primOpOutOfLine</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpCodeSize"><span class="hs-identifier">primOpCodeSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpOkForSpeculation"><span class="hs-identifier">primOpOkForSpeculation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpOkToDiscard"><span class="hs-identifier">primOpOkToDiscard</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpIsWorkFree"><span class="hs-identifier">primOpIsWorkFree</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpIsCheap"><span class="hs-identifier">primOpIsCheap</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpFixity"><span class="hs-identifier">primOpFixity</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpDocs"><span class="hs-identifier">primOpDocs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpIsDiv"><span class="hs-identifier">primOpIsDiv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpIsReallyInline"><span class="hs-identifier">primOpIsReallyInline</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpEffect"><span class="hs-identifier">PrimOpEffect</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpEffect"><span class="hs-identifier">primOpEffect</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#getPrimOpResultInfo"><span class="hs-identifier">getPrimOpResultInfo</span></a></span><span class="hs-special">,</span><span>  </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#isComparisonPrimOp"><span class="hs-identifier">isComparisonPrimOp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpResultInfo"><span class="hs-identifier">PrimOpResultInfo</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimCall"><span class="hs-identifier">PrimCall</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Builtin.Types.Prim.html"><span class="hs-identifier">GHC.Builtin.Types.Prim</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Builtin.Types.html"><span class="hs-identifier">GHC.Builtin.Types</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Builtin.Uniques.html"><span class="hs-identifier">GHC.Builtin.Uniques</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Builtin.Uniques.html#mkPrimOpIdUnique"><span class="hs-identifier">mkPrimOpIdUnique</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Builtin.Uniques.html#mkPrimOpWrapperUnique"><span class="hs-identifier">mkPrimOpWrapperUnique</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Builtin.Names.html"><span class="hs-identifier">GHC.Builtin.Names</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Builtin.Names.html#gHC_PRIMOPWRAPPERS"><span class="hs-identifier">gHC_PRIMOPWRAPPERS</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.TyCon.html"><span class="hs-identifier">GHC.Core.TyCon</span></a></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Core.TyCon.html#isPrimTyCon"><span class="hs-identifier">isPrimTyCon</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.TyCon.html#isUnboxedTupleTyCon"><span class="hs-identifier">isUnboxedTupleTyCon</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.TyCon.html#PrimRep"><span class="hs-identifier">PrimRep</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Type.html"><span class="hs-identifier">GHC.Core.Type</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.Type.html"><span class="hs-identifier">GHC.Cmm.Type</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Demand.html"><span class="hs-identifier">GHC.Types.Demand</span></a></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Id.html"><span class="hs-identifier">GHC.Types.Id</span></a></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Id.Info.html"><span class="hs-identifier">GHC.Types.Id.Info</span></a></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.RepType.html"><span class="hs-identifier">GHC.Types.RepType</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.RepType.html#tyConPrimRep"><span class="hs-identifier">tyConPrimRep</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html"><span class="hs-identifier">GHC.Types.Basic</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html"><span class="hs-identifier">GHC.Types.Fixity</span></a></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier">Fixity</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#FixityDirection"><span class="hs-identifier">FixityDirection</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#wiredInSrcSpan"><span class="hs-identifier">wiredInSrcSpan</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.ForeignCall.html"><span class="hs-identifier">GHC.Types.ForeignCall</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.ForeignCall.html#CLabelString"><span class="hs-identifier">CLabelString</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html"><span class="hs-identifier">GHC.Types.SourceText</span></a></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html#SourceText"><span class="hs-identifier">SourceText</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html"><span class="hs-identifier">GHC.Types.Unique</span></a></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html#Unique"><span class="hs-identifier">Unique</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html"><span class="hs-identifier">GHC.Unit.Types</span></a></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Unit"><span class="hs-identifier">Unit</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsection[PrimOp-datatype]{Datatype for @PrimOp@ (an enumeration)}
+*                                                                      *
+************************************************************************
+
+These are in \tr{state-interface.verb} order.
+-}</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- supplies:</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- data PrimOp = ...</span><span class="hs-cpp">
+#include &quot;primop-data-decl.hs-incl&quot;
+</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- supplies</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- primOpTag :: PrimOp -&gt; Int</span><span class="hs-cpp">
+#include &quot;primop-tag.hs-incl&quot;
+</span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;primOpTag: unknown primop&quot;</span></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682520468"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621682520472"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520472"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span id="local-6989586621682520473"><span class="annot"><span class="annottext">== :: PrimOp -&gt; PrimOp -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span id="local-6989586621682520474"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520474"><span class="hs-identifier hs-var">op2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520472"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520474"><span class="hs-identifier hs-var">op2</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682520483"><span id="local-6989586621682520486"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621682520491"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520491"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span id="local-6989586621682520492"><span class="annot"><span class="annottext">&lt; :: PrimOp -&gt; PrimOp -&gt; Bool
+</span><a href="#local-6989586621682520492"><span class="hs-operator hs-var hs-var hs-var">&lt;</span></a></span></span><span>  </span><span id="local-6989586621682520494"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520494"><span class="hs-identifier hs-var">op2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520491"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520494"><span class="hs-identifier hs-var">op2</span></a></span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621682520496"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520496"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span id="local-6989586621682520497"><span class="annot"><span class="annottext">&lt;= :: PrimOp -&gt; PrimOp -&gt; Bool
+</span><a href="#local-6989586621682520497"><span class="hs-operator hs-var hs-var hs-var">&lt;=</span></a></span></span><span> </span><span id="local-6989586621682520499"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520499"><span class="hs-identifier hs-var">op2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520496"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520499"><span class="hs-identifier hs-var">op2</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621682520501"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520501"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span id="local-6989586621682520502"><span class="annot"><span class="annottext">&gt;= :: PrimOp -&gt; PrimOp -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;=</span></span></span><span> </span><span id="local-6989586621682520503"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520503"><span class="hs-identifier hs-var">op2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520501"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520503"><span class="hs-identifier hs-var">op2</span></a></span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621682520505"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520505"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span id="local-6989586621682520506"><span class="annot"><span class="annottext">&gt; :: PrimOp -&gt; PrimOp -&gt; Bool
+</span><a href="#local-6989586621682520506"><span class="hs-operator hs-var hs-var hs-var">&gt;</span></a></span></span><span>  </span><span id="local-6989586621682520508"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520508"><span class="hs-identifier hs-var">op2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520505"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520508"><span class="hs-identifier hs-var">op2</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621682520511"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520511"><span class="hs-identifier hs-var">op1</span></a></span></span><span> </span><span id="local-6989586621682520512"><span class="annot"><span class="annottext">compare :: PrimOp -&gt; PrimOp -&gt; Ordering
+</span><a href="#local-6989586621682520512"><span class="hs-operator hs-var hs-var hs-var">`compare`</span></a></span></span><span> </span><span id="local-6989586621682520514"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520514"><span class="hs-identifier hs-var">op2</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520511"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; PrimOp -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520514"><span class="hs-identifier hs-var">op2</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-91"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520511"><span class="hs-identifier hs-var">op1</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; PrimOp -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520514"><span class="hs-identifier hs-var">op2</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span>
+</span><span id="line-92"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>    </span><span id="local-6989586621682520518"><span class="annot"><span class="annottext">ppr :: PrimOp -&gt; SDoc
+</span><a href="#local-6989586621682520518"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span id="local-6989586621682520520"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520520"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; SDoc
+forall doc. IsLine doc =&gt; PrimOp -&gt; doc
+</span><a href="GHC.Builtin.PrimOps.html#pprPrimOp"><span class="hs-identifier hs-var">pprPrimOp</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520520"><span class="hs-identifier hs-var">op</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-keyword">data</span><span> </span><span id="PrimOpVecCat"><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpVecCat"><span class="hs-identifier hs-var">PrimOpVecCat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IntVec"><span class="annot"><a href="GHC.Builtin.PrimOps.html#IntVec"><span class="hs-identifier hs-var">IntVec</span></a></span></span><span>
+</span><span id="line-98"></span><span>                  </span><span class="hs-glyph">|</span><span> </span><span id="WordVec"><span class="annot"><a href="GHC.Builtin.PrimOps.html#WordVec"><span class="hs-identifier hs-var">WordVec</span></a></span></span><span>
+</span><span id="line-99"></span><span>                  </span><span class="hs-glyph">|</span><span> </span><span id="FloatVec"><span class="annot"><a href="GHC.Builtin.PrimOps.html#FloatVec"><span class="hs-identifier hs-var">FloatVec</span></a></span></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- An @Enum@-derived list would be better; meanwhile... (ToDo)</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#allThePrimOps"><span class="hs-identifier hs-type">allThePrimOps</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-104"></span><span id="allThePrimOps"><span class="annot"><span class="annottext">[PrimOp]
+</span><a href="GHC.Builtin.PrimOps.html#allThePrimOps"><span class="hs-identifier hs-var hs-var">allThePrimOps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+#include &quot;primop-list.hs-incl&quot;
+</span><span>
+</span><span id="line-107"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#tagToEnumKey"><span class="hs-identifier hs-type">tagToEnumKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html#Unique"><span class="hs-identifier hs-type">Unique</span></a></span><span>
+</span><span id="line-108"></span><span id="tagToEnumKey"><span class="annot"><span class="annottext">tagToEnumKey :: Unique
+</span><a href="GHC.Builtin.PrimOps.html#tagToEnumKey"><span class="hs-identifier hs-var hs-var">tagToEnumKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Unique
+</span><a href="GHC.Builtin.Uniques.html#mkPrimOpIdUnique"><span class="hs-identifier hs-var">mkPrimOpIdUnique</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#TagToEnumOp"><span class="hs-identifier hs-var">TagToEnumOp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsection[PrimOp-info]{The essential info about each @PrimOp@}
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-keyword">data</span><span> </span><span id="PrimOpInfo"><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpInfo"><span class="hs-identifier hs-var">PrimOpInfo</span></a></span></span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Compare"><span class="annot"><a href="GHC.Builtin.PrimOps.html#Compare"><span class="hs-identifier hs-var">Compare</span></a></span></span><span>     </span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span>         </span><span class="hs-comment">-- string :: T -&gt; T -&gt; Int#</span><span>
+</span><span id="line-120"></span><span>                </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="GenPrimOp"><span class="annot"><a href="GHC.Builtin.PrimOps.html#GenPrimOp"><span class="hs-identifier hs-var">GenPrimOp</span></a></span></span><span>   </span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span>         </span><span class="hs-comment">-- string :: \/a1..an . T1 -&gt; .. -&gt; Tk -&gt; T</span><span>
+</span><span id="line-122"></span><span>                </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Var.html#TyVarBinder"><span class="hs-identifier hs-type">TyVarBinder</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-123"></span><span>                </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-124"></span><span>                </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#mkCompare"><span class="hs-identifier hs-type">mkCompare</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpInfo"><span class="hs-identifier hs-type">PrimOpInfo</span></a></span><span>
+</span><span id="line-127"></span><span id="mkCompare"><span class="annot"><span class="annottext">mkCompare :: FastString -&gt; Type -&gt; PrimOpInfo
+</span><a href="GHC.Builtin.PrimOps.html#mkCompare"><span class="hs-identifier hs-var hs-var">mkCompare</span></a></span></span><span> </span><span id="local-6989586621682520523"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682520523"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span id="local-6989586621682520524"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520524"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OccName -&gt; Type -&gt; PrimOpInfo
+</span><a href="GHC.Builtin.PrimOps.html#Compare"><span class="hs-identifier hs-var">Compare</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString -&gt; OccName
+</span><a href="GHC.Types.Name.Occurrence.html#mkVarOccFS"><span class="hs-identifier hs-var">mkVarOccFS</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682520523"><span class="hs-identifier hs-var">str</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520524"><span class="hs-identifier hs-var">ty</span></a></span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#mkGenPrimOp"><span class="hs-identifier hs-type">mkGenPrimOp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Var.html#TyVarBinder"><span class="hs-identifier hs-type">TyVarBinder</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpInfo"><span class="hs-identifier hs-type">PrimOpInfo</span></a></span><span>
+</span><span id="line-130"></span><span id="mkGenPrimOp"><span class="annot"><span class="annottext">mkGenPrimOp :: FastString -&gt; [TyVarBinder] -&gt; [Type] -&gt; Type -&gt; PrimOpInfo
+</span><a href="GHC.Builtin.PrimOps.html#mkGenPrimOp"><span class="hs-identifier hs-var hs-var">mkGenPrimOp</span></a></span></span><span> </span><span id="local-6989586621682520526"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682520526"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span id="local-6989586621682520527"><span class="annot"><span class="annottext">[TyVarBinder]
+</span><a href="#local-6989586621682520527"><span class="hs-identifier hs-var">tvs</span></a></span></span><span> </span><span id="local-6989586621682520528"><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621682520528"><span class="hs-identifier hs-var">tys</span></a></span></span><span> </span><span id="local-6989586621682520529"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520529"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OccName -&gt; [TyVarBinder] -&gt; [Type] -&gt; Type -&gt; PrimOpInfo
+</span><a href="GHC.Builtin.PrimOps.html#GenPrimOp"><span class="hs-identifier hs-var">GenPrimOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString -&gt; OccName
+</span><a href="GHC.Types.Name.Occurrence.html#mkVarOccFS"><span class="hs-identifier hs-var">mkVarOccFS</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682520526"><span class="hs-identifier hs-var">str</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[TyVarBinder]
+</span><a href="#local-6989586621682520527"><span class="hs-identifier hs-var">tvs</span></a></span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621682520528"><span class="hs-identifier hs-var">tys</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520529"><span class="hs-identifier hs-var">ty</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsubsection{Strictness}
+*                                                                      *
+************************************************************************
+
+Not all primops are strict!
+-}</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpStrictness"><span class="hs-identifier hs-type">primOpStrictness</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#Arity"><span class="hs-identifier hs-type">Arity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Demand.html#DmdSig"><span class="hs-identifier hs-type">DmdSig</span></a></span><span>
+</span><span id="line-143"></span><span>        </span><span class="hs-comment">-- See Demand.DmdSig for discussion of what the results</span><span>
+</span><span id="line-144"></span><span>        </span><span class="hs-comment">-- The arity should be the arity of the primop; that's why</span><span>
+</span><span id="line-145"></span><span>        </span><span class="hs-comment">-- this function isn't exported.</span><span class="hs-cpp">
+#include &quot;primop-strictness.hs-incl&quot;
+</span><span>
+</span><span id="line-148"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsubsection{Fixity}
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpFixity"><span class="hs-identifier hs-type">primOpFixity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier hs-type">Fixity</span></a></span><span class="hs-cpp">
+#include &quot;primop-fixity.hs-incl&quot;
+</span><span>
+</span><span id="line-159"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsubsection{Docs}
+*                                                                      *
+************************************************************************
+
+See Note [GHC.Prim Docs]
+-}</span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpDocs"><span class="hs-identifier hs-type">primOpDocs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-cpp">
+#include &quot;primop-docs.hs-incl&quot;
+</span><span>
+</span><span id="line-172"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsubsection[PrimOp-comparison]{PrimOpInfo basic comparison ops}
+*                                                                      *
+************************************************************************
+
+@primOpInfo@ gives all essential information (from which everything
+else, notably a type, can be constructed) for each @PrimOp@.
+-}</span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpInfo"><span class="hs-identifier hs-type">primOpInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpInfo"><span class="hs-identifier hs-type">PrimOpInfo</span></a></span><span class="hs-cpp">
+#include &quot;primop-primop-info.hs-incl&quot;
+</span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpInfo"><span class="hs-identifier hs-var">primOpInfo</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; PrimOpInfo
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;primOpInfo: unknown primop&quot;</span></span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="hs-comment">{-
+Here are a load of comments from the old primOp info:
+
+A @Word#@ is an unsigned @Int#@.
+
+@decodeFloat#@ is given w/ Integer-stuff (it's similar).
+
+@decodeDouble#@ is given w/ Integer-stuff (it's similar).
+
+Decoding of floating-point numbers is sorta Integer-related.  Encoding
+is done with plain ccalls now (see PrelNumExtra.hs).
+
+A @Weak@ Pointer is created by the @mkWeak#@ primitive:
+
+        mkWeak# :: k -&gt; v -&gt; f -&gt; State# RealWorld
+                        -&gt; (# State# RealWorld, Weak# v #)
+
+In practice, you'll use the higher-level
+
+        data Weak v = Weak# v
+        mkWeak :: k -&gt; v -&gt; IO () -&gt; IO (Weak v)
+
+The following operation dereferences a weak pointer.  The weak pointer
+may have been finalized, so the operation returns a result code which
+must be inspected before looking at the dereferenced value.
+
+        deRefWeak# :: Weak# v -&gt; State# RealWorld -&gt;
+                        (# State# RealWorld, v, Int# #)
+
+Only look at v if the Int# returned is /= 0 !!
+
+The higher-level op is
+
+        deRefWeak :: Weak v -&gt; IO (Maybe v)
+
+Weak pointers can be finalized early by using the finalize# operation:
+
+        finalizeWeak# :: Weak# v -&gt; State# RealWorld -&gt;
+                           (# State# RealWorld, Int#, IO () #)
+
+The Int# returned is either
+
+        0 if the weak pointer has already been finalized, or it has no
+          finalizer (the third component is then invalid).
+
+        1 if the weak pointer is still alive, with the finalizer returned
+          as the third component.
+
+A {\em stable name/pointer} is an index into a table of stable name
+entries.  Since the garbage collector is told about stable pointers,
+it is safe to pass a stable pointer to external systems such as C
+routines.
+
+\begin{verbatim}
+makeStablePtr#  :: a -&gt; State# RealWorld -&gt; (# State# RealWorld, StablePtr# a #)
+freeStablePtr   :: StablePtr# a -&gt; State# RealWorld -&gt; State# RealWorld
+deRefStablePtr# :: StablePtr# a -&gt; State# RealWorld -&gt; (# State# RealWorld, a #)
+eqStablePtr#    :: StablePtr# a -&gt; StablePtr# a -&gt; Int#
+\end{verbatim}
+
+It may seem a bit surprising that @makeStablePtr#@ is a @IO@
+operation since it doesn't (directly) involve IO operations.  The
+reason is that if some optimisation pass decided to duplicate calls to
+@makeStablePtr#@ and we only pass one of the stable pointers over, a
+massive space leak can result.  Putting it into the IO monad
+prevents this.  (Another reason for putting them in a monad is to
+ensure correct sequencing wrt the side-effecting @freeStablePtr@
+operation.)
+
+An important property of stable pointers is that if you call
+makeStablePtr# twice on the same object you get the same stable
+pointer back.
+
+Note that we can implement @freeStablePtr#@ using @_ccall_@ (and,
+besides, it's not likely to be used from Haskell) so it's not a
+primop.
+
+Question: Why @RealWorld@ - won't any instance of @_ST@ do the job? [ADR]
+
+Stable Names
+~~~~~~~~~~~~
+
+A stable name is like a stable pointer, but with three important differences:
+
+        (a) You can't deRef one to get back to the original object.
+        (b) You can convert one to an Int.
+        (c) You don't need to 'freeStableName'
+
+The existence of a stable name doesn't guarantee to keep the object it
+points to alive (unlike a stable pointer), hence (a).
+
+Invariants:
+
+        (a) makeStableName always returns the same value for a given
+            object (same as stable pointers).
+
+        (b) if two stable names are equal, it implies that the objects
+            from which they were created were the same.
+
+        (c) stableNameToInt always returns the same Int for a given
+            stable name.
+
+
+These primops are pretty weird.
+
+        tagToEnum# :: Int -&gt; a    (result type must be an enumerated type)
+
+The constraints aren't currently checked by the front end, but the
+code generator will fall over if they aren't satisfied.
+
+************************************************************************
+*                                                                      *
+            Which PrimOps are out-of-line
+*                                                                      *
+************************************************************************
+
+Some PrimOps need to be called out-of-line because they either need to
+perform a heap check or they block.
+-}</span><span>
+</span><span id="line-306"></span><span>
+</span><span id="line-307"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpOutOfLine"><span class="hs-identifier hs-type">primOpOutOfLine</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-cpp">
+#include &quot;primop-out-of-line.hs-incl&quot;
+</span><span>
+</span><span id="line-310"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+            Failure and side effects
+*                                                                      *
+************************************************************************
+
+
+Note [Exceptions: asynchronous, synchronous, and unchecked]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+There are three very different sorts of things in GHC-Haskell that are
+sometimes called exceptions:
+
+* Haskell exceptions:
+
+  These are ordinary exceptions that users can raise with the likes
+  of 'throw' and handle with the likes of 'catch'.  They come in two
+  very different flavors:
+
+  * Asynchronous exceptions:
+    * These can arise at nearly any time, and may have nothing to do
+      with the code being executed.
+    * The compiler itself mostly doesn't need to care about them.
+    * Examples: a signal from another process, running out of heap or stack
+    * Even pure code can receive asynchronous exceptions; in this
+      case, executing the same code again may lead to different
+      results, because the exception may not happen next time.
+    * See rts/RaiseAsync.c for the gory details of how they work.
+
+  * Synchronous exceptions:
+    * These are produced by the code being executed, most commonly via
+      a call to the `raise#` or `raiseIO#` primops.
+    * At run-time, if a piece of pure code raises a synchronous
+      exception, it will always raise the same synchronous exception
+      if it is run again (and not interrupted by an asynchronous
+      exception).
+    * In particular, if an updatable thunk does some work and then
+      raises a synchronous exception, it is safe to overwrite it with
+      a thunk that /immediately/ raises the same exception.
+    * Although we are careful not to discard synchronous exceptions, we
+      are very liberal about re-ordering them with respect to most other
+      operations.  See the paper &quot;A semantics for imprecise exceptions&quot;
+      as well as Note [Precise exceptions and strictness analysis] in
+      GHC.Types.Demand.
+
+* Unchecked exceptions:
+
+  * These are nasty failures like seg-faults or primitive Int# division
+    by zero.  They differ from Haskell exceptions in that they are
+    un-recoverable and typically bring execution to an immediate halt.
+  * We generally treat unchecked exceptions as undefined behavior, on
+    the assumption that the programmer never intends to crash the
+    program in this way.  Thus we have no qualms about replacing a
+    division-by-zero with a recoverable Haskell exception or
+    discarding an indexArray# operation whose result is unused.
+
+
+Note [Classifying primop effects]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Each primop has an associated 'PrimOpEffect', based on what that
+primop can or cannot do at runtime.  This classification is
+
+* Recorded in the 'effect' field in primops.txt.pp, and
+* Exposed to the compiler via the 'primOpEffect' function in this module.
+
+See Note [Transformations affected by primop effects] for how we make
+use of this categorisation.
+
+The meanings of the four constructors of 'PrimOpEffect' are as
+follows, in decreasing order of permissiveness:
+
+* ReadWriteEffect
+    A primop is marked ReadWriteEffect if it can
+    - read or write to the world (I/O), or
+    - read or write to a mutable data structure (e.g. readMutVar#).
+
+    Every such primop uses State# tokens for sequencing, with a type like:
+      Inputs -&gt; State# s -&gt; (# State# s, Outputs #)
+    The state token threading expresses ordering, but duplicating even
+    a read-only effect would defeat this.  (See &quot;duplication&quot; under
+    Note [Transformations affected by primop effects] for details.)
+
+    Note that operations like `indexArray#` that read *immutable*
+    data structures do not need such special sequencing-related care,
+    and are therefore not marked ReadWriteEffect.
+
+* ThrowsException
+    A primop is marked ThrowsException if
+    - it is not marked ReadWriteEffect, and
+    - it may diverge or throw a synchronous Haskell exception
+      even when used in a &quot;correct&quot; and well-specified way.
+
+    See also Note [Exceptions: asynchronous, synchronous, and unchecked].
+    Examples include raise#, raiseIO#, dataToTagLarge#, and seq#.
+
+    Note that whether an exception is considered precise or imprecise
+    does not matter for the purposes of the PrimOpEffect flag.
+
+* CanFail
+    A primop is marked CanFail if
+    - it is not marked ReadWriteEffect or ThrowsException, and
+    - it can trigger a (potentially-unchecked) exception when used incorrectly.
+
+    See Note [Exceptions: asynchronous, synchronous, and unchecked].
+    Examples include quotWord# and indexIntArray#, which can fail with
+    division-by-zero and a segfault respectively.
+
+    A correct use of a CanFail primop is usually surrounded by a test
+    that screens out the bad cases such as a zero divisor or an
+    out-of-bounds array index.  We must take care never to move a
+    CanFail primop outside the scope of such a test.
+
+* NoEffect
+    A primop is marked NoEffect if it does not belong to any of the
+    other three categories.  We can very aggressively shuffle these
+    operations around without fear of changing a program's meaning.
+
+    Perhaps surprisingly, this aggressive shuffling imposes another
+    restriction: The tricky NoEffect primop uncheckedShiftLWord32# has
+    an undefined result when the provided shift amount is not between
+    0 and 31.  Thus, a call like `uncheckedShiftLWord32# x 95#` is
+    obviously invalid.  But since uncheckedShiftLWord32# is marked
+    NoEffect, we may float such an invalid call out of a dead branch
+    and speculatively evaluate it.
+
+    In particular, we cannot safely rewrite such an invalid call to a
+    runtime error; we must emit code that produces a valid Word32#.
+    (If we're lucky, Core Lint may complain that the result of such a
+    rewrite violates the let-can-float invariant (#16742), but the
+    rewrite is always wrong!)  See also Note [Guarding against silly shifts]
+    in GHC.Core.Opt.ConstantFold.
+
+    Marking uncheckedShiftLWord32# as CanFail instead of NoEffect
+    would give us the freedom to rewrite such invalid calls to runtime
+    errors, but would get in the way of optimization: When speculatively
+    executing a bit-shift prevents the allocation of a thunk, that's a
+    big win.
+
+
+Note [Transformations affected by primop effects]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The PrimOpEffect properties have the following effect on program
+transformations.  The summary table is followed by details.  See also
+Note [Classifying primop effects] for exactly what each column means.
+
+                    NoEffect    CanFail    ThrowsException    ReadWriteEffect
+Discard                YES        YES            NO                 NO
+Defer (float in)       YES        YES           SAFE               SAFE
+Speculate (float out)  YES        NO             NO                 NO
+Duplicate              YES        YES            YES                NO
+
+(SAFE means we could perform the transformation but do not.)
+
+* Discarding:   case (a `op` b) of _ -&gt; rhs  ===&gt;   rhs
+    You should not discard a ReadWriteEffect primop; e.g.
+       case (writeIntArray# a i v s of (# _, _ #) -&gt; True
+    One could argue in favor of discarding this, since the returned
+    State# token is not used.  But in practice unsafePerformIO can
+    easily produce similar code, and programmers sometimes write this
+    kind of stuff by hand (#9390).  So we (conservatively) never discard
+    a ReadWriteEffect primop.
+
+      Digression: We could try to track read-only effects separately
+      from write effects to allow the former to be discarded.  But in
+      fact we want a more general rewrite for read-only operations:
+        case readOp# state# of (# newState#, _unused_result #) -&gt; body
+        ==&gt; case state# of newState# -&gt; body
+      Such a rewrite is not yet implemented, but would have to be done
+      in a different place anyway.
+
+    Discarding a ThrowsException primop would also discard any exception
+    it might have thrown.  For `raise#` or `raiseIO#` this would defeat
+    the whole point of the primop, while for `dataToTagLarge#` or `seq#`
+    this would make programs unexpectly lazier.
+
+    However, it's fine to discard a CanFail primop.  For example
+       case (indexIntArray# a i) of _ -&gt; True
+    We can discard indexIntArray# here; this came up in #5658.  Notice
+    that CanFail primops like indexIntArray# can only trigger an
+    exception when used incorrectly, i.e. a call that might not succeed
+    is undefined behavior anyway.
+
+* Deferring (float-in):
+    See Note [Floating primops] in GHC.Core.Opt.FloatIn.
+
+    In the absence of data dependencies (including state token threading),
+    we reserve the right to re-order the following things arbitrarily:
+      * Side effects
+      * Imprecise exceptions
+      * Divergent computations (infinite loops)
+    This lets us safely float almost any primop *inwards*, but not
+    inside a (multi-shot) lambda.  (See &quot;Duplication&quot; below.)
+
+    However, the main reason to float-in a primop application would be
+    to discard it (by floating it into some but not all branches of a
+    case), so we actually only float-in NoEffect and CanFail operations.
+    See also Note [Floating primops] in GHC.Core.Opt.FloatIn.
+
+    (This automatically side-steps the question of precise exceptions, which
+    mustn't be re-ordered arbitrarily but need at least ThrowsException.)
+
+* Speculation (strict float-out):
+    You must not float a CanFail primop *outwards* lest it escape the
+    dynamic scope of a run-time validity test.  Example:
+      case d &gt;# 0# of
+        True  -&gt; case x /# d of r -&gt; r +# 1
+        False -&gt; 0
+    Here we must not float the case outwards to give
+      case x/# d of r -&gt;
+      case d &gt;# 0# of
+        True  -&gt; r +# 1
+        False -&gt; 0
+    Otherwise, if this block is reached when d is zero, it will crash.
+    Exactly the same reasoning applies to ThrowsException primops.
+
+    Nor can you float out a ReadWriteEffect primop.  For example:
+       if blah then case writeMutVar# v True s0 of (# s1 #) -&gt; s1
+               else s0
+    Notice that s0 is mentioned in both branches of the 'if', but
+    only one of these two will actually be consumed.  But if we
+    float out to
+      case writeMutVar# v True s0 of (# s1 #) -&gt;
+      if blah then s1 else s0
+    the writeMutVar will be performed in both branches, which is
+    utterly wrong.
+
+    What about a read-only operation that cannot fail, like
+    readMutVar#?  In principle we could safely float these out.  But
+    there are not very many such operations and it's not clear if
+    there are real-world programs that would benefit from this.
+
+* Duplication:
+    You cannot duplicate a ReadWriteEffect primop.  You might wonder
+    how this can occur given the state token threading, but just look
+    at Control.Monad.ST.Lazy.Imp.strictToLazy!  We get something like this
+        p = case readMutVar# s v of
+              (# s', r #) -&gt; (State# s', r)
+        s' = case p of (s', r) -&gt; s'
+        r  = case p of (s', r) -&gt; r
+
+    (All these bindings are boxed.)  If we inline p at its two call
+    sites, we get a catastrophe: because the read is performed once when
+    s' is demanded, and once when 'r' is demanded, which may be much
+    later.  Utterly wrong.  #3207 is real example of this happening.
+    Floating p into a multi-shot lambda would be wrong for the same reason.
+
+    However, it's fine to duplicate a CanFail or ThrowsException primop.
+
+
+
+Note [Implementation: how PrimOpEffect affects transformations]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+How do we ensure that floating/duplication/discarding are done right
+in the simplifier?
+
+Several predicates on primops test this flag:
+  primOpOkToDiscard      &lt;=&gt; effect &lt; ThrowsException
+  primOpOkForSpeculation &lt;=&gt; effect == NoEffect &amp;&amp; not (out_of_line)
+  primOpIsCheap          &lt;=&gt; cheap  -- ...defaults to primOpOkForSpeculation
+    [[But note that the raise# family and seq# are also considered cheap in
+      GHC.Core.Utils.exprIsCheap by way of being work-free]]
+
+  * The discarding mentioned above happens in
+    GHC.Core.Opt.Simplify.Iteration, specifically in rebuildCase,
+    where it is guarded by exprOkToDiscard, which in turn checks
+    primOpOkToDiscard.
+
+  * The &quot;no-float-out&quot; thing is achieved by ensuring that we never
+    let-bind a saturated primop application unless it has NoEffect.
+    The RHS of a let-binding (which can float in and out freely)
+    satisfies exprOkForSpeculation; this is the let-can-float
+    invariant.  And exprOkForSpeculation is false of a saturated
+    primop application unless it has NoEffect.
+
+  * So primops that aren't NoEffect will appear only as the
+    scrutinees of cases, and that's why the FloatIn pass is capable
+    of floating case bindings inwards.
+
+  * Duplication via inlining and float-in of (lifted) let-binders is
+    controlled via primOpIsWorkFree and primOpIsCheap, by making
+    ReadWriteEffect things (among others) not-cheap!  (The test
+    PrimOpEffect_Sanity will complain if any ReadWriteEffect primop
+    is considered either work-free or cheap.)  Additionally, a
+    case binding is only floated inwards if its scrutinee is ok-to-discard.
+-}</span><span>
+</span><span id="line-596"></span><span>
+</span><span id="line-597"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpEffect"><span class="hs-identifier hs-type">primOpEffect</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpEffect"><span class="hs-identifier hs-type">PrimOpEffect</span></a></span><span class="hs-cpp">
+#include &quot;primop-effects.hs-incl&quot;
+</span><span>
+</span><span id="line-600"></span><span class="hs-keyword">data</span><span> </span><span id="PrimOpEffect"><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpEffect"><span class="hs-identifier hs-var">PrimOpEffect</span></a></span></span><span>
+</span><span id="line-601"></span><span>  </span><span class="hs-comment">-- See Note [Classifying primop effects]</span><span>
+</span><span id="line-602"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="NoEffect"><span class="annot"><a href="GHC.Builtin.PrimOps.html#NoEffect"><span class="hs-identifier hs-var">NoEffect</span></a></span></span><span>
+</span><span id="line-603"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CanFail"><span class="annot"><a href="GHC.Builtin.PrimOps.html#CanFail"><span class="hs-identifier hs-var">CanFail</span></a></span></span><span>
+</span><span id="line-604"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ThrowsException"><span class="annot"><a href="GHC.Builtin.PrimOps.html#ThrowsException"><span class="hs-identifier hs-var">ThrowsException</span></a></span></span><span>
+</span><span id="line-605"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReadWriteEffect"><span class="annot"><a href="GHC.Builtin.PrimOps.html#ReadWriteEffect"><span class="hs-identifier hs-var">ReadWriteEffect</span></a></span></span><span>
+</span><span id="line-606"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682520532"><span id="local-6989586621682520537"><span class="annot"><span class="annottext">PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+(PrimOpEffect -&gt; PrimOpEffect -&gt; Bool)
+-&gt; (PrimOpEffect -&gt; PrimOpEffect -&gt; Bool) -&gt; Eq PrimOpEffect
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+== :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+$c/= :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+/= :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682520542"><span id="local-6989586621682520546"><span id="local-6989586621682520550"><span id="local-6989586621682520553"><span id="local-6989586621682520556"><span id="local-6989586621682520559"><span id="local-6989586621682520562"><span class="annot"><span class="annottext">Eq PrimOpEffect
+Eq PrimOpEffect =&gt;
+(PrimOpEffect -&gt; PrimOpEffect -&gt; Ordering)
+-&gt; (PrimOpEffect -&gt; PrimOpEffect -&gt; Bool)
+-&gt; (PrimOpEffect -&gt; PrimOpEffect -&gt; Bool)
+-&gt; (PrimOpEffect -&gt; PrimOpEffect -&gt; Bool)
+-&gt; (PrimOpEffect -&gt; PrimOpEffect -&gt; Bool)
+-&gt; (PrimOpEffect -&gt; PrimOpEffect -&gt; PrimOpEffect)
+-&gt; (PrimOpEffect -&gt; PrimOpEffect -&gt; PrimOpEffect)
+-&gt; Ord PrimOpEffect
+PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+PrimOpEffect -&gt; PrimOpEffect -&gt; Ordering
+PrimOpEffect -&gt; PrimOpEffect -&gt; PrimOpEffect
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: PrimOpEffect -&gt; PrimOpEffect -&gt; Ordering
+compare :: PrimOpEffect -&gt; PrimOpEffect -&gt; Ordering
+$c&lt; :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+&lt; :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+$c&lt;= :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+&lt;= :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+$c&gt; :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+&gt; :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+$c&gt;= :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+&gt;= :: PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+$cmax :: PrimOpEffect -&gt; PrimOpEffect -&gt; PrimOpEffect
+max :: PrimOpEffect -&gt; PrimOpEffect -&gt; PrimOpEffect
+$cmin :: PrimOpEffect -&gt; PrimOpEffect -&gt; PrimOpEffect
+min :: PrimOpEffect -&gt; PrimOpEffect -&gt; PrimOpEffect
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-607"></span><span>
+</span><span id="line-608"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpOkForSpeculation"><span class="hs-identifier hs-type">primOpOkForSpeculation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-609"></span><span>  </span><span class="hs-comment">-- See Note [Classifying primop effects]</span><span>
+</span><span id="line-610"></span><span>  </span><span class="hs-comment">-- See comments with GHC.Core.Utils.exprOkForSpeculation</span><span>
+</span><span id="line-611"></span><span>  </span><span class="hs-comment">-- primOpOkForSpeculation =&gt; primOpOkToDiscard</span><span>
+</span><span id="line-612"></span><span id="primOpOkForSpeculation"><span class="annot"><span class="annottext">primOpOkForSpeculation :: PrimOp -&gt; Bool
+</span><a href="GHC.Builtin.PrimOps.html#primOpOkForSpeculation"><span class="hs-identifier hs-var hs-var">primOpOkForSpeculation</span></a></span></span><span> </span><span id="local-6989586621682520564"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520564"><span class="hs-identifier hs-var">op</span></a></span></span><span>
+</span><span id="line-613"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; PrimOpEffect
+</span><a href="GHC.Builtin.PrimOps.html#primOpEffect"><span class="hs-identifier hs-var">primOpEffect</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520564"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">PrimOpEffect
+</span><a href="GHC.Builtin.PrimOps.html#NoEffect"><span class="hs-identifier hs-var">NoEffect</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimOp -&gt; Bool
+</span><a href="GHC.Builtin.PrimOps.html#primOpOutOfLine"><span class="hs-identifier hs-var">primOpOutOfLine</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520564"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-614"></span><span>    </span><span class="hs-comment">-- I think the &quot;out of line&quot; test is because out of line things can</span><span>
+</span><span id="line-615"></span><span>    </span><span class="hs-comment">-- be expensive (eg sine, cosine), and so we may not want to speculate them</span><span>
+</span><span id="line-616"></span><span>
+</span><span id="line-617"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpOkToDiscard"><span class="hs-identifier hs-type">primOpOkToDiscard</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-618"></span><span id="primOpOkToDiscard"><span class="annot"><span class="annottext">primOpOkToDiscard :: PrimOp -&gt; Bool
+</span><a href="GHC.Builtin.PrimOps.html#primOpOkToDiscard"><span class="hs-identifier hs-var hs-var">primOpOkToDiscard</span></a></span></span><span> </span><span id="local-6989586621682520567"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520567"><span class="hs-identifier hs-var">op</span></a></span></span><span>
+</span><span id="line-619"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; PrimOpEffect
+</span><a href="GHC.Builtin.PrimOps.html#primOpEffect"><span class="hs-identifier hs-var">primOpEffect</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520567"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOpEffect -&gt; PrimOpEffect -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">PrimOpEffect
+</span><a href="GHC.Builtin.PrimOps.html#ThrowsException"><span class="hs-identifier hs-var">ThrowsException</span></a></span><span>
+</span><span id="line-620"></span><span>
+</span><span id="line-621"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpIsWorkFree"><span class="hs-identifier hs-type">primOpIsWorkFree</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-cpp">
+#include &quot;primop-is-work-free.hs-incl&quot;
+</span><span>
+</span><span id="line-624"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpIsCheap"><span class="hs-identifier hs-type">primOpIsCheap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-625"></span><span class="hs-comment">-- See Note [Classifying primop effects]</span><span class="hs-cpp">
+#include &quot;primop-is-cheap.hs-incl&quot;
+</span><span class="hs-comment">-- In March 2001, we changed this to</span><span>
+</span><span id="line-628"></span><span class="hs-comment">--      primOpIsCheap op = False</span><span>
+</span><span id="line-629"></span><span class="hs-comment">-- thereby making *no* primops seem cheap.  But this killed eta</span><span>
+</span><span id="line-630"></span><span class="hs-comment">-- expansion on case (x ==# y) of True -&gt; \s -&gt; ...</span><span>
+</span><span id="line-631"></span><span class="hs-comment">-- which is bad.  In particular a loop like</span><span>
+</span><span id="line-632"></span><span class="hs-comment">--      doLoop n = loop 0</span><span>
+</span><span id="line-633"></span><span class="hs-comment">--     where</span><span>
+</span><span id="line-634"></span><span class="hs-comment">--         loop i | i == n    = return ()</span><span>
+</span><span id="line-635"></span><span class="hs-comment">--                | otherwise = bar i &gt;&gt; loop (i+1)</span><span>
+</span><span id="line-636"></span><span class="hs-comment">-- allocated a closure every time round because it doesn't eta expand.</span><span>
+</span><span id="line-637"></span><span class="hs-comment">--</span><span>
+</span><span id="line-638"></span><span class="hs-comment">-- The problem that originally gave rise to the change was</span><span>
+</span><span id="line-639"></span><span class="hs-comment">--      let x = a +# b *# c in x +# x</span><span>
+</span><span id="line-640"></span><span class="hs-comment">-- were we don't want to inline x. But primopIsCheap doesn't control</span><span>
+</span><span id="line-641"></span><span class="hs-comment">-- that (it's primOpIsWorkFree that does) so the problem doesn't occur</span><span>
+</span><span id="line-642"></span><span class="hs-comment">-- even if primOpIsCheap sometimes says 'True'.</span><span>
+</span><span id="line-643"></span><span>
+</span><span id="line-644"></span><span>
+</span><span id="line-645"></span><span class="hs-comment">-- | True of dyadic operators that can fail only if the second arg is zero!</span><span>
+</span><span id="line-646"></span><span class="hs-comment">--</span><span>
+</span><span id="line-647"></span><span class="hs-comment">-- This function probably belongs in an automagically generated file.. but it's</span><span>
+</span><span id="line-648"></span><span class="hs-comment">-- such a special case I thought I'd leave it here for now.</span><span>
+</span><span id="line-649"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpIsDiv"><span class="hs-identifier hs-type">primOpIsDiv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-650"></span><span id="primOpIsDiv"><span class="annot"><span class="annottext">primOpIsDiv :: PrimOp -&gt; Bool
+</span><a href="GHC.Builtin.PrimOps.html#primOpIsDiv"><span class="hs-identifier hs-var hs-var">primOpIsDiv</span></a></span></span><span> </span><span id="local-6989586621682520568"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520568"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520568"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-651"></span><span>
+</span><span id="line-652"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#IntQuotOp"><span class="hs-identifier hs-var">IntQuotOp</span></a></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-653"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int8QuotOp"><span class="hs-identifier hs-var">Int8QuotOp</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-654"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int16QuotOp"><span class="hs-identifier hs-var">Int16QuotOp</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-655"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int32QuotOp"><span class="hs-identifier hs-var">Int32QuotOp</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-656"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int64QuotOp"><span class="hs-identifier hs-var">Int64QuotOp</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-657"></span><span>
+</span><span id="line-658"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#IntRemOp"><span class="hs-identifier hs-var">IntRemOp</span></a></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-659"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int8RemOp"><span class="hs-identifier hs-var">Int8RemOp</span></a></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-660"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int16RemOp"><span class="hs-identifier hs-var">Int16RemOp</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-661"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int32RemOp"><span class="hs-identifier hs-var">Int32RemOp</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-662"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int64RemOp"><span class="hs-identifier hs-var">Int64RemOp</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-663"></span><span>
+</span><span id="line-664"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#IntQuotRemOp"><span class="hs-identifier hs-var">IntQuotRemOp</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-665"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int8QuotRemOp"><span class="hs-identifier hs-var">Int8QuotRemOp</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-666"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int16QuotRemOp"><span class="hs-identifier hs-var">Int16QuotRemOp</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-667"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Int32QuotRemOp"><span class="hs-identifier hs-var">Int32QuotRemOp</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-668"></span><span>  </span><span class="hs-comment">-- Int64QuotRemOp doesn't exist (yet)</span><span>
+</span><span id="line-669"></span><span>
+</span><span id="line-670"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#WordQuotOp"><span class="hs-identifier hs-var">WordQuotOp</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-671"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word8QuotOp"><span class="hs-identifier hs-var">Word8QuotOp</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-672"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word16QuotOp"><span class="hs-identifier hs-var">Word16QuotOp</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-673"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word32QuotOp"><span class="hs-identifier hs-var">Word32QuotOp</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-674"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word64QuotOp"><span class="hs-identifier hs-var">Word64QuotOp</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-675"></span><span>
+</span><span id="line-676"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#WordRemOp"><span class="hs-identifier hs-var">WordRemOp</span></a></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-677"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word8RemOp"><span class="hs-identifier hs-var">Word8RemOp</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-678"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word16RemOp"><span class="hs-identifier hs-var">Word16RemOp</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-679"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word32RemOp"><span class="hs-identifier hs-var">Word32RemOp</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-680"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word64RemOp"><span class="hs-identifier hs-var">Word64RemOp</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-681"></span><span>
+</span><span id="line-682"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#WordQuotRemOp"><span class="hs-identifier hs-var">WordQuotRemOp</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-683"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word8QuotRemOp"><span class="hs-identifier hs-var">Word8QuotRemOp</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-684"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word16QuotRemOp"><span class="hs-identifier hs-var">Word16QuotRemOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-685"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#Word32QuotRemOp"><span class="hs-identifier hs-var">Word32QuotRemOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-686"></span><span>  </span><span class="hs-comment">-- Word64QuotRemOp doesn't exist (yet)</span><span>
+</span><span id="line-687"></span><span>
+</span><span id="line-688"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#WordQuotRem2Op"><span class="hs-identifier hs-var">WordQuotRem2Op</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-689"></span><span>
+</span><span id="line-690"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#FloatDivOp"><span class="hs-identifier hs-var">FloatDivOp</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-691"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#DoubleDivOp"><span class="hs-identifier hs-var">DoubleDivOp</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-692"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><span class="hs-identifier">_</span></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-693"></span><span>
+</span><span id="line-694"></span><span>
+</span><span id="line-695"></span><span>
+</span><span id="line-696"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+               PrimOp code size
+*                                                                      *
+************************************************************************
+
+primOpCodeSize
+~~~~~~~~~~~~~~
+Gives an indication of the code size of a primop, for the purposes of
+calculating unfolding sizes; see GHC.Core.Unfold.sizeExpr.
+-}</span><span>
+</span><span id="line-708"></span><span>
+</span><span id="line-709"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpCodeSize"><span class="hs-identifier hs-type">primOpCodeSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-cpp">
+#include &quot;primop-code-size.hs-incl&quot;
+</span><span>
+</span><span id="line-712"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpCodeSizeDefault"><span class="hs-identifier hs-type">primOpCodeSizeDefault</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-713"></span><span id="primOpCodeSizeDefault"><span class="annot"><span class="annottext">primOpCodeSizeDefault :: Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpCodeSizeDefault"><span class="hs-identifier hs-var hs-var">primOpCodeSizeDefault</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-714"></span><span>  </span><span class="hs-comment">-- GHC.Core.Unfold.primOpSize already takes into account primOpOutOfLine</span><span>
+</span><span id="line-715"></span><span>  </span><span class="hs-comment">-- and adds some further costs for the args in that case.</span><span>
+</span><span id="line-716"></span><span>
+</span><span id="line-717"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpCodeSizeForeignCall"><span class="hs-identifier hs-type">primOpCodeSizeForeignCall</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-718"></span><span id="primOpCodeSizeForeignCall"><span class="annot"><span class="annottext">primOpCodeSizeForeignCall :: Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpCodeSizeForeignCall"><span class="hs-identifier hs-var hs-var">primOpCodeSizeForeignCall</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-719"></span><span>
+</span><span id="line-720"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+               PrimOp types
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-727"></span><span>
+</span><span id="line-728"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpType"><span class="hs-identifier hs-type">primOpType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>  </span><span class="hs-comment">-- you may want to use primOpSig instead</span><span>
+</span><span id="line-729"></span><span id="primOpType"><span class="annot"><span class="annottext">primOpType :: PrimOp -&gt; Type
+</span><a href="GHC.Builtin.PrimOps.html#primOpType"><span class="hs-identifier hs-var hs-var">primOpType</span></a></span></span><span> </span><span id="local-6989586621682520569"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520569"><span class="hs-identifier hs-var">op</span></a></span></span><span>
+</span><span id="line-730"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; PrimOpInfo
+</span><a href="GHC.Builtin.PrimOps.html#primOpInfo"><span class="hs-identifier hs-var">primOpInfo</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520569"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-731"></span><span>    </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#Compare"><span class="hs-identifier hs-type">Compare</span></a></span><span> </span><span id="local-6989586621682520570"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682520570"><span class="hs-identifier hs-var">_occ</span></a></span></span><span> </span><span id="local-6989586621682520571"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520571"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Type -&gt; Type
+</span><a href="GHC.Builtin.PrimOps.html#compare_fun_ty"><span class="hs-identifier hs-var">compare_fun_ty</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520571"><span class="hs-identifier hs-var">ty</span></a></span><span>
+</span><span id="line-732"></span><span>
+</span><span id="line-733"></span><span>    </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#GenPrimOp"><span class="hs-identifier hs-type">GenPrimOp</span></a></span><span> </span><span id="local-6989586621682520573"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682520573"><span class="hs-identifier hs-var">_occ</span></a></span></span><span> </span><span id="local-6989586621682520574"><span class="annot"><span class="annottext">[TyVarBinder]
+</span><a href="#local-6989586621682520574"><span class="hs-identifier hs-var">tyvars</span></a></span></span><span> </span><span id="local-6989586621682520575"><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621682520575"><span class="hs-identifier hs-var">arg_tys</span></a></span></span><span> </span><span id="local-6989586621682520576"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520576"><span class="hs-identifier hs-var">res_ty</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-734"></span><span>        </span><span class="annot"><span class="annottext">[TyVarBinder] -&gt; Type -&gt; Type
+</span><a href="GHC.Core.TyCo.Rep.html#mkForAllTys"><span class="hs-identifier hs-var">mkForAllTys</span></a></span><span> </span><span class="annot"><span class="annottext">[TyVarBinder]
+</span><a href="#local-6989586621682520574"><span class="hs-identifier hs-var">tyvars</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Type] -&gt; Type -&gt; Type
+</span><a href="GHC.Core.TyCo.Rep.html#mkVisFunTysMany"><span class="hs-identifier hs-var">mkVisFunTysMany</span></a></span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621682520575"><span class="hs-identifier hs-var">arg_tys</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520576"><span class="hs-identifier hs-var">res_ty</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-735"></span><span>
+</span><span id="line-736"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpResultType"><span class="hs-identifier hs-type">primOpResultType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-737"></span><span id="primOpResultType"><span class="annot"><span class="annottext">primOpResultType :: PrimOp -&gt; Type
+</span><a href="GHC.Builtin.PrimOps.html#primOpResultType"><span class="hs-identifier hs-var hs-var">primOpResultType</span></a></span></span><span> </span><span id="local-6989586621682520579"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520579"><span class="hs-identifier hs-var">op</span></a></span></span><span>
+</span><span id="line-738"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; PrimOpInfo
+</span><a href="GHC.Builtin.PrimOps.html#primOpInfo"><span class="hs-identifier hs-var">primOpInfo</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520579"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-739"></span><span>    </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#Compare"><span class="hs-identifier hs-type">Compare</span></a></span><span> </span><span id="local-6989586621682520580"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682520580"><span class="hs-identifier hs-var">_occ</span></a></span></span><span> </span><span id="local-6989586621682520581"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520581"><span class="hs-identifier hs-var">_ty</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="GHC.Builtin.Types.Prim.html#intPrimTy"><span class="hs-identifier hs-var">intPrimTy</span></a></span><span>
+</span><span id="line-740"></span><span>    </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#GenPrimOp"><span class="hs-identifier hs-type">GenPrimOp</span></a></span><span> </span><span id="local-6989586621682520582"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682520582"><span class="hs-identifier hs-var">_occ</span></a></span></span><span> </span><span id="local-6989586621682520583"><span class="annot"><span class="annottext">[TyVarBinder]
+</span><a href="#local-6989586621682520583"><span class="hs-identifier hs-var">_tyvars</span></a></span></span><span> </span><span id="local-6989586621682520584"><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621682520584"><span class="hs-identifier hs-var">_arg_tys</span></a></span></span><span> </span><span id="local-6989586621682520585"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520585"><span class="hs-identifier hs-var">res_ty</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520585"><span class="hs-identifier hs-var">res_ty</span></a></span><span>
+</span><span id="line-741"></span><span>
+</span><span id="line-742"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpOcc"><span class="hs-identifier hs-type">primOpOcc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span>
+</span><span id="line-743"></span><span id="primOpOcc"><span class="annot"><span class="annottext">primOpOcc :: PrimOp -&gt; OccName
+</span><a href="GHC.Builtin.PrimOps.html#primOpOcc"><span class="hs-identifier hs-var hs-var">primOpOcc</span></a></span></span><span> </span><span id="local-6989586621682520586"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520586"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; PrimOpInfo
+</span><a href="GHC.Builtin.PrimOps.html#primOpInfo"><span class="hs-identifier hs-var">primOpInfo</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520586"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-744"></span><span>               </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#Compare"><span class="hs-identifier hs-type">Compare</span></a></span><span>   </span><span id="local-6989586621682520587"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682520587"><span class="hs-identifier hs-var">occ</span></a></span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682520587"><span class="hs-identifier hs-var">occ</span></a></span><span>
+</span><span id="line-745"></span><span>               </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#GenPrimOp"><span class="hs-identifier hs-type">GenPrimOp</span></a></span><span> </span><span id="local-6989586621682520588"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682520588"><span class="hs-identifier hs-var">occ</span></a></span></span><span> </span><span class="annot"><span class="annottext">[TyVarBinder]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682520588"><span class="hs-identifier hs-var">occ</span></a></span><span>
+</span><span id="line-746"></span><span>
+</span><span id="line-747"></span><span class="hs-comment">{- Note [Primop wrappers]
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To support (limited) use of primops in GHCi genprimopcode generates the
+GHC.PrimopWrappers module. This module contains a &quot;primop wrapper&quot;
+binding for each primop. These are standard Haskell functions mirroring the
+types of the primops they wrap. For instance, in the case of plusInt# we would
+have:
+
+    module GHC.PrimopWrappers where
+    import GHC.Prim as P
+
+    plusInt# :: Int# -&gt; Int# -&gt; Int#
+    plusInt# a b = P.plusInt# a b
+
+The Id for the wrapper of a primop can be found using
+'GHC.Builtin.PrimOps.primOpWrapperId'. However, GHCi does not use this mechanism
+to link primops; it rather does a rather hacky symbol lookup (see
+GHC.ByteCode.Linker.primopToCLabel). TODO: Perhaps this should be changed?
+
+Note that these wrappers aren't *quite* as expressive as their unwrapped
+brethren, in that they may exhibit less representation polymorphism.
+For instance, consider the case of mkWeakNoFinalizer#, which has type:
+
+    mkWeakNoFinalizer# :: forall (r :: RuntimeRep) (k :: TYPE r) (v :: Type).
+                          k -&gt; v
+                       -&gt; State# RealWorld
+                       -&gt; (# State# RealWorld, Weak# v #)
+
+Naively we could generate a wrapper of the form,
+
+
+    mkWeakNoFinalizer# k v s = GHC.Prim.mkWeakNoFinalizer# k v s
+
+However, this would require that 'k' bind the representation-polymorphic key,
+which is disallowed by our representation polymorphism validity checks
+(see Note [Representation polymorphism invariants] in GHC.Core).
+Consequently, we give the wrapper the simpler, less polymorphic type
+
+    mkWeakNoFinalizer# :: forall (k :: Type) (v :: Type).
+                          k -&gt; v
+                       -&gt; State# RealWorld
+                       -&gt; (# State# RealWorld, Weak# v #)
+
+This simplification tends to be good enough for GHCi uses given that there are
+few representation-polymorphic primops, and we do little simplification
+on interpreted code anyways.
+
+TODO: This behavior is actually wrong; a program becomes ill-typed upon
+replacing a real primop occurrence with one of its wrapper due to the fact that
+the former has an additional type binder. Hmmm....
+
+Note [Eta expanding primops]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+STG requires that primop applications be saturated. This makes code generation
+significantly simpler since otherwise we would need to define a calling
+convention for curried applications that can accommodate representation
+polymorphism.
+
+To ensure saturation, CorePrep eta expands all primop applications as
+described in Note [Eta expansion of hasNoBinding things in CorePrep] in
+GHC.Core.Prep.
+
+Historical Note:
+
+For a short period around GHC 8.8 we rewrote unsaturated primop applications to
+rather use the primop's wrapper (see Note [Primop wrappers] in
+GHC.Builtin.PrimOps) instead of eta expansion. This was because at the time
+CoreTidy would try to predict the CAFfyness of bindings that would be produced
+by CorePrep for inclusion in interface files. Eta expanding during CorePrep
+proved to be very difficult to predict, leading to nasty inconsistencies in
+CAFfyness determinations (see #16846).
+
+Thankfully, we now no longer try to predict CAFfyness but rather compute it on
+GHC STG (see Note [SRTs] in GHC.Cmm.Info.Build) and inject it into the interface
+file after code generation (see TODO: Refer to whatever falls out of #18096).
+This is much simpler and avoids the potential for inconsistency, allowing us to
+return to the somewhat simpler eta expansion approach for unsaturated primops.
+
+See #18079.
+-}</span><span>
+</span><span id="line-829"></span><span>
+</span><span id="line-830"></span><span class="hs-comment">-- | Returns the 'Id' of the wrapper associated with the given 'PrimOp'.</span><span>
+</span><span id="line-831"></span><span class="hs-comment">-- See Note [Primop wrappers].</span><span>
+</span><span id="line-832"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpWrapperId"><span class="hs-identifier hs-type">primOpWrapperId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span>
+</span><span id="line-833"></span><span id="primOpWrapperId"><span class="annot"><span class="annottext">primOpWrapperId :: PrimOp -&gt; Id
+</span><a href="GHC.Builtin.PrimOps.html#primOpWrapperId"><span class="hs-identifier hs-var hs-var">primOpWrapperId</span></a></span></span><span> </span><span id="local-6989586621682520589"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520589"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Name -&gt; Type -&gt; IdInfo -&gt; Id
+Name -&gt; Type -&gt; IdInfo -&gt; Id
+</span><a href="GHC.Types.Id.html#mkVanillaGlobalWithInfo"><span class="hs-identifier hs-var">mkVanillaGlobalWithInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682520591"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520592"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="#local-6989586621682520593"><span class="hs-identifier hs-var">info</span></a></span><span>
+</span><span id="line-834"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-835"></span><span>    </span><span id="local-6989586621682520593"><span class="annot"><span class="annottext">info :: IdInfo
+</span><a href="#local-6989586621682520593"><span class="hs-identifier hs-var hs-var">info</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IdInfo -&gt; CafInfo -&gt; IdInfo
+</span><a href="GHC.Types.Id.Info.html#setCafInfo"><span class="hs-identifier hs-var">setCafInfo</span></a></span><span> </span><span class="annot"><span class="annottext">IdInfo
+</span><a href="GHC.Types.Id.Info.html#vanillaIdInfo"><span class="hs-identifier hs-var">vanillaIdInfo</span></a></span><span> </span><span class="annot"><span class="annottext">CafInfo
+</span><a href="GHC.Types.Id.Info.html#NoCafRefs"><span class="hs-identifier hs-var">NoCafRefs</span></a></span><span>
+</span><span id="line-836"></span><span>    </span><span id="local-6989586621682520591"><span class="annot"><span class="annottext">name :: Name
+</span><a href="#local-6989586621682520591"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unique -&gt; Module -&gt; OccName -&gt; SrcSpan -&gt; Name
+</span><a href="GHC.Types.Name.html#mkExternalName"><span class="hs-identifier hs-var">mkExternalName</span></a></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682520598"><span class="hs-identifier hs-var">uniq</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="GHC.Builtin.Names.html#gHC_PRIMOPWRAPPERS"><span class="hs-identifier hs-var">gHC_PRIMOPWRAPPERS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimOp -&gt; OccName
+</span><a href="GHC.Builtin.PrimOps.html#primOpOcc"><span class="hs-identifier hs-var">primOpOcc</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520589"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SrcSpan
+</span><a href="GHC.Types.SrcLoc.html#wiredInSrcSpan"><span class="hs-identifier hs-var">wiredInSrcSpan</span></a></span><span>
+</span><span id="line-837"></span><span>    </span><span id="local-6989586621682520598"><span class="annot"><span class="annottext">uniq :: Unique
+</span><a href="#local-6989586621682520598"><span class="hs-identifier hs-var hs-var">uniq</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Unique
+</span><a href="GHC.Builtin.Uniques.html#mkPrimOpWrapperUnique"><span class="hs-identifier hs-var">mkPrimOpWrapperUnique</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimOp -&gt; Int
+</span><a href="GHC.Builtin.PrimOps.html#primOpTag"><span class="hs-identifier hs-var">primOpTag</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520589"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-838"></span><span>    </span><span id="local-6989586621682520592"><span class="annot"><span class="annottext">ty :: Type
+</span><a href="#local-6989586621682520592"><span class="hs-identifier hs-var hs-var">ty</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; Type
+</span><a href="GHC.Builtin.PrimOps.html#primOpType"><span class="hs-identifier hs-var">primOpType</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520589"><span class="hs-identifier hs-var">op</span></a></span><span>
+</span><span id="line-839"></span><span>
+</span><span id="line-840"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#isComparisonPrimOp"><span class="hs-identifier hs-type">isComparisonPrimOp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-841"></span><span id="isComparisonPrimOp"><span class="annot"><span class="annottext">isComparisonPrimOp :: PrimOp -&gt; Bool
+</span><a href="GHC.Builtin.PrimOps.html#isComparisonPrimOp"><span class="hs-identifier hs-var hs-var">isComparisonPrimOp</span></a></span></span><span> </span><span id="local-6989586621682520599"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520599"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; PrimOpInfo
+</span><a href="GHC.Builtin.PrimOps.html#primOpInfo"><span class="hs-identifier hs-var">primOpInfo</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520599"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-842"></span><span>                          </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#Compare"><span class="hs-identifier hs-type">Compare</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-843"></span><span>                          </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#GenPrimOp"><span class="hs-identifier hs-type">GenPrimOp</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-844"></span><span>
+</span><span id="line-845"></span><span class="hs-comment">-- primOpSig is like primOpType but gives the result split apart:</span><span>
+</span><span id="line-846"></span><span class="hs-comment">-- (type variables, argument types, result type)</span><span>
+</span><span id="line-847"></span><span class="hs-comment">-- It also gives arity, strictness info</span><span>
+</span><span id="line-848"></span><span>
+</span><span id="line-849"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpSig"><span class="hs-identifier hs-type">primOpSig</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Var.html#TyVarBinder"><span class="hs-identifier hs-type">TyVarBinder</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#Arity"><span class="hs-identifier hs-type">Arity</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Demand.html#DmdSig"><span class="hs-identifier hs-type">DmdSig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-850"></span><span id="primOpSig"><span class="annot"><span class="annottext">primOpSig :: PrimOp -&gt; ([TyVarBinder], [Type], Type, Int, DmdSig)
+</span><a href="GHC.Builtin.PrimOps.html#primOpSig"><span class="hs-identifier hs-var hs-var">primOpSig</span></a></span></span><span> </span><span id="local-6989586621682520600"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520600"><span class="hs-identifier hs-var">op</span></a></span></span><span>
+</span><span id="line-851"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[TyVarBinder]
+</span><a href="#local-6989586621682520601"><span class="hs-identifier hs-var">tyvars</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621682520602"><span class="hs-identifier hs-var">arg_tys</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520603"><span class="hs-identifier hs-var">res_ty</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682520604"><span class="hs-identifier hs-var">arity</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">PrimOp -&gt; Int -&gt; DmdSig
+</span><a href="GHC.Builtin.PrimOps.html#primOpStrictness"><span class="hs-identifier hs-var">primOpStrictness</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520600"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682520604"><span class="hs-identifier hs-var">arity</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-852"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-853"></span><span>    </span><span id="local-6989586621682520604"><span class="annot"><span class="annottext">arity :: Int
+</span><a href="#local-6989586621682520604"><span class="hs-identifier hs-var hs-var">arity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Type] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621682520602"><span class="hs-identifier hs-var">arg_tys</span></a></span><span>
+</span><span id="line-854"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621682520601"><span class="annot"><span class="annottext">[TyVarBinder]
+</span><a href="#local-6989586621682520601"><span class="hs-identifier hs-var">tyvars</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682520602"><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621682520602"><span class="hs-identifier hs-var">arg_tys</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682520603"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520603"><span class="hs-identifier hs-var">res_ty</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-855"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimOp -&gt; PrimOpInfo
+</span><a href="GHC.Builtin.PrimOps.html#primOpInfo"><span class="hs-identifier hs-var">primOpInfo</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520600"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-856"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#Compare"><span class="hs-identifier hs-type">Compare</span></a></span><span>   </span><span id="local-6989586621682520606"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682520606"><span class="hs-identifier hs-var">_occ</span></a></span></span><span> </span><span id="local-6989586621682520607"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520607"><span class="hs-identifier hs-var">ty</span></a></span></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span>     </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520607"><span class="hs-identifier hs-var">ty</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520607"><span class="hs-identifier hs-var">ty</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="GHC.Builtin.Types.Prim.html#intPrimTy"><span class="hs-identifier hs-var">intPrimTy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-857"></span><span>        </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#GenPrimOp"><span class="hs-identifier hs-type">GenPrimOp</span></a></span><span> </span><span id="local-6989586621682520608"><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682520608"><span class="hs-identifier hs-var">_occ</span></a></span></span><span> </span><span id="local-6989586621682520609"><span class="annot"><span class="annottext">[TyVarBinder]
+</span><a href="#local-6989586621682520609"><span class="hs-identifier hs-var">tyvars</span></a></span></span><span> </span><span id="local-6989586621682520610"><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621682520610"><span class="hs-identifier hs-var">arg_tys</span></a></span></span><span> </span><span id="local-6989586621682520611"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520611"><span class="hs-identifier hs-var">res_ty</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[TyVarBinder]
+</span><a href="#local-6989586621682520609"><span class="hs-identifier hs-var">tyvars</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621682520610"><span class="hs-identifier hs-var">arg_tys</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520611"><span class="hs-identifier hs-var">res_ty</span></a></span><span>   </span><span class="hs-special">)</span><span>
+</span><span id="line-858"></span><span>
+</span><span id="line-859"></span><span class="hs-keyword">data</span><span> </span><span id="PrimOpResultInfo"><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpResultInfo"><span class="hs-identifier hs-var">PrimOpResultInfo</span></a></span></span><span>
+</span><span id="line-860"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ReturnsVoid"><span class="annot"><a href="GHC.Builtin.PrimOps.html#ReturnsVoid"><span class="hs-identifier hs-var">ReturnsVoid</span></a></span></span><span>
+</span><span id="line-861"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReturnsPrim"><span class="annot"><a href="GHC.Builtin.PrimOps.html#ReturnsPrim"><span class="hs-identifier hs-var">ReturnsPrim</span></a></span></span><span>     </span><span class="annot"><a href="GHC.Core.TyCon.html#PrimRep"><span class="hs-identifier hs-type">PrimRep</span></a></span><span>
+</span><span id="line-862"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReturnsTuple"><span class="annot"><a href="GHC.Builtin.PrimOps.html#ReturnsTuple"><span class="hs-identifier hs-var">ReturnsTuple</span></a></span></span><span>
+</span><span id="line-863"></span><span>
+</span><span id="line-864"></span><span class="hs-comment">-- Some PrimOps need not return a manifest primitive or algebraic value</span><span>
+</span><span id="line-865"></span><span class="hs-comment">-- (i.e. they might return a polymorphic value).  These PrimOps *must*</span><span>
+</span><span id="line-866"></span><span class="hs-comment">-- be out of line, or the code generator won't work.</span><span>
+</span><span id="line-867"></span><span>
+</span><span id="line-868"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#getPrimOpResultInfo"><span class="hs-identifier hs-type">getPrimOpResultInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOpResultInfo"><span class="hs-identifier hs-type">PrimOpResultInfo</span></a></span><span>
+</span><span id="line-869"></span><span id="getPrimOpResultInfo"><span class="annot"><span class="annottext">getPrimOpResultInfo :: PrimOp -&gt; PrimOpResultInfo
+</span><a href="GHC.Builtin.PrimOps.html#getPrimOpResultInfo"><span class="hs-identifier hs-var hs-var">getPrimOpResultInfo</span></a></span></span><span> </span><span id="local-6989586621682520615"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520615"><span class="hs-identifier hs-var">op</span></a></span></span><span>
+</span><span id="line-870"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimOp -&gt; PrimOpInfo
+</span><a href="GHC.Builtin.PrimOps.html#primOpInfo"><span class="hs-identifier hs-var">primOpInfo</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520615"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-871"></span><span>      </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#Compare"><span class="hs-identifier hs-type">Compare</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span>                         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrimRep -&gt; PrimOpResultInfo
+</span><a href="GHC.Builtin.PrimOps.html#ReturnsPrim"><span class="hs-identifier hs-var">ReturnsPrim</span></a></span><span> </span><span class="annot"><span class="annottext">PrimRep
+</span><a href="GHC.Core.TyCon.html#IntRep"><span class="hs-identifier hs-var">IntRep</span></a></span><span>
+</span><span id="line-872"></span><span>      </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#GenPrimOp"><span class="hs-identifier hs-type">GenPrimOp</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[TyVarBinder]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682520617"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520617"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">TyCon -&gt; Bool
+</span><a href="GHC.Core.TyCon.html#isPrimTyCon"><span class="hs-identifier hs-var">isPrimTyCon</span></a></span><span> </span><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621682520618"><span class="hs-identifier hs-var">tc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; TyCon -&gt; [PrimRep]
+TyCon -&gt; [PrimRep]
+</span><a href="GHC.Types.RepType.html#tyConPrimRep"><span class="hs-identifier hs-var">tyConPrimRep</span></a></span><span> </span><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621682520618"><span class="hs-identifier hs-var">tc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-873"></span><span>                                               </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrimOpResultInfo
+</span><a href="GHC.Builtin.PrimOps.html#ReturnsVoid"><span class="hs-identifier hs-var">ReturnsVoid</span></a></span><span>
+</span><span id="line-874"></span><span>                                               </span><span class="hs-special">[</span><span id="local-6989586621682520619"><span class="annot"><span class="annottext">PrimRep
+</span><a href="#local-6989586621682520619"><span class="hs-identifier hs-var">rep</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrimRep -&gt; PrimOpResultInfo
+</span><a href="GHC.Builtin.PrimOps.html#ReturnsPrim"><span class="hs-identifier hs-var">ReturnsPrim</span></a></span><span> </span><span class="annot"><span class="annottext">PrimRep
+</span><a href="#local-6989586621682520619"><span class="hs-identifier hs-var">rep</span></a></span><span>
+</span><span id="line-875"></span><span>                                               </span><span class="annot"><span class="annottext">[PrimRep]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; PrimOpResultInfo
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;getPrimOpResultInfo&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimOp -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520615"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-876"></span><span>                         </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">TyCon -&gt; Bool
+</span><a href="GHC.Core.TyCon.html#isUnboxedTupleTyCon"><span class="hs-identifier hs-var">isUnboxedTupleTyCon</span></a></span><span> </span><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621682520618"><span class="hs-identifier hs-var">tc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrimOpResultInfo
+</span><a href="GHC.Builtin.PrimOps.html#ReturnsTuple"><span class="hs-identifier hs-var">ReturnsTuple</span></a></span><span>
+</span><span id="line-877"></span><span>                         </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; PrimOpResultInfo
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;getPrimOpResultInfo&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimOp -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520615"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-878"></span><span>                         </span><span class="hs-keyword">where</span><span>
+</span><span id="line-879"></span><span>                           </span><span id="local-6989586621682520618"><span class="annot"><span class="annottext">tc :: TyCon
+</span><a href="#local-6989586621682520618"><span class="hs-identifier hs-var hs-var">tc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Type -&gt; TyCon
+Type -&gt; TyCon
+</span><a href="GHC.Core.Type.html#tyConAppTyCon"><span class="hs-identifier hs-var">tyConAppTyCon</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520617"><span class="hs-identifier hs-var">ty</span></a></span><span>
+</span><span id="line-880"></span><span>                        </span><span class="hs-comment">-- All primops return a tycon-app result</span><span>
+</span><span id="line-881"></span><span>                        </span><span class="hs-comment">-- The tycon can be an unboxed tuple or sum, though,</span><span>
+</span><span id="line-882"></span><span>                        </span><span class="hs-comment">-- which gives rise to a ReturnAlg</span><span>
+</span><span id="line-883"></span><span>
+</span><span id="line-884"></span><span class="hs-comment">{-
+We do not currently make use of whether primops are commutable.
+
+We used to try to move constants to the right hand side for strength
+reduction.
+-}</span><span>
+</span><span id="line-890"></span><span>
+</span><span id="line-891"></span><span class="hs-comment">{-
+commutableOp :: PrimOp -&gt; Bool
+#include &quot;primop-commutable.hs-incl&quot;
+-}</span><span>
+</span><span id="line-895"></span><span>
+</span><span id="line-896"></span><span class="hs-comment">-- Utils:</span><span>
+</span><span id="line-897"></span><span>
+</span><span id="line-898"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#compare_fun_ty"><span class="hs-identifier hs-type">compare_fun_ty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-899"></span><span id="compare_fun_ty"><span class="annot"><span class="annottext">compare_fun_ty :: Type -&gt; Type
+</span><a href="GHC.Builtin.PrimOps.html#compare_fun_ty"><span class="hs-identifier hs-var hs-var">compare_fun_ty</span></a></span></span><span> </span><span id="local-6989586621682520622"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520622"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Type] -&gt; Type -&gt; Type
+</span><a href="GHC.Core.TyCo.Rep.html#mkVisFunTysMany"><span class="hs-identifier hs-var">mkVisFunTysMany</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520622"><span class="hs-identifier hs-var">ty</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682520622"><span class="hs-identifier hs-var">ty</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="GHC.Builtin.Types.Prim.html#intPrimTy"><span class="hs-identifier hs-var">intPrimTy</span></a></span><span>
+</span><span id="line-900"></span><span>
+</span><span id="line-901"></span><span class="hs-comment">-- Output stuff:</span><span>
+</span><span id="line-902"></span><span>
+</span><span id="line-903"></span><span id="local-6989586621682516869"><span class="annot"><a href="GHC.Builtin.PrimOps.html#pprPrimOp"><span class="hs-identifier hs-type">pprPrimOp</span></a></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#IsLine"><span class="hs-identifier hs-type">IsLine</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682516869"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682516869"><span class="hs-identifier hs-type">doc</span></a></span></span><span>
+</span><span id="line-904"></span><span id="pprPrimOp"><span class="annot"><span class="annottext">pprPrimOp :: forall doc. IsLine doc =&gt; PrimOp -&gt; doc
+</span><a href="GHC.Builtin.PrimOps.html#pprPrimOp"><span class="hs-identifier hs-var hs-var">pprPrimOp</span></a></span></span><span> </span><span id="local-6989586621682520625"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520625"><span class="hs-identifier hs-var">other_op</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OccName -&gt; doc
+forall doc. IsLine doc =&gt; OccName -&gt; doc
+</span><a href="GHC.Types.Name.Occurrence.html#pprOccName"><span class="hs-identifier hs-var">pprOccName</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimOp -&gt; OccName
+</span><a href="GHC.Builtin.PrimOps.html#primOpOcc"><span class="hs-identifier hs-var">primOpOcc</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520625"><span class="hs-identifier hs-var">other_op</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-905"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#pprPrimOp"><span class="hs-pragma hs-type">pprPrimOp</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-pragma hs-type">PrimOp</span></a></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-pragma hs-type">SDoc</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-906"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#pprPrimOp"><span class="hs-pragma hs-type">pprPrimOp</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-pragma hs-type">PrimOp</span></a></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#HLine"><span class="hs-pragma hs-type">HLine</span></a></span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-comment">-- see Note [SPECIALIZE to HDoc] in GHC.Utils.Outputable</span><span>
+</span><span id="line-907"></span><span>
+</span><span id="line-908"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsubsection[PrimCall]{User-imported primitive calls}
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-915"></span><span>
+</span><span id="line-916"></span><span class="hs-keyword">data</span><span> </span><span id="PrimCall"><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimCall"><span class="hs-identifier hs-var">PrimCall</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PrimCall"><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimCall"><span class="hs-identifier hs-var">PrimCall</span></a></span></span><span> </span><span class="annot"><a href="GHC.Types.ForeignCall.html#CLabelString"><span class="hs-identifier hs-type">CLabelString</span></a></span><span> </span><span class="annot"><a href="GHC.Unit.Types.html#Unit"><span class="hs-identifier hs-type">Unit</span></a></span><span>
+</span><span id="line-917"></span><span>
+</span><span id="line-918"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimCall"><span class="hs-identifier hs-type">PrimCall</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-919"></span><span>  </span><span id="local-6989586621682520636"><span class="annot"><span class="annottext">ppr :: PrimCall -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimCall"><span class="hs-identifier hs-type">PrimCall</span></a></span><span> </span><span id="local-6989586621682520637"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682520637"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span id="local-6989586621682520638"><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682520638"><span class="hs-identifier hs-var">pkgId</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-920"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;__primcall&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Unit -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682520638"><span class="hs-identifier hs-var">pkgId</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682520637"><span class="hs-identifier hs-var">lbl</span></a></span><span>
+</span><span id="line-921"></span><span>
+</span><span id="line-922"></span><span class="hs-comment">-- | Indicate if a primop is really inline: that is, it isn't out-of-line and it</span><span>
+</span><span id="line-923"></span><span class="hs-comment">-- isn't SeqOp/DataToTagOp which are two primops that evaluate their argument</span><span>
+</span><span id="line-924"></span><span class="hs-comment">-- hence induce thread/stack/heap changes.</span><span>
+</span><span id="line-925"></span><span class="annot"><a href="GHC.Builtin.PrimOps.html#primOpIsReallyInline"><span class="hs-identifier hs-type">primOpIsReallyInline</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimOp"><span class="hs-identifier hs-type">PrimOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-926"></span><span id="primOpIsReallyInline"><span class="annot"><span class="annottext">primOpIsReallyInline :: PrimOp -&gt; Bool
+</span><a href="GHC.Builtin.PrimOps.html#primOpIsReallyInline"><span class="hs-identifier hs-var hs-var">primOpIsReallyInline</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-927"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#SeqOp"><span class="hs-identifier hs-var">SeqOp</span></a></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-928"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#DataToTagSmallOp"><span class="hs-identifier hs-var">DataToTagSmallOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-929"></span><span>  </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="GHC.Builtin.PrimOps.html#DataToTagLargeOp"><span class="hs-identifier hs-var">DataToTagLargeOp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-930"></span><span>  </span><span id="local-6989586621682520641"><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520641"><span class="hs-identifier hs-var">p</span></a></span></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimOp -&gt; Bool
+</span><a href="GHC.Builtin.PrimOps.html#primOpOutOfLine"><span class="hs-identifier hs-var">primOpOutOfLine</span></a></span><span> </span><span class="annot"><span class="annottext">PrimOp
+</span><a href="#local-6989586621682520641"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-931"></span></pre></body></html>

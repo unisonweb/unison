@@ -1,0 +1,49 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Typed.html"><span class="hs-identifier">Unison.Typed</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Typed.html#Typed"><span class="hs-identifier">Typed</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Type.html"><span class="hs-identifier">Unison.Type</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Type.html#Type"><span class="hs-identifier">Type</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="annot"><span class="hs-comment">-- | A utility type that represents a thing along with its Unison type.</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">data</span><span> </span><span id="Typed"><span class="annot"><a href="Unison.Typed.html#Typed"><span class="hs-identifier hs-var">Typed</span></a></span></span><span> </span><span id="local-6989586621679337918"><span class="annot"><a href="#local-6989586621679337918"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679337919"><span class="annot"><a href="#local-6989586621679337919"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621679337920"><span class="annot"><a href="#local-6989586621679337920"><span class="hs-identifier hs-type">ann</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Typed"><span class="annot"><a href="Unison.Typed.html#Typed"><span class="hs-identifier hs-var">Typed</span></a></span></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="thing"><span class="annot"><span class="annottext">forall a v ann. Typed a v ann -&gt; a
+</span><a href="Unison.Typed.html#thing"><span class="hs-identifier hs-var hs-var">thing</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679337918"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span id="type_"><span class="annot"><span class="annottext">forall a v ann. Typed a v ann -&gt; Type v ann
+</span><a href="Unison.Typed.html#type_"><span class="hs-identifier hs-var hs-var">type_</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Type.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679337919"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679337920"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679337961"><span id="local-6989586621679337969"><span class="annot"><span class="annottext">Typed a v ann -&gt; Typed a v ann -&gt; Bool
+(Typed a v ann -&gt; Typed a v ann -&gt; Bool)
+-&gt; (Typed a v ann -&gt; Typed a v ann -&gt; Bool) -&gt; Eq (Typed a v ann)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall a v ann.
+(Var v, Eq a) =&gt;
+Typed a v ann -&gt; Typed a v ann -&gt; Bool
+$c== :: forall a v ann.
+(Var v, Eq a) =&gt;
+Typed a v ann -&gt; Typed a v ann -&gt; Bool
+== :: Typed a v ann -&gt; Typed a v ann -&gt; Bool
+$c/= :: forall a v ann.
+(Var v, Eq a) =&gt;
+Typed a v ann -&gt; Typed a v ann -&gt; Bool
+/= :: Typed a v ann -&gt; Typed a v ann -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679337978"><span id="local-6989586621679337986"><span id="local-6989586621679337990"><span class="annot"><span class="annottext">Int -&gt; Typed a v ann -&gt; ShowS
+[Typed a v ann] -&gt; ShowS
+Typed a v ann -&gt; String
+(Int -&gt; Typed a v ann -&gt; ShowS)
+-&gt; (Typed a v ann -&gt; String)
+-&gt; ([Typed a v ann] -&gt; ShowS)
+-&gt; Show (Typed a v ann)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall a v ann. (Show a, Show v) =&gt; Int -&gt; Typed a v ann -&gt; ShowS
+forall a v ann. (Show a, Show v) =&gt; [Typed a v ann] -&gt; ShowS
+forall a v ann. (Show a, Show v) =&gt; Typed a v ann -&gt; String
+$cshowsPrec :: forall a v ann. (Show a, Show v) =&gt; Int -&gt; Typed a v ann -&gt; ShowS
+showsPrec :: Int -&gt; Typed a v ann -&gt; ShowS
+$cshow :: forall a v ann. (Show a, Show v) =&gt; Typed a v ann -&gt; String
+show :: Typed a v ann -&gt; String
+$cshowList :: forall a v ann. (Show a, Show v) =&gt; [Typed a v ann] -&gt; ShowS
+showList :: [Typed a v ann] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span></pre></body></html>

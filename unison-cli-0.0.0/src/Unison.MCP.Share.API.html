@@ -1,0 +1,169 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- A subset of the Share API which we expose as MCP tools</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.MCP.Share.API.html"><span class="hs-identifier">Unison.MCP.Share.API</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.MCP.Share.API.html#shareSearch"><span class="hs-identifier">shareSearch</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.MCP.Share.API.html#shareProjectReadme"><span class="hs-identifier">shareProjectReadme</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.MCP.Share.API.html#ReadmeResponse"><span class="hs-identifier">ReadmeResponse</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FromJSON</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Proxy</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.API</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Client</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Servant</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Auth.HTTPClient.html"><span class="hs-identifier">Unison.Auth.HTTPClient</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Auth.HTTPClient.html#AuthenticatedHttpClient"><span class="hs-identifier">AuthenticatedHttpClient</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Share.Codeserver.html"><span class="hs-identifier">Unison.Share.Codeserver</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codeserver</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Share.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">codeserverBaseURL</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="annot"><a href="Unison.MCP.Share.API.html#shareSearch"><span class="hs-identifier hs-type">shareSearch</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-20"></span><span>  </span><span class="annot"><a href="Unison.Auth.HTTPClient.html#AuthenticatedHttpClient"><span class="hs-identifier hs-type">AuthenticatedHttpClient</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientError</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Value</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span id="shareSearch"><span class="annot"><span class="annottext">shareSearch :: AuthenticatedHttpClient -&gt; Text -&gt; IO (Either ClientError Value)
+</span><a href="Unison.MCP.Share.API.html#shareSearch"><span class="hs-identifier hs-var hs-var">shareSearch</span></a></span></span><span> </span><span id="local-6989586621681574949"><span class="annot"><span class="annottext">AuthenticatedHttpClient
+</span><a href="#local-6989586621681574949"><span class="hs-identifier hs-var">authedHTTPClient</span></a></span></span><span> </span><span id="local-6989586621681574950"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681574950"><span class="hs-identifier hs-var">query</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AuthenticatedHttpClient
+-&gt; ClientM Value -&gt; IO (Either ClientError Value)
+forall a.
+AuthenticatedHttpClient -&gt; ClientM a -&gt; IO (Either ClientError a)
+</span><a href="Unison.MCP.Share.API.html#runClientM"><span class="hs-identifier hs-var">runClientM</span></a></span><span> </span><span class="annot"><span class="annottext">AuthenticatedHttpClient
+</span><a href="#local-6989586621681574949"><span class="hs-identifier hs-var">authedHTTPClient</span></a></span><span> </span><span class="annot"><span class="annottext">(ClientM Value -&gt; IO (Either ClientError Value))
+-&gt; ClientM Value -&gt; IO (Either ClientError Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; ClientM Value
+</span><a href="Unison.MCP.Share.API.html#httpSearch"><span class="hs-identifier hs-var">httpSearch</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681574950"><span class="hs-identifier hs-var">query</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="annot"><a href="Unison.MCP.Share.API.html#shareProjectReadme"><span class="hs-identifier hs-type">shareProjectReadme</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><a href="Unison.Auth.HTTPClient.html#AuthenticatedHttpClient"><span class="hs-identifier hs-type">AuthenticatedHttpClient</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientError</span></span><span> </span><span class="annot"><a href="Unison.MCP.Share.API.html#ReadmeResponse"><span class="hs-identifier hs-type">ReadmeResponse</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span id="shareProjectReadme"><span class="annot"><span class="annottext">shareProjectReadme :: AuthenticatedHttpClient
+-&gt; Text -&gt; Text -&gt; IO (Either ClientError ReadmeResponse)
+</span><a href="Unison.MCP.Share.API.html#shareProjectReadme"><span class="hs-identifier hs-var hs-var">shareProjectReadme</span></a></span></span><span> </span><span id="local-6989586621681574953"><span class="annot"><span class="annottext">AuthenticatedHttpClient
+</span><a href="#local-6989586621681574953"><span class="hs-identifier hs-var">authedHTTPClient</span></a></span></span><span> </span><span id="local-6989586621681574954"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681574954"><span class="hs-identifier hs-var">ownerHandle</span></a></span></span><span> </span><span id="local-6989586621681574955"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681574955"><span class="hs-identifier hs-var">projectSlug</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="annottext">AuthenticatedHttpClient
+-&gt; ClientM ReadmeResponse -&gt; IO (Either ClientError ReadmeResponse)
+forall a.
+AuthenticatedHttpClient -&gt; ClientM a -&gt; IO (Either ClientError a)
+</span><a href="Unison.MCP.Share.API.html#runClientM"><span class="hs-identifier hs-var">runClientM</span></a></span><span> </span><span class="annot"><span class="annottext">AuthenticatedHttpClient
+</span><a href="#local-6989586621681574953"><span class="hs-identifier hs-var">authedHTTPClient</span></a></span><span> </span><span class="annot"><span class="annottext">(ClientM ReadmeResponse -&gt; IO (Either ClientError ReadmeResponse))
+-&gt; ClientM ReadmeResponse -&gt; IO (Either ClientError ReadmeResponse)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; ClientM ReadmeResponse
+</span><a href="Unison.MCP.Share.API.html#httpProjectReadme"><span class="hs-identifier hs-var">httpProjectReadme</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681574954"><span class="hs-identifier hs-var">ownerHandle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681574955"><span class="hs-identifier hs-var">projectSlug</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">data</span><span> </span><span id="ReadmeResponse"><span class="annot"><a href="Unison.MCP.Share.API.html#ReadmeResponse"><span class="hs-identifier hs-var">ReadmeResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ReadmeResponse"><span class="annot"><a href="Unison.MCP.Share.API.html#ReadmeResponse"><span class="hs-identifier hs-var">ReadmeResponse</span></a></span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="markdownReadMe"><span class="annot"><span class="annottext">ReadmeResponse -&gt; Text
+</span><a href="Unison.MCP.Share.API.html#markdownReadMe"><span class="hs-identifier hs-var hs-var">markdownReadMe</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681574960"><span id="local-6989586621681574966"><span id="local-6989586621681574970"><span class="annot"><span class="annottext">Int -&gt; ReadmeResponse -&gt; ShowS
+[ReadmeResponse] -&gt; ShowS
+ReadmeResponse -&gt; String
+(Int -&gt; ReadmeResponse -&gt; ShowS)
+-&gt; (ReadmeResponse -&gt; String)
+-&gt; ([ReadmeResponse] -&gt; ShowS)
+-&gt; Show ReadmeResponse
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ReadmeResponse -&gt; ShowS
+showsPrec :: Int -&gt; ReadmeResponse -&gt; ShowS
+$cshow :: ReadmeResponse -&gt; String
+show :: ReadmeResponse -&gt; String
+$cshowList :: [ReadmeResponse] -&gt; ShowS
+showList :: [ReadmeResponse] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681574975"><span id="local-6989586621681574979"><span class="annot"><span class="annottext">ReadmeResponse -&gt; ReadmeResponse -&gt; Bool
+(ReadmeResponse -&gt; ReadmeResponse -&gt; Bool)
+-&gt; (ReadmeResponse -&gt; ReadmeResponse -&gt; Bool) -&gt; Eq ReadmeResponse
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ReadmeResponse -&gt; ReadmeResponse -&gt; Bool
+== :: ReadmeResponse -&gt; ReadmeResponse -&gt; Bool
+$c/= :: ReadmeResponse -&gt; ReadmeResponse -&gt; Bool
+/= :: ReadmeResponse -&gt; ReadmeResponse -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681574984"><span id="local-6989586621681574986"><span class="annot"><span class="annottext">(forall x. ReadmeResponse -&gt; Rep ReadmeResponse x)
+-&gt; (forall x. Rep ReadmeResponse x -&gt; ReadmeResponse)
+-&gt; Generic ReadmeResponse
+forall x. Rep ReadmeResponse x -&gt; ReadmeResponse
+forall x. ReadmeResponse -&gt; Rep ReadmeResponse x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ReadmeResponse -&gt; Rep ReadmeResponse x
+from :: forall x. ReadmeResponse -&gt; Rep ReadmeResponse x
+$cto :: forall x. Rep ReadmeResponse x -&gt; ReadmeResponse
+to :: forall x. Rep ReadmeResponse x -&gt; ReadmeResponse
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681574993"><span id="local-6989586621681574997"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Unison.MCP.Share.API.html#ReadmeResponse"><span class="hs-identifier hs-type">ReadmeResponse</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621681575008"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ReadmeResponse
+</span><a href="#local-6989586621681575008"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ReadmeResponse)
+-&gt; Value
+-&gt; Parser ReadmeResponse
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ReadmeResponse&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser ReadmeResponse)
+ -&gt; Value -&gt; Parser ReadmeResponse)
+-&gt; (Object -&gt; Parser ReadmeResponse)
+-&gt; Value
+-&gt; Parser ReadmeResponse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681575011"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681575011"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-41"></span><span>      </span><span id="local-6989586621681575012"><span class="annot"><a href="#local-6989586621681575012"><span class="hs-identifier hs-var">markdownReadMe</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681575011"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;markdownReadMe&quot;</span></span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="Unison.MCP.Share.API.html#ReadmeResponse"><span class="hs-identifier hs-type">ReadmeResponse</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.MCP.Share.API.html#markdownReadMe"><span class="hs-identifier hs-var hs-type">markdownReadMe</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- https://api.unison-lang.org/search?query=%40http</span><span>
+</span><span id="line-45"></span><span class="hs-keyword">type</span><span> </span><span id="ShareAPI"><span class="annot"><a href="Unison.MCP.Share.API.html#ShareAPI"><span class="hs-identifier hs-var">ShareAPI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;search&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">QueryParam</span></span><span> </span><span class="annot"><span class="hs-string">&quot;query&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">JSON</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Value</span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;users&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Capture</span></span><span> </span><span class="annot"><span class="hs-string">&quot;owner-handle&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-string">&quot;projects&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Capture</span></span><span> </span><span class="annot"><span class="hs-string">&quot;project-slug&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-string">&quot;readme&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">JSON</span></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Unison.MCP.Share.API.html#ReadmeResponse"><span class="hs-identifier hs-type">ReadmeResponse</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Unison.MCP.Share.API.html#httpSearch"><span class="hs-identifier hs-type">httpSearch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Value</span></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Unison.MCP.Share.API.html#httpProjectReadme"><span class="hs-identifier hs-type">httpProjectReadme</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><a href="Unison.MCP.Share.API.html#ReadmeResponse"><span class="hs-identifier hs-type">ReadmeResponse</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-special">(</span><span> </span><span id="httpSearch"><span class="annot"><span class="annottext">Maybe Text -&gt; ClientM Value
+</span><a href="Unison.MCP.Share.API.html#httpSearch"><span class="hs-identifier hs-var">httpSearch</span></a></span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span id="httpProjectReadme"><span class="annot"><span class="annottext">Text -&gt; Text -&gt; ClientM ReadmeResponse
+</span><a href="Unison.MCP.Share.API.html#httpProjectReadme"><span class="hs-identifier hs-var">httpProjectReadme</span></a></span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681575053"><span class="hs-identifier hs-type">pp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="Unison.MCP.Share.API.html#ShareAPI"><span class="hs-identifier hs-type">ShareAPI</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span id="local-6989586621681575053"><span class="annot"><span class="annottext">pp :: Proxy ShareAPI
+</span><a href="#local-6989586621681575053"><span class="hs-identifier hs-var hs-var">pp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy ShareAPI
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span>
+</span><span id="line-56"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy ShareAPI -&gt; Client ClientM ShareAPI
+forall api.
+HasClient ClientM api =&gt;
+Proxy api -&gt; Client ClientM api
+</span><span class="hs-identifier hs-var">Servant.client</span></span><span> </span><span class="annot"><span class="annottext">Proxy ShareAPI
+</span><a href="#local-6989586621681575053"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span id="local-6989586621681574863"><span class="annot"><a href="Unison.MCP.Share.API.html#runClientM"><span class="hs-identifier hs-type">runClientM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Auth.HTTPClient.html#AuthenticatedHttpClient"><span class="hs-identifier hs-type">AuthenticatedHttpClient</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><a href="#local-6989586621681574863"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientError</span></span><span> </span><span class="annot"><a href="#local-6989586621681574863"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-59"></span><span id="runClientM"><span class="annot"><span class="annottext">runClientM :: forall a.
+AuthenticatedHttpClient -&gt; ClientM a -&gt; IO (Either ClientError a)
+</span><a href="Unison.MCP.Share.API.html#runClientM"><span class="hs-identifier hs-var hs-var">runClientM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Auth.HTTPClient.html#AuthenticatedHttpClient"><span class="hs-identifier hs-type">AuthenticatedHttpClient</span></a></span><span> </span><span id="local-6989586621681575057"><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621681575057"><span class="hs-identifier hs-var">httpClient</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681575058"><span class="annot"><span class="annottext">ClientM a
+</span><a href="#local-6989586621681575058"><span class="hs-identifier hs-var">clientM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681575059"><span class="annot"><span class="annottext">clientEnv :: ClientEnv
+</span><a href="#local-6989586621681575059"><span class="hs-identifier hs-var hs-var">clientEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Manager -&gt; BaseUrl -&gt; ClientEnv
+</span><span class="hs-identifier hs-var">Servant.mkClientEnv</span></span><span> </span><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621681575057"><span class="hs-identifier hs-var">httpClient</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CodeserverURI -&gt; BaseUrl
+</span><span class="hs-identifier hs-var">codeserverBaseURL</span></span><span> </span><span class="annot"><span class="annottext">CodeserverURI
+</span><a href="Unison.Share.Codeserver.html#defaultCodeserver"><span class="hs-identifier hs-var">Codeserver.defaultCodeserver</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><span class="annottext">ClientM a -&gt; ClientEnv -&gt; IO (Either ClientError a)
+forall a. ClientM a -&gt; ClientEnv -&gt; IO (Either ClientError a)
+</span><span class="hs-identifier hs-var">Servant.runClientM</span></span><span> </span><span class="annot"><span class="annottext">ClientM a
+</span><a href="#local-6989586621681575058"><span class="hs-identifier hs-var">clientM</span></a></span><span> </span><span class="annot"><span class="annottext">ClientEnv
+</span><a href="#local-6989586621681575059"><span class="hs-identifier hs-var">clientEnv</span></a></span><span>
+</span><span id="line-62"></span></pre></body></html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ForeignFunctionInterface #-}</span><span>
+</span><span id="line-2"></span><span class="annot"><span class="hs-comment">{- | The pointers exported and used by the C libffi describing basic ffi types. -}</span></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html"><span class="hs-identifier">Foreign.LibFFI.FFITypes</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.Types</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Storable</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html"><span class="hs-identifier">Foreign.LibFFI.Internal</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_void"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_void"><span class="hs-identifier hs-var">ffi_type_void</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_sint8"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint8"><span class="hs-identifier hs-var">ffi_type_sint8</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_uint8"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint8"><span class="hs-identifier hs-var">ffi_type_uint8</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_uint16"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint16"><span class="hs-identifier hs-var">ffi_type_uint16</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_sint16"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint16"><span class="hs-identifier hs-var">ffi_type_sint16</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_uint32"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint32"><span class="hs-identifier hs-var">ffi_type_uint32</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_sint32"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint32"><span class="hs-identifier hs-var">ffi_type_sint32</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_uint64"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint64"><span class="hs-identifier hs-var">ffi_type_uint64</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_sint64"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint64"><span class="hs-identifier hs-var">ffi_type_sint64</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_float"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_float"><span class="hs-identifier hs-var">ffi_type_float</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_double"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_double"><span class="hs-identifier hs-var">ffi_type_double</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;&quot;</span></span><span> </span><span id="ffi_type_pointer"><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_pointer"><span class="hs-identifier hs-var">ffi_type_pointer</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uchar"><span class="hs-identifier hs-type">ffi_type_uchar</span></a></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-27"></span><span id="ffi_type_uchar"><span class="annot"><span class="annottext">ffi_type_uchar :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uchar"><span class="hs-identifier hs-var hs-var">ffi_type_uchar</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint8"><span class="hs-identifier hs-var">ffi_type_uint8</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_schar"><span class="hs-identifier hs-type">ffi_type_schar</span></a></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-30"></span><span id="ffi_type_schar"><span class="annot"><span class="annottext">ffi_type_schar :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_schar"><span class="hs-identifier hs-var hs-var">ffi_type_schar</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint8"><span class="hs-identifier hs-var">ffi_type_sint8</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_wchar"><span class="hs-identifier hs-type">ffi_type_wchar</span></a></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-33"></span><span id="ffi_type_wchar"><span class="annot"><span class="annottext">ffi_type_wchar :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_wchar"><span class="hs-identifier hs-var hs-var">ffi_type_wchar</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CWchar -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CWchar
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CWchar</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-34"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint16"><span class="hs-identifier hs-var">ffi_type_sint16</span></a></span><span>
+</span><span id="line-35"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint32"><span class="hs-identifier hs-var">ffi_type_sint32</span></a></span><span>
+</span><span id="line-36"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint64"><span class="hs-identifier hs-var">ffi_type_sint64</span></a></span><span>
+</span><span id="line-37"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Ptr CType
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ffi_type_wchar of unsupported size&quot;</span></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_size"><span class="hs-identifier hs-type">ffi_type_size</span></a></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-40"></span><span id="ffi_type_size"><span class="annot"><span class="annottext">ffi_type_size :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_size"><span class="hs-identifier hs-var hs-var">ffi_type_size</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CSize -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CSize
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSize</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-41"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint32"><span class="hs-identifier hs-var">ffi_type_uint32</span></a></span><span>
+</span><span id="line-42"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint64"><span class="hs-identifier hs-var">ffi_type_uint64</span></a></span><span>
+</span><span id="line-43"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Ptr CType
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ffi_type_size of unsupported size&quot;</span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_time"><span class="hs-identifier hs-type">ffi_type_time</span></a></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-46"></span><span id="ffi_type_time"><span class="annot"><span class="annottext">ffi_type_time :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_time"><span class="hs-identifier hs-var hs-var">ffi_type_time</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CTime -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CTime
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CTime</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-47"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint32"><span class="hs-identifier hs-var">ffi_type_sint32</span></a></span><span>
+</span><span id="line-48"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint64"><span class="hs-identifier hs-var">ffi_type_sint64</span></a></span><span>
+</span><span id="line-49"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Ptr CType
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ffi_type_time of unsupported size&quot;</span></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint"><span class="hs-identifier hs-type">ffi_type_uint</span></a></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-52"></span><span id="ffi_type_uint"><span class="annot"><span class="annottext">ffi_type_uint :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint"><span class="hs-identifier hs-var hs-var">ffi_type_uint</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CUInt -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CUInt
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CUInt</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-53"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint32"><span class="hs-identifier hs-var">ffi_type_uint32</span></a></span><span>
+</span><span id="line-54"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint64"><span class="hs-identifier hs-var">ffi_type_uint64</span></a></span><span>
+</span><span id="line-55"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Ptr CType
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ffi_type_uint of unsupported size&quot;</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint"><span class="hs-identifier hs-type">ffi_type_sint</span></a></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-58"></span><span id="ffi_type_sint"><span class="annot"><span class="annottext">ffi_type_sint :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint"><span class="hs-identifier hs-var hs-var">ffi_type_sint</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CInt
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-59"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint32"><span class="hs-identifier hs-var">ffi_type_sint32</span></a></span><span>
+</span><span id="line-60"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint64"><span class="hs-identifier hs-var">ffi_type_sint64</span></a></span><span>
+</span><span id="line-61"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Ptr CType
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ffi_type_sint of unsupported size&quot;</span></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_ulong"><span class="hs-identifier hs-type">ffi_type_ulong</span></a></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-64"></span><span id="ffi_type_ulong"><span class="annot"><span class="annottext">ffi_type_ulong :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_ulong"><span class="hs-identifier hs-var hs-var">ffi_type_ulong</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CULong -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CULong
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CULong</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-65"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint32"><span class="hs-identifier hs-var">ffi_type_uint32</span></a></span><span>
+</span><span id="line-66"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint64"><span class="hs-identifier hs-var">ffi_type_uint64</span></a></span><span>
+</span><span id="line-67"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Ptr CType
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ffi_type_ulong of unsupported size&quot;</span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_slong"><span class="hs-identifier hs-type">ffi_type_slong</span></a></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-70"></span><span id="ffi_type_slong"><span class="annot"><span class="annottext">ffi_type_slong :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_slong"><span class="hs-identifier hs-var hs-var">ffi_type_slong</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CLong -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CLong
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CLong</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-71"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint32"><span class="hs-identifier hs-var">ffi_type_sint32</span></a></span><span>
+</span><span id="line-72"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint64"><span class="hs-identifier hs-var">ffi_type_sint64</span></a></span><span>
+</span><span id="line-73"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Ptr CType
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ffi_type_slong of unsupported size&quot;</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_hs_int"><span class="hs-identifier hs-type">ffi_type_hs_int</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-76"></span><span id="ffi_type_hs_int"><span class="annot"><span class="annottext">ffi_type_hs_int :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_hs_int"><span class="hs-identifier hs-var hs-var">ffi_type_hs_int</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-77"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint32"><span class="hs-identifier hs-var">ffi_type_sint32</span></a></span><span>
+</span><span id="line-78"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_sint64"><span class="hs-identifier hs-var">ffi_type_sint64</span></a></span><span>
+</span><span id="line-79"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Ptr CType
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ffi_type_hs_int: unsupported sizeOf (_ :: Int)&quot;</span></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="annot"><a href="Foreign.LibFFI.FFITypes.html#ffi_type_hs_word"><span class="hs-identifier hs-type">ffi_type_hs_word</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Foreign.LibFFI.Internal.html#CType"><span class="hs-identifier hs-type">CType</span></a></span><span>
+</span><span id="line-82"></span><span id="ffi_type_hs_word"><span class="annot"><span class="annottext">ffi_type_hs_word :: Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_hs_word"><span class="hs-identifier hs-var hs-var">ffi_type_hs_word</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-83"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint32"><span class="hs-identifier hs-var">ffi_type_uint32</span></a></span><span>
+</span><span id="line-84"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CType
+</span><a href="Foreign.LibFFI.FFITypes.html#ffi_type_uint64"><span class="hs-identifier hs-var">ffi_type_uint64</span></a></span><span>
+</span><span id="line-85"></span><span>                    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Ptr CType
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ffi_type_hs_word: unsupported sizeOf (_ :: Word)&quot;</span></span><span>
+</span><span id="line-86"></span></pre></body></html>

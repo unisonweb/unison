@@ -1,0 +1,351 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude
+           , ExistentialQuantification
+           , MagicHash
+           , PatternSynonyms
+  #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE ImplicitParams #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Module      :  GHC.Internal.Exception</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, 1998-2002</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- Portability :  non-portable (GHC extensions)</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- Exceptions and exception-handling functions.</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- /The API of this module is unstable and not meant to be consumed by the general public./</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- If you absolutely must depend on it, make sure to use a tight upper</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- bound, e.g., @base &lt; 4.X@ rather than @base &lt; 5@, because the interface can</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- change rapidly without much warning.</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html"><span class="hs-identifier">GHC.Internal.Exception</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * 'Exception' class</span></span><span>
+</span><span id="line-34"></span><span>      </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#Exception"><span class="hs-identifier">Exception</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span>      </span><span class="annot"><span class="hs-comment">-- * 'SomeException'</span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#SomeException"><span class="hs-identifier">SomeException</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Exception context</span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#someExceptionContext"><span class="hs-identifier">someExceptionContext</span></a></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#addExceptionContext"><span class="hs-identifier">addExceptionContext</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Throwing</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#throw"><span class="hs-identifier">throw</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Concrete exceptions</span></span><span>
+</span><span id="line-47"></span><span>      </span><span class="annot"><span class="hs-comment">-- ** Arithmetic exceptions</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#ArithException"><span class="hs-identifier">ArithException</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#divZeroException"><span class="hs-identifier">divZeroException</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#overflowException"><span class="hs-identifier">overflowException</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#ratioZeroDenomException"><span class="hs-identifier">ratioZeroDenomException</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#underflowException"><span class="hs-identifier">underflowException</span></a></span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><span class="hs-comment">-- ** 'ErrorCall'</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-identifier">ErrorCall</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">,</span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-identifier">ErrorCall</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#errorCallException"><span class="hs-identifier">errorCallException</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#errorCallWithCallStackException"><span class="hs-identifier">errorCallWithCallStackException</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#toExceptionWithBacktrace"><span class="hs-identifier">toExceptionWithBacktrace</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Reexports</span></span><span>
+</span><span id="line-60"></span><span>      </span><span class="hs-comment">-- Re-export CallStack and SrcLoc from GHC.Types</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.Types.html#CallStack"><span class="hs-identifier">CallStack</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.Types.html#fromCallSiteList"><span class="hs-identifier">fromCallSiteList</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.Types.html#getCallStack"><span class="hs-identifier">getCallStack</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.html#prettyCallStack"><span class="hs-identifier">prettyCallStack</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.html#prettyCallStackLines"><span class="hs-identifier">prettyCallStackLines</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#showCCSStack"><span class="hs-identifier">showCCSStack</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.Types.html#SrcLoc"><span class="hs-identifier">SrcLoc</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.html#prettySrcLoc"><span class="hs-identifier">prettySrcLoc</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Show.html"><span class="hs-identifier">GHC.Internal.Show</span></a></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.Types.html"><span class="hs-identifier">GHC.Internal.Stack.Types</span></a></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.OldList.html"><span class="hs-identifier">GHC.Internal.Data.OldList</span></a></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.IO.Unsafe.html"><span class="hs-identifier">GHC.Internal.IO.Unsafe</span></a></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.CCS.html"><span class="hs-identifier">GHC.Internal.Stack.CCS</span></a></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.html"><span class="hs-identifier">GHC.Internal.Stack</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Stack.html#prettyCallStackLines"><span class="hs-identifier">prettyCallStackLines</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.html#prettyCallStack"><span class="hs-identifier">prettyCallStack</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.html#prettySrcLoc"><span class="hs-identifier">prettySrcLoc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html"><span class="hs-identifier">GHC.Internal.Exception.Backtrace</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#collectBacktraces"><span class="hs-identifier">collectBacktraces</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html"><span class="hs-identifier">GHC.Internal.Exception.Type</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- | Throw an exception.  Exceptions may be thrown from purely</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- functional code, but may only be caught within the 'IO' monad.</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- WARNING: You may want to use 'throwIO' instead so that your pure code</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- stays exception-free.</span><span>
+</span><span id="line-81"></span><span class="annot"><a href="GHC.Internal.Exception.html#throw"><span class="hs-identifier hs-type">throw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679651624"><span class="annot"><a href="#local-6989586621679651624"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#RuntimeRep"><span class="hs-identifier hs-type">RuntimeRep</span></a></span><span class="hs-special">)</span><span class="hs-operator">.</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679651627"><span class="annot"><a href="#local-6989586621679651627"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#TYPE"><span class="hs-identifier hs-type">TYPE</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679651624"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span class="hs-operator">.</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679651626"><span class="annot"><a href="#local-6989586621679651626"><span class="hs-identifier hs-type">e</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-82"></span><span>         </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Stack.Types.html#HasCallStack"><span class="hs-identifier hs-type">HasCallStack</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#Exception"><span class="hs-identifier hs-type">Exception</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679651626"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679651626"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679651627"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-83"></span><span id="throw"><span class="annot"><span class="annottext">throw :: forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><a href="GHC.Internal.Exception.html#throw"><span class="hs-identifier hs-var hs-var">throw</span></a></span></span><span> </span><span id="local-6989586621679651692"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679651692"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-comment">-- Note the absolutely crucial bang &quot;!&quot; on this binding!</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-comment">--   See Note [Capturing the backtrace in throw]</span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-comment">-- Note also the absolutely crucial `noinine` in the RHS!</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-comment">--   See Note [Hiding precise exception signature in throw]</span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621679651693"><span class="hs-identifier hs-type">se</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#SomeException"><span class="hs-identifier hs-type">SomeException</span></a></span><span>
+</span><span id="line-89"></span><span>        </span><span class="hs-glyph">!</span><span id="local-6989586621679651693"><span class="annot"><span class="annottext">se :: SomeException
+</span><a href="#local-6989586621679651693"><span class="hs-identifier hs-var hs-var">se</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; SomeException
+forall a. a -&gt; a
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Magic.html#noinline"><span class="hs-identifier hs-var">noinline</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO SomeException -&gt; SomeException
+forall a. IO a -&gt; a
+</span><a href="GHC.Internal.IO.Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">e -&gt; IO SomeException
+forall e. (HasCallStack, Exception e) =&gt; e -&gt; IO SomeException
+</span><a href="GHC.Internal.Exception.html#toExceptionWithBacktrace"><span class="hs-identifier hs-var">toExceptionWithBacktrace</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679651692"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; a
+forall a b. a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#raise%23"><span class="hs-identifier hs-var">raise#</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679651693"><span class="hs-identifier hs-var">se</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- Note [Capturing the backtrace in throw]</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- When `throw` captures a backtrace, it must be the backtrace *at the moment</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- that `throw` is called*.   That is why the binding of `se` is marked strict,</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- via the `!`:</span><span>
+</span><span id="line-97"></span><span class="hs-comment">--</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--     !se = &lt;rhs&gt;</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- GHC can capture /four/ different sorts of backtraces (See Note [Backtrace</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- mechanisms] in &quot;Control.Exception.Backtrace&quot; for details). One of them</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- (`CallStack` constraints) does not need this strict-binding treatment,</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- because the `CallStack` constraint is captured in the thunk. However, the</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- other two (DWARF stack unwinding, and native Haskell stack unwinding) are</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- much more fragile, and can only be captured right at the call of `throw`.</span><span>
+</span><span id="line-106"></span><span class="hs-comment">--</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- However, making `se` strict has downsides: see</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- Note [Hiding precise exception signature in throw] below.</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- Note [Hiding precise exception signature in throw]</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- In 'throw' we use `unsafePerformIO . toExceptionWithBacktrace' to collect</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- the backtraces which will be attached as the exception's 'ExceptionContext'.</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- We must ensure that this is evaluated immediately in `throw` since</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- `toExceptionWithBacktrace` must capture the execution state at the moment</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- that the exception is thrown (see Note [Capturing the backtrace in throw]).</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- Unfortunately, unless we take particular care this can lead to a</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- catastrophic regression in 'throw's demand signature which will infect</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- all callers (#25066)</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- Specifically, GHC's demand analysis has an approximate heuristic for tracking</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- whether divergent functions diverge with precise or imprecise exceptions (namely</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- the 'ExnOrDiv' and 'Diverges' constructors of 'GHC.Types.Demand.Divergence',</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- respectively). This is because we can take considerably more liberties in</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- optimising around functions which are known not to diverge via precise</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- exception (see Note [Precise exceptions and strictness analysis]).</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- For this reason, it is important that 'throw' have a 'Diverges' divergence</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- type.</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- Unfortunately, this is broken if we allow `unsafePerformIO` to inline. Specifically,</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- if we allow this inlining we will end up with Core of the form:</span><span>
+</span><span id="line-133"></span><span class="hs-comment">--</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--   throw = \e -&gt;</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--     case runRW# (\s -&gt; ... toExceptionWithBacktrace e s ...) of</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--       se -&gt; raise# se</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- so far this is fine; the demand analyzer's divergence heuristic</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- will give 'throw' the expected 'Diverges' divergence.</span><span>
+</span><span id="line-140"></span><span class="hs-comment">--</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- However, the simplifier will subsequently notice that `raise#` can be fruitfully</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- floated into the body of the `runRW#`:</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--</span><span>
+</span><span id="line-144"></span><span class="hs-comment">--   throw = \e -&gt;</span><span>
+</span><span id="line-145"></span><span class="hs-comment">--     runRW# (\s -&gt; case toExceptionWithBacktrace e s of</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--                     (# s', se #) -&gt; raise# se)</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- This is problematic as one of the demand analyser's heuristics examines</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- `case` scrutinees, looking for those that result in a `RealWorld#` token</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- (see Note [Which scrutinees may throw precise exceptions], test (1)). The</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- `case toExceptionWithBacktrace e of ...` here fails this check, causing the</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- heuristic to conclude that `throw` may indeed diverge with a precise</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- exception. This resulted in the significant performance regression noted in</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- #25066.</span><span>
+</span><span id="line-155"></span><span class="hs-comment">--</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- To avoid this, we use `noinline` to ensure that `unsafePerformIO` does not unfold,</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- meaning that the `raise#` cannot be floated under the `toExceptionWithBacktrace`</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- case analysis.</span><span>
+</span><span id="line-159"></span><span class="hs-comment">--</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- Ultimately this is a bit of a horrible hack; the right solution would be to have</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- primops which allow more precise guidance of the demand analyser's heuristic</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- (e.g. #23847).</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="annot"><span class="hs-comment">-- | @since base-4.20.0.0</span></span><span>
+</span><span id="line-165"></span><span id="local-6989586621679651632"><span class="annot"><a href="GHC.Internal.Exception.html#toExceptionWithBacktrace"><span class="hs-identifier hs-type">toExceptionWithBacktrace</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Stack.Types.html#HasCallStack"><span class="hs-identifier hs-type">HasCallStack</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#Exception"><span class="hs-identifier hs-type">Exception</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679651632"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>                         </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679651632"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#SomeException"><span class="hs-identifier hs-type">SomeException</span></a></span></span><span>
+</span><span id="line-167"></span><span id="toExceptionWithBacktrace"><span class="annot"><span class="annottext">toExceptionWithBacktrace :: forall e. (HasCallStack, Exception e) =&gt; e -&gt; IO SomeException
+</span><a href="GHC.Internal.Exception.html#toExceptionWithBacktrace"><span class="hs-identifier hs-var hs-var">toExceptionWithBacktrace</span></a></span></span><span> </span><span id="local-6989586621679651708"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679651708"><span class="hs-identifier hs-var">e</span></a></span></span><span>
+</span><span id="line-168"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">e -&gt; Bool
+forall e. Exception e =&gt; e -&gt; Bool
+</span><a href="GHC.Internal.Exception.Type.html#backtraceDesired"><span class="hs-identifier hs-var">backtraceDesired</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679651708"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-169"></span><span>      </span><span id="local-6989586621679651710"><span class="annot"><a href="#local-6989586621679651710"><span class="hs-identifier hs-var">bt</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Backtraces
+HasCallStack =&gt; IO Backtraces
+</span><a href="GHC.Internal.Exception.Backtrace.html#collectBacktraces"><span class="hs-identifier hs-var">collectBacktraces</span></a></span><span>
+</span><span id="line-170"></span><span>      </span><span class="annot"><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-type">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Exception.Type.html#addExceptionContext"><span class="hs-identifier hs-type">addExceptionContext</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679651710"><span class="hs-identifier hs-type">bt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Exception.Type.html#toException"><span class="hs-identifier hs-type">toException</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679651708"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="GHC.Internal.Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; IO SomeException
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">e -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><a href="GHC.Internal.Exception.Type.html#toException"><span class="hs-identifier hs-var">toException</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679651708"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- | This is thrown when the user calls 'error'. The first @String@ is the</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- argument given to 'error', second @String@ is the location.</span><span>
+</span><span id="line-175"></span><span class="hs-keyword">data</span><span> </span><span id="ErrorCall"><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-identifier hs-var">ErrorCall</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ErrorCallWithLocation"><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCallWithLocation"><span class="hs-identifier hs-var">ErrorCallWithLocation</span></a></span></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-176"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679651715"><span id="local-6989586621679651721"><span class="annot"><span class="annottext">ErrorCall -&gt; ErrorCall -&gt; Bool
+(ErrorCall -&gt; ErrorCall -&gt; Bool)
+-&gt; (ErrorCall -&gt; ErrorCall -&gt; Bool) -&gt; Eq ErrorCall
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ErrorCall -&gt; ErrorCall -&gt; Bool
+== :: ErrorCall -&gt; ErrorCall -&gt; Bool
+$c/= :: ErrorCall -&gt; ErrorCall -&gt; Bool
+/= :: ErrorCall -&gt; ErrorCall -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.7.0.0</span></span><span>
+</span><span id="line-177"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679651729"><span id="local-6989586621679651735"><span id="local-6989586621679651740"><span id="local-6989586621679651744"><span id="local-6989586621679651747"><span id="local-6989586621679651750"><span id="local-6989586621679651753"><span class="annot"><span class="annottext">Eq ErrorCall
+Eq ErrorCall =&gt;
+(ErrorCall -&gt; ErrorCall -&gt; Ordering)
+-&gt; (ErrorCall -&gt; ErrorCall -&gt; Bool)
+-&gt; (ErrorCall -&gt; ErrorCall -&gt; Bool)
+-&gt; (ErrorCall -&gt; ErrorCall -&gt; Bool)
+-&gt; (ErrorCall -&gt; ErrorCall -&gt; Bool)
+-&gt; (ErrorCall -&gt; ErrorCall -&gt; ErrorCall)
+-&gt; (ErrorCall -&gt; ErrorCall -&gt; ErrorCall)
+-&gt; Ord ErrorCall
+ErrorCall -&gt; ErrorCall -&gt; Bool
+ErrorCall -&gt; ErrorCall -&gt; Ordering
+ErrorCall -&gt; ErrorCall -&gt; ErrorCall
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ErrorCall -&gt; ErrorCall -&gt; Ordering
+compare :: ErrorCall -&gt; ErrorCall -&gt; Ordering
+$c&lt; :: ErrorCall -&gt; ErrorCall -&gt; Bool
+&lt; :: ErrorCall -&gt; ErrorCall -&gt; Bool
+$c&lt;= :: ErrorCall -&gt; ErrorCall -&gt; Bool
+&lt;= :: ErrorCall -&gt; ErrorCall -&gt; Bool
+$c&gt; :: ErrorCall -&gt; ErrorCall -&gt; Bool
+&gt; :: ErrorCall -&gt; ErrorCall -&gt; Bool
+$c&gt;= :: ErrorCall -&gt; ErrorCall -&gt; Bool
+&gt;= :: ErrorCall -&gt; ErrorCall -&gt; Bool
+$cmax :: ErrorCall -&gt; ErrorCall -&gt; ErrorCall
+max :: ErrorCall -&gt; ErrorCall -&gt; ErrorCall
+$cmin :: ErrorCall -&gt; ErrorCall -&gt; ErrorCall
+min :: ErrorCall -&gt; ErrorCall -&gt; ErrorCall
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.7.0.0</span></span><span>
+</span><span id="line-178"></span><span>             </span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-identifier hs-type">ErrorCall</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-identifier hs-type">ErrorCall</span></a></span><span>
+</span><span id="line-181"></span><span class="hs-keyword">pattern</span><span> </span><span id="ErrorCall"><span id="%24mErrorCall"><span id="%24bErrorCall"><span class="annot"><span class="annottext">$mErrorCall :: forall {r}. ErrorCall -&gt; (String -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bErrorCall :: String -&gt; ErrorCall
+</span><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-identifier hs-var hs-var hs-var">ErrorCall</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679651763"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCallWithLocation"><span class="hs-identifier hs-type">ErrorCallWithLocation</span></a></span><span> </span><span id="local-6989586621679651763"><span class="annot"><a href="#local-6989586621679651763"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-182"></span><span>  </span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-identifier hs-var">ErrorCall</span></a></span><span> </span><span id="local-6989586621679651764"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651764"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; ErrorCall
+</span><a href="GHC.Internal.Exception.html#ErrorCallWithLocation"><span class="hs-identifier hs-var">ErrorCallWithLocation</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651764"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-pragma hs-type">ErrorCall</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="annot"><span class="hs-comment">-- | @since base-4.0.0.0</span></span><span>
+</span><span id="line-187"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679651771"><span id="local-6989586621679651774"><span id="local-6989586621679651777"><span id="local-6989586621679651780"><span class="annot"><a href="GHC.Internal.Exception.Type.html#Exception"><span class="hs-identifier hs-type">Exception</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-identifier hs-type">ErrorCall</span></a></span></span></span></span></span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span class="annot"><span class="hs-comment">-- | @since base-4.0.0.0</span></span><span>
+</span><span id="line-190"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679651785"><span id="local-6989586621679651788"><span class="annot"><a href="GHC.Internal.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-identifier hs-type">ErrorCall</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-191"></span><span>  </span><span id="local-6989586621679651791"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; ErrorCall -&gt; ShowS
+</span><a href="#local-6989586621679651791"><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCallWithLocation"><span class="hs-identifier hs-type">ErrorCallWithLocation</span></a></span><span> </span><span id="local-6989586621679651793"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651793"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="GHC.Internal.Show.html#showString"><span class="hs-identifier hs-var">showString</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651793"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-192"></span><span>  </span><span class="annot"><a href="GHC.Internal.Show.html#showsPrec"><span class="hs-identifier hs-var">showsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCallWithLocation"><span class="hs-identifier hs-type">ErrorCallWithLocation</span></a></span><span> </span><span id="local-6989586621679651795"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651795"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span id="local-6989586621679651796"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651796"><span class="hs-identifier hs-var">loc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-193"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="GHC.Internal.Show.html#showString"><span class="hs-identifier hs-var">showString</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651795"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><a href="GHC.Internal.Show.html#showChar"><span class="hs-identifier hs-var">showChar</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\n'</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="GHC.Internal.Show.html#showString"><span class="hs-identifier hs-var">showString</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651796"><span class="hs-identifier hs-var">loc</span></a></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span class="annot"><a href="GHC.Internal.Exception.html#errorCallException"><span class="hs-identifier hs-type">errorCallException</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#SomeException"><span class="hs-identifier hs-type">SomeException</span></a></span><span>
+</span><span id="line-196"></span><span id="errorCallException"><span class="annot"><span class="annottext">errorCallException :: String -&gt; SomeException
+</span><a href="GHC.Internal.Exception.html#errorCallException"><span class="hs-identifier hs-var hs-var">errorCallException</span></a></span></span><span> </span><span id="local-6989586621679651799"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651799"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ErrorCall -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><a href="GHC.Internal.Exception.Type.html#toException"><span class="hs-identifier hs-var">toException</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ErrorCall
+</span><a href="GHC.Internal.Exception.html#ErrorCall"><span class="hs-identifier hs-var">ErrorCall</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651799"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="annot"><a href="GHC.Internal.Exception.html#errorCallWithCallStackException"><span class="hs-identifier hs-type">errorCallWithCallStackException</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.Types.html#CallStack"><span class="hs-identifier hs-type">CallStack</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#SomeException"><span class="hs-identifier hs-type">SomeException</span></a></span><span>
+</span><span id="line-199"></span><span id="errorCallWithCallStackException"><span class="annot"><span class="annottext">errorCallWithCallStackException :: String -&gt; CallStack -&gt; SomeException
+</span><a href="GHC.Internal.Exception.html#errorCallWithCallStackException"><span class="hs-identifier hs-var hs-var">errorCallWithCallStackException</span></a></span></span><span> </span><span id="local-6989586621679651800"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679651800"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679651801"><span class="annot"><span class="annottext">CallStack
+</span><a href="#local-6989586621679651801"><span class="hs-identifier hs-var">stk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO SomeException -&gt; SomeException
+forall a. IO a -&gt; a
+</span><a href="GHC.Internal.IO.Unsafe.html#unsafeDupablePerformIO"><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO SomeException -&gt; SomeException)
+-&gt; IO SomeException -&gt; SomeException
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-200"></span><span>    </span><span id="local-6989586621679651803"><span class="annot"><a href="#local-6989586621679651803"><span class="hs-identifier hs-var">ccsStack</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO [String]
+</span><a href="GHC.Internal.Stack.CCS.html#currentCallStack"><span class="hs-identifier hs-var">currentCallStack</span></a></span><span>
+</span><span id="line-201"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679651805"><span class="annot"><a href="#local-6989586621679651805"><span class="hs-identifier hs-var hs-var">implicitParamCallStack</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CallStack -&gt; [String]
+</span><a href="GHC.Internal.Stack.html#prettyCallStackLines"><span class="hs-identifier hs-var">prettyCallStackLines</span></a></span><span> </span><span class="annot"><span class="annottext">CallStack
+</span><a href="#local-6989586621679651801"><span class="hs-identifier hs-var">stk</span></a></span><span>
+</span><span id="line-202"></span><span>        </span><span id="local-6989586621679651806"><span class="annot"><a href="#local-6989586621679651806"><span class="hs-identifier hs-var hs-var">ccsCallStack</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; [String]
+</span><a href="GHC.Internal.Exception.html#showCCSStack"><span class="hs-identifier hs-var">showCCSStack</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679651803"><span class="hs-identifier hs-var">ccsStack</span></a></span><span>
+</span><span id="line-203"></span><span>        </span><span id="local-6989586621679651807"><span class="annot"><a href="#local-6989586621679651807"><span class="hs-identifier hs-var hs-var">stack</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; String
+forall a. [a] -&gt; [[a]] -&gt; [a]
+</span><a href="GHC.Internal.Data.OldList.html#intercalate"><span class="hs-identifier hs-var">intercalate</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; String) -&gt; [String] -&gt; String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679651805"><span class="hs-identifier hs-var">implicitParamCallStack</span></a></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; [String] -&gt; [String]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="GHC.Internal.Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679651806"><span class="hs-identifier hs-var">ccsCallStack</span></a></span><span>
+</span><span id="line-204"></span><span>    </span><span class="annot"><a href="GHC.Internal.Exception.html#toExceptionWithBacktrace"><span class="hs-identifier hs-type">toExceptionWithBacktrace</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Exception.html#ErrorCallWithLocation"><span class="hs-identifier hs-type">ErrorCallWithLocation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679651800"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679651807"><span class="hs-identifier hs-type">stack</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span class="">?callStack</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasCallStack
+CallStack
+</span><a href="#local-6989586621679651801"><span class="hs-identifier hs-var">stk</span></a></span><span>
+</span><span id="line-206"></span><span>
+</span><span id="line-207"></span><span class="annot"><a href="GHC.Internal.Exception.html#showCCSStack"><span class="hs-identifier hs-type">showCCSStack</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-208"></span><span id="showCCSStack"><span class="annot"><span class="annottext">showCCSStack :: [String] -&gt; [String]
+</span><a href="GHC.Internal.Exception.html#showCCSStack"><span class="hs-identifier hs-var hs-var">showCCSStack</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-209"></span><span class="annot"><a href="GHC.Internal.Exception.html#showCCSStack"><span class="hs-identifier hs-var">showCCSStack</span></a></span><span> </span><span id="local-6989586621679651814"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679651814"><span class="hs-identifier hs-var">stk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CallStack (from -prof):&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; [String]
+forall a. a -&gt; [a] -&gt; [a]
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#%3A"><span class="hs-glyph hs-var">:</span></a></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; [String] -&gt; [String]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="GHC.Internal.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;  &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="GHC.Internal.Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; [String]
+forall a. [a] -&gt; [a]
+</span><a href="GHC.Internal.List.html#reverse"><span class="hs-identifier hs-var">reverse</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679651814"><span class="hs-identifier hs-var">stk</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span></pre></body></html>

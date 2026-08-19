@@ -1,0 +1,179 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Utils.html"><span class="hs-identifier">GHC.Core.LateCC.Utils</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Inserting cost centres</span></span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="GHC.Core.LateCC.Utils.html#doLateCostCenters"><span class="hs-identifier">doLateCostCenters</span></a></span><span> </span><span class="hs-comment">-- Might be useful for API users</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Helpers for defining insertion methods</span></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Utils.html#getCCFlavour"><span class="hs-identifier">getCCFlavour</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Utils.html#insertCC"><span class="hs-identifier">insertCC</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html"><span class="hs-identifier">Control.Monad.Trans.Class</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Reader.html"><span class="hs-identifier">Control.Monad.Trans.Reader</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html"><span class="hs-identifier">Control.Monad.Trans.State.Strict</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Set.html"><span class="hs-identifier">Data.Set</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.html"><span class="hs-identifier">GHC.Core</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html"><span class="hs-identifier">GHC.Core.LateCC.Types</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Utils.html"><span class="hs-identifier">GHC.Core.Utils</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.CostCentre.html"><span class="hs-identifier">GHC.Types.CostCentre</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.CostCentre.State.html"><span class="hs-identifier">GHC.Types.CostCentre.State</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Tickish.html"><span class="hs-identifier">GHC.Types.Tickish</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | Insert cost centres into the 'CoreProgram' using the provided environment,</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- initial state, and insertion method.</span><span>
+</span><span id="line-29"></span><span id="local-6989586621682567809"><span class="annot"><a href="GHC.Core.LateCC.Utils.html#doLateCostCenters"><span class="hs-identifier hs-type">doLateCostCenters</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCEnv"><span class="hs-identifier hs-type">LateCCEnv</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Environment to run the insertion in</span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCState"><span class="hs-identifier hs-type">LateCCState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567809"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Initial state to run the insertion with</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#CoreBind"><span class="hs-identifier hs-type">CoreBind</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567809"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreBind"><span class="hs-identifier hs-type">CoreBind</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Insertion method</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreProgram"><span class="hs-identifier hs-type">CoreProgram</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Bindings to consider</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#CoreProgram"><span class="hs-identifier hs-type">CoreProgram</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCState"><span class="hs-identifier hs-type">LateCCState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567809"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-39"></span><span id="doLateCostCenters"><span class="annot"><span class="annottext">doLateCostCenters :: forall s.
+LateCCEnv
+-&gt; LateCCState s
+-&gt; (CoreBind -&gt; LateCCM s CoreBind)
+-&gt; CoreProgram
+-&gt; (CoreProgram, LateCCState s)
+</span><a href="GHC.Core.LateCC.Utils.html#doLateCostCenters"><span class="hs-identifier hs-var hs-var">doLateCostCenters</span></a></span></span><span> </span><span id="local-6989586621682567902"><span class="annot"><span class="annottext">LateCCEnv
+</span><a href="#local-6989586621682567902"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621682567903"><span class="annot"><span class="annottext">LateCCState s
+</span><a href="#local-6989586621682567903"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span id="local-6989586621682567904"><span class="annot"><span class="annottext">CoreBind -&gt; LateCCM s CoreBind
+</span><a href="#local-6989586621682567904"><span class="hs-identifier hs-var">method</span></a></span></span><span> </span><span id="local-6989586621682567905"><span class="annot"><span class="annottext">CoreProgram
+</span><a href="#local-6989586621682567905"><span class="hs-identifier hs-var">binds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="annottext">LateCCEnv
+-&gt; LateCCState s
+-&gt; LateCCM s CoreProgram
+-&gt; (CoreProgram, LateCCState s)
+forall s a.
+LateCCEnv -&gt; LateCCState s -&gt; LateCCM s a -&gt; (a, LateCCState s)
+</span><a href="GHC.Core.LateCC.Utils.html#runLateCC"><span class="hs-identifier hs-var">runLateCC</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCEnv
+</span><a href="#local-6989586621682567902"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCState s
+</span><a href="#local-6989586621682567903"><span class="hs-identifier hs-var">state</span></a></span><span> </span><span class="annot"><span class="annottext">(LateCCM s CoreProgram -&gt; (CoreProgram, LateCCState s))
+-&gt; LateCCM s CoreProgram -&gt; (CoreProgram, LateCCState s)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(CoreBind -&gt; LateCCM s CoreBind)
+-&gt; CoreProgram -&gt; LateCCM s CoreProgram
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="annot"><span class="annottext">CoreBind -&gt; LateCCM s CoreBind
+</span><a href="#local-6989586621682567904"><span class="hs-identifier hs-var">method</span></a></span><span> </span><span class="annot"><span class="annottext">CoreProgram
+</span><a href="#local-6989586621682567905"><span class="hs-identifier hs-var">binds</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><span class="hs-comment">-- | Evaluate late cost centre insertion</span></span><span>
+</span><span id="line-43"></span><span id="local-6989586621682567823"><span id="local-6989586621682567824"><span class="annot"><a href="GHC.Core.LateCC.Utils.html#runLateCC"><span class="hs-identifier hs-type">runLateCC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCEnv"><span class="hs-identifier hs-type">LateCCEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCState"><span class="hs-identifier hs-type">LateCCState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567823"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567823"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567824"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682567824"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCState"><span class="hs-identifier hs-type">LateCCState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567823"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-44"></span><span id="runLateCC"><span class="annot"><span class="annottext">runLateCC :: forall s a.
+LateCCEnv -&gt; LateCCState s -&gt; LateCCM s a -&gt; (a, LateCCState s)
+</span><a href="GHC.Core.LateCC.Utils.html#runLateCC"><span class="hs-identifier hs-var hs-var">runLateCC</span></a></span></span><span> </span><span id="local-6989586621682567908"><span class="annot"><span class="annottext">LateCCEnv
+</span><a href="#local-6989586621682567908"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621682567909"><span class="annot"><span class="annottext">LateCCState s
+</span><a href="#local-6989586621682567909"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">State (LateCCState s) a -&gt; LateCCState s -&gt; (a, LateCCState s)
+forall s a. State s a -&gt; s -&gt; (a, s)
+</span><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html#runState"><span class="hs-operator hs-var">`runState`</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCState s
+</span><a href="#local-6989586621682567909"><span class="hs-identifier hs-var">state</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(State (LateCCState s) a -&gt; (a, LateCCState s))
+-&gt; (LateCCM s a -&gt; State (LateCCState s) a)
+-&gt; LateCCM s a
+-&gt; (a, LateCCState s)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LateCCM s a -&gt; LateCCEnv -&gt; State (LateCCState s) a
+forall r (m :: * -&gt; *) a. ReaderT r m a -&gt; r -&gt; m a
+</span><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Reader.html#runReaderT"><span class="hs-operator hs-var">`runReaderT`</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCEnv
+</span><a href="#local-6989586621682567908"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><span class="hs-comment">-- | Given the name of a cost centre, get its flavour</span></span><span>
+</span><span id="line-47"></span><span id="local-6989586621682567844"><span class="annot"><a href="GHC.Core.LateCC.Utils.html#getCCFlavour"><span class="hs-identifier hs-type">getCCFlavour</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567844"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="GHC.Types.CostCentre.html#CCFlavour"><span class="hs-identifier hs-type">CCFlavour</span></a></span></span><span>
+</span><span id="line-48"></span><span id="getCCFlavour"><span class="annot"><span class="annottext">getCCFlavour :: forall s. FastString -&gt; LateCCM s CCFlavour
+</span><a href="GHC.Core.LateCC.Utils.html#getCCFlavour"><span class="hs-identifier hs-var hs-var">getCCFlavour</span></a></span></span><span> </span><span id="local-6989586621682567919"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682567919"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CostCentreIndex -&gt; CCFlavour
+</span><a href="GHC.Types.CostCentre.html#mkLateCCFlavour"><span class="hs-identifier hs-var">mkLateCCFlavour</span></a></span><span> </span><span class="annot"><span class="annottext">(CostCentreIndex -&gt; CCFlavour)
+-&gt; ReaderT LateCCEnv (State (LateCCState s)) CostCentreIndex
+-&gt; ReaderT LateCCEnv (State (LateCCState s)) CCFlavour
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">FastString
+-&gt; ReaderT LateCCEnv (State (LateCCState s)) CostCentreIndex
+forall s. FastString -&gt; LateCCM s CostCentreIndex
+</span><a href="#local-6989586621682567922"><span class="hs-identifier hs-var">getCCIndex'</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682567919"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-50"></span><span>    </span><span id="local-6989586621682567855"><span class="annot"><a href="#local-6989586621682567922"><span class="hs-identifier hs-type">getCCIndex'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567855"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="GHC.Types.CostCentre.State.html#CostCentreIndex"><span class="hs-identifier hs-type">CostCentreIndex</span></a></span></span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621682567922"><span class="annot"><span class="annottext">getCCIndex' :: forall s. FastString -&gt; LateCCM s CostCentreIndex
+</span><a href="#local-6989586621682567922"><span class="hs-identifier hs-var hs-var">getCCIndex'</span></a></span></span><span> </span><span id="local-6989586621682567935"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682567935"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-52"></span><span>      </span><span id="local-6989586621682567936"><span class="annot"><a href="#local-6989586621682567936"><span class="hs-identifier hs-var">cc_state</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">State (LateCCState s) CostCentreState
+-&gt; ReaderT LateCCEnv (State (LateCCState s)) CostCentreState
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ReaderT LateCCEnv m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">(State (LateCCState s) CostCentreState
+ -&gt; ReaderT LateCCEnv (State (LateCCState s)) CostCentreState)
+-&gt; State (LateCCState s) CostCentreState
+-&gt; ReaderT LateCCEnv (State (LateCCState s)) CostCentreState
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(LateCCState s -&gt; CostCentreState)
+-&gt; State (LateCCState s) CostCentreState
+forall (m :: * -&gt; *) s a. Monad m =&gt; (s -&gt; a) -&gt; StateT s m a
+</span><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html#gets"><span class="hs-identifier hs-var">gets</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCState s -&gt; CostCentreState
+forall s. LateCCState s -&gt; CostCentreState
+</span><a href="GHC.Core.LateCC.Types.html#lateCCState_ccState"><span class="hs-identifier hs-var">lateCCState_ccState</span></a></span><span>
+</span><span id="line-53"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682567940"><span class="annot"><a href="#local-6989586621682567940"><span class="hs-identifier hs-var">index</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682567941"><span class="annot"><a href="#local-6989586621682567941"><span class="hs-identifier hs-var">cc_state'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Types.CostCentre.State.html#getCCIndex"><span class="hs-identifier hs-type">getCCIndex</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567935"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567936"><span class="hs-identifier hs-type">cc_state</span></a></span><span>
+</span><span id="line-54"></span><span>      </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-type">lift</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html#modify"><span class="hs-identifier hs-type">modify</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682567944"><span class="annot"><span class="annottext">LateCCState s
+</span><a href="#local-6989586621682567944"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LateCCState s
+</span><a href="#local-6989586621682567944"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCState_ccState"><span class="hs-identifier hs-var">lateCCState_ccState</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621682567941"><span class="hs-identifier hs-type">cc_state'</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-55"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621682567940"><span class="hs-identifier hs-type">index</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | Insert a cost centre with the specified name and source span on the given</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- expression. The inserted cost centre will be appropriately tracked in the</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- late cost centre state.</span><span>
+</span><span id="line-60"></span><span id="local-6989586621682567873"><span class="annot"><a href="GHC.Core.LateCC.Utils.html#insertCC"><span class="hs-identifier hs-type">insertCC</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Name of the cost centre to insert</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#SrcSpan"><span class="hs-identifier hs-type">SrcSpan</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Source location to associate with the cost centre</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Expression to wrap in the cost centre</span></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCM"><span class="hs-identifier hs-type">LateCCM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567873"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span></span><span>
+</span><span id="line-68"></span><span id="insertCC"><span class="annot"><span class="annottext">insertCC :: forall s. FastString -&gt; SrcSpan -&gt; CoreExpr -&gt; LateCCM s CoreExpr
+</span><a href="GHC.Core.LateCC.Utils.html#insertCC"><span class="hs-identifier hs-var hs-var">insertCC</span></a></span></span><span> </span><span id="local-6989586621682567962"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682567962"><span class="hs-identifier hs-var">cc_name</span></a></span></span><span> </span><span id="local-6989586621682567963"><span class="annot"><span class="annottext">SrcSpan
+</span><a href="#local-6989586621682567963"><span class="hs-identifier hs-var">cc_loc</span></a></span></span><span> </span><span id="local-6989586621682567964"><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682567964"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621682567965"><span class="annot"><a href="#local-6989586621682567965"><span class="hs-identifier hs-var">cc_flavour</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; LateCCM s CCFlavour
+forall s. FastString -&gt; LateCCM s CCFlavour
+</span><a href="GHC.Core.LateCC.Utils.html#getCCFlavour"><span class="hs-identifier hs-var">getCCFlavour</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682567962"><span class="hs-identifier hs-var">cc_name</span></a></span><span>
+</span><span id="line-70"></span><span>    </span><span id="local-6989586621682567966"><span class="annot"><a href="#local-6989586621682567966"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Reader.html#ask"><span class="hs-identifier hs-type">ask</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-keyword">let</span><span>
+</span><span id="line-72"></span><span>      </span><span id="local-6989586621682567968"><span class="annot"><a href="#local-6989586621682567968"><span class="hs-identifier hs-var hs-var">cc_mod</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LateCCEnv -&gt; Module
+</span><a href="GHC.Core.LateCC.Types.html#lateCCEnv_module"><span class="hs-identifier hs-var">lateCCEnv_module</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCEnv
+</span><a href="#local-6989586621682567966"><span class="hs-identifier hs-var">env</span></a></span><span>
+</span><span id="line-73"></span><span>      </span><span id="local-6989586621682567970"><span class="annot"><a href="#local-6989586621682567970"><span class="hs-identifier hs-var hs-var">cc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CCFlavour -&gt; FastString -&gt; Module -&gt; SrcSpan -&gt; CostCentre
+</span><a href="GHC.Types.CostCentre.html#NormalCC"><span class="hs-identifier hs-var">NormalCC</span></a></span><span> </span><span class="annot"><span class="annottext">CCFlavour
+</span><a href="#local-6989586621682567965"><span class="hs-identifier hs-var">cc_flavour</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682567962"><span class="hs-identifier hs-var">cc_name</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621682567968"><span class="hs-identifier hs-var">cc_mod</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpan
+</span><a href="#local-6989586621682567963"><span class="hs-identifier hs-var">cc_loc</span></a></span><span>
+</span><span id="line-74"></span><span>      </span><span id="local-6989586621682567972"><span class="annot"><a href="#local-6989586621682567972"><span class="hs-identifier hs-var hs-var">note</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CostCentre -&gt; Bool -&gt; Bool -&gt; GenTickish 'TickishPassCore
+forall (pass :: TickishPass).
+CostCentre -&gt; Bool -&gt; Bool -&gt; GenTickish pass
+</span><a href="GHC.Types.Tickish.html#ProfNote"><span class="hs-identifier hs-var">ProfNote</span></a></span><span> </span><span class="annot"><span class="annottext">CostCentre
+</span><a href="#local-6989586621682567970"><span class="hs-identifier hs-var">cc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LateCCEnv -&gt; Bool
+</span><a href="GHC.Core.LateCC.Types.html#lateCCEnv_countEntries"><span class="hs-identifier hs-var">lateCCEnv_countEntries</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCEnv
+</span><a href="#local-6989586621682567966"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-75"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCEnv_collectCCs"><span class="hs-identifier hs-var">lateCCEnv_collectCCs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567966"><span class="hs-identifier hs-type">env</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-76"></span><span>        </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-type">lift</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.State.Strict.html#modify"><span class="hs-identifier hs-type">modify</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682567977"><span class="annot"><span class="annottext">LateCCState s
+</span><a href="#local-6989586621682567977"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-77"></span><span>          </span><span class="annot"><span class="annottext">LateCCState s
+</span><a href="#local-6989586621682567977"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCState_ccs"><span class="hs-identifier hs-var">lateCCState_ccs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Set.Internal.html#insert"><span class="hs-identifier hs-type">S.insert</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567970"><span class="hs-identifier hs-type">cc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCState_ccs"><span class="hs-identifier hs-var">lateCCState_ccs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567977"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-79"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Core.Utils.html#mkTick"><span class="hs-identifier hs-type">mkTick</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567972"><span class="hs-identifier hs-type">note</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682567964"><span class="hs-identifier hs-type">expr</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span></pre></body></html>

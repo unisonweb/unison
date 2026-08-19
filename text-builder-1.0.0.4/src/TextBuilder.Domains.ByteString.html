@@ -1,0 +1,69 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="TextBuilder.Domains.ByteString.html"><span class="hs-identifier">TextBuilder.Domains.ByteString</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ByteString</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Array</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TextArray</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="TextBuilder.Prelude.html"><span class="hs-identifier">TextBuilder.Prelude</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">TextBuilderCore</span></span><span class="hs-cpp">
+
+#if !MIN_VERSION_text(2,0,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.Text.Encoding</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">TextEncoding</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- | UTF-8 bytestring. You can use it for converting ASCII values as well.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- __Warning:__ It's your responsibility to ensure that the bytestring is properly encoded.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- &gt;&gt;&gt; unsafeUtf8ByteString &quot;abc&quot;</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- &quot;abc&quot;</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- &gt;&gt;&gt; import Data.Text.Encoding (encodeUtf8)</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- &gt;&gt;&gt; unsafeUtf8ByteString (encodeUtf8 &quot;&#1092;&#1099;&#1074;&#1072;&#1087;&#1088;&#1086;&#1083;&#1076;&#1078;&quot;) == &quot;&#1092;&#1099;&#1074;&#1072;&#1087;&#1088;&#1086;&#1083;&#1076;&#1078;&quot;</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-24"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.ByteString.html#unsafeUtf8ByteString"><span class="hs-pragma hs-type">unsafeUtf8ByteString</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-25"></span><span class="annot"><a href="TextBuilder.Domains.ByteString.html#unsafeUtf8ByteString"><span class="hs-identifier hs-type">unsafeUtf8ByteString</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span><span class="hs-cpp">
+#if MIN_VERSION_text(2,0,0)
+</span><span id="unsafeUtf8ByteString"><span class="annot"><span class="annottext">unsafeUtf8ByteString :: ByteString -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.ByteString.html#unsafeUtf8ByteString"><span class="hs-identifier hs-var hs-var">unsafeUtf8ByteString</span></a></span></span><span> </span><span id="local-6989586621679083777"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679083777"><span class="hs-identifier hs-var">byteString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; (forall s. MArray s -&gt; Int -&gt; ST s Int) -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">TextBuilder</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">ByteString.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679083777"><span class="hs-identifier hs-var">byteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679083785"><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083785"><span class="hs-identifier hs-var">array</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-31"></span><span>        </span><span class="hs-comment">-- TODO: Optimize to use memcpy or something similar.</span><span>
+</span><span id="line-32"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679083786"><span class="annot"><span class="annottext">step :: Word8 -&gt; (Int -&gt; ST s Int) -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083786"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span id="local-6989586621679083787"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679083787"><span class="hs-identifier hs-var">byte</span></a></span></span><span> </span><span id="local-6989586621679083788"><span class="annot"><span class="annottext">Int -&gt; ST s Int
+</span><a href="#local-6989586621679083788"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span id="local-6989586621679083789"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083789"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-33"></span><span>              </span><span class="annot"><span class="annottext">MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+forall s. MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+</span><span class="hs-identifier hs-var">TextArray.unsafeWrite</span></span><span> </span><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083785"><span class="hs-identifier hs-var">array</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083789"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679083787"><span class="hs-identifier hs-var">byte</span></a></span><span>
+</span><span id="line-34"></span><span>              </span><span class="annot"><span class="annottext">Int -&gt; ST s Int
+</span><a href="#local-6989586621679083788"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083789"><span class="hs-identifier hs-var">index</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; (Int -&gt; ST s Int) -&gt; Int -&gt; ST s Int)
+-&gt; (Int -&gt; ST s Int) -&gt; ByteString -&gt; Int -&gt; ST s Int
+forall a. (Word8 -&gt; a -&gt; a) -&gt; a -&gt; ByteString -&gt; a
+</span><span class="hs-identifier hs-var">ByteString.foldr</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; (Int -&gt; ST s Int) -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083786"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ST s Int
+forall a. a -&gt; ST s a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679083777"><span class="hs-identifier hs-var">byteString</span></a></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-comment">-- Using a suboptimal solution here since the older version of \&quot;text\&quot; is becoming less important with time.</span><span>
+</span><span id="line-39"></span><span class="hs-identifier">unsafeUtf8ByteString</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-identifier">text</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">TextEncoding.decodeUtf8</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

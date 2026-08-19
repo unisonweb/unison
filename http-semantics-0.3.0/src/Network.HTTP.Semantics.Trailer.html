@@ -1,0 +1,89 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html"><span class="hs-identifier">Network.HTTP.Semantics.Trailer</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.ByteOrder</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Types</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">H</span></span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- | Trailers maker. A chunks of the response body is passed</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--   with 'Just'. The maker should update internal state</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--   with the 'ByteString' and return the next trailers maker.</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--   When response body reaches its end,</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--   'Nothing' is passed and the maker should generate</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--   trailers. An example:</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--   &gt; {-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--   &gt; import Data.ByteString (ByteString)</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--   &gt; import qualified Data.ByteString.Char8 as C8</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--   &gt; import Crypto.Hash (Context, SHA1) -- cryptonite</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--   &gt; import qualified Crypto.Hash as CH</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--   &gt;</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--   &gt; -- Strictness is important for Context.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--   &gt; trailersMaker :: Context SHA1 -&gt; Maybe ByteString -&gt; IO NextTrailersMaker</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--   &gt; trailersMaker ctx Nothing = return $ Trailers [(&quot;X-SHA1&quot;, sha1)]</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--   &gt;   where</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--   &gt;     !sha1 = C8.pack $ show $ CH.hashFinalize ctx</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--   &gt; trailersMaker ctx (Just bs) = return $ NextTrailersMaker $ trailersMaker ctx'</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--   &gt;   where</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--   &gt;     !ctx' = CH.hashUpdate ctx bs</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--   Usage example:</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--   &gt; let h2rsp = responseFile ...</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--   &gt;     maker = trailersMaker (CH.hashInit :: Context SHA1)</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--   &gt;     h2rsp' = setResponseTrailersMaker h2rsp maker</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">type</span><span> </span><span id="TrailersMaker"><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#TrailersMaker"><span class="hs-identifier hs-var">TrailersMaker</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#NextTrailersMaker"><span class="hs-identifier hs-type">NextTrailersMaker</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="annot"><span class="hs-comment">-- | TrailersMake to create no trailers.</span></span><span>
+</span><span id="line-36"></span><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#defaultTrailersMaker"><span class="hs-identifier hs-type">defaultTrailersMaker</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#TrailersMaker"><span class="hs-identifier hs-type">TrailersMaker</span></a></span><span>
+</span><span id="line-37"></span><span id="defaultTrailersMaker"><span class="annot"><span class="annottext">defaultTrailersMaker :: TrailersMaker
+</span><a href="Network.HTTP.Semantics.Trailer.html#defaultTrailersMaker"><span class="hs-identifier hs-var hs-var">defaultTrailersMaker</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NextTrailersMaker -&gt; IO NextTrailersMaker
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(NextTrailersMaker -&gt; IO NextTrailersMaker)
+-&gt; NextTrailersMaker -&gt; IO NextTrailersMaker
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Header] -&gt; NextTrailersMaker
+</span><a href="Network.HTTP.Semantics.Trailer.html#Trailers"><span class="hs-identifier hs-var">Trailers</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#defaultTrailersMaker"><span class="hs-identifier hs-var">defaultTrailersMaker</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NextTrailersMaker -&gt; IO NextTrailersMaker
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(NextTrailersMaker -&gt; IO NextTrailersMaker)
+-&gt; NextTrailersMaker -&gt; IO NextTrailersMaker
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TrailersMaker -&gt; NextTrailersMaker
+</span><a href="Network.HTTP.Semantics.Trailer.html#NextTrailersMaker"><span class="hs-identifier hs-var">NextTrailersMaker</span></a></span><span> </span><span class="annot"><span class="annottext">TrailersMaker
+</span><a href="Network.HTTP.Semantics.Trailer.html#defaultTrailersMaker"><span class="hs-identifier hs-var">defaultTrailersMaker</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><span class="hs-comment">-- | Either the next trailers maker or final trailers.</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">data</span><span> </span><span id="NextTrailersMaker"><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#NextTrailersMaker"><span class="hs-identifier hs-var">NextTrailersMaker</span></a></span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="NextTrailersMaker"><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#NextTrailersMaker"><span class="hs-identifier hs-var">NextTrailersMaker</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#TrailersMaker"><span class="hs-identifier hs-type">TrailersMaker</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Trailers"><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#Trailers"><span class="hs-identifier hs-var">Trailers</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">H.Header</span></span><span class="hs-special">]</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- | Running trailers-maker.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- &gt; bufferIO buf siz $ \bs -&gt; tlrmkr (Just bs)</span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#runTrailersMaker"><span class="hs-identifier hs-type">runTrailersMaker</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#TrailersMaker"><span class="hs-identifier hs-type">TrailersMaker</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Buffer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Trailer.html#NextTrailersMaker"><span class="hs-identifier hs-type">NextTrailersMaker</span></a></span><span>
+</span><span id="line-51"></span><span id="runTrailersMaker"><span class="annot"><span class="annottext">runTrailersMaker :: TrailersMaker -&gt; Buffer -&gt; Int -&gt; IO NextTrailersMaker
+</span><a href="Network.HTTP.Semantics.Trailer.html#runTrailersMaker"><span class="hs-identifier hs-var hs-var">runTrailersMaker</span></a></span></span><span> </span><span id="local-6989586621679073868"><span class="annot"><span class="annottext">TrailersMaker
+</span><a href="#local-6989586621679073868"><span class="hs-identifier hs-var">tlrmkr</span></a></span></span><span> </span><span id="local-6989586621679073869"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679073869"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span id="local-6989586621679073870"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073870"><span class="hs-identifier hs-var">siz</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Buffer
+-&gt; Int
+-&gt; (ByteString -&gt; IO NextTrailersMaker)
+-&gt; IO NextTrailersMaker
+forall a. Buffer -&gt; Int -&gt; (ByteString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">bufferIO</span></span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679073869"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073870"><span class="hs-identifier hs-var">siz</span></a></span><span> </span><span class="annot"><span class="annottext">((ByteString -&gt; IO NextTrailersMaker) -&gt; IO NextTrailersMaker)
+-&gt; (ByteString -&gt; IO NextTrailersMaker) -&gt; IO NextTrailersMaker
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679073872"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679073872"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TrailersMaker
+</span><a href="#local-6989586621679073868"><span class="hs-identifier hs-var">tlrmkr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679073872"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span></pre></body></html>

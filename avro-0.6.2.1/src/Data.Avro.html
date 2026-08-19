@@ -1,0 +1,485 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ConstraintKinds     #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances   #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications    #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- | Avro encoding and decoding routines.</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- This library provides a high level interface for encoding and decoding</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Haskell values in Apache's Avro serialization format.</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Avro.html"><span class="hs-identifier">Data.Avro</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Schema</span></span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier">Schema</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Field"><span class="hs-identifier">Schema.Field</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Order"><span class="hs-identifier">Schema.Order</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#TypeName"><span class="hs-identifier">Schema.TypeName</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Decimal"><span class="hs-identifier">Schema.Decimal</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeBytes"><span class="hs-identifier">Schema.LogicalTypeBytes</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeFixed"><span class="hs-identifier">Schema.LogicalTypeFixed</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeInt"><span class="hs-identifier">Schema.LogicalTypeInt</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeLong"><span class="hs-identifier">Schema.LogicalTypeLong</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeString"><span class="hs-identifier">Schema.LogicalTypeString</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Deconflicting schemas</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier">ReadSchema</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Deconflict.html#deconflict"><span class="hs-identifier">deconflict</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#readSchemaFromSchema"><span class="hs-identifier">readSchemaFromSchema</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Individual values</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#encodeValue"><span class="hs-identifier">encodeValue</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#encodeValueWithSchema"><span class="hs-identifier">encodeValueWithSchema</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#decodeValue"><span class="hs-identifier">decodeValue</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#decodeValueWithSchema"><span class="hs-identifier">decodeValueWithSchema</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Working with containers</span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Decoding containers</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#decodeContainer"><span class="hs-identifier">decodeContainer</span></a></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#decodeContainerWithEmbeddedSchema"><span class="hs-identifier">decodeContainerWithEmbeddedSchema</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#decodeContainerWithReaderSchema"><span class="hs-identifier">decodeContainerWithReaderSchema</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#encodeContainer"><span class="hs-identifier">encodeContainer</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#encodeContainerWithSchema"><span class="hs-identifier">encodeContainerWithSchema</span></a></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#encodeContainerWithSync"><span class="hs-identifier">encodeContainerWithSync</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Internal.Container.html#newSyncBytes"><span class="hs-identifier">Container.newSyncBytes</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Extracting containers' data</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#extractContainerValuesBytes"><span class="hs-identifier">extractContainerValuesBytes</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.html#decodeContainerValuesBytes"><span class="hs-identifier">decodeContainerValuesBytes</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Classes</span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.ToAvro.html#ToAvro"><span class="hs-identifier">ToAvro</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.FromAvro.html#FromAvro"><span class="hs-identifier">FromAvro</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Compression</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier">Codec</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#nullCodec"><span class="hs-identifier">nullCodec</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#deflateCodec"><span class="hs-identifier">deflateCodec</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier">HasAvroSchema</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#schemaOf"><span class="hs-identifier">schemaOf</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>                </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&gt;=&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Avro.Codec.html"><span class="hs-identifier">Data.Avro.Codec</span></a></span><span>              </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier">Codec</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#deflateCodec"><span class="hs-identifier">deflateCodec</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#nullCodec"><span class="hs-identifier">nullCodec</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Avro.Encoding.FromAvro.html"><span class="hs-identifier">Data.Avro.Encoding.FromAvro</span></a></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Avro.Encoding.ToAvro.html"><span class="hs-identifier">Data.Avro.Encoding.ToAvro</span></a></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html"><span class="hs-identifier">Data.Avro.HasAvroSchema</span></a></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Avro.Internal.Container.html"><span class="hs-identifier">Data.Avro.Internal.Container</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Container</span></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Avro.Schema.Deconflict.html"><span class="hs-identifier">Data.Avro.Schema.Deconflict</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.Schema.Deconflict.html#deconflict"><span class="hs-identifier">deconflict</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html"><span class="hs-identifier">Data.Avro.Schema.ReadSchema</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier">ReadSchema</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier">fromSchema</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Avro.Schema.Schema.html"><span class="hs-identifier">Data.Avro.Schema.Schema</span></a></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier">Schema</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html"><span class="hs-identifier">Data.Avro.Schema.Schema</span></a></span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Schema</span></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Binary.Get</span></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">runGetOrFail</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">toLazyByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span>         </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lazy</span></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Tagged</span></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">untag</span></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">{- HLINT ignore &quot;Use section&quot;         -}</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- | Converts 'Schema' into 'ReadSchema'. This function may be useful when it is known</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- that the writer and the reader schemas are the same.</span><span>
+</span><span id="line-78"></span><span class="annot"><a href="Data.Avro.html#readSchemaFromSchema"><span class="hs-identifier hs-type">readSchemaFromSchema</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-type">ReadSchema</span></a></span><span>
+</span><span id="line-79"></span><span id="readSchemaFromSchema"><span class="annot"><span class="annottext">readSchemaFromSchema :: Schema -&gt; ReadSchema
+</span><a href="Data.Avro.html#readSchemaFromSchema"><span class="hs-identifier hs-var hs-var">readSchemaFromSchema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier hs-var">fromSchema</span></a></span><span>
+</span><span id="line-80"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.html#readSchemaFromSchema"><span class="hs-pragma hs-type">readSchemaFromSchema</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="annot"><span class="hs-comment">-- | Serialises an individual value into Avro with the schema provided.</span></span><span>
+</span><span id="line-83"></span><span id="local-6989586621679523286"><span class="annot"><a href="Data.Avro.html#encodeValueWithSchema"><span class="hs-identifier hs-type">encodeValueWithSchema</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.ToAvro.html#ToAvro"><span class="hs-identifier hs-type">ToAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523286"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679523286"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span></span><span>
+</span><span id="line-84"></span><span id="encodeValueWithSchema"><span class="annot"><span class="annottext">encodeValueWithSchema :: forall a. ToAvro a =&gt; Schema -&gt; a -&gt; ByteString
+</span><a href="Data.Avro.html#encodeValueWithSchema"><span class="hs-identifier hs-var hs-var">encodeValueWithSchema</span></a></span></span><span> </span><span id="local-6989586621679523404"><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679523404"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; ByteString
+</span><span class="hs-identifier hs-var">toLazyByteString</span></span><span> </span><span class="annot"><span class="annottext">(Builder -&gt; ByteString) -&gt; (a -&gt; Builder) -&gt; a -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; a -&gt; Builder
+forall a. ToAvro a =&gt; Schema -&gt; a -&gt; Builder
+</span><a href="Data.Avro.Encoding.ToAvro.html#toAvro"><span class="hs-identifier hs-var">toAvro</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679523404"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-85"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.html#encodeValueWithSchema"><span class="hs-pragma hs-type">encodeValueWithSchema</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- | Serialises an individual value into Avro using the schema</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- from its coresponding 'HasAvroSchema' instance.</span><span>
+</span><span id="line-89"></span><span id="local-6989586621679523295"><span class="annot"><a href="Data.Avro.html#encodeValue"><span class="hs-identifier hs-type">encodeValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523295"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.ToAvro.html#ToAvro"><span class="hs-identifier hs-type">ToAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523295"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679523295"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span></span><span>
+</span><span id="line-90"></span><span id="encodeValue"><span class="annot"><span class="annottext">encodeValue :: forall a. (HasAvroSchema a, ToAvro a) =&gt; a -&gt; ByteString
+</span><a href="Data.Avro.html#encodeValue"><span class="hs-identifier hs-var hs-var">encodeValue</span></a></span></span><span> </span><span id="local-6989586621679523411"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679523411"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; a -&gt; ByteString
+forall a. ToAvro a =&gt; Schema -&gt; a -&gt; ByteString
+</span><a href="Data.Avro.html#encodeValueWithSchema"><span class="hs-identifier hs-var">encodeValueWithSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Schema
+forall a. HasAvroSchema a =&gt; a -&gt; Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schemaOf"><span class="hs-identifier hs-var">schemaOf</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679523411"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679523411"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-91"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.html#encodeValue"><span class="hs-pragma hs-type">encodeValue</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="annot"><span class="hs-comment">-- | Deserialises an individual value from Avro.</span></span><span>
+</span><span id="line-94"></span><span id="local-6989586621679523299"><span class="annot"><a href="Data.Avro.html#decodeValueWithSchema"><span class="hs-identifier hs-type">decodeValueWithSchema</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.FromAvro.html#FromAvro"><span class="hs-identifier hs-type">FromAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523299"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-type">ReadSchema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679523299"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-95"></span><span id="decodeValueWithSchema"><span class="annot"><span class="annottext">decodeValueWithSchema :: forall a. FromAvro a =&gt; ReadSchema -&gt; ByteString -&gt; Either String a
+</span><a href="Data.Avro.html#decodeValueWithSchema"><span class="hs-identifier hs-var hs-var">decodeValueWithSchema</span></a></span></span><span> </span><span id="local-6989586621679523414"><span class="annot"><span class="annottext">ReadSchema
+</span><a href="#local-6989586621679523414"><span class="hs-identifier hs-var">readSchema</span></a></span></span><span> </span><span id="local-6989586621679523415"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679523415"><span class="hs-identifier hs-var">payload</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Get Value
+-&gt; ByteString
+-&gt; Either
+     (ByteString, ByteOffset, String) (ByteString, ByteOffset, Value)
+forall a.
+Get a
+-&gt; ByteString
+-&gt; Either
+     (ByteString, ByteOffset, String) (ByteString, ByteOffset, a)
+</span><span class="hs-identifier hs-var">runGetOrFail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ReadSchema -&gt; Get Value
+</span><a href="Data.Avro.Encoding.FromAvro.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span> </span><span class="annot"><span class="annottext">ReadSchema
+</span><a href="#local-6989586621679523414"><span class="hs-identifier hs-var">readSchema</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679523415"><span class="hs-identifier hs-var">payload</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523417"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679523417"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either String a
+forall a. FromAvro a =&gt; Value -&gt; Either String a
+</span><a href="Data.Avro.Encoding.FromAvro.html#fromAvro"><span class="hs-identifier hs-var">fromAvro</span></a></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679523417"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523419"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679523419"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679523419"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- | Deserialises an individual value from Avro using the schema from its coresponding 'HasAvroSchema'.</span><span>
+</span><span id="line-101"></span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- __NOTE__: __This function is only to be used when reader and writes schemas are known to be the same.__</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- Because only one schema is known at this point, and it is the reader schema,</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- /no decondlicting/ can be performed.</span><span>
+</span><span id="line-105"></span><span class="annot"><a href="Data.Avro.html#decodeValue"><span class="hs-identifier hs-type">decodeValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679523309"><span class="annot"><a href="#local-6989586621679523309"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523309"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.FromAvro.html#FromAvro"><span class="hs-identifier hs-type">FromAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523309"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679523309"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-106"></span><span id="decodeValue"><span class="annot"><span class="annottext">decodeValue :: forall a.
+(HasAvroSchema a, FromAvro a) =&gt;
+ByteString -&gt; Either String a
+</span><a href="Data.Avro.html#decodeValue"><span class="hs-identifier hs-var hs-var">decodeValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; ByteString -&gt; Either String a
+forall a. FromAvro a =&gt; ReadSchema -&gt; ByteString -&gt; Either String a
+</span><a href="Data.Avro.html#decodeValueWithSchema"><span class="hs-identifier hs-var">decodeValueWithSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Schema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier hs-var">fromSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {k} (s :: k) b. Tagged s b -&gt; b
+forall s b. Tagged s b -&gt; b
+</span><span class="hs-identifier hs-var">untag</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679523309"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.html#decodeValue"><span class="hs-pragma hs-type">decodeValue</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- | Decodes the container using a schema from 'HasAvroSchema' as a reader schema.</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- Errors are reported as a part of the list and the list will stop at first</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- error. This means that the consumer will get all the &quot;good&quot; content from</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- the container until the error is detected, then this error and then the list</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- is finished.</span><span>
+</span><span id="line-115"></span><span class="annot"><a href="Data.Avro.html#decodeContainer"><span class="hs-identifier hs-type">decodeContainer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679523316"><span class="annot"><a href="#local-6989586621679523316"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523316"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.FromAvro.html#FromAvro"><span class="hs-identifier hs-type">FromAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523316"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679523316"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-116"></span><span id="decodeContainer"><span class="annot"><span class="annottext">decodeContainer :: forall a.
+(HasAvroSchema a, FromAvro a) =&gt;
+ByteString -&gt; [Either String a]
+</span><a href="Data.Avro.html#decodeContainer"><span class="hs-identifier hs-var hs-var">decodeContainer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; ByteString -&gt; [Either String a]
+forall a. FromAvro a =&gt; Schema -&gt; ByteString -&gt; [Either String a]
+</span><a href="Data.Avro.html#decodeContainerWithReaderSchema"><span class="hs-identifier hs-var">decodeContainerWithReaderSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {k} (s :: k) b. Tagged s b -&gt; b
+forall s b. Tagged s b -&gt; b
+</span><span class="hs-identifier hs-var">untag</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679523316"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.html#decodeContainer"><span class="hs-pragma hs-type">decodeContainer</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- | Decodes the container as a list of values of the requested type.</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- Errors are reported as a part of the list and the list will stop at first</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- error. This means that the consumer will get all the &quot;good&quot; content from</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- the container until the error is detected, then this error and then the list</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- is finished.</span><span>
+</span><span id="line-125"></span><span class="annot"><a href="Data.Avro.html#decodeContainerWithEmbeddedSchema"><span class="hs-identifier hs-type">decodeContainerWithEmbeddedSchema</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679523319"><span class="annot"><a href="#local-6989586621679523319"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.FromAvro.html#FromAvro"><span class="hs-identifier hs-type">FromAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523319"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679523319"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-126"></span><span id="decodeContainerWithEmbeddedSchema"><span class="annot"><span class="annottext">decodeContainerWithEmbeddedSchema :: forall a. FromAvro a =&gt; ByteString -&gt; [Either String a]
+</span><a href="Data.Avro.html#decodeContainerWithEmbeddedSchema"><span class="hs-identifier hs-var hs-var">decodeContainerWithEmbeddedSchema</span></a></span></span><span> </span><span id="local-6989586621679523438"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679523438"><span class="hs-identifier hs-var">payload</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Either String ReadSchema)
+-&gt; (ReadSchema -&gt; Get a)
+-&gt; ByteString
+-&gt; Either String (Schema, [Either String a])
+forall a schema.
+(Schema -&gt; Either String schema)
+-&gt; (schema -&gt; Get a)
+-&gt; ByteString
+-&gt; Either String (Schema, [Either String a])
+</span><a href="Data.Avro.Internal.Container.html#extractContainerValues"><span class="hs-identifier hs-var">Container.extractContainerValues</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ReadSchema -&gt; Either String ReadSchema
+forall a. a -&gt; Either String a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(ReadSchema -&gt; Either String ReadSchema)
+-&gt; (Schema -&gt; ReadSchema) -&gt; Schema -&gt; Either String ReadSchema
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier hs-var">fromSchema</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ReadSchema -&gt; Get Value
+</span><a href="Data.Avro.Encoding.FromAvro.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span> </span><span class="annot"><span class="annottext">(ReadSchema -&gt; Get Value)
+-&gt; (Value -&gt; Get a) -&gt; ReadSchema -&gt; Get a
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(String -&gt; Get a) -&gt; (a -&gt; Get a) -&gt; Either String a -&gt; Get a
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Get a
+forall a. String -&gt; Get a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Get a
+forall a. a -&gt; Get a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Either String a -&gt; Get a)
+-&gt; (Value -&gt; Either String a) -&gt; Value -&gt; Get a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either String a
+forall a. FromAvro a =&gt; Value -&gt; Either String a
+</span><a href="Data.Avro.Encoding.FromAvro.html#fromAvro"><span class="hs-identifier hs-var">fromAvro</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679523438"><span class="hs-identifier hs-var">payload</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-128"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679523441"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679523441"><span class="hs-identifier hs-var">err</span></a></span></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; Either String a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679523441"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Schema
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523442"><span class="annot"><span class="annottext">[Either String a]
+</span><a href="#local-6989586621679523442"><span class="hs-identifier hs-var">values</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Either String a]
+</span><a href="#local-6989586621679523442"><span class="hs-identifier hs-var">values</span></a></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- | Decodes the container as a list of values of the requested type.</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- The provided reader schema will be de-conflicted with the schema</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- embedded with the container.</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- Errors are reported as a part of the list and the list will stop at first</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- error. This means that the consumer will get all the &quot;good&quot; content from</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- the container until the error is detected, then this error and then the list</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- is finished.</span><span>
+</span><span id="line-140"></span><span class="annot"><a href="Data.Avro.html#decodeContainerWithReaderSchema"><span class="hs-identifier hs-type">decodeContainerWithReaderSchema</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679523318"><span class="annot"><a href="#local-6989586621679523318"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.FromAvro.html#FromAvro"><span class="hs-identifier hs-type">FromAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523318"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679523318"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-141"></span><span id="decodeContainerWithReaderSchema"><span class="annot"><span class="annottext">decodeContainerWithReaderSchema :: forall a. FromAvro a =&gt; Schema -&gt; ByteString -&gt; [Either String a]
+</span><a href="Data.Avro.html#decodeContainerWithReaderSchema"><span class="hs-identifier hs-var hs-var">decodeContainerWithReaderSchema</span></a></span></span><span> </span><span id="local-6989586621679523448"><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679523448"><span class="hs-identifier hs-var">readerSchema</span></a></span></span><span> </span><span id="local-6989586621679523449"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679523449"><span class="hs-identifier hs-var">payload</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Either String ReadSchema)
+-&gt; (ReadSchema -&gt; Get a)
+-&gt; ByteString
+-&gt; Either String (Schema, [Either String a])
+forall a schema.
+(Schema -&gt; Either String schema)
+-&gt; (schema -&gt; Get a)
+-&gt; ByteString
+-&gt; Either String (Schema, [Either String a])
+</span><a href="Data.Avro.Internal.Container.html#extractContainerValues"><span class="hs-identifier hs-var">Container.extractContainerValues</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Schema -&gt; Schema -&gt; Either String ReadSchema)
+-&gt; Schema -&gt; Schema -&gt; Either String ReadSchema
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema -&gt; Either String ReadSchema
+</span><a href="Data.Avro.Schema.Deconflict.html#deconflict"><span class="hs-identifier hs-var">deconflict</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679523448"><span class="hs-identifier hs-var">readerSchema</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ReadSchema -&gt; Get Value
+</span><a href="Data.Avro.Encoding.FromAvro.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span> </span><span class="annot"><span class="annottext">(ReadSchema -&gt; Get Value)
+-&gt; (Value -&gt; Get a) -&gt; ReadSchema -&gt; Get a
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(String -&gt; Get a) -&gt; (a -&gt; Get a) -&gt; Either String a -&gt; Get a
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Get a
+forall a. String -&gt; Get a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Get a
+forall a. a -&gt; Get a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Either String a -&gt; Get a)
+-&gt; (Value -&gt; Either String a) -&gt; Value -&gt; Get a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either String a
+forall a. FromAvro a =&gt; Value -&gt; Either String a
+</span><a href="Data.Avro.Encoding.FromAvro.html#fromAvro"><span class="hs-identifier hs-var">fromAvro</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679523449"><span class="hs-identifier hs-var">payload</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-143"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679523451"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679523451"><span class="hs-identifier hs-var">err</span></a></span></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; Either String a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679523451"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Schema
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523452"><span class="annot"><span class="annottext">[Either String a]
+</span><a href="#local-6989586621679523452"><span class="hs-identifier hs-var">values</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Either String a]
+</span><a href="#local-6989586621679523452"><span class="hs-identifier hs-var">values</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- | Splits container into a list of individual avro-encoded values.</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- This is particularly useful when slicing up containers into one or more</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- smaller files.  By extracting the original bytestring it is possible to</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- avoid re-encoding data.</span><span>
+</span><span id="line-151"></span><span class="annot"><a href="Data.Avro.html#extractContainerValuesBytes"><span class="hs-identifier hs-type">extractContainerValuesBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span id="extractContainerValuesBytes"><span class="annot"><span class="annottext">extractContainerValuesBytes :: ByteString -&gt; Either String (Schema, [Either String ByteString])
+</span><a href="Data.Avro.html#extractContainerValuesBytes"><span class="hs-identifier hs-var hs-var">extractContainerValuesBytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((Schema, [Either String (Value, ByteString)])
+ -&gt; (Schema, [Either String ByteString]))
+-&gt; Either String (Schema, [Either String (Value, ByteString)])
+-&gt; Either String (Schema, [Either String ByteString])
+forall a b. (a -&gt; b) -&gt; Either String a -&gt; Either String b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">(((Schema, [Either String (Value, ByteString)])
+  -&gt; (Schema, [Either String ByteString]))
+ -&gt; Either String (Schema, [Either String (Value, ByteString)])
+ -&gt; Either String (Schema, [Either String ByteString]))
+-&gt; (((Value, ByteString) -&gt; ByteString)
+    -&gt; (Schema, [Either String (Value, ByteString)])
+    -&gt; (Schema, [Either String ByteString]))
+-&gt; ((Value, ByteString) -&gt; ByteString)
+-&gt; Either String (Schema, [Either String (Value, ByteString)])
+-&gt; Either String (Schema, [Either String ByteString])
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([Either String (Value, ByteString)] -&gt; [Either String ByteString])
+-&gt; (Schema, [Either String (Value, ByteString)])
+-&gt; (Schema, [Either String ByteString])
+forall a b. (a -&gt; b) -&gt; (Schema, a) -&gt; (Schema, b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">(([Either String (Value, ByteString)]
+  -&gt; [Either String ByteString])
+ -&gt; (Schema, [Either String (Value, ByteString)])
+ -&gt; (Schema, [Either String ByteString]))
+-&gt; (((Value, ByteString) -&gt; ByteString)
+    -&gt; [Either String (Value, ByteString)]
+    -&gt; [Either String ByteString])
+-&gt; ((Value, ByteString) -&gt; ByteString)
+-&gt; (Schema, [Either String (Value, ByteString)])
+-&gt; (Schema, [Either String ByteString])
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Either String (Value, ByteString) -&gt; Either String ByteString)
+-&gt; [Either String (Value, ByteString)]
+-&gt; [Either String ByteString]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">((Either String (Value, ByteString) -&gt; Either String ByteString)
+ -&gt; [Either String (Value, ByteString)]
+ -&gt; [Either String ByteString])
+-&gt; (((Value, ByteString) -&gt; ByteString)
+    -&gt; Either String (Value, ByteString) -&gt; Either String ByteString)
+-&gt; ((Value, ByteString) -&gt; ByteString)
+-&gt; [Either String (Value, ByteString)]
+-&gt; [Either String ByteString]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((Value, ByteString) -&gt; ByteString)
+-&gt; Either String (Value, ByteString) -&gt; Either String ByteString
+forall a b. (a -&gt; b) -&gt; Either String a -&gt; Either String b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Value, ByteString) -&gt; ByteString
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">(Either String (Schema, [Either String (Value, ByteString)])
+ -&gt; Either String (Schema, [Either String ByteString]))
+-&gt; (ByteString
+    -&gt; Either String (Schema, [Either String (Value, ByteString)]))
+-&gt; ByteString
+-&gt; Either String (Schema, [Either String ByteString])
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Either String ReadSchema)
+-&gt; (ReadSchema -&gt; Get Value)
+-&gt; ByteString
+-&gt; Either String (Schema, [Either String (Value, ByteString)])
+forall a schema.
+(Schema -&gt; Either String schema)
+-&gt; (schema -&gt; Get a)
+-&gt; ByteString
+-&gt; Either String (Schema, [Either String (a, ByteString)])
+</span><a href="Data.Avro.Internal.Container.html#extractContainerValuesBytes"><span class="hs-identifier hs-var">Container.extractContainerValuesBytes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ReadSchema -&gt; Either String ReadSchema
+forall a. a -&gt; Either String a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(ReadSchema -&gt; Either String ReadSchema)
+-&gt; (Schema -&gt; ReadSchema) -&gt; Schema -&gt; Either String ReadSchema
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier hs-var">fromSchema</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; Get Value
+</span><a href="Data.Avro.Encoding.FromAvro.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span>
+</span><span id="line-154"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.html#extractContainerValuesBytes"><span class="hs-pragma hs-type">extractContainerValuesBytes</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- | Splits container into a list of individual avro-encoded values.</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- This version provides both encoded and decoded values.</span><span>
+</span><span id="line-158"></span><span class="hs-comment">--</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- This is particularly useful when slicing up containers into one or more</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- smaller files.  By extracting the original bytestring it is possible to</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- avoid re-encoding data.</span><span>
+</span><span id="line-162"></span><span class="annot"><a href="Data.Avro.html#decodeContainerValuesBytes"><span class="hs-identifier hs-type">decodeContainerValuesBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679523345"><span class="annot"><a href="#local-6989586621679523345"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.FromAvro.html#FromAvro"><span class="hs-identifier hs-type">FromAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523345"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679523345"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span id="decodeContainerValuesBytes"><span class="annot"><span class="annottext">decodeContainerValuesBytes :: forall a.
+FromAvro a =&gt;
+Schema
+-&gt; ByteString
+-&gt; Either String (Schema, [Either String (a, ByteString)])
+</span><a href="Data.Avro.html#decodeContainerValuesBytes"><span class="hs-identifier hs-var hs-var">decodeContainerValuesBytes</span></a></span></span><span> </span><span id="local-6989586621679523460"><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679523460"><span class="hs-identifier hs-var">readerSchema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-167"></span><span>  </span><span class="annot"><span class="annottext">(Schema -&gt; Either String ReadSchema)
+-&gt; (ReadSchema -&gt; Get a)
+-&gt; ByteString
+-&gt; Either String (Schema, [Either String (a, ByteString)])
+forall a schema.
+(Schema -&gt; Either String schema)
+-&gt; (schema -&gt; Get a)
+-&gt; ByteString
+-&gt; Either String (Schema, [Either String (a, ByteString)])
+</span><a href="Data.Avro.Internal.Container.html#extractContainerValuesBytes"><span class="hs-identifier hs-var">Container.extractContainerValuesBytes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Schema -&gt; Schema -&gt; Either String ReadSchema)
+-&gt; Schema -&gt; Schema -&gt; Either String ReadSchema
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema -&gt; Either String ReadSchema
+</span><a href="Data.Avro.Schema.Deconflict.html#deconflict"><span class="hs-identifier hs-var">deconflict</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679523460"><span class="hs-identifier hs-var">readerSchema</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ReadSchema -&gt; Get Value
+</span><a href="Data.Avro.Encoding.FromAvro.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span> </span><span class="annot"><span class="annottext">(ReadSchema -&gt; Get Value)
+-&gt; (Value -&gt; Get a) -&gt; ReadSchema -&gt; Get a
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(String -&gt; Get a) -&gt; (a -&gt; Get a) -&gt; Either String a -&gt; Get a
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Get a
+forall a. String -&gt; Get a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Get a
+forall a. a -&gt; Get a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Either String a -&gt; Get a)
+-&gt; (Value -&gt; Either String a) -&gt; Value -&gt; Get a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either String a
+forall a. FromAvro a =&gt; Value -&gt; Either String a
+</span><a href="Data.Avro.Encoding.FromAvro.html#fromAvro"><span class="hs-identifier hs-var">fromAvro</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.html#decodeContainerValuesBytes"><span class="hs-pragma hs-type">decodeContainerValuesBytes</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- | Encode chunks of values into a container, using 16 random bytes for</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- the synchronization markers and a corresponding 'HasAvroSchema' schema.</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- Blocks are compressed (or not) according to the given 'Codec' ('nullCodec' or 'deflateCodec').</span><span>
+</span><span id="line-173"></span><span class="annot"><a href="Data.Avro.html#encodeContainer"><span class="hs-identifier hs-type">encodeContainer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679523347"><span class="annot"><a href="#local-6989586621679523347"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523347"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.ToAvro.html#ToAvro"><span class="hs-identifier hs-type">ToAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523347"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier hs-type">Codec</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679523347"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span>
+</span><span id="line-174"></span><span id="encodeContainer"><span class="annot"><span class="annottext">encodeContainer :: forall a.
+(HasAvroSchema a, ToAvro a) =&gt;
+Codec -&gt; [[a]] -&gt; IO ByteString
+</span><a href="Data.Avro.html#encodeContainer"><span class="hs-identifier hs-var hs-var">encodeContainer</span></a></span></span><span> </span><span id="local-6989586621679523465"><span class="annot"><span class="annottext">Codec
+</span><a href="#local-6989586621679523465"><span class="hs-identifier hs-var">codec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Codec -&gt; Schema -&gt; [[a]] -&gt; IO ByteString
+forall a. ToAvro a =&gt; Codec -&gt; Schema -&gt; [[a]] -&gt; IO ByteString
+</span><a href="Data.Avro.html#encodeContainerWithSchema"><span class="hs-identifier hs-var">encodeContainerWithSchema</span></a></span><span> </span><span class="annot"><span class="annottext">Codec
+</span><a href="#local-6989586621679523465"><span class="hs-identifier hs-var">codec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {k} (s :: k) b. Tagged s b -&gt; b
+forall s b. Tagged s b -&gt; b
+</span><span class="hs-identifier hs-var">untag</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679523347"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- | Encode chunks of values into a container, using 16 random bytes for</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- the synchronization markers. Blocks are compressed (or not) according</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- to the given 'Codec' ('nullCodec' or 'deflateCodec').</span><span>
+</span><span id="line-179"></span><span id="local-6989586621679523350"><span class="annot"><a href="Data.Avro.html#encodeContainerWithSchema"><span class="hs-identifier hs-type">encodeContainerWithSchema</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.ToAvro.html#ToAvro"><span class="hs-identifier hs-type">ToAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523350"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier hs-type">Codec</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679523350"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span></span><span>
+</span><span id="line-180"></span><span id="encodeContainerWithSchema"><span class="annot"><span class="annottext">encodeContainerWithSchema :: forall a. ToAvro a =&gt; Codec -&gt; Schema -&gt; [[a]] -&gt; IO ByteString
+</span><a href="Data.Avro.html#encodeContainerWithSchema"><span class="hs-identifier hs-var hs-var">encodeContainerWithSchema</span></a></span></span><span> </span><span id="local-6989586621679523471"><span class="annot"><span class="annottext">Codec
+</span><a href="#local-6989586621679523471"><span class="hs-identifier hs-var">codec</span></a></span></span><span> </span><span id="local-6989586621679523472"><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679523472"><span class="hs-identifier hs-var">sch</span></a></span></span><span> </span><span id="local-6989586621679523473"><span class="annot"><span class="annottext">[[a]]
+</span><a href="#local-6989586621679523473"><span class="hs-identifier hs-var">xss</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679523474"><span class="annot"><a href="#local-6989586621679523474"><span class="hs-identifier hs-var">sync</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ByteString
+</span><a href="Data.Avro.Internal.Container.html#newSyncBytes"><span class="hs-identifier hs-var">Container.newSyncBytes</span></a></span><span>
+</span><span id="line-182"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Data.Avro.html#encodeContainerWithSync"><span class="hs-identifier hs-type">encodeContainerWithSync</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523471"><span class="hs-identifier hs-type">codec</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523472"><span class="hs-identifier hs-type">sch</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523474"><span class="hs-identifier hs-type">sync</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523473"><span class="hs-identifier hs-type">xss</span></a></span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- |Encode chunks of objects into a container, using the provided</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- ByteString as the synchronization markers.</span><span>
+</span><span id="line-186"></span><span id="local-6989586621679523358"><span class="annot"><a href="Data.Avro.html#encodeContainerWithSync"><span class="hs-identifier hs-type">encodeContainerWithSync</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Encoding.ToAvro.html#ToAvro"><span class="hs-identifier hs-type">ToAvro</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679523358"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Codec.html#Codec"><span class="hs-identifier hs-type">Codec</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679523358"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span></span><span>
+</span><span id="line-187"></span><span id="encodeContainerWithSync"><span class="annot"><span class="annottext">encodeContainerWithSync :: forall a.
+ToAvro a =&gt;
+Codec -&gt; Schema -&gt; ByteString -&gt; [[a]] -&gt; ByteString
+</span><a href="Data.Avro.html#encodeContainerWithSync"><span class="hs-identifier hs-var hs-var">encodeContainerWithSync</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; a -&gt; Builder)
+-&gt; Codec -&gt; Schema -&gt; ByteString -&gt; [[a]] -&gt; ByteString
+forall a.
+(Schema -&gt; a -&gt; Builder)
+-&gt; Codec -&gt; Schema -&gt; ByteString -&gt; [[a]] -&gt; ByteString
+</span><a href="Data.Avro.Internal.Container.html#packContainerValuesWithSync%27"><span class="hs-identifier hs-var">Container.packContainerValuesWithSync'</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; a -&gt; Builder
+forall a. ToAvro a =&gt; Schema -&gt; a -&gt; Builder
+</span><a href="Data.Avro.Encoding.ToAvro.html#toAvro"><span class="hs-identifier hs-var">toAvro</span></a></span><span>
+</span><span id="line-188"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.html#encodeContainerWithSync"><span class="hs-pragma hs-type">encodeContainerWithSync</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-189"></span></pre></body></html>

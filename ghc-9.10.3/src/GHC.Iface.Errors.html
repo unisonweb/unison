@@ -1,0 +1,444 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.html"><span class="hs-identifier">GHC.Iface.Errors</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.html#badIfaceFile"><span class="hs-identifier">badIfaceFile</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.html#cannotFindInterface"><span class="hs-identifier">cannotFindInterface</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.html#cantFindInstalledErr"><span class="hs-identifier">cantFindInstalledErr</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.html#cannotFindModule"><span class="hs-identifier">cannotFindModule</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Platform.Profile.html"><span class="hs-identifier">GHC.Platform.Profile</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Platform.Ways.html"><span class="hs-identifier">GHC.Platform.Ways</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.Plain.html"><span class="hs-identifier">GHC.Utils.Panic.Plain</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html"><span class="hs-identifier">GHC.Driver.DynFlags</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Env.html"><span class="hs-identifier">GHC.Driver.Env</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Maybe.html"><span class="hs-identifier">GHC.Data.Maybe</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.html"><span class="hs-identifier">GHC.Unit</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Env.html"><span class="hs-identifier">GHC.Unit.Env</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Finder.Types.html"><span class="hs-identifier">GHC.Unit.Finder.Types</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Outputable</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.Types.html"><span class="hs-identifier">GHC.Iface.Errors.Types</span></a></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- Error messages</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="annot"><a href="GHC.Iface.Errors.html#badIfaceFile"><span class="hs-identifier hs-type">badIfaceFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span>
+</span><span id="line-28"></span><span id="badIfaceFile"><span class="annot"><span class="annottext">badIfaceFile :: String -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Iface.Errors.html#badIfaceFile"><span class="hs-identifier hs-var hs-var">badIfaceFile</span></a></span></span><span> </span><span id="local-6989586621682745716"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682745716"><span class="hs-identifier hs-var">file</span></a></span></span><span> </span><span id="local-6989586621682745717"><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682745717"><span class="hs-identifier hs-var">err</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Bad interface file:&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682745716"><span class="hs-identifier hs-var">file</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>          </span><span class="annot"><span class="annottext">Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#nest"><span class="hs-identifier hs-var">nest</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682745717"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><a href="GHC.Iface.Errors.html#cannotFindInterface"><span class="hs-identifier hs-type">cannotFindInterface</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.State.html#UnitState"><span class="hs-identifier hs-type">UnitState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Unit.Home.html#HomeUnit"><span class="hs-identifier hs-type">HomeUnit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Platform.Profile.html#Profile"><span class="hs-identifier hs-type">Profile</span></a></span><span>
+</span><span id="line-33"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Module.Name.html#ModuleName"><span class="hs-identifier hs-type">ModuleName</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#InstalledFindResult"><span class="hs-identifier hs-type">InstalledFindResult</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.Types.html#MissingInterfaceError"><span class="hs-identifier hs-type">MissingInterfaceError</span></a></span><span>
+</span><span id="line-34"></span><span id="cannotFindInterface"><span class="annot"><span class="annottext">cannotFindInterface :: UnitState
+-&gt; Maybe HomeUnit
+-&gt; Profile
+-&gt; ModuleName
+-&gt; InstalledFindResult
+-&gt; MissingInterfaceError
+</span><a href="GHC.Iface.Errors.html#cannotFindInterface"><span class="hs-identifier hs-var hs-var">cannotFindInterface</span></a></span></span><span> </span><span id="local-6989586621682745722"><span class="annot"><span class="annottext">UnitState
+</span><a href="#local-6989586621682745722"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span id="local-6989586621682745723"><span class="annot"><span class="annottext">Maybe HomeUnit
+</span><a href="#local-6989586621682745723"><span class="hs-identifier hs-var">mhu</span></a></span></span><span> </span><span id="local-6989586621682745724"><span class="annot"><span class="annottext">Profile
+</span><a href="#local-6989586621682745724"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621682745725"><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621682745725"><span class="hs-identifier hs-var">mn</span></a></span></span><span> </span><span id="local-6989586621682745726"><span class="annot"><span class="annottext">InstalledFindResult
+</span><a href="#local-6989586621682745726"><span class="hs-identifier hs-var">ifr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="annottext">UnitState
+-&gt; FindingModuleOrInterface
+-&gt; CantFindInstalled
+-&gt; MissingInterfaceError
+</span><a href="GHC.Iface.Errors.Types.html#CantFindErr"><span class="hs-identifier hs-var">CantFindErr</span></a></span><span> </span><span class="annot"><span class="annottext">UnitState
+</span><a href="#local-6989586621682745722"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">FindingModuleOrInterface
+</span><a href="GHC.Iface.Errors.Types.html#FindingInterface"><span class="hs-identifier hs-var">FindingInterface</span></a></span><span> </span><span class="annot"><span class="annottext">(CantFindInstalled -&gt; MissingInterfaceError)
+-&gt; CantFindInstalled -&gt; MissingInterfaceError
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><span class="annottext">UnitState
+-&gt; Maybe HomeUnit
+-&gt; Profile
+-&gt; ModuleName
+-&gt; InstalledFindResult
+-&gt; CantFindInstalled
+</span><a href="GHC.Iface.Errors.html#cantFindInstalledErr"><span class="hs-identifier hs-var">cantFindInstalledErr</span></a></span><span> </span><span class="annot"><span class="annottext">UnitState
+</span><a href="#local-6989586621682745722"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe HomeUnit
+</span><a href="#local-6989586621682745723"><span class="hs-identifier hs-var">mhu</span></a></span><span> </span><span class="annot"><span class="annottext">Profile
+</span><a href="#local-6989586621682745724"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621682745725"><span class="hs-identifier hs-var">mn</span></a></span><span> </span><span class="annot"><span class="annottext">InstalledFindResult
+</span><a href="#local-6989586621682745726"><span class="hs-identifier hs-var">ifr</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><a href="GHC.Iface.Errors.html#cantFindInstalledErr"><span class="hs-identifier hs-type">cantFindInstalledErr</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.State.html#UnitState"><span class="hs-identifier hs-type">UnitState</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Unit.Home.html#HomeUnit"><span class="hs-identifier hs-type">HomeUnit</span></a></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Platform.Profile.html#Profile"><span class="hs-identifier hs-type">Profile</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Module.Name.html#ModuleName"><span class="hs-identifier hs-type">ModuleName</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#InstalledFindResult"><span class="hs-identifier hs-type">InstalledFindResult</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.Types.html#CantFindInstalled"><span class="hs-identifier hs-type">CantFindInstalled</span></a></span><span>
+</span><span id="line-45"></span><span id="cantFindInstalledErr"><span class="annot"><span class="annottext">cantFindInstalledErr :: UnitState
+-&gt; Maybe HomeUnit
+-&gt; Profile
+-&gt; ModuleName
+-&gt; InstalledFindResult
+-&gt; CantFindInstalled
+</span><a href="GHC.Iface.Errors.html#cantFindInstalledErr"><span class="hs-identifier hs-var hs-var">cantFindInstalledErr</span></a></span></span><span> </span><span id="local-6989586621682745729"><span class="annot"><span class="annottext">UnitState
+</span><a href="#local-6989586621682745729"><span class="hs-identifier hs-var">unit_state</span></a></span></span><span> </span><span id="local-6989586621682745730"><span class="annot"><span class="annottext">Maybe HomeUnit
+</span><a href="#local-6989586621682745730"><span class="hs-identifier hs-var">mhome_unit</span></a></span></span><span> </span><span id="local-6989586621682745731"><span class="annot"><span class="annottext">Profile
+</span><a href="#local-6989586621682745731"><span class="hs-identifier hs-var">profile</span></a></span></span><span> </span><span id="local-6989586621682745732"><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621682745732"><span class="hs-identifier hs-var">mod_name</span></a></span></span><span> </span><span id="local-6989586621682745733"><span class="annot"><span class="annottext">InstalledFindResult
+</span><a href="#local-6989586621682745733"><span class="hs-identifier hs-var">find_result</span></a></span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModuleName -&gt; CantFindInstalledReason -&gt; CantFindInstalled
+</span><a href="GHC.Iface.Errors.Types.html#CantFindInstalled"><span class="hs-identifier hs-var">CantFindInstalled</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621682745732"><span class="hs-identifier hs-var">mod_name</span></a></span><span> </span><span class="annot"><span class="annottext">CantFindInstalledReason
+</span><a href="#local-6989586621682745735"><span class="hs-identifier hs-var">more_info</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621682745736"><span class="annot"><span class="annottext">build_tag :: String
+</span><a href="#local-6989586621682745736"><span class="hs-identifier hs-var hs-var">build_tag</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ways -&gt; String
+</span><a href="GHC.Platform.Ways.html#waysBuildTag"><span class="hs-identifier hs-var">waysBuildTag</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Profile -&gt; Ways
+</span><a href="GHC.Platform.Profile.html#profileWays"><span class="hs-identifier hs-var">profileWays</span></a></span><span> </span><span class="annot"><span class="annottext">Profile
+</span><a href="#local-6989586621682745731"><span class="hs-identifier hs-var">profile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span>    </span><span id="local-6989586621682745735"><span class="annot"><span class="annottext">more_info :: CantFindInstalledReason
+</span><a href="#local-6989586621682745735"><span class="hs-identifier hs-var hs-var">more_info</span></a></span></span><span>
+</span><span id="line-51"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">InstalledFindResult
+</span><a href="#local-6989586621682745733"><span class="hs-identifier hs-var">find_result</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-52"></span><span>            </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#InstalledNoPackage"><span class="hs-identifier hs-type">InstalledNoPackage</span></a></span><span> </span><span id="local-6989586621682745740"><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745740"><span class="hs-identifier hs-var">pkg</span></a></span></span><span>
+</span><span id="line-53"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UnitId -&gt; [UnitInfo] -&gt; CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#NoUnitIdMatching"><span class="hs-identifier hs-var">NoUnitIdMatching</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745740"><span class="hs-identifier hs-var">pkg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UnitState -&gt; PackageId -&gt; [UnitInfo]
+</span><a href="GHC.Unit.State.html#searchPackageId"><span class="hs-identifier hs-var">searchPackageId</span></a></span><span> </span><span class="annot"><span class="annottext">UnitState
+</span><a href="#local-6989586621682745729"><span class="hs-identifier hs-var">unit_state</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString -&gt; PackageId
+</span><a href="GHC.Unit.Info.html#PackageId"><span class="hs-identifier hs-var">PackageId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UnitId -&gt; FastString
+</span><a href="GHC.Unit.Types.html#unitIdFS"><span class="hs-identifier hs-var">unitIdFS</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745740"><span class="hs-identifier hs-var">pkg</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span>            </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#InstalledNotFound"><span class="hs-identifier hs-type">InstalledNotFound</span></a></span><span> </span><span id="local-6989586621682745746"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745746"><span class="hs-identifier hs-var">files</span></a></span></span><span> </span><span id="local-6989586621682745747"><span class="annot"><span class="annottext">Maybe UnitId
+</span><a href="#local-6989586621682745747"><span class="hs-identifier hs-var">mb_pkg</span></a></span></span><span>
+</span><span id="line-56"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682745748"><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745748"><span class="hs-identifier hs-var">pkg</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe UnitId
+</span><a href="#local-6989586621682745747"><span class="hs-identifier hs-var">mb_pkg</span></a></span><span>
+</span><span id="line-57"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe HomeUnit -&gt; UnitId -&gt; Bool
+forall u. Maybe (GenHomeUnit u) -&gt; UnitId -&gt; Bool
+</span><a href="GHC.Unit.Home.html#notHomeUnitId"><span class="hs-identifier hs-var">notHomeUnitId</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe HomeUnit
+</span><a href="#local-6989586621682745730"><span class="hs-identifier hs-var">mhome_unit</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745748"><span class="hs-identifier hs-var">pkg</span></a></span><span>
+</span><span id="line-58"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UnitId -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="#local-6989586621682745750"><span class="hs-identifier hs-var">not_found_in_package</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745748"><span class="hs-identifier hs-var">pkg</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745746"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745746"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-61"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#NotAModule"><span class="hs-identifier hs-var">NotAModule</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-64"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#CouldntFindInFiles"><span class="hs-identifier hs-var">CouldntFindInFiles</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745746"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>            </span><span class="annot"><span class="annottext">InstalledFindResult
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; CantFindInstalledReason
+forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;cantFindInstalledErr&quot;</span></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621682745750"><span class="annot"><span class="annottext">not_found_in_package :: UnitId -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="#local-6989586621682745750"><span class="hs-identifier hs-var hs-var">not_found_in_package</span></a></span></span><span> </span><span id="local-6989586621682745755"><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745755"><span class="hs-identifier hs-var">pkg</span></a></span></span><span> </span><span id="local-6989586621682745756"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745756"><span class="hs-identifier hs-var">files</span></a></span></span><span>
+</span><span id="line-69"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682745736"><span class="hs-identifier hs-var">build_tag</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-70"></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span>
+</span><span id="line-71"></span><span>            </span><span id="local-6989586621682745758"><span class="annot"><span class="annottext">build :: String
+</span><a href="#local-6989586621682745758"><span class="hs-identifier hs-var hs-var">build</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682745736"><span class="hs-identifier hs-var">build_tag</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;p&quot;</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;profiling&quot;</span></span><span>
+</span><span id="line-72"></span><span>                                        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682745736"><span class="hs-identifier hs-var">build_tag</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\&quot;&quot;</span></span><span>
+</span><span id="line-73"></span><span>         </span><span class="hs-keyword">in</span><span>
+</span><span id="line-74"></span><span>         </span><span class="annot"><span class="annottext">String -&gt; UnitId -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#MissingPackageWayFiles"><span class="hs-identifier hs-var">MissingPackageWayFiles</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682745758"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745755"><span class="hs-identifier hs-var">pkg</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745756"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-75"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-76"></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnitId -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#MissingPackageFiles"><span class="hs-identifier hs-var">MissingPackageFiles</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745755"><span class="hs-identifier hs-var">pkg</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745756"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><a href="GHC.Iface.Errors.html#cannotFindModule"><span class="hs-identifier hs-type">cannotFindModule</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.Env.Types.html#HscEnv"><span class="hs-identifier hs-type">HscEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Module.Name.html#ModuleName"><span class="hs-identifier hs-type">ModuleName</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#FindResult"><span class="hs-identifier hs-type">FindResult</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.Types.html#MissingInterfaceError"><span class="hs-identifier hs-type">MissingInterfaceError</span></a></span><span>
+</span><span id="line-81"></span><span id="cannotFindModule"><span class="annot"><span class="annottext">cannotFindModule :: HscEnv -&gt; ModuleName -&gt; FindResult -&gt; MissingInterfaceError
+</span><a href="GHC.Iface.Errors.html#cannotFindModule"><span class="hs-identifier hs-var hs-var">cannotFindModule</span></a></span></span><span> </span><span id="local-6989586621682745761"><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621682745761"><span class="hs-identifier hs-var">hsc_env</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnitEnv
+-&gt; Profile -&gt; ModuleName -&gt; FindResult -&gt; MissingInterfaceError
+</span><a href="GHC.Iface.Errors.html#cannotFindModule%27"><span class="hs-identifier hs-var">cannotFindModule'</span></a></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HscEnv -&gt; UnitEnv
+</span><a href="GHC.Driver.Env.Types.html#hsc_unit_env"><span class="hs-identifier hs-var">hsc_unit_env</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621682745761"><span class="hs-identifier hs-var">hsc_env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; Profile
+</span><a href="GHC.Driver.DynFlags.html#targetProfile"><span class="hs-identifier hs-var">targetProfile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HscEnv -&gt; DynFlags
+</span><a href="GHC.Driver.Env.Types.html#hsc_dflags"><span class="hs-identifier hs-var">hsc_dflags</span></a></span><span> </span><span class="annot"><span class="annottext">HscEnv
+</span><a href="#local-6989586621682745761"><span class="hs-identifier hs-var">hsc_env</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="annot"><a href="GHC.Iface.Errors.html#cannotFindModule%27"><span class="hs-identifier hs-type">cannotFindModule'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Env.html#UnitEnv"><span class="hs-identifier hs-type">UnitEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Platform.Profile.html#Profile"><span class="hs-identifier hs-type">Profile</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Module.Name.html#ModuleName"><span class="hs-identifier hs-type">ModuleName</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#FindResult"><span class="hs-identifier hs-type">FindResult</span></a></span><span>
+</span><span id="line-87"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.Types.html#MissingInterfaceError"><span class="hs-identifier hs-type">MissingInterfaceError</span></a></span><span>
+</span><span id="line-88"></span><span id="cannotFindModule%27"><span class="annot"><span class="annottext">cannotFindModule' :: UnitEnv
+-&gt; Profile -&gt; ModuleName -&gt; FindResult -&gt; MissingInterfaceError
+</span><a href="GHC.Iface.Errors.html#cannotFindModule%27"><span class="hs-identifier hs-var hs-var">cannotFindModule'</span></a></span></span><span> </span><span id="local-6989586621682745766"><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682745766"><span class="hs-identifier hs-var">unit_env</span></a></span></span><span> </span><span id="local-6989586621682745767"><span class="annot"><span class="annottext">Profile
+</span><a href="#local-6989586621682745767"><span class="hs-identifier hs-var">profile</span></a></span></span><span> </span><span id="local-6989586621682745768"><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621682745768"><span class="hs-identifier hs-var">mod</span></a></span></span><span> </span><span id="local-6989586621682745769"><span class="annot"><span class="annottext">FindResult
+</span><a href="#local-6989586621682745769"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-89"></span><span>  </span><span class="annot"><span class="annottext">UnitState
+-&gt; FindingModuleOrInterface
+-&gt; CantFindInstalled
+-&gt; MissingInterfaceError
+</span><a href="GHC.Iface.Errors.Types.html#CantFindErr"><span class="hs-identifier hs-var">CantFindErr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; UnitEnv -&gt; UnitState
+UnitEnv -&gt; UnitState
+</span><a href="GHC.Unit.Env.html#ue_units"><span class="hs-identifier hs-var">ue_units</span></a></span><span> </span><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682745766"><span class="hs-identifier hs-var">unit_env</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FindingModuleOrInterface
+</span><a href="GHC.Iface.Errors.Types.html#FindingModule"><span class="hs-identifier hs-var">FindingModule</span></a></span><span> </span><span class="annot"><span class="annottext">(CantFindInstalled -&gt; MissingInterfaceError)
+-&gt; CantFindInstalled -&gt; MissingInterfaceError
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><span class="annottext">UnitEnv -&gt; Profile -&gt; ModuleName -&gt; FindResult -&gt; CantFindInstalled
+</span><a href="GHC.Iface.Errors.html#cantFindErr"><span class="hs-identifier hs-var">cantFindErr</span></a></span><span> </span><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682745766"><span class="hs-identifier hs-var">unit_env</span></a></span><span>
+</span><span id="line-91"></span><span>              </span><span class="annot"><span class="annottext">Profile
+</span><a href="#local-6989586621682745767"><span class="hs-identifier hs-var">profile</span></a></span><span>
+</span><span id="line-92"></span><span>              </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621682745768"><span class="hs-identifier hs-var">mod</span></a></span><span>
+</span><span id="line-93"></span><span>              </span><span class="annot"><span class="annottext">FindResult
+</span><a href="#local-6989586621682745769"><span class="hs-identifier hs-var">res</span></a></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="annot"><a href="GHC.Iface.Errors.html#cantFindErr"><span class="hs-identifier hs-type">cantFindErr</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Unit.Env.html#UnitEnv"><span class="hs-identifier hs-type">UnitEnv</span></a></span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Platform.Profile.html#Profile"><span class="hs-identifier hs-type">Profile</span></a></span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Module.Name.html#ModuleName"><span class="hs-identifier hs-type">ModuleName</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#FindResult"><span class="hs-identifier hs-type">FindResult</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Iface.Errors.Types.html#CantFindInstalled"><span class="hs-identifier hs-type">CantFindInstalled</span></a></span><span>
+</span><span id="line-101"></span><span id="cantFindErr"><span class="annot"><span class="annottext">cantFindErr :: UnitEnv -&gt; Profile -&gt; ModuleName -&gt; FindResult -&gt; CantFindInstalled
+</span><a href="GHC.Iface.Errors.html#cantFindErr"><span class="hs-identifier hs-var hs-var">cantFindErr</span></a></span></span><span> </span><span class="annot"><span class="annottext">UnitEnv
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Profile
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682745773"><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621682745773"><span class="hs-identifier hs-var">mod_name</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Unit.Finder.Types.html#FoundMultiple"><span class="hs-identifier hs-type">FoundMultiple</span></a></span><span> </span><span id="local-6989586621682745775"><span class="annot"><span class="annottext">[(Module, ModuleOrigin)]
+</span><a href="#local-6989586621682745775"><span class="hs-identifier hs-var">mods</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModuleName -&gt; CantFindInstalledReason -&gt; CantFindInstalled
+</span><a href="GHC.Iface.Errors.Types.html#CantFindInstalled"><span class="hs-identifier hs-var">CantFindInstalled</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621682745773"><span class="hs-identifier hs-var">mod_name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(Module, ModuleOrigin)] -&gt; CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#MultiplePackages"><span class="hs-identifier hs-var">MultiplePackages</span></a></span><span> </span><span class="annot"><span class="annottext">[(Module, ModuleOrigin)]
+</span><a href="#local-6989586621682745775"><span class="hs-identifier hs-var">mods</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="annot"><a href="GHC.Iface.Errors.html#cantFindErr"><span class="hs-identifier hs-var">cantFindErr</span></a></span><span> </span><span id="local-6989586621682745777"><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682745777"><span class="hs-identifier hs-var">unit_env</span></a></span></span><span> </span><span id="local-6989586621682745778"><span class="annot"><span class="annottext">Profile
+</span><a href="#local-6989586621682745778"><span class="hs-identifier hs-var">profile</span></a></span></span><span> </span><span id="local-6989586621682745779"><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621682745779"><span class="hs-identifier hs-var">mod_name</span></a></span></span><span> </span><span id="local-6989586621682745780"><span class="annot"><span class="annottext">FindResult
+</span><a href="#local-6989586621682745780"><span class="hs-identifier hs-var">find_result</span></a></span></span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModuleName -&gt; CantFindInstalledReason -&gt; CantFindInstalled
+</span><a href="GHC.Iface.Errors.Types.html#CantFindInstalled"><span class="hs-identifier hs-var">CantFindInstalled</span></a></span><span> </span><span class="annot"><span class="annottext">ModuleName
+</span><a href="#local-6989586621682745779"><span class="hs-identifier hs-var">mod_name</span></a></span><span> </span><span class="annot"><span class="annottext">CantFindInstalledReason
+</span><a href="#local-6989586621682745781"><span class="hs-identifier hs-var">more_info</span></a></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621682745782"><span class="annot"><span class="annottext">mhome_unit :: Maybe HomeUnit
+</span><a href="#local-6989586621682745782"><span class="hs-identifier hs-var hs-var">mhome_unit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnitEnv -&gt; Maybe HomeUnit
+</span><a href="GHC.Unit.Env.html#ue_homeUnit"><span class="hs-identifier hs-var">ue_homeUnit</span></a></span><span> </span><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682745777"><span class="hs-identifier hs-var">unit_env</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621682745781"><span class="annot"><span class="annottext">more_info :: CantFindInstalledReason
+</span><a href="#local-6989586621682745781"><span class="hs-identifier hs-var hs-var">more_info</span></a></span></span><span>
+</span><span id="line-109"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FindResult
+</span><a href="#local-6989586621682745780"><span class="hs-identifier hs-var">find_result</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-110"></span><span>            </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#NoPackage"><span class="hs-identifier hs-type">NoPackage</span></a></span><span> </span><span id="local-6989586621682745785"><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682745785"><span class="hs-identifier hs-var">pkg</span></a></span></span><span>
+</span><span id="line-111"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UnitId -&gt; [UnitInfo] -&gt; CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#NoUnitIdMatching"><span class="hs-identifier hs-var">NoUnitIdMatching</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Unit -&gt; UnitId
+</span><a href="GHC.Unit.Types.html#toUnitId"><span class="hs-identifier hs-var">toUnitId</span></a></span><span> </span><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682745785"><span class="hs-identifier hs-var">pkg</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-112"></span><span>            </span><span class="annot"><a href="GHC.Unit.Finder.Types.html#NotFound"><span class="hs-identifier hs-type">NotFound</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">fr_paths :: FindResult -&gt; [String]
+</span><a href="GHC.Unit.Finder.Types.html#fr_paths"><span class="hs-identifier hs-var">fr_paths</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682745789"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745789"><span class="hs-identifier hs-var">files</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fr_pkg :: FindResult -&gt; Maybe Unit
+</span><a href="GHC.Unit.Finder.Types.html#fr_pkg"><span class="hs-identifier hs-var">fr_pkg</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682745791"><span class="annot"><span class="annottext">Maybe Unit
+</span><a href="#local-6989586621682745791"><span class="hs-identifier hs-var">mb_pkg</span></a></span></span><span>
+</span><span id="line-113"></span><span>                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fr_mods_hidden :: FindResult -&gt; [Unit]
+</span><a href="GHC.Unit.Finder.Types.html#fr_mods_hidden"><span class="hs-identifier hs-var">fr_mods_hidden</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682745793"><span class="annot"><span class="annottext">[Unit]
+</span><a href="#local-6989586621682745793"><span class="hs-identifier hs-var">mod_hiddens</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fr_pkgs_hidden :: FindResult -&gt; [Unit]
+</span><a href="GHC.Unit.Finder.Types.html#fr_pkgs_hidden"><span class="hs-identifier hs-var">fr_pkgs_hidden</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682745795"><span class="annot"><span class="annottext">[Unit]
+</span><a href="#local-6989586621682745795"><span class="hs-identifier hs-var">pkg_hiddens</span></a></span></span><span>
+</span><span id="line-114"></span><span>                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fr_unusables :: FindResult -&gt; [UnusableUnit]
+</span><a href="GHC.Unit.Finder.Types.html#fr_unusables"><span class="hs-identifier hs-var">fr_unusables</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682745797"><span class="annot"><span class="annottext">[UnusableUnit]
+</span><a href="#local-6989586621682745797"><span class="hs-identifier hs-var">unusables</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fr_suggestions :: FindResult -&gt; [ModuleSuggestion]
+</span><a href="GHC.Unit.Finder.Types.html#fr_suggestions"><span class="hs-identifier hs-var">fr_suggestions</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682745799"><span class="annot"><span class="annottext">[ModuleSuggestion]
+</span><a href="#local-6989586621682745799"><span class="hs-identifier hs-var">suggest</span></a></span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-115"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682745800"><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682745800"><span class="hs-identifier hs-var">pkg</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Unit
+</span><a href="#local-6989586621682745791"><span class="hs-identifier hs-var">mb_pkg</span></a></span><span>
+</span><span id="line-116"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe HomeUnit
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe HomeUnit
+</span><a href="#local-6989586621682745782"><span class="hs-identifier hs-var">mhome_unit</span></a></span><span>           </span><span class="hs-comment">-- no home-unit</span><span>
+</span><span id="line-117"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UnitId -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="#local-6989586621682745801"><span class="hs-identifier hs-var">not_found_in_package</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Unit -&gt; UnitId
+</span><a href="GHC.Unit.Types.html#toUnitId"><span class="hs-identifier hs-var">toUnitId</span></a></span><span> </span><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682745800"><span class="hs-identifier hs-var">pkg</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745789"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682745802"><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682745802"><span class="hs-identifier hs-var">pkg</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Unit
+</span><a href="#local-6989586621682745791"><span class="hs-identifier hs-var">mb_pkg</span></a></span><span>
+</span><span id="line-120"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682745803"><span class="annot"><span class="annottext">HomeUnit
+</span><a href="#local-6989586621682745803"><span class="hs-identifier hs-var">home_unit</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe HomeUnit
+</span><a href="#local-6989586621682745782"><span class="hs-identifier hs-var">mhome_unit</span></a></span><span>    </span><span class="hs-comment">-- there is a home-unit but the</span><span>
+</span><span id="line-121"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HomeUnit -&gt; Unit -&gt; Bool
+</span><a href="GHC.Unit.Home.html#isHomeUnit"><span class="hs-identifier hs-var">isHomeUnit</span></a></span><span> </span><span class="annot"><span class="annottext">HomeUnit
+</span><a href="#local-6989586621682745803"><span class="hs-identifier hs-var">home_unit</span></a></span><span> </span><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682745802"><span class="hs-identifier hs-var">pkg</span></a></span><span class="hs-special">)</span><span>  </span><span class="hs-comment">-- module isn't from it</span><span>
+</span><span id="line-122"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UnitId -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="#local-6989586621682745801"><span class="hs-identifier hs-var">not_found_in_package</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Unit -&gt; UnitId
+</span><a href="GHC.Unit.Types.html#toUnitId"><span class="hs-identifier hs-var">toUnitId</span></a></span><span> </span><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682745802"><span class="hs-identifier hs-var">pkg</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745789"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[ModuleSuggestion] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[ModuleSuggestion]
+</span><a href="#local-6989586621682745799"><span class="hs-identifier hs-var">suggest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[ModuleSuggestion] -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#ModuleSuggestion"><span class="hs-identifier hs-var">ModuleSuggestion</span></a></span><span> </span><span class="annot"><span class="annottext">[ModuleSuggestion]
+</span><a href="#local-6989586621682745799"><span class="hs-identifier hs-var">suggest</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745789"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745789"><span class="hs-identifier hs-var">files</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">[Unit] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Unit]
+</span><a href="#local-6989586621682745793"><span class="hs-identifier hs-var">mod_hiddens</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span>
+</span><span id="line-128"></span><span>                  </span><span class="annot"><span class="annottext">[Unit] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Unit]
+</span><a href="#local-6989586621682745795"><span class="hs-identifier hs-var">pkg_hiddens</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">[UnusableUnit] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[UnusableUnit]
+</span><a href="#local-6989586621682745797"><span class="hs-identifier hs-var">unusables</span></a></span><span>
+</span><span id="line-129"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#NotAModule"><span class="hs-identifier hs-var">NotAModule</span></a></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-132"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[(Unit, Maybe UnitInfo)]
+-&gt; [Unit] -&gt; [UnusableUnit] -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#GenericMissing"><span class="hs-identifier hs-var">GenericMissing</span></a></span><span>
+</span><span id="line-133"></span><span>                    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Unit -&gt; (Unit, Maybe UnitInfo))
+-&gt; [Unit] -&gt; [(Unit, Maybe UnitInfo)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682745809"><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682745809"><span class="hs-identifier hs-var">uid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682745809"><span class="hs-identifier hs-var">uid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UnitState -&gt; Unit -&gt; Maybe UnitInfo
+</span><a href="GHC.Unit.State.html#lookupUnit"><span class="hs-identifier hs-var">lookupUnit</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; UnitEnv -&gt; UnitState
+UnitEnv -&gt; UnitState
+</span><a href="GHC.Unit.Env.html#ue_units"><span class="hs-identifier hs-var">ue_units</span></a></span><span> </span><span class="annot"><span class="annottext">UnitEnv
+</span><a href="#local-6989586621682745777"><span class="hs-identifier hs-var">unit_env</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Unit
+</span><a href="#local-6989586621682745809"><span class="hs-identifier hs-var">uid</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Unit]
+</span><a href="#local-6989586621682745795"><span class="hs-identifier hs-var">pkg_hiddens</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>                    </span><span class="annot"><span class="annottext">[Unit]
+</span><a href="#local-6989586621682745793"><span class="hs-identifier hs-var">mod_hiddens</span></a></span><span> </span><span class="annot"><span class="annottext">[UnusableUnit]
+</span><a href="#local-6989586621682745797"><span class="hs-identifier hs-var">unusables</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745789"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-135"></span><span>            </span><span class="annot"><span class="annottext">FindResult
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; CantFindInstalledReason
+forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;cantFindErr&quot;</span></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>    </span><span id="local-6989586621682745811"><span class="annot"><span class="annottext">build_tag :: String
+</span><a href="#local-6989586621682745811"><span class="hs-identifier hs-var hs-var">build_tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ways -&gt; String
+</span><a href="GHC.Platform.Ways.html#waysBuildTag"><span class="hs-identifier hs-var">waysBuildTag</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Profile -&gt; Ways
+</span><a href="GHC.Platform.Profile.html#profileWays"><span class="hs-identifier hs-var">profileWays</span></a></span><span> </span><span class="annot"><span class="annottext">Profile
+</span><a href="#local-6989586621682745778"><span class="hs-identifier hs-var">profile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>    </span><span id="local-6989586621682745801"><span class="annot"><span class="annottext">not_found_in_package :: UnitId -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="#local-6989586621682745801"><span class="hs-identifier hs-var hs-var">not_found_in_package</span></a></span></span><span> </span><span id="local-6989586621682745812"><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745812"><span class="hs-identifier hs-var">pkg</span></a></span></span><span> </span><span id="local-6989586621682745813"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745813"><span class="hs-identifier hs-var">files</span></a></span></span><span>
+</span><span id="line-140"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682745811"><span class="hs-identifier hs-var">build_tag</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-141"></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span>
+</span><span id="line-142"></span><span>            </span><span id="local-6989586621682745814"><span class="annot"><span class="annottext">build :: String
+</span><a href="#local-6989586621682745814"><span class="hs-identifier hs-var hs-var">build</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682745811"><span class="hs-identifier hs-var">build_tag</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;p&quot;</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;profiling&quot;</span></span><span>
+</span><span id="line-143"></span><span>                                        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682745811"><span class="hs-identifier hs-var">build_tag</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\&quot;&quot;</span></span><span>
+</span><span id="line-144"></span><span>         </span><span class="hs-keyword">in</span><span>
+</span><span id="line-145"></span><span>         </span><span class="annot"><span class="annottext">String -&gt; UnitId -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#MissingPackageWayFiles"><span class="hs-identifier hs-var">MissingPackageWayFiles</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682745814"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745812"><span class="hs-identifier hs-var">pkg</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745813"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-148"></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnitId -&gt; [String] -&gt; CantFindInstalledReason
+</span><a href="GHC.Iface.Errors.Types.html#MissingPackageFiles"><span class="hs-identifier hs-var">MissingPackageFiles</span></a></span><span> </span><span class="annot"><span class="annottext">UnitId
+</span><a href="#local-6989586621682745812"><span class="hs-identifier hs-var">pkg</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682745813"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-149"></span></pre></body></html>

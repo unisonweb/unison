@@ -1,0 +1,958 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.LanguageKind</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html"><span class="hs-identifier">Language.LSP.Protocol.Types.LspEnum</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><span class="hs-comment">{-|
+Predefined Language kinds
+@since 3.18.0
+@proposed
+-}</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">data</span><span> </span><span id="LanguageKind"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind"><span class="hs-identifier hs-var">LanguageKind</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-32"></span><span>  </span><span id="LanguageKind_ABAP"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ABAP"><span class="hs-identifier hs-var">LanguageKind_ABAP</span></a></span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-36"></span><span>  </span><span id="LanguageKind_WindowsBat"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_WindowsBat"><span class="hs-identifier hs-var">LanguageKind_WindowsBat</span></a></span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-40"></span><span>  </span><span id="LanguageKind_BibTeX"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_BibTeX"><span class="hs-identifier hs-var">LanguageKind_BibTeX</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-44"></span><span>  </span><span id="LanguageKind_Clojure"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Clojure"><span class="hs-identifier hs-var">LanguageKind_Clojure</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-48"></span><span>  </span><span id="LanguageKind_Coffeescript"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Coffeescript"><span class="hs-identifier hs-var">LanguageKind_Coffeescript</span></a></span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-52"></span><span>  </span><span id="LanguageKind_C"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_C"><span class="hs-identifier hs-var">LanguageKind_C</span></a></span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-56"></span><span>  </span><span id="LanguageKind_CPP"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CPP"><span class="hs-identifier hs-var">LanguageKind_CPP</span></a></span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-60"></span><span>  </span><span id="LanguageKind_CSharp"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CSharp"><span class="hs-identifier hs-var">LanguageKind_CSharp</span></a></span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-64"></span><span>  </span><span id="LanguageKind_CSS"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CSS"><span class="hs-identifier hs-var">LanguageKind_CSS</span></a></span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-68"></span><span>  </span><span id="LanguageKind_Diff"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Diff"><span class="hs-identifier hs-var">LanguageKind_Diff</span></a></span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-72"></span><span>  </span><span id="LanguageKind_Dart"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Dart"><span class="hs-identifier hs-var">LanguageKind_Dart</span></a></span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-76"></span><span>  </span><span id="LanguageKind_Dockerfile"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Dockerfile"><span class="hs-identifier hs-var">LanguageKind_Dockerfile</span></a></span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-80"></span><span>  </span><span id="LanguageKind_Elixir"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Elixir"><span class="hs-identifier hs-var">LanguageKind_Elixir</span></a></span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-84"></span><span>  </span><span id="LanguageKind_Erlang"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Erlang"><span class="hs-identifier hs-var">LanguageKind_Erlang</span></a></span></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-88"></span><span>  </span><span id="LanguageKind_FSharp"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_FSharp"><span class="hs-identifier hs-var">LanguageKind_FSharp</span></a></span></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-92"></span><span>  </span><span id="LanguageKind_GitCommit"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_GitCommit"><span class="hs-identifier hs-var">LanguageKind_GitCommit</span></a></span></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-96"></span><span>  </span><span id="LanguageKind_GitRebase"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_GitRebase"><span class="hs-identifier hs-var">LanguageKind_GitRebase</span></a></span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-100"></span><span>  </span><span id="LanguageKind_Go"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Go"><span class="hs-identifier hs-var">LanguageKind_Go</span></a></span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-104"></span><span>  </span><span id="LanguageKind_Groovy"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Groovy"><span class="hs-identifier hs-var">LanguageKind_Groovy</span></a></span></span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-108"></span><span>  </span><span id="LanguageKind_Handlebars"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Handlebars"><span class="hs-identifier hs-var">LanguageKind_Handlebars</span></a></span></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-112"></span><span>  </span><span id="LanguageKind_Haskell"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Haskell"><span class="hs-identifier hs-var">LanguageKind_Haskell</span></a></span></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-116"></span><span>  </span><span id="LanguageKind_HTML"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_HTML"><span class="hs-identifier hs-var">LanguageKind_HTML</span></a></span></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-120"></span><span>  </span><span id="LanguageKind_Ini"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Ini"><span class="hs-identifier hs-var">LanguageKind_Ini</span></a></span></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-124"></span><span>  </span><span id="LanguageKind_Java"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Java"><span class="hs-identifier hs-var">LanguageKind_Java</span></a></span></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-128"></span><span>  </span><span id="LanguageKind_JavaScript"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JavaScript"><span class="hs-identifier hs-var">LanguageKind_JavaScript</span></a></span></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-132"></span><span>  </span><span id="LanguageKind_JavaScriptReact"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JavaScriptReact"><span class="hs-identifier hs-var">LanguageKind_JavaScriptReact</span></a></span></span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-136"></span><span>  </span><span id="LanguageKind_JSON"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JSON"><span class="hs-identifier hs-var">LanguageKind_JSON</span></a></span></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-140"></span><span>  </span><span id="LanguageKind_LaTeX"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_LaTeX"><span class="hs-identifier hs-var">LanguageKind_LaTeX</span></a></span></span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-144"></span><span>  </span><span id="LanguageKind_Less"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Less"><span class="hs-identifier hs-var">LanguageKind_Less</span></a></span></span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-148"></span><span>  </span><span id="LanguageKind_Lua"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Lua"><span class="hs-identifier hs-var">LanguageKind_Lua</span></a></span></span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-152"></span><span>  </span><span id="LanguageKind_Makefile"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Makefile"><span class="hs-identifier hs-var">LanguageKind_Makefile</span></a></span></span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-156"></span><span>  </span><span id="LanguageKind_Markdown"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Markdown"><span class="hs-identifier hs-var">LanguageKind_Markdown</span></a></span></span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-160"></span><span>  </span><span id="LanguageKind_ObjectiveC"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ObjectiveC"><span class="hs-identifier hs-var">LanguageKind_ObjectiveC</span></a></span></span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-164"></span><span>  </span><span id="LanguageKind_ObjectiveCPP"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ObjectiveCPP"><span class="hs-identifier hs-var">LanguageKind_ObjectiveCPP</span></a></span></span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-168"></span><span>  </span><span id="LanguageKind_Perl"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Perl"><span class="hs-identifier hs-var">LanguageKind_Perl</span></a></span></span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-172"></span><span>  </span><span id="LanguageKind_Perl6"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Perl6"><span class="hs-identifier hs-var">LanguageKind_Perl6</span></a></span></span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-176"></span><span>  </span><span id="LanguageKind_PHP"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_PHP"><span class="hs-identifier hs-var">LanguageKind_PHP</span></a></span></span><span>
+</span><span id="line-177"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-180"></span><span>  </span><span id="LanguageKind_Powershell"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Powershell"><span class="hs-identifier hs-var">LanguageKind_Powershell</span></a></span></span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-184"></span><span>  </span><span id="LanguageKind_Pug"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Pug"><span class="hs-identifier hs-var">LanguageKind_Pug</span></a></span></span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-188"></span><span>  </span><span id="LanguageKind_Python"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Python"><span class="hs-identifier hs-var">LanguageKind_Python</span></a></span></span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-192"></span><span>  </span><span id="LanguageKind_R"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_R"><span class="hs-identifier hs-var">LanguageKind_R</span></a></span></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-196"></span><span>  </span><span id="LanguageKind_Razor"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Razor"><span class="hs-identifier hs-var">LanguageKind_Razor</span></a></span></span><span>
+</span><span id="line-197"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-200"></span><span>  </span><span id="LanguageKind_Ruby"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Ruby"><span class="hs-identifier hs-var">LanguageKind_Ruby</span></a></span></span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-204"></span><span>  </span><span id="LanguageKind_Rust"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Rust"><span class="hs-identifier hs-var">LanguageKind_Rust</span></a></span></span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-208"></span><span>  </span><span id="LanguageKind_SCSS"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SCSS"><span class="hs-identifier hs-var">LanguageKind_SCSS</span></a></span></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-212"></span><span>  </span><span id="LanguageKind_SASS"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SASS"><span class="hs-identifier hs-var">LanguageKind_SASS</span></a></span></span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-216"></span><span>  </span><span id="LanguageKind_Scala"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Scala"><span class="hs-identifier hs-var">LanguageKind_Scala</span></a></span></span><span>
+</span><span id="line-217"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-220"></span><span>  </span><span id="LanguageKind_ShaderLab"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ShaderLab"><span class="hs-identifier hs-var">LanguageKind_ShaderLab</span></a></span></span><span>
+</span><span id="line-221"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-224"></span><span>  </span><span id="LanguageKind_ShellScript"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ShellScript"><span class="hs-identifier hs-var">LanguageKind_ShellScript</span></a></span></span><span>
+</span><span id="line-225"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-228"></span><span>  </span><span id="LanguageKind_SQL"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SQL"><span class="hs-identifier hs-var">LanguageKind_SQL</span></a></span></span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-232"></span><span>  </span><span id="LanguageKind_Swift"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Swift"><span class="hs-identifier hs-var">LanguageKind_Swift</span></a></span></span><span>
+</span><span id="line-233"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-236"></span><span>  </span><span id="LanguageKind_TypeScript"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TypeScript"><span class="hs-identifier hs-var">LanguageKind_TypeScript</span></a></span></span><span>
+</span><span id="line-237"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-240"></span><span>  </span><span id="LanguageKind_TypeScriptReact"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TypeScriptReact"><span class="hs-identifier hs-var">LanguageKind_TypeScriptReact</span></a></span></span><span>
+</span><span id="line-241"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-244"></span><span>  </span><span id="LanguageKind_TeX"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TeX"><span class="hs-identifier hs-var">LanguageKind_TeX</span></a></span></span><span>
+</span><span id="line-245"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-248"></span><span>  </span><span id="LanguageKind_VisualBasic"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_VisualBasic"><span class="hs-identifier hs-var">LanguageKind_VisualBasic</span></a></span></span><span>
+</span><span id="line-249"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-252"></span><span>  </span><span id="LanguageKind_XML"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_XML"><span class="hs-identifier hs-var">LanguageKind_XML</span></a></span></span><span>
+</span><span id="line-253"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-256"></span><span>  </span><span id="LanguageKind_XSL"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_XSL"><span class="hs-identifier hs-var">LanguageKind_XSL</span></a></span></span><span>
+</span><span id="line-257"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-260"></span><span>  </span><span id="LanguageKind_YAML"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_YAML"><span class="hs-identifier hs-var">LanguageKind_YAML</span></a></span></span><span>
+</span><span id="line-261"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LanguageKind_Custom"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Custom"><span class="hs-identifier hs-var">LanguageKind_Custom</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span>
+</span><span id="line-262"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682542269"><span id="local-6989586621682542275"><span id="local-6989586621682542279"><span class="annot"><span class="annottext">Int -&gt; LanguageKind -&gt; ShowS
+[LanguageKind] -&gt; ShowS
+LanguageKind -&gt; String
+(Int -&gt; LanguageKind -&gt; ShowS)
+-&gt; (LanguageKind -&gt; String)
+-&gt; ([LanguageKind] -&gt; ShowS)
+-&gt; Show LanguageKind
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; LanguageKind -&gt; ShowS
+showsPrec :: Int -&gt; LanguageKind -&gt; ShowS
+$cshow :: LanguageKind -&gt; String
+show :: LanguageKind -&gt; String
+$cshowList :: [LanguageKind] -&gt; ShowS
+showList :: [LanguageKind] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682542284"><span id="local-6989586621682542291"><span class="annot"><span class="annottext">LanguageKind -&gt; LanguageKind -&gt; Bool
+(LanguageKind -&gt; LanguageKind -&gt; Bool)
+-&gt; (LanguageKind -&gt; LanguageKind -&gt; Bool) -&gt; Eq LanguageKind
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: LanguageKind -&gt; LanguageKind -&gt; Bool
+== :: LanguageKind -&gt; LanguageKind -&gt; Bool
+$c/= :: LanguageKind -&gt; LanguageKind -&gt; Bool
+/= :: LanguageKind -&gt; LanguageKind -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682542298"><span id="local-6989586621682542304"><span id="local-6989586621682542308"><span id="local-6989586621682542311"><span id="local-6989586621682542314"><span id="local-6989586621682542317"><span id="local-6989586621682542320"><span class="annot"><span class="annottext">Eq LanguageKind
+Eq LanguageKind =&gt;
+(LanguageKind -&gt; LanguageKind -&gt; Ordering)
+-&gt; (LanguageKind -&gt; LanguageKind -&gt; Bool)
+-&gt; (LanguageKind -&gt; LanguageKind -&gt; Bool)
+-&gt; (LanguageKind -&gt; LanguageKind -&gt; Bool)
+-&gt; (LanguageKind -&gt; LanguageKind -&gt; Bool)
+-&gt; (LanguageKind -&gt; LanguageKind -&gt; LanguageKind)
+-&gt; (LanguageKind -&gt; LanguageKind -&gt; LanguageKind)
+-&gt; Ord LanguageKind
+LanguageKind -&gt; LanguageKind -&gt; Bool
+LanguageKind -&gt; LanguageKind -&gt; Ordering
+LanguageKind -&gt; LanguageKind -&gt; LanguageKind
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: LanguageKind -&gt; LanguageKind -&gt; Ordering
+compare :: LanguageKind -&gt; LanguageKind -&gt; Ordering
+$c&lt; :: LanguageKind -&gt; LanguageKind -&gt; Bool
+&lt; :: LanguageKind -&gt; LanguageKind -&gt; Bool
+$c&lt;= :: LanguageKind -&gt; LanguageKind -&gt; Bool
+&lt;= :: LanguageKind -&gt; LanguageKind -&gt; Bool
+$c&gt; :: LanguageKind -&gt; LanguageKind -&gt; Bool
+&gt; :: LanguageKind -&gt; LanguageKind -&gt; Bool
+$c&gt;= :: LanguageKind -&gt; LanguageKind -&gt; Bool
+&gt;= :: LanguageKind -&gt; LanguageKind -&gt; Bool
+$cmax :: LanguageKind -&gt; LanguageKind -&gt; LanguageKind
+max :: LanguageKind -&gt; LanguageKind -&gt; LanguageKind
+$cmin :: LanguageKind -&gt; LanguageKind -&gt; LanguageKind
+min :: LanguageKind -&gt; LanguageKind -&gt; LanguageKind
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682542325"><span id="local-6989586621682542327"><span class="annot"><span class="annottext">(forall x. LanguageKind -&gt; Rep LanguageKind x)
+-&gt; (forall x. Rep LanguageKind x -&gt; LanguageKind)
+-&gt; Generic LanguageKind
+forall x. Rep LanguageKind x -&gt; LanguageKind
+forall x. LanguageKind -&gt; Rep LanguageKind x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. LanguageKind -&gt; Rep LanguageKind x
+from :: forall x. LanguageKind -&gt; Rep LanguageKind x
+$cto :: forall x. Rep LanguageKind x -&gt; LanguageKind
+to :: forall x. Rep LanguageKind x -&gt; LanguageKind
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-263"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682542333"><span class="annot"><span class="annottext">LanguageKind -&gt; ()
+(LanguageKind -&gt; ()) -&gt; NFData LanguageKind
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: LanguageKind -&gt; ()
+rnf :: LanguageKind -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682542469"><span id="local-6989586621682542476"><span class="annot"><span class="annottext">Eq LanguageKind
+Eq LanguageKind =&gt;
+(Int -&gt; LanguageKind -&gt; Int)
+-&gt; (LanguageKind -&gt; Int) -&gt; Hashable LanguageKind
+Int -&gt; LanguageKind -&gt; Int
+LanguageKind -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; LanguageKind -&gt; Int
+hashWithSalt :: Int -&gt; LanguageKind -&gt; Int
+$chash :: LanguageKind -&gt; Int
+hash :: LanguageKind -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-264"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621682542608"><span id="local-6989586621682542616"><span id="local-6989586621682542623"><span id="local-6989586621682542630"><span id="local-6989586621682542637"><span class="annot"><span class="annottext">[LanguageKind] -&gt; Value
+[LanguageKind] -&gt; Encoding
+LanguageKind -&gt; Bool
+LanguageKind -&gt; Value
+LanguageKind -&gt; Encoding
+(LanguageKind -&gt; Value)
+-&gt; (LanguageKind -&gt; Encoding)
+-&gt; ([LanguageKind] -&gt; Value)
+-&gt; ([LanguageKind] -&gt; Encoding)
+-&gt; (LanguageKind -&gt; Bool)
+-&gt; ToJSON LanguageKind
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; (a -&gt; Bool)
+-&gt; ToJSON a
+$ctoJSON :: LanguageKind -&gt; Value
+toJSON :: LanguageKind -&gt; Value
+$ctoEncoding :: LanguageKind -&gt; Encoding
+toEncoding :: LanguageKind -&gt; Encoding
+$ctoJSONList :: [LanguageKind] -&gt; Value
+toJSONList :: [LanguageKind] -&gt; Value
+$ctoEncodingList :: [LanguageKind] -&gt; Encoding
+toEncodingList :: [LanguageKind] -&gt; Encoding
+$comitField :: LanguageKind -&gt; Bool
+omitField :: LanguageKind -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span></span><span>
+</span><span id="line-265"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682542658"><span id="local-6989586621682542667"><span id="local-6989586621682542675"><span class="annot"><span class="annottext">Maybe LanguageKind
+Value -&gt; Parser [LanguageKind]
+Value -&gt; Parser LanguageKind
+(Value -&gt; Parser LanguageKind)
+-&gt; (Value -&gt; Parser [LanguageKind])
+-&gt; Maybe LanguageKind
+-&gt; FromJSON LanguageKind
+forall a.
+(Value -&gt; Parser a)
+-&gt; (Value -&gt; Parser [a]) -&gt; Maybe a -&gt; FromJSON a
+$cparseJSON :: Value -&gt; Parser LanguageKind
+parseJSON :: Value -&gt; Parser LanguageKind
+$cparseJSONList :: Value -&gt; Parser [LanguageKind]
+parseJSONList :: Value -&gt; Parser [LanguageKind]
+$comittedField :: Maybe LanguageKind
+omittedField :: Maybe LanguageKind
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span></span><span>
+</span><span id="line-266"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682542692"><span class="annot"><span class="annottext">String -&gt; LanguageKind
+(String -&gt; LanguageKind) -&gt; IsString LanguageKind
+forall a. (String -&gt; a) -&gt; IsString a
+$cfromString :: String -&gt; LanguageKind
+fromString :: String -&gt; LanguageKind
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Data.String.IsString</span></span></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#AsLspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.AsLspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind"><span class="hs-identifier hs-type">LanguageKind</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-267"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682542704"><span id="local-6989586621682542710"><span class="annot"><span class="annottext">(forall ann. LanguageKind -&gt; Doc ann)
+-&gt; (forall ann. [LanguageKind] -&gt; Doc ann) -&gt; Pretty LanguageKind
+forall ann. [LanguageKind] -&gt; Doc ann
+forall ann. LanguageKind -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. LanguageKind -&gt; Doc ann
+pretty :: forall ann. LanguageKind -&gt; Doc ann
+$cprettyList :: forall ann. [LanguageKind] -&gt; Doc ann
+prettyList :: forall ann. [LanguageKind] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind"><span class="hs-identifier hs-type">LanguageKind</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-268"></span><span>
+</span><span id="line-269"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682542721"><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#LspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.LspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind"><span class="hs-identifier hs-type">LanguageKind</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-270"></span><span>  </span><span id="local-6989586621682542726"><span class="annot"><span class="annottext">knownValues :: Set LanguageKind
+</span><a href="#local-6989586621682542726"><span class="hs-identifier hs-var hs-var hs-var">knownValues</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[LanguageKind] -&gt; Set LanguageKind
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Data.Set.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ABAP"><span class="hs-identifier hs-var">LanguageKind_ABAP</span></a></span><span>
+</span><span id="line-271"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_WindowsBat"><span class="hs-identifier hs-var">LanguageKind_WindowsBat</span></a></span><span>
+</span><span id="line-272"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_BibTeX"><span class="hs-identifier hs-var">LanguageKind_BibTeX</span></a></span><span>
+</span><span id="line-273"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Clojure"><span class="hs-identifier hs-var">LanguageKind_Clojure</span></a></span><span>
+</span><span id="line-274"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Coffeescript"><span class="hs-identifier hs-var">LanguageKind_Coffeescript</span></a></span><span>
+</span><span id="line-275"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_C"><span class="hs-identifier hs-var">LanguageKind_C</span></a></span><span>
+</span><span id="line-276"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CPP"><span class="hs-identifier hs-var">LanguageKind_CPP</span></a></span><span>
+</span><span id="line-277"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CSharp"><span class="hs-identifier hs-var">LanguageKind_CSharp</span></a></span><span>
+</span><span id="line-278"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CSS"><span class="hs-identifier hs-var">LanguageKind_CSS</span></a></span><span>
+</span><span id="line-279"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Diff"><span class="hs-identifier hs-var">LanguageKind_Diff</span></a></span><span>
+</span><span id="line-280"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Dart"><span class="hs-identifier hs-var">LanguageKind_Dart</span></a></span><span>
+</span><span id="line-281"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Dockerfile"><span class="hs-identifier hs-var">LanguageKind_Dockerfile</span></a></span><span>
+</span><span id="line-282"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Elixir"><span class="hs-identifier hs-var">LanguageKind_Elixir</span></a></span><span>
+</span><span id="line-283"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Erlang"><span class="hs-identifier hs-var">LanguageKind_Erlang</span></a></span><span>
+</span><span id="line-284"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_FSharp"><span class="hs-identifier hs-var">LanguageKind_FSharp</span></a></span><span>
+</span><span id="line-285"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_GitCommit"><span class="hs-identifier hs-var">LanguageKind_GitCommit</span></a></span><span>
+</span><span id="line-286"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_GitRebase"><span class="hs-identifier hs-var">LanguageKind_GitRebase</span></a></span><span>
+</span><span id="line-287"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Go"><span class="hs-identifier hs-var">LanguageKind_Go</span></a></span><span>
+</span><span id="line-288"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Groovy"><span class="hs-identifier hs-var">LanguageKind_Groovy</span></a></span><span>
+</span><span id="line-289"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Handlebars"><span class="hs-identifier hs-var">LanguageKind_Handlebars</span></a></span><span>
+</span><span id="line-290"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Haskell"><span class="hs-identifier hs-var">LanguageKind_Haskell</span></a></span><span>
+</span><span id="line-291"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_HTML"><span class="hs-identifier hs-var">LanguageKind_HTML</span></a></span><span>
+</span><span id="line-292"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Ini"><span class="hs-identifier hs-var">LanguageKind_Ini</span></a></span><span>
+</span><span id="line-293"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Java"><span class="hs-identifier hs-var">LanguageKind_Java</span></a></span><span>
+</span><span id="line-294"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JavaScript"><span class="hs-identifier hs-var">LanguageKind_JavaScript</span></a></span><span>
+</span><span id="line-295"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JavaScriptReact"><span class="hs-identifier hs-var">LanguageKind_JavaScriptReact</span></a></span><span>
+</span><span id="line-296"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JSON"><span class="hs-identifier hs-var">LanguageKind_JSON</span></a></span><span>
+</span><span id="line-297"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_LaTeX"><span class="hs-identifier hs-var">LanguageKind_LaTeX</span></a></span><span>
+</span><span id="line-298"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Less"><span class="hs-identifier hs-var">LanguageKind_Less</span></a></span><span>
+</span><span id="line-299"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Lua"><span class="hs-identifier hs-var">LanguageKind_Lua</span></a></span><span>
+</span><span id="line-300"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Makefile"><span class="hs-identifier hs-var">LanguageKind_Makefile</span></a></span><span>
+</span><span id="line-301"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Markdown"><span class="hs-identifier hs-var">LanguageKind_Markdown</span></a></span><span>
+</span><span id="line-302"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ObjectiveC"><span class="hs-identifier hs-var">LanguageKind_ObjectiveC</span></a></span><span>
+</span><span id="line-303"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ObjectiveCPP"><span class="hs-identifier hs-var">LanguageKind_ObjectiveCPP</span></a></span><span>
+</span><span id="line-304"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Perl"><span class="hs-identifier hs-var">LanguageKind_Perl</span></a></span><span>
+</span><span id="line-305"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Perl6"><span class="hs-identifier hs-var">LanguageKind_Perl6</span></a></span><span>
+</span><span id="line-306"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_PHP"><span class="hs-identifier hs-var">LanguageKind_PHP</span></a></span><span>
+</span><span id="line-307"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Powershell"><span class="hs-identifier hs-var">LanguageKind_Powershell</span></a></span><span>
+</span><span id="line-308"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Pug"><span class="hs-identifier hs-var">LanguageKind_Pug</span></a></span><span>
+</span><span id="line-309"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Python"><span class="hs-identifier hs-var">LanguageKind_Python</span></a></span><span>
+</span><span id="line-310"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_R"><span class="hs-identifier hs-var">LanguageKind_R</span></a></span><span>
+</span><span id="line-311"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Razor"><span class="hs-identifier hs-var">LanguageKind_Razor</span></a></span><span>
+</span><span id="line-312"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Ruby"><span class="hs-identifier hs-var">LanguageKind_Ruby</span></a></span><span>
+</span><span id="line-313"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Rust"><span class="hs-identifier hs-var">LanguageKind_Rust</span></a></span><span>
+</span><span id="line-314"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SCSS"><span class="hs-identifier hs-var">LanguageKind_SCSS</span></a></span><span>
+</span><span id="line-315"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SASS"><span class="hs-identifier hs-var">LanguageKind_SASS</span></a></span><span>
+</span><span id="line-316"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Scala"><span class="hs-identifier hs-var">LanguageKind_Scala</span></a></span><span>
+</span><span id="line-317"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ShaderLab"><span class="hs-identifier hs-var">LanguageKind_ShaderLab</span></a></span><span>
+</span><span id="line-318"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ShellScript"><span class="hs-identifier hs-var">LanguageKind_ShellScript</span></a></span><span>
+</span><span id="line-319"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SQL"><span class="hs-identifier hs-var">LanguageKind_SQL</span></a></span><span>
+</span><span id="line-320"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Swift"><span class="hs-identifier hs-var">LanguageKind_Swift</span></a></span><span>
+</span><span id="line-321"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TypeScript"><span class="hs-identifier hs-var">LanguageKind_TypeScript</span></a></span><span>
+</span><span id="line-322"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TypeScriptReact"><span class="hs-identifier hs-var">LanguageKind_TypeScriptReact</span></a></span><span>
+</span><span id="line-323"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TeX"><span class="hs-identifier hs-var">LanguageKind_TeX</span></a></span><span>
+</span><span id="line-324"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_VisualBasic"><span class="hs-identifier hs-var">LanguageKind_VisualBasic</span></a></span><span>
+</span><span id="line-325"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_XML"><span class="hs-identifier hs-var">LanguageKind_XML</span></a></span><span>
+</span><span id="line-326"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_XSL"><span class="hs-identifier hs-var">LanguageKind_XSL</span></a></span><span>
+</span><span id="line-327"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_YAML"><span class="hs-identifier hs-var">LanguageKind_YAML</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-328"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="EnumBaseType"><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#EnumBaseType"><span class="hs-identifier hs-var">EnumBaseType</span></a></span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind"><span class="hs-identifier hs-type">LanguageKind</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span>
+</span><span id="line-329"></span><span>  </span><span id="local-6989586621682542788"><span class="annot"><span class="annottext">toEnumBaseType :: LanguageKind -&gt; EnumBaseType LanguageKind
+</span><a href="#local-6989586621682542788"><span class="hs-identifier hs-var hs-var hs-var">toEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ABAP"><span class="hs-identifier hs-var">LanguageKind_ABAP</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;abap&quot;</span></span><span>
+</span><span id="line-330"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_WindowsBat"><span class="hs-identifier hs-var">LanguageKind_WindowsBat</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;bat&quot;</span></span><span>
+</span><span id="line-331"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_BibTeX"><span class="hs-identifier hs-var">LanguageKind_BibTeX</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;bibtex&quot;</span></span><span>
+</span><span id="line-332"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Clojure"><span class="hs-identifier hs-var">LanguageKind_Clojure</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;clojure&quot;</span></span><span>
+</span><span id="line-333"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Coffeescript"><span class="hs-identifier hs-var">LanguageKind_Coffeescript</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;coffeescript&quot;</span></span><span>
+</span><span id="line-334"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_C"><span class="hs-identifier hs-var">LanguageKind_C</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;c&quot;</span></span><span>
+</span><span id="line-335"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CPP"><span class="hs-identifier hs-var">LanguageKind_CPP</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;cpp&quot;</span></span><span>
+</span><span id="line-336"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CSharp"><span class="hs-identifier hs-var">LanguageKind_CSharp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;csharp&quot;</span></span><span>
+</span><span id="line-337"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CSS"><span class="hs-identifier hs-var">LanguageKind_CSS</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;css&quot;</span></span><span>
+</span><span id="line-338"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Diff"><span class="hs-identifier hs-var">LanguageKind_Diff</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;diff&quot;</span></span><span>
+</span><span id="line-339"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Dart"><span class="hs-identifier hs-var">LanguageKind_Dart</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;dart&quot;</span></span><span>
+</span><span id="line-340"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Dockerfile"><span class="hs-identifier hs-var">LanguageKind_Dockerfile</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;dockerfile&quot;</span></span><span>
+</span><span id="line-341"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Elixir"><span class="hs-identifier hs-var">LanguageKind_Elixir</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;elixir&quot;</span></span><span>
+</span><span id="line-342"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Erlang"><span class="hs-identifier hs-var">LanguageKind_Erlang</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;erlang&quot;</span></span><span>
+</span><span id="line-343"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_FSharp"><span class="hs-identifier hs-var">LanguageKind_FSharp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;fsharp&quot;</span></span><span>
+</span><span id="line-344"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_GitCommit"><span class="hs-identifier hs-var">LanguageKind_GitCommit</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;git-commit&quot;</span></span><span>
+</span><span id="line-345"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_GitRebase"><span class="hs-identifier hs-var">LanguageKind_GitRebase</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;rebase&quot;</span></span><span>
+</span><span id="line-346"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Go"><span class="hs-identifier hs-var">LanguageKind_Go</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;go&quot;</span></span><span>
+</span><span id="line-347"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Groovy"><span class="hs-identifier hs-var">LanguageKind_Groovy</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;groovy&quot;</span></span><span>
+</span><span id="line-348"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Handlebars"><span class="hs-identifier hs-var">LanguageKind_Handlebars</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;handlebars&quot;</span></span><span>
+</span><span id="line-349"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Haskell"><span class="hs-identifier hs-var">LanguageKind_Haskell</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;haskell&quot;</span></span><span>
+</span><span id="line-350"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_HTML"><span class="hs-identifier hs-var">LanguageKind_HTML</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;html&quot;</span></span><span>
+</span><span id="line-351"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Ini"><span class="hs-identifier hs-var">LanguageKind_Ini</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;ini&quot;</span></span><span>
+</span><span id="line-352"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Java"><span class="hs-identifier hs-var">LanguageKind_Java</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;java&quot;</span></span><span>
+</span><span id="line-353"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JavaScript"><span class="hs-identifier hs-var">LanguageKind_JavaScript</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;javascript&quot;</span></span><span>
+</span><span id="line-354"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JavaScriptReact"><span class="hs-identifier hs-var">LanguageKind_JavaScriptReact</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;javascriptreact&quot;</span></span><span>
+</span><span id="line-355"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JSON"><span class="hs-identifier hs-var">LanguageKind_JSON</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;json&quot;</span></span><span>
+</span><span id="line-356"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_LaTeX"><span class="hs-identifier hs-var">LanguageKind_LaTeX</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;latex&quot;</span></span><span>
+</span><span id="line-357"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Less"><span class="hs-identifier hs-var">LanguageKind_Less</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;less&quot;</span></span><span>
+</span><span id="line-358"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Lua"><span class="hs-identifier hs-var">LanguageKind_Lua</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;lua&quot;</span></span><span>
+</span><span id="line-359"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Makefile"><span class="hs-identifier hs-var">LanguageKind_Makefile</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;makefile&quot;</span></span><span>
+</span><span id="line-360"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Markdown"><span class="hs-identifier hs-var">LanguageKind_Markdown</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;markdown&quot;</span></span><span>
+</span><span id="line-361"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ObjectiveC"><span class="hs-identifier hs-var">LanguageKind_ObjectiveC</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;objective-c&quot;</span></span><span>
+</span><span id="line-362"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ObjectiveCPP"><span class="hs-identifier hs-var">LanguageKind_ObjectiveCPP</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;objective-cpp&quot;</span></span><span>
+</span><span id="line-363"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Perl"><span class="hs-identifier hs-var">LanguageKind_Perl</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;perl&quot;</span></span><span>
+</span><span id="line-364"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Perl6"><span class="hs-identifier hs-var">LanguageKind_Perl6</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;perl6&quot;</span></span><span>
+</span><span id="line-365"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_PHP"><span class="hs-identifier hs-var">LanguageKind_PHP</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;php&quot;</span></span><span>
+</span><span id="line-366"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Powershell"><span class="hs-identifier hs-var">LanguageKind_Powershell</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;powershell&quot;</span></span><span>
+</span><span id="line-367"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Pug"><span class="hs-identifier hs-var">LanguageKind_Pug</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;jade&quot;</span></span><span>
+</span><span id="line-368"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Python"><span class="hs-identifier hs-var">LanguageKind_Python</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;python&quot;</span></span><span>
+</span><span id="line-369"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_R"><span class="hs-identifier hs-var">LanguageKind_R</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;r&quot;</span></span><span>
+</span><span id="line-370"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Razor"><span class="hs-identifier hs-var">LanguageKind_Razor</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;razor&quot;</span></span><span>
+</span><span id="line-371"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Ruby"><span class="hs-identifier hs-var">LanguageKind_Ruby</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;ruby&quot;</span></span><span>
+</span><span id="line-372"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Rust"><span class="hs-identifier hs-var">LanguageKind_Rust</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;rust&quot;</span></span><span>
+</span><span id="line-373"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SCSS"><span class="hs-identifier hs-var">LanguageKind_SCSS</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;scss&quot;</span></span><span>
+</span><span id="line-374"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SASS"><span class="hs-identifier hs-var">LanguageKind_SASS</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;sass&quot;</span></span><span>
+</span><span id="line-375"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Scala"><span class="hs-identifier hs-var">LanguageKind_Scala</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;scala&quot;</span></span><span>
+</span><span id="line-376"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ShaderLab"><span class="hs-identifier hs-var">LanguageKind_ShaderLab</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;shaderlab&quot;</span></span><span>
+</span><span id="line-377"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ShellScript"><span class="hs-identifier hs-var">LanguageKind_ShellScript</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;shellscript&quot;</span></span><span>
+</span><span id="line-378"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SQL"><span class="hs-identifier hs-var">LanguageKind_SQL</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;sql&quot;</span></span><span>
+</span><span id="line-379"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Swift"><span class="hs-identifier hs-var">LanguageKind_Swift</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;swift&quot;</span></span><span>
+</span><span id="line-380"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TypeScript"><span class="hs-identifier hs-var">LanguageKind_TypeScript</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;typescript&quot;</span></span><span>
+</span><span id="line-381"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TypeScriptReact"><span class="hs-identifier hs-var">LanguageKind_TypeScriptReact</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;typescriptreact&quot;</span></span><span>
+</span><span id="line-382"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TeX"><span class="hs-identifier hs-var">LanguageKind_TeX</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;tex&quot;</span></span><span>
+</span><span id="line-383"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_VisualBasic"><span class="hs-identifier hs-var">LanguageKind_VisualBasic</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;vb&quot;</span></span><span>
+</span><span id="line-384"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_XML"><span class="hs-identifier hs-var">LanguageKind_XML</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;xml&quot;</span></span><span>
+</span><span id="line-385"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_XSL"><span class="hs-identifier hs-var">LanguageKind_XSL</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;xsl&quot;</span></span><span>
+</span><span id="line-386"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_YAML"><span class="hs-identifier hs-var">LanguageKind_YAML</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;yaml&quot;</span></span><span>
+</span><span id="line-387"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Custom"><span class="hs-identifier hs-type">LanguageKind_Custom</span></a></span><span> </span><span id="local-6989586621682542790"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682542790"><span class="hs-identifier hs-var">arg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><a href="#local-6989586621682542790"><span class="hs-identifier hs-var">arg</span></a></span><span>
+</span><span id="line-388"></span><span>
+</span><span id="line-389"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#LspOpenEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.LspOpenEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind"><span class="hs-identifier hs-type">LanguageKind</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-390"></span><span>  </span><span id="local-6989586621682542911"><span class="annot"><span class="annottext">fromOpenEnumBaseType :: EnumBaseType LanguageKind -&gt; LanguageKind
+</span><a href="#local-6989586621682542911"><span class="hs-identifier hs-var hs-var hs-var">fromOpenEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;abap&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ABAP"><span class="hs-identifier hs-var">LanguageKind_ABAP</span></a></span><span>
+</span><span id="line-391"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;bat&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_WindowsBat"><span class="hs-identifier hs-var">LanguageKind_WindowsBat</span></a></span><span>
+</span><span id="line-392"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;bibtex&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_BibTeX"><span class="hs-identifier hs-var">LanguageKind_BibTeX</span></a></span><span>
+</span><span id="line-393"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;clojure&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Clojure"><span class="hs-identifier hs-var">LanguageKind_Clojure</span></a></span><span>
+</span><span id="line-394"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;coffeescript&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Coffeescript"><span class="hs-identifier hs-var">LanguageKind_Coffeescript</span></a></span><span>
+</span><span id="line-395"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;c&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_C"><span class="hs-identifier hs-var">LanguageKind_C</span></a></span><span>
+</span><span id="line-396"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;cpp&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CPP"><span class="hs-identifier hs-var">LanguageKind_CPP</span></a></span><span>
+</span><span id="line-397"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;csharp&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CSharp"><span class="hs-identifier hs-var">LanguageKind_CSharp</span></a></span><span>
+</span><span id="line-398"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;css&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_CSS"><span class="hs-identifier hs-var">LanguageKind_CSS</span></a></span><span>
+</span><span id="line-399"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;diff&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Diff"><span class="hs-identifier hs-var">LanguageKind_Diff</span></a></span><span>
+</span><span id="line-400"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;dart&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Dart"><span class="hs-identifier hs-var">LanguageKind_Dart</span></a></span><span>
+</span><span id="line-401"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;dockerfile&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Dockerfile"><span class="hs-identifier hs-var">LanguageKind_Dockerfile</span></a></span><span>
+</span><span id="line-402"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;elixir&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Elixir"><span class="hs-identifier hs-var">LanguageKind_Elixir</span></a></span><span>
+</span><span id="line-403"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;erlang&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Erlang"><span class="hs-identifier hs-var">LanguageKind_Erlang</span></a></span><span>
+</span><span id="line-404"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;fsharp&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_FSharp"><span class="hs-identifier hs-var">LanguageKind_FSharp</span></a></span><span>
+</span><span id="line-405"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;git-commit&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_GitCommit"><span class="hs-identifier hs-var">LanguageKind_GitCommit</span></a></span><span>
+</span><span id="line-406"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;rebase&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_GitRebase"><span class="hs-identifier hs-var">LanguageKind_GitRebase</span></a></span><span>
+</span><span id="line-407"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;go&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Go"><span class="hs-identifier hs-var">LanguageKind_Go</span></a></span><span>
+</span><span id="line-408"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;groovy&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Groovy"><span class="hs-identifier hs-var">LanguageKind_Groovy</span></a></span><span>
+</span><span id="line-409"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;handlebars&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Handlebars"><span class="hs-identifier hs-var">LanguageKind_Handlebars</span></a></span><span>
+</span><span id="line-410"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;haskell&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Haskell"><span class="hs-identifier hs-var">LanguageKind_Haskell</span></a></span><span>
+</span><span id="line-411"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;html&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_HTML"><span class="hs-identifier hs-var">LanguageKind_HTML</span></a></span><span>
+</span><span id="line-412"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;ini&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Ini"><span class="hs-identifier hs-var">LanguageKind_Ini</span></a></span><span>
+</span><span id="line-413"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;java&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Java"><span class="hs-identifier hs-var">LanguageKind_Java</span></a></span><span>
+</span><span id="line-414"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;javascript&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JavaScript"><span class="hs-identifier hs-var">LanguageKind_JavaScript</span></a></span><span>
+</span><span id="line-415"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;javascriptreact&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JavaScriptReact"><span class="hs-identifier hs-var">LanguageKind_JavaScriptReact</span></a></span><span>
+</span><span id="line-416"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;json&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_JSON"><span class="hs-identifier hs-var">LanguageKind_JSON</span></a></span><span>
+</span><span id="line-417"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;latex&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_LaTeX"><span class="hs-identifier hs-var">LanguageKind_LaTeX</span></a></span><span>
+</span><span id="line-418"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;less&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Less"><span class="hs-identifier hs-var">LanguageKind_Less</span></a></span><span>
+</span><span id="line-419"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;lua&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Lua"><span class="hs-identifier hs-var">LanguageKind_Lua</span></a></span><span>
+</span><span id="line-420"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;makefile&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Makefile"><span class="hs-identifier hs-var">LanguageKind_Makefile</span></a></span><span>
+</span><span id="line-421"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;markdown&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Markdown"><span class="hs-identifier hs-var">LanguageKind_Markdown</span></a></span><span>
+</span><span id="line-422"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;objective-c&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ObjectiveC"><span class="hs-identifier hs-var">LanguageKind_ObjectiveC</span></a></span><span>
+</span><span id="line-423"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;objective-cpp&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ObjectiveCPP"><span class="hs-identifier hs-var">LanguageKind_ObjectiveCPP</span></a></span><span>
+</span><span id="line-424"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;perl&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Perl"><span class="hs-identifier hs-var">LanguageKind_Perl</span></a></span><span>
+</span><span id="line-425"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;perl6&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Perl6"><span class="hs-identifier hs-var">LanguageKind_Perl6</span></a></span><span>
+</span><span id="line-426"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;php&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_PHP"><span class="hs-identifier hs-var">LanguageKind_PHP</span></a></span><span>
+</span><span id="line-427"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;powershell&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Powershell"><span class="hs-identifier hs-var">LanguageKind_Powershell</span></a></span><span>
+</span><span id="line-428"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;jade&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Pug"><span class="hs-identifier hs-var">LanguageKind_Pug</span></a></span><span>
+</span><span id="line-429"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;python&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Python"><span class="hs-identifier hs-var">LanguageKind_Python</span></a></span><span>
+</span><span id="line-430"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;r&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_R"><span class="hs-identifier hs-var">LanguageKind_R</span></a></span><span>
+</span><span id="line-431"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;razor&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Razor"><span class="hs-identifier hs-var">LanguageKind_Razor</span></a></span><span>
+</span><span id="line-432"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;ruby&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Ruby"><span class="hs-identifier hs-var">LanguageKind_Ruby</span></a></span><span>
+</span><span id="line-433"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;rust&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Rust"><span class="hs-identifier hs-var">LanguageKind_Rust</span></a></span><span>
+</span><span id="line-434"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;scss&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SCSS"><span class="hs-identifier hs-var">LanguageKind_SCSS</span></a></span><span>
+</span><span id="line-435"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;sass&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SASS"><span class="hs-identifier hs-var">LanguageKind_SASS</span></a></span><span>
+</span><span id="line-436"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;scala&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Scala"><span class="hs-identifier hs-var">LanguageKind_Scala</span></a></span><span>
+</span><span id="line-437"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;shaderlab&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ShaderLab"><span class="hs-identifier hs-var">LanguageKind_ShaderLab</span></a></span><span>
+</span><span id="line-438"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;shellscript&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_ShellScript"><span class="hs-identifier hs-var">LanguageKind_ShellScript</span></a></span><span>
+</span><span id="line-439"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;sql&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_SQL"><span class="hs-identifier hs-var">LanguageKind_SQL</span></a></span><span>
+</span><span id="line-440"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;swift&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Swift"><span class="hs-identifier hs-var">LanguageKind_Swift</span></a></span><span>
+</span><span id="line-441"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;typescript&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TypeScript"><span class="hs-identifier hs-var">LanguageKind_TypeScript</span></a></span><span>
+</span><span id="line-442"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;typescriptreact&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TypeScriptReact"><span class="hs-identifier hs-var">LanguageKind_TypeScriptReact</span></a></span><span>
+</span><span id="line-443"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;tex&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_TeX"><span class="hs-identifier hs-var">LanguageKind_TeX</span></a></span><span>
+</span><span id="line-444"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;vb&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_VisualBasic"><span class="hs-identifier hs-var">LanguageKind_VisualBasic</span></a></span><span>
+</span><span id="line-445"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;xml&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_XML"><span class="hs-identifier hs-var">LanguageKind_XML</span></a></span><span>
+</span><span id="line-446"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;xsl&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_XSL"><span class="hs-identifier hs-var">LanguageKind_XSL</span></a></span><span>
+</span><span id="line-447"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><span class="hs-string">&quot;yaml&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_YAML"><span class="hs-identifier hs-var">LanguageKind_YAML</span></a></span><span>
+</span><span id="line-448"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromOpenEnumBaseType"><span class="hs-identifier hs-var">fromOpenEnumBaseType</span></a></span><span> </span><span id="local-6989586621682542913"><span class="annot"><span class="annottext">EnumBaseType LanguageKind
+</span><a href="#local-6989586621682542913"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; LanguageKind
+</span><a href="Language.LSP.Protocol.Internal.Types.LanguageKind.html#LanguageKind_Custom"><span class="hs-identifier hs-var">LanguageKind_Custom</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType LanguageKind
+</span><a href="#local-6989586621682542913"><span class="hs-identifier hs-var">arg</span></a></span><span>
+</span><span id="line-449"></span><span>
+</span><span id="line-450"></span><span>
+</span><span id="line-451"></span></pre></body></html>

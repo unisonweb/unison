@@ -1,0 +1,347 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveTo.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.MoveTo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveTo.html#handleMoveTo"><span class="hs-identifier">handleMoveTo</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NE</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier">Cli</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html"><span class="hs-identifier">Unison.Cli.MonadUtils</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Branch</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Branch0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveBranch.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.MoveBranch</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveBranch.html#moveBranchFunc"><span class="hs-identifier">moveBranchFunc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveTerm.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.MoveTerm</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveTerm.html#moveTermSteps"><span class="hs-identifier">moveTermSteps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveType.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.MoveType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveType.html#moveTypeSteps"><span class="hs-identifier">moveTypeSteps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html"><span class="hs-identifier">Unison.Codebase.Editor.Output</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Output</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Path</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Path</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HashQualifiedPrime</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HQ'</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.NameSegment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NameSegment</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- | Move one or more items INTO a destination namespace.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- For example:</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--   `moveTo foo.bar baz` moves `foo.bar` to `baz.bar` (keeps the final segment)</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--   `moveTo foo bar baz dest` moves all three into `dest.foo`, `dest.bar`, `dest.baz`</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- If multiple sources have the same final segment, we move the non-conflicting items</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- and report the conflict to the user.</span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveTo.html#handleMoveTo"><span class="hs-identifier hs-type">handleMoveTo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Path'</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Path'</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span id="handleMoveTo"><span class="annot"><span class="annottext">handleMoveTo :: NonEmpty Path' -&gt; Path' -&gt; Text -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.MoveTo.html#handleMoveTo"><span class="hs-identifier hs-var hs-var">handleMoveTo</span></a></span></span><span> </span><span id="local-6989586621681605112"><span class="annot"><span class="annottext">NonEmpty Path'
+</span><a href="#local-6989586621681605112"><span class="hs-identifier hs-var">sources</span></a></span></span><span> </span><span id="local-6989586621681605113"><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605113"><span class="hs-identifier hs-var">dest'</span></a></span></span><span> </span><span id="local-6989586621681605114"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681605114"><span class="hs-identifier hs-var">description</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-comment">-- Group sources by their final segment to detect conflicts</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681605115"><span class="hs-identifier hs-type">sourcesWithSegments</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.Path'</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.Path'</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>      </span><span id="local-6989586621681605115"><span class="annot"><span class="annottext">sourcesWithSegments :: [(Path', Maybe (Path', NameSegment))]
+</span><a href="#local-6989586621681605115"><span class="hs-identifier hs-var hs-var hs-var">sourcesWithSegments</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605116"><span class="hs-identifier hs-var">src</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Path' -&gt; Maybe (Path', NameSegment)
+forall path. Pathy path =&gt; path -&gt; Maybe (Split path)
+</span><span class="hs-identifier hs-var">Path.split</span></span><span> </span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605116"><span class="hs-identifier hs-var">src</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681605116"><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605116"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">NonEmpty Path' -&gt; [Path']
+forall a. NonEmpty a -&gt; [a]
+</span><span class="hs-identifier hs-var">NE.toList</span></span><span> </span><span class="annot"><span class="annottext">NonEmpty Path'
+</span><a href="#local-6989586621681605112"><span class="hs-identifier hs-var">sources</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>      </span><span class="hs-comment">-- Partition into sources with valid splits and those without</span><span>
+</span><span id="line-33"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621681605120"><span class="annot"><span class="annottext">[Path']
+</span><a href="#local-6989586621681605120"><span class="hs-identifier hs-var hs-var">invalidSources</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605121"><span class="annot"><span class="annottext">[(Path', Path', NameSegment)]
+</span><a href="#local-6989586621681605121"><span class="hs-identifier hs-var hs-var">validSources</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Path', Maybe (Path', NameSegment))
+ -&gt; ([Path'], [(Path', Path', NameSegment)])
+ -&gt; ([Path'], [(Path', Path', NameSegment)]))
+-&gt; ([Path'], [(Path', Path', NameSegment)])
+-&gt; [(Path', Maybe (Path', NameSegment))]
+-&gt; ([Path'], [(Path', Path', NameSegment)])
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">(Path', Maybe (Path', NameSegment))
+-&gt; ([Path'], [(Path', Path', NameSegment)])
+-&gt; ([Path'], [(Path', Path', NameSegment)])
+forall {a} {b} {c}.
+(a, Maybe (b, c)) -&gt; ([a], [(a, b, c)]) -&gt; ([a], [(a, b, c)])
+</span><a href="#local-6989586621681605123"><span class="hs-identifier hs-var">partitionValid</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(Path', Maybe (Path', NameSegment))]
+</span><a href="#local-6989586621681605115"><span class="hs-identifier hs-var">sourcesWithSegments</span></a></span><span>
+</span><span id="line-34"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>          </span><span id="local-6989586621681605123"><span class="annot"><span class="annottext">partitionValid :: (a, Maybe (b, c)) -&gt; ([a], [(a, b, c)]) -&gt; ([a], [(a, b, c)])
+</span><a href="#local-6989586621681605123"><span class="hs-identifier hs-var hs-var">partitionValid</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681605124"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681605124"><span class="hs-identifier hs-var">src</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe (b, c)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681605125"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681605125"><span class="hs-identifier hs-var">invalid</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605126"><span class="annot"><span class="annottext">[(a, b, c)]
+</span><a href="#local-6989586621681605126"><span class="hs-identifier hs-var">valid</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681605124"><span class="hs-identifier hs-var">src</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681605125"><span class="hs-identifier hs-var">invalid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[(a, b, c)]
+</span><a href="#local-6989586621681605126"><span class="hs-identifier hs-var">valid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>          </span><span class="annot"><a href="#local-6989586621681605123"><span class="hs-identifier hs-var">partitionValid</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681605127"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681605127"><span class="hs-identifier hs-var">src</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681605128"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681605128"><span class="hs-identifier hs-var">parent</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605129"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621681605129"><span class="hs-identifier hs-var">seg</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681605130"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681605130"><span class="hs-identifier hs-var">invalid</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605131"><span class="annot"><span class="annottext">[(a, b, c)]
+</span><a href="#local-6989586621681605131"><span class="hs-identifier hs-var">valid</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681605130"><span class="hs-identifier hs-var">invalid</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681605127"><span class="hs-identifier hs-var">src</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621681605128"><span class="hs-identifier hs-var">parent</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621681605129"><span class="hs-identifier hs-var">seg</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(a, b, c) -&gt; [(a, b, c)] -&gt; [(a, b, c)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[(a, b, c)]
+</span><a href="#local-6989586621681605131"><span class="hs-identifier hs-var">valid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>      </span><span class="hs-comment">-- Group valid sources by their final segment</span><span>
+</span><span id="line-39"></span><span>      </span><span class="annot"><a href="#local-6989586621681605132"><span class="hs-identifier hs-type">byFinalSegment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.Path'</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Path'</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-40"></span><span>      </span><span id="local-6989586621681605132"><span class="annot"><span class="annottext">byFinalSegment :: Map NameSegment [(Path', Path')]
+</span><a href="#local-6989586621681605132"><span class="hs-identifier hs-var hs-var hs-var">byFinalSegment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="annottext">([(Path', Path')] -&gt; [(Path', Path')] -&gt; [(Path', Path')])
+-&gt; [(NameSegment, [(Path', Path')])]
+-&gt; Map NameSegment [(Path', Path')]
+forall k a. Ord k =&gt; (a -&gt; a -&gt; a) -&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromListWith</span></span><span>
+</span><span id="line-42"></span><span>          </span><span class="annot"><span class="annottext">[(Path', Path')] -&gt; [(Path', Path')] -&gt; [(Path', Path')]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">(++)</span></span><span>
+</span><span id="line-43"></span><span>          </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameSegment
+</span><a href="#local-6989586621681605134"><span class="hs-identifier hs-var">seg</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605135"><span class="hs-identifier hs-var">src</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605136"><span class="hs-identifier hs-var">parent</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681605135"><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605135"><span class="hs-identifier hs-var">src</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605136"><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605136"><span class="hs-identifier hs-var">parent</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605134"><span class="annot"><span class="annottext">NameSegment
+</span><a href="#local-6989586621681605134"><span class="hs-identifier hs-var">seg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Path', Path', NameSegment)]
+</span><a href="#local-6989586621681605121"><span class="hs-identifier hs-var">validSources</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-comment">-- Separate conflicting and non-conflicting sources</span><span>
+</span><span id="line-46"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621681605142"><span class="annot"><span class="annottext">Map NameSegment [(Path', Path')]
+</span><a href="#local-6989586621681605142"><span class="hs-identifier hs-var hs-var">conflicting</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605143"><span class="annot"><span class="annottext">Map NameSegment [(Path', Path')]
+</span><a href="#local-6989586621681605143"><span class="hs-identifier hs-var hs-var">nonConflicting</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([(Path', Path')] -&gt; Bool)
+-&gt; Map NameSegment [(Path', Path')]
+-&gt; (Map NameSegment [(Path', Path')],
+    Map NameSegment [(Path', Path')])
+forall a k. (a -&gt; Bool) -&gt; Map k a -&gt; (Map k a, Map k a)
+</span><span class="hs-identifier hs-var">Map.partition</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681605145"><span class="annot"><span class="annottext">[(Path', Path')]
+</span><a href="#local-6989586621681605145"><span class="hs-identifier hs-var">srcs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[(Path', Path')] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[(Path', Path')]
+</span><a href="#local-6989586621681605145"><span class="hs-identifier hs-var">srcs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map NameSegment [(Path', Path')]
+</span><a href="#local-6989586621681605132"><span class="hs-identifier hs-var">byFinalSegment</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-comment">-- Report invalid sources (paths that can't be split, like the root)</span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Cli () -&gt; Cli ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Path'] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Path']
+</span><a href="#local-6989586621681605120"><span class="hs-identifier hs-var">invalidSources</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Cli () -&gt; Cli ()) -&gt; Cli () -&gt; Cli ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+</span><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-var">Cli.respond</span></a></span><span> </span><span class="annot"><span class="annottext">(Output -&gt; Cli ()) -&gt; Output -&gt; Cli ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-51"></span><span>      </span><span class="annot"><span class="annottext">Path' -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#MoveNothingFound"><span class="hs-identifier hs-var">Output.MoveNothingFound</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Path'] -&gt; Path'
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">head</span></span><span> </span><span class="annot"><span class="annottext">[Path']
+</span><a href="#local-6989586621681605120"><span class="hs-identifier hs-var">invalidSources</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-comment">-- Process non-conflicting sources</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681605154"><span class="hs-identifier hs-type">nonConflictingSources</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.Path'</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>      </span><span id="local-6989586621681605154"><span class="annot"><span class="annottext">nonConflictingSources :: [(Path', NameSegment)]
+</span><a href="#local-6989586621681605154"><span class="hs-identifier hs-var hs-var hs-var">nonConflictingSources</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-56"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621681605155"><span class="annot"><a href="#local-6989586621681605155"><span class="hs-identifier hs-var">seg</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605156"><span class="annot"><a href="#local-6989586621681605156"><span class="hs-identifier hs-var">srcs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map NameSegment [(Path', Path')]
+-&gt; [(NameSegment, [(Path', Path')])]
+forall k a. Map k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">Map.toList</span></span><span> </span><span class="annot"><span class="annottext">Map NameSegment [(Path', Path')]
+</span><a href="#local-6989586621681605143"><span class="hs-identifier hs-var">nonConflicting</span></a></span><span>
+</span><span id="line-57"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621681605158"><span class="annot"><a href="#local-6989586621681605158"><span class="hs-identifier hs-var">src</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605159"><span class="annot"><a href="#local-6989586621681605159"><span class="hs-identifier hs-var">_parent</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621681605156"><span class="hs-identifier hs-type">srcs</span></a></span><span>
+</span><span id="line-58"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681605158"><span class="hs-identifier hs-type">src</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681605155"><span class="hs-identifier hs-type">seg</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621681605160"><span class="annot"><a href="#local-6989586621681605160"><span class="hs-identifier hs-var">results</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Path', NameSegment)]
+-&gt; ((Path', NameSegment)
+    -&gt; Cli
+         (Path', Path',
+          (Maybe (Absolute, Branch IO -&gt; Branch IO),
+           [(Absolute, Branch0 IO -&gt; Branch0 IO)])))
+-&gt; Cli
+     [(Path', Path',
+       (Maybe (Absolute, Branch IO -&gt; Branch IO),
+        [(Absolute, Branch0 IO -&gt; Branch0 IO)]))]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m (t b)
+</span><span class="hs-identifier hs-var">forM</span></span><span> </span><span class="annot"><span class="annottext">[(Path', NameSegment)]
+</span><a href="#local-6989586621681605154"><span class="hs-identifier hs-var">nonConflictingSources</span></a></span><span> </span><span class="annot"><span class="annottext">(((Path', NameSegment)
+  -&gt; Cli
+       (Path', Path',
+        (Maybe (Absolute, Branch IO -&gt; Branch IO),
+         [(Absolute, Branch0 IO -&gt; Branch0 IO)])))
+ -&gt; Cli
+      [(Path', Path',
+        (Maybe (Absolute, Branch IO -&gt; Branch IO),
+         [(Absolute, Branch0 IO -&gt; Branch0 IO)]))])
+-&gt; ((Path', NameSegment)
+    -&gt; Cli
+         (Path', Path',
+          (Maybe (Absolute, Branch IO -&gt; Branch IO),
+           [(Absolute, Branch0 IO -&gt; Branch0 IO)])))
+-&gt; Cli
+     [(Path', Path',
+       (Maybe (Absolute, Branch IO -&gt; Branch IO),
+        [(Absolute, Branch0 IO -&gt; Branch0 IO)]))]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681605162"><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605162"><span class="hs-identifier hs-var">src'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605163"><span class="annot"><span class="annottext">NameSegment
+</span><a href="#local-6989586621681605163"><span class="hs-identifier hs-var">seg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-comment">-- Destination is dest'.seg</span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681605164"><span class="annot"><span class="annottext">destPath :: Path'
+</span><a href="#local-6989586621681605164"><span class="hs-identifier hs-var hs-var hs-var">destPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Path' -&gt; NameSegment -&gt; Path'
+forall path. Pathy path =&gt; path -&gt; NameSegment -&gt; path
+</span><span class="hs-identifier hs-var">Path.descend</span></span><span> </span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605113"><span class="hs-identifier hs-var">dest'</span></a></span><span> </span><span class="annot"><span class="annottext">NameSegment
+</span><a href="#local-6989586621681605163"><span class="hs-identifier hs-var">seg</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621681605166"><span class="annot"><a href="#local-6989586621681605166"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Path'
+-&gt; Path'
+-&gt; Cli
+     (Maybe (Absolute, Branch IO -&gt; Branch IO),
+      [(Absolute, Branch0 IO -&gt; Branch0 IO)])
+forall (m :: * -&gt; *).
+Path'
+-&gt; Path'
+-&gt; Cli
+     (Maybe (Absolute, Branch IO -&gt; Branch IO),
+      [(Absolute, Branch0 m -&gt; Branch0 m)])
+</span><a href="Unison.Codebase.Editor.HandleInput.MoveTo.html#moveSingleItem"><span class="hs-identifier hs-var">moveSingleItem</span></a></span><span> </span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605162"><span class="hs-identifier hs-var">src'</span></a></span><span> </span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605164"><span class="hs-identifier hs-var">destPath</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681605162"><span class="hs-identifier hs-type">src'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681605164"><span class="hs-identifier hs-type">destPath</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681605166"><span class="hs-identifier hs-type">result</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-comment">-- Collect all the steps and updates, and track what was actually moved</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681605168"><span class="annot"><a href="#local-6989586621681605168"><span class="hs-identifier hs-var hs-var">allBranchUpdates</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Maybe (Absolute, Branch IO -&gt; Branch IO)]
+-&gt; [(Absolute, Branch IO -&gt; Branch IO)]
+forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe (Absolute, Branch IO -&gt; Branch IO)
+</span><a href="#local-6989586621681605170"><span class="hs-identifier hs-var">mupdate</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Path'
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Path'
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681605170"><span class="annot"><span class="annottext">Maybe (Absolute, Branch IO -&gt; Branch IO)
+</span><a href="#local-6989586621681605170"><span class="hs-identifier hs-var">mupdate</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[(Absolute, Branch0 IO -&gt; Branch0 IO)]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Path', Path',
+  (Maybe (Absolute, Branch IO -&gt; Branch IO),
+   [(Absolute, Branch0 IO -&gt; Branch0 IO)]))]
+</span><a href="#local-6989586621681605160"><span class="hs-identifier hs-var">results</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-68"></span><span>      </span><span id="local-6989586621681605171"><span class="annot"><a href="#local-6989586621681605171"><span class="hs-identifier hs-var hs-var">allSteps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[(Absolute, Branch0 IO -&gt; Branch0 IO)]]
+-&gt; [(Absolute, Branch0 IO -&gt; Branch0 IO)]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">[(Absolute, Branch0 IO -&gt; Branch0 IO)]
+</span><a href="#local-6989586621681605173"><span class="hs-identifier hs-var">steps</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Path'
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Path'
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe (Absolute, Branch IO -&gt; Branch IO)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605173"><span class="annot"><span class="annottext">[(Absolute, Branch0 IO -&gt; Branch0 IO)]
+</span><a href="#local-6989586621681605173"><span class="hs-identifier hs-var">steps</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Path', Path',
+  (Maybe (Absolute, Branch IO -&gt; Branch IO),
+   [(Absolute, Branch0 IO -&gt; Branch0 IO)]))]
+</span><a href="#local-6989586621681605160"><span class="hs-identifier hs-var">results</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-comment">-- Items that were actually moved (had branch updates or term/type steps)</span><span>
+</span><span id="line-70"></span><span>      </span><span id="local-6989586621681605174"><span class="annot"><a href="#local-6989586621681605174"><span class="hs-identifier hs-var hs-var">movedItems</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605175"><span class="hs-identifier hs-var">src</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605176"><span class="hs-identifier hs-var">dest</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681605175"><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605175"><span class="hs-identifier hs-var">src</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605176"><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605176"><span class="hs-identifier hs-var">dest</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681605177"><span class="annot"><span class="annottext">Maybe (Absolute, Branch IO -&gt; Branch IO)
+</span><a href="#local-6989586621681605177"><span class="hs-identifier hs-var">mupdate</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605178"><span class="annot"><span class="annottext">[(Absolute, Branch0 IO -&gt; Branch0 IO)]
+</span><a href="#local-6989586621681605178"><span class="hs-identifier hs-var">steps</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Path', Path',
+  (Maybe (Absolute, Branch IO -&gt; Branch IO),
+   [(Absolute, Branch0 IO -&gt; Branch0 IO)]))]
+</span><a href="#local-6989586621681605160"><span class="hs-identifier hs-var">results</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe (Absolute, Branch IO -&gt; Branch IO) -&gt; Bool
+forall a. Maybe a -&gt; Bool
+</span><span class="hs-identifier hs-var">isJust</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Absolute, Branch IO -&gt; Branch IO)
+</span><a href="#local-6989586621681605177"><span class="hs-identifier hs-var">mupdate</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(Absolute, Branch0 IO -&gt; Branch0 IO)] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[(Absolute, Branch0 IO -&gt; Branch0 IO)]
+</span><a href="#local-6989586621681605178"><span class="hs-identifier hs-var">steps</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-comment">-- Perform the moves</span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">null</span></span><span> </span><span class="annot"><a href="#local-6989586621681605168"><span class="hs-identifier hs-type">allBranchUpdates</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">||</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">null</span></span><span> </span><span class="annot"><a href="#local-6989586621681605171"><span class="hs-identifier hs-type">allSteps</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-74"></span><span>    </span><span id="local-6989586621681605181"><span class="annot"><a href="#local-6989586621681605181"><span class="hs-identifier hs-var">pp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html#getCurrentProjectPath"><span class="hs-identifier hs-type">Cli.getCurrentProjectPath</span></a></span><span>
+</span><span id="line-75"></span><span>    </span><span class="annot"><a href="Unison.Cli.MonadUtils.html#updateAndStepAt"><span class="hs-identifier hs-type">Cli.updateAndStepAt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681605114"><span class="hs-identifier hs-type">description</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681605181"><span class="hs-identifier hs-type">pp</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">^.</span></span><span> </span><span class="annot"><span class="">#branch</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621681605168"><span class="hs-identifier hs-type">allBranchUpdates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681605171"><span class="hs-identifier hs-type">allSteps</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-comment">-- Build conflict info: just the source paths grouped by segment</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681605185"><span class="hs-identifier hs-type">conflictInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NameSegment</span></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Path.Path'</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-79"></span><span>      </span><span id="local-6989586621681605185"><span class="annot"><a href="#local-6989586621681605185"><span class="hs-identifier hs-var hs-var">conflictInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameSegment
+</span><a href="#local-6989586621681605186"><span class="hs-identifier hs-var">seg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">((Path', Path') -&gt; Path') -&gt; [(Path', Path')] -&gt; [Path']
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(Path', Path') -&gt; Path'
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">[(Path', Path')]
+</span><a href="#local-6989586621681605188"><span class="hs-identifier hs-var">srcs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681605186"><span class="annot"><span class="annottext">NameSegment
+</span><a href="#local-6989586621681605186"><span class="hs-identifier hs-var">seg</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605188"><span class="annot"><span class="annottext">[(Path', Path')]
+</span><a href="#local-6989586621681605188"><span class="hs-identifier hs-var">srcs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map NameSegment [(Path', Path')]
+-&gt; [(NameSegment, [(Path', Path')])]
+forall k a. Map k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">Map.toList</span></span><span> </span><span class="annot"><span class="annottext">Map NameSegment [(Path', Path')]
+</span><a href="#local-6989586621681605142"><span class="hs-identifier hs-var">conflicting</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-comment">-- Report results</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="hs-identifier hs-type">null</span></span><span> </span><span class="annot"><a href="#local-6989586621681605142"><span class="hs-identifier hs-type">conflicting</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-keyword">then</span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="hs-identifier hs-type">null</span></span><span> </span><span class="annot"><a href="#local-6989586621681605174"><span class="hs-identifier hs-type">movedItems</span></a></span><span>
+</span><span id="line-85"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#MoveNothingFound"><span class="hs-identifier hs-type">Output.MoveNothingFound</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NE.head</span></span><span> </span><span class="annot"><a href="#local-6989586621681605112"><span class="hs-identifier hs-type">sources</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#MoveToResult"><span class="hs-identifier hs-type">Output.MoveToResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681605174"><span class="hs-identifier hs-type">movedItems</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-88"></span><span>      </span><span class="hs-comment">-- Report the conflicts (and any items that were moved)</span><span>
+</span><span id="line-89"></span><span>      </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#MoveToConflicts"><span class="hs-identifier hs-type">Output.MoveToConflicts</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681605174"><span class="hs-identifier hs-type">movedItems</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681605185"><span class="hs-identifier hs-type">conflictInfo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681605113"><span class="hs-identifier hs-type">dest'</span></a></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="annot"><span class="hs-comment">-- | Move a single item (term, type, and/or namespace) from src to dest</span></span><span>
+</span><span id="line-92"></span><span id="local-6989586621681605012"><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveTo.html#moveSingleItem"><span class="hs-identifier hs-type">moveSingleItem</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Path.Path'</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Path.Path'</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.Absolute</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Branch</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Branch</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.Absolute</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Branch0</span></span><span> </span><span class="annot"><a href="#local-6989586621681605012"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Branch0</span></span><span> </span><span class="annot"><a href="#local-6989586621681605012"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span></span><span>
+</span><span id="line-96"></span><span id="moveSingleItem"><span class="annot"><span class="annottext">moveSingleItem :: forall (m :: * -&gt; *).
+Path'
+-&gt; Path'
+-&gt; Cli
+     (Maybe (Absolute, Branch IO -&gt; Branch IO),
+      [(Absolute, Branch0 m -&gt; Branch0 m)])
+</span><a href="Unison.Codebase.Editor.HandleInput.MoveTo.html#moveSingleItem"><span class="hs-identifier hs-var hs-var">moveSingleItem</span></a></span></span><span> </span><span id="local-6989586621681605205"><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605205"><span class="hs-identifier hs-var">src'</span></a></span></span><span> </span><span id="local-6989586621681605206"><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605206"><span class="hs-identifier hs-var">dest'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-comment">-- Move namespace if exists</span><span>
+</span><span id="line-98"></span><span>  </span><span id="local-6989586621681605207"><span class="annot"><a href="#local-6989586621681605207"><span class="hs-identifier hs-var">moveBranchResult</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; Path' -&gt; Path' -&gt; Cli (Maybe (Absolute, Branch IO -&gt; Branch IO))
+</span><a href="Unison.Codebase.Editor.HandleInput.MoveBranch.html#moveBranchFunc"><span class="hs-identifier hs-var">moveBranchFunc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605205"><span class="hs-identifier hs-var">src'</span></a></span><span> </span><span class="annot"><span class="annottext">Path'
+</span><a href="#local-6989586621681605206"><span class="hs-identifier hs-var">dest'</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-comment">-- Move term and type if they exist</span><span>
+</span><span id="line-101"></span><span>  </span><span id="local-6989586621681605208"><span class="annot"><a href="#local-6989586621681605208"><span class="hs-identifier hs-var">moveTermTypeSteps</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.split</span></span><span> </span><span class="annot"><a href="#local-6989586621681605205"><span class="hs-identifier hs-type">src'</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.split</span></span><span> </span><span class="annot"><a href="#local-6989586621681605206"><span class="hs-identifier hs-type">dest'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><span class="annottext">Maybe ((Path', NameSegment), (Path', NameSegment))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[(Absolute, Branch0 m -&gt; Branch0 m)]
+-&gt; Cli [(Absolute, Branch0 m -&gt; Branch0 m)]
+forall a. a -&gt; Cli a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-103"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Path', NameSegment) -&gt; HashQualified (Path', NameSegment)
+forall n. n -&gt; HashQualified n
+</span><span class="hs-identifier hs-var">HQ'.NameOnly</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621681605211"><span class="annot"><span class="annottext">HashQualified (Path', NameSegment)
+</span><a href="#local-6989586621681605211"><span class="hs-identifier hs-var">src</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681605212"><span class="annot"><span class="annottext">(Path', NameSegment)
+</span><a href="#local-6989586621681605212"><span class="hs-identifier hs-var">dest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-104"></span><span>      </span><span id="local-6989586621681605213"><span class="annot"><a href="#local-6989586621681605213"><span class="hs-identifier hs-var">termSteps</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HashQualified (Path', NameSegment)
+-&gt; (Path', NameSegment) -&gt; Cli [(Absolute, Branch0 m -&gt; Branch0 m)]
+forall (m :: * -&gt; *).
+HashQualified (Path', NameSegment)
+-&gt; (Path', NameSegment) -&gt; Cli [(Absolute, Branch0 m -&gt; Branch0 m)]
+</span><a href="Unison.Codebase.Editor.HandleInput.MoveTerm.html#moveTermSteps"><span class="hs-identifier hs-var">moveTermSteps</span></a></span><span> </span><span class="annot"><span class="annottext">HashQualified (Path', NameSegment)
+</span><a href="#local-6989586621681605211"><span class="hs-identifier hs-var">src</span></a></span><span> </span><span class="annot"><span class="annottext">(Path', NameSegment)
+</span><a href="#local-6989586621681605212"><span class="hs-identifier hs-var">dest</span></a></span><span>
+</span><span id="line-105"></span><span>      </span><span id="local-6989586621681605214"><span class="annot"><a href="#local-6989586621681605214"><span class="hs-identifier hs-var">typeSteps</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.MoveType.html#moveTypeSteps"><span class="hs-identifier hs-type">moveTypeSteps</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681605211"><span class="hs-identifier hs-type">src</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681605212"><span class="hs-identifier hs-type">dest</span></a></span><span>
+</span><span id="line-106"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681605213"><span class="hs-identifier hs-type">termSteps</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="annot"><a href="#local-6989586621681605214"><span class="hs-identifier hs-type">typeSteps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681605207"><span class="hs-identifier hs-type">moveBranchResult</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681605208"><span class="hs-identifier hs-type">moveTermTypeSteps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span></pre></body></html>

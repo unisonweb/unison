@@ -1,0 +1,534 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.AliasType.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.AliasType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.AliasType.html#handleAliasType"><span class="hs-identifier">handleAliasType</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ask</span></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier">Cli</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html"><span class="hs-identifier">Unison.Cli.MonadUtils</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.BranchUtil</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BranchUtil</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html"><span class="hs-identifier">Unison.Codebase.Editor.Output</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Path</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Path'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Path</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Path</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.ProjectPath</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ProjectPathG</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ConstructorReference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">GConstructorReference</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ConstructorType</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ConstructorType</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.DataDeclaration.ConstructorId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ConstructorId</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.DataDeclaration.ConstructorId</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ConstructorId</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HashQualifiedPrime</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HQ'</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Name</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.NameSegment</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NameSegment</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PartialDeclNameLookup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PartialDeclNameLookup</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">TypeReference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Reference</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Referent</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.Backend</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Backend</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ShortHash</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SH</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Relation</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Relation</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.AliasType.html#handleAliasType"><span class="hs-identifier hs-type">handleAliasType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SH.ShortHash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HQ'.HashQualified</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.Split</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path'</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Split</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path'</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span id="handleAliasType"><span class="annot"><span class="annottext">handleAliasType :: Bool
+-&gt; Either ShortHash (HashQualified (Split Path'))
+-&gt; Split Path'
+-&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.AliasType.html#handleAliasType"><span class="hs-identifier hs-var hs-var">handleAliasType</span></a></span></span><span> </span><span id="local-6989586621681609738"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681609738"><span class="hs-identifier hs-var">force</span></a></span></span><span> </span><span id="local-6989586621681609739"><span class="annot"><span class="annottext">Either ShortHash (HashQualified (Split Path'))
+</span><a href="#local-6989586621681609739"><span class="hs-identifier hs-var">src'</span></a></span></span><span> </span><span id="local-6989586621681609740"><span class="annot"><span class="annottext">Split Path'
+</span><a href="#local-6989586621681609740"><span class="hs-identifier hs-var">dest'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621681609741"><span class="annot"><a href="#local-6989586621681609741"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cli Env
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621681609742"><span class="annot"><a href="#local-6989586621681609742"><span class="hs-identifier hs-var">pp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html#getCurrentProjectPath"><span class="hs-identifier hs-type">Cli.getCurrentProjectPath</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621681609744"><span class="annot"><a href="#local-6989586621681609744"><span class="hs-identifier hs-var">projectNamespace</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html#getCurrentProjectRoot"><span class="hs-identifier hs-type">Cli.getCurrentProjectRoot</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621681609746"><span class="annot"><a href="#local-6989586621681609746"><span class="hs-identifier hs-var">projectNamespace0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html#getCurrentProjectRoot0"><span class="hs-identifier hs-type">Cli.getCurrentProjectRoot0</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621681609748"><span class="annot"><a href="#local-6989586621681609748"><span class="hs-identifier hs-var">srcType</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681609749"><span class="annot"><a href="#local-6989586621681609749"><span class="hs-identifier hs-var">maybeSrcConstructors</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621681609739"><span class="hs-identifier hs-type">src'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621681609750"><span class="annot"><span class="annottext">HashQualified (Split Path')
+</span><a href="#local-6989586621681609750"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-47"></span><span>        </span><span class="hs-comment">-- Resolve the name relative to the project root</span><span>
+</span><span id="line-48"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681609751"><span class="hs-identifier hs-type">hqPathToType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HQ'.HashQualified</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.Split</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Path</span></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>            </span><span id="local-6989586621681609751"><span class="annot"><span class="annottext">hqPathToType :: HashQualified (Split Path)
+</span><a href="#local-6989586621681609751"><span class="hs-identifier hs-var hs-var hs-var">hqPathToType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-50"></span><span>              </span><span class="annot"><span class="annottext">ASetter
+  (HashQualified (Split Path'))
+  (HashQualified (Split Path))
+  Path'
+  Path
+-&gt; (Path' -&gt; Path)
+-&gt; HashQualified (Split Path')
+-&gt; HashQualified (Split Path)
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Split Path' -&gt; Identity (Split Path))
+-&gt; HashQualified (Split Path')
+-&gt; Identity (HashQualified (Split Path))
+Setter
+  (HashQualified (Split Path'))
+  (HashQualified (Split Path))
+  (Split Path')
+  (Split Path)
+forall (f :: * -&gt; *) a b. Functor f =&gt; Setter (f a) (f b) a b
+</span><span class="hs-identifier hs-var">mapped</span></span><span> </span><span class="annot"><span class="annottext">((Split Path' -&gt; Identity (Split Path))
+ -&gt; HashQualified (Split Path')
+ -&gt; Identity (HashQualified (Split Path)))
+-&gt; ((Path' -&gt; Identity Path)
+    -&gt; Split Path' -&gt; Identity (Split Path))
+-&gt; ASetter
+     (HashQualified (Split Path'))
+     (HashQualified (Split Path))
+     Path'
+     Path
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Path' -&gt; Identity Path) -&gt; Split Path' -&gt; Identity (Split Path)
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens (Split Path') (Split Path) Path' Path
+</span><span class="hs-identifier hs-var">_1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Absolute -&gt; Path
+</span><span class="hs-identifier hs-var">Path.unabsolute</span></span><span> </span><span class="annot"><span class="annottext">(Absolute -&gt; Path) -&gt; (Path' -&gt; Absolute) -&gt; Path' -&gt; Path
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Absolute -&gt; Path' -&gt; Absolute
+forall l r o. Resolve l r o =&gt; l -&gt; r -&gt; o
+</span><span class="hs-identifier hs-var">Path.resolve</span></span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681609742"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">absPath</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashQualified (Split Path')
+</span><a href="#local-6989586621681609750"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681609758"><span class="hs-identifier hs-type">pathToType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Split</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Path</span></span><span>
+</span><span id="line-53"></span><span>            </span><span id="local-6989586621681609758"><span class="annot"><span class="annottext">pathToType :: Split Path
+</span><a href="#local-6989586621681609758"><span class="hs-identifier hs-var hs-var hs-var">pathToType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-54"></span><span>              </span><span class="annot"><span class="annottext">HashQualified (Split Path) -&gt; Split Path
+forall n. HashQualified n -&gt; n
+</span><span class="hs-identifier hs-var">HQ'.toName</span></span><span> </span><span class="annot"><span class="annottext">HashQualified (Split Path)
+</span><a href="#local-6989586621681609751"><span class="hs-identifier hs-var">hqPathToType</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681609760"><span class="hs-identifier hs-type">actualTypeName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span>
+</span><span id="line-57"></span><span>            </span><span id="local-6989586621681609760"><span class="annot"><span class="annottext">actualTypeName :: Name
+</span><a href="#local-6989586621681609760"><span class="hs-identifier hs-var hs-var hs-var">actualTypeName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>              </span><span class="annot"><span class="annottext">Split Path -&gt; Name
+forall path. Namey path =&gt; Split path -&gt; Name
+</span><span class="hs-identifier hs-var">Path.nameFromSplit</span></span><span> </span><span class="annot"><span class="annottext">Split Path
+</span><a href="#local-6989586621681609758"><span class="hs-identifier hs-var">pathToType</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-comment">-- Look up all types at the path</span><span>
+</span><span id="line-61"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681609762"><span class="hs-identifier hs-type">types</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span>
+</span><span id="line-62"></span><span>            </span><span id="local-6989586621681609762"><span class="annot"><span class="annottext">types :: Set (Reference' Text Hash)
+</span><a href="#local-6989586621681609762"><span class="hs-identifier hs-var hs-var hs-var">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-63"></span><span>              </span><span class="annot"><span class="annottext">HashQualified (Split Path)
+-&gt; Branch0 IO -&gt; Set (Reference' Text Hash)
+forall (m :: * -&gt; *).
+HashQualified (Split Path)
+-&gt; Branch0 m -&gt; Set (Reference' Text Hash)
+</span><span class="hs-identifier hs-var">BranchUtil.getType</span></span><span> </span><span class="annot"><span class="annottext">HashQualified (Split Path)
+</span><a href="#local-6989586621681609751"><span class="hs-identifier hs-var">hqPathToType</span></a></span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621681609746"><span class="hs-identifier hs-var">projectNamespace0</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>        </span><span class="hs-comment">-- Fail if there are 0, or 2+</span><span>
+</span><span id="line-66"></span><span>        </span><span id="local-6989586621681609764"><span class="annot"><a href="#local-6989586621681609764"><span class="hs-identifier hs-var">typ</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-67"></span><span>          </span><span class="annot"><span class="annottext">Set (Reference' Text Hash) -&gt; Maybe (Reference' Text Hash)
+forall a. Set a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Set.asSingleton</span></span><span> </span><span class="annot"><span class="annottext">Set (Reference' Text Hash)
+</span><a href="#local-6989586621681609762"><span class="hs-identifier hs-var">types</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Reference' Text Hash)
+-&gt; (Maybe (Reference' Text Hash) -&gt; Cli (Reference' Text Hash))
+-&gt; Cli (Reference' Text Hash)
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Cli (Reference' Text Hash)
+-&gt; Maybe (Reference' Text Hash) -&gt; Cli (Reference' Text Hash)
+forall (m :: * -&gt; *) a. Applicative m =&gt; m a -&gt; Maybe a -&gt; m a
+</span><span class="hs-identifier hs-var">onNothing</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-68"></span><span>            </span><span class="annot"><span class="annottext">Output -&gt; Cli (Reference' Text Hash)
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span>
+</span><span id="line-69"></span><span>              </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Set (Reference' Text Hash) -&gt; Bool
+forall a. Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">Set.null</span></span><span> </span><span class="annot"><span class="annottext">Set (Reference' Text Hash)
+</span><a href="#local-6989586621681609762"><span class="hs-identifier hs-var">types</span></a></span><span>
+</span><span id="line-70"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">HashQualified (Split Path') -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#TypeNotFound"><span class="hs-identifier hs-var">TypeNotFound</span></a></span><span> </span><span class="annot"><span class="annottext">HashQualified (Split Path')
+</span><a href="#local-6989586621681609750"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-71"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; HashQualified (Split Path')
+-&gt; Set Referent
+-&gt; Set (Reference' Text Hash)
+-&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#DeleteNameAmbiguous"><span class="hs-identifier hs-var">DeleteNameAmbiguous</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">HashQualified (Split Path')
+</span><a href="#local-6989586621681609750"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Set Referent
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span> </span><span class="annot"><span class="annottext">Set (Reference' Text Hash)
+</span><a href="#local-6989586621681609762"><span class="hs-identifier hs-var">types</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span>        </span><span id="local-6989586621681609773"><span class="annot"><a href="#local-6989586621681609773"><span class="hs-identifier hs-var">constructorNames</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ConstructorType</span></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-74"></span><span>          </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference.toId</span></span><span> </span><span class="annot"><a href="#local-6989586621681609764"><span class="hs-identifier hs-type">typ</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-75"></span><span>            </span><span class="annot"><span class="annottext">Maybe Id
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (ConstructorType, [Maybe Name])
+-&gt; Cli (Maybe (ConstructorType, [Maybe Name]))
+forall a. a -&gt; Cli a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe (ConstructorType, [Maybe Name])
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-76"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681609775"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681609775"><span class="hs-identifier hs-var">typId</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-77"></span><span>              </span><span class="hs-comment">-- expectDeclNumConstructors :: TypeReferenceId -&gt; Sqlite.Transaction Int,</span><span>
+</span><span id="line-78"></span><span>              </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Name -&gt; NameSegment -&gt; Bool
+</span><span class="hs-identifier hs-var">Name.beginsWithSegment</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681609760"><span class="hs-identifier hs-var">actualTypeName</span></a></span><span> </span><span class="annot"><span class="annottext">NameSegment
+</span><span class="hs-identifier hs-var">NameSegment.libSegment</span></span><span>
+</span><span id="line-79"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-80"></span><span>                  </span><span class="hs-special">(</span><span id="local-6989586621681609778"><span class="annot"><a href="#local-6989586621681609778"><span class="hs-identifier hs-var">declType</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681609779"><span class="annot"><a href="#local-6989586621681609779"><span class="hs-identifier hs-var">numConstructors</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-81"></span><span>                    </span><span class="annot"><span class="annottext">Transaction (ConstructorType, Int) -&gt; Cli (ConstructorType, Int)
+forall a. Transaction a -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#runTransaction"><span class="hs-identifier hs-var">Cli.runTransaction</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-82"></span><span>                      </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>                        </span><span class="annot"><span class="annottext">(ConstructorType -&gt; Int -&gt; (ConstructorType, Int))
+-&gt; Transaction ConstructorType
+-&gt; Transaction (Int -&gt; (ConstructorType, Int))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+-&gt; Reference' Text Hash -&gt; Transaction ConstructorType
+forall (m :: * -&gt; *) v a.
+Codebase m v a
+-&gt; Reference' Text Hash -&gt; Transaction ConstructorType
+</span><span class="hs-identifier hs-var">Codebase.getDeclType</span></span><span> </span><span class="annot"><span class="annottext">Env
+</span><a href="#local-6989586621681609741"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">codebase</span><span> </span><span class="annot"><span class="annottext">Reference' Text Hash
+</span><a href="#local-6989586621681609764"><span class="hs-identifier hs-var">typ</span></a></span><span>
+</span><span id="line-84"></span><span>                        </span><span class="annot"><span class="annottext">Transaction (Int -&gt; (ConstructorType, Int))
+-&gt; Transaction Int -&gt; Transaction (ConstructorType, Int)
+forall a b. Transaction (a -&gt; b) -&gt; Transaction a -&gt; Transaction b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann -&gt; Id -&gt; Transaction Int
+forall (m :: * -&gt; *) v a. Codebase m v a -&gt; Id -&gt; Transaction Int
+</span><span class="hs-identifier hs-var">Codebase.expectDeclNumConstructors</span></span><span> </span><span class="annot"><span class="annottext">Env
+</span><a href="#local-6989586621681609741"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">codebase</span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621681609775"><span class="hs-identifier hs-var">typId</span></a></span><span>
+</span><span id="line-85"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681609784"><span class="hs-identifier hs-type">constructorReferents</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span class="hs-special">]</span><span>
+</span><span id="line-86"></span><span>                      </span><span id="local-6989586621681609784"><span class="annot"><a href="#local-6989586621681609784"><span class="hs-identifier hs-var hs-var">constructorReferents</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-87"></span><span>                        </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681609779"><span class="hs-identifier hs-var">numConstructors</span></a></span><span>
+</span><span id="line-88"></span><span>                          </span><span class="annot"><span class="annottext">Int -&gt; (Int -&gt; [ConstructorId]) -&gt; [ConstructorId]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [ConstructorId]
+</span><span class="hs-identifier hs-var">ConstructorId.fromNumConstructors</span></span><span>
+</span><span id="line-89"></span><span>                          </span><span class="annot"><span class="annottext">[ConstructorId] -&gt; ([ConstructorId] -&gt; [Referent]) -&gt; [Referent]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(ConstructorId -&gt; Referent) -&gt; [ConstructorId] -&gt; [Referent]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681609786"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621681609786"><span class="hs-identifier hs-var">cid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ConstructorReference -&gt; ConstructorType -&gt; Referent
+</span><span class="hs-identifier hs-var">Referent.Con</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reference' Text Hash -&gt; ConstructorId -&gt; ConstructorReference
+forall r. r -&gt; ConstructorId -&gt; GConstructorReference r
+</span><span class="hs-identifier hs-var">ConstructorReference</span></span><span> </span><span class="annot"><span class="annottext">Reference' Text Hash
+</span><a href="#local-6989586621681609764"><span class="hs-identifier hs-var">typ</span></a></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621681609786"><span class="hs-identifier hs-var">cid</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621681609778"><span class="hs-identifier hs-var">declType</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>                  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BranchUtil.getBranch</span></span><span> </span><span class="annot"><a href="#local-6989586621681609758"><span class="hs-identifier hs-type">pathToType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681609746"><span class="hs-identifier hs-type">projectNamespace0</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-91"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681609790"><span class="annot"><span class="annottext">Branch IO
+</span><a href="#local-6989586621681609790"><span class="hs-identifier hs-var">namespaceUnderneathType</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-92"></span><span>                      </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681609791"><span class="hs-identifier hs-type">bestNameForConstructorReferent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span>
+</span><span id="line-93"></span><span>                          </span><span id="local-6989586621681609791"><span class="annot"><span class="annottext">bestNameForConstructorReferent :: Referent -&gt; Maybe Name
+</span><a href="#local-6989586621681609791"><span class="hs-identifier hs-var hs-var">bestNameForConstructorReferent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-94"></span><span>                            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681609792"><span class="annot"><span class="annottext">terms :: Relation Referent Name
+</span><a href="#local-6989586621681609792"><span class="hs-identifier hs-var hs-var">terms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Branch0 IO -&gt; Relation Referent Name
+forall (m :: * -&gt; *). Branch0 m -&gt; Relation Referent Name
+</span><span class="hs-identifier hs-var">Branch.deepTerms</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch IO -&gt; Branch0 IO
+forall (m :: * -&gt; *). Branch m -&gt; Branch0 m
+</span><span class="hs-identifier hs-var">Branch.head</span></span><span> </span><span class="annot"><span class="annottext">Branch IO
+</span><a href="#local-6989586621681609790"><span class="hs-identifier hs-var">namespaceUnderneathType</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>                             </span><span class="hs-keyword">in</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681609795"><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681609795"><span class="hs-identifier hs-var">constructorReferent</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-96"></span><span>                                  </span><span class="annot"><span class="annottext">Relation Referent Name
+</span><a href="#local-6989586621681609792"><span class="hs-identifier hs-var">terms</span></a></span><span>
+</span><span id="line-97"></span><span>                                    </span><span class="annot"><span class="annottext">Relation Referent Name
+-&gt; (Relation Referent Name -&gt; Set Name) -&gt; Set Name
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Referent -&gt; Relation Referent Name -&gt; Set Name
+forall a b. Ord a =&gt; a -&gt; Relation a b -&gt; Set b
+</span><span class="hs-identifier hs-var">Relation.lookupDom</span></span><span> </span><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681609795"><span class="hs-identifier hs-var">constructorReferent</span></a></span><span>
+</span><span id="line-98"></span><span>                                    </span><span class="annot"><span class="annottext">Set Name -&gt; (Set Name -&gt; [Name]) -&gt; [Name]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; [Name]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span>
+</span><span id="line-99"></span><span>                                    </span><span class="annot"><span class="annottext">[Name] -&gt; ([Name] -&gt; [Name]) -&gt; [Name]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; Int) -&gt; [Name] -&gt; [Name]
+forall b a. Ord b =&gt; (a -&gt; b) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">List.sortOn</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Int
+</span><span class="hs-identifier hs-var">Name.countSegments</span></span><span>
+</span><span id="line-100"></span><span>                                    </span><span class="annot"><span class="annottext">[Name] -&gt; ([Name] -&gt; Maybe Name) -&gt; Maybe Name
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">[Name] -&gt; Maybe Name
+forall a. [a] -&gt; Maybe a
+</span><span class="hs-identifier hs-var">listToMaybe</span></span><span>
+</span><span id="line-101"></span><span>                       </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(ConstructorType, [Maybe Name])
+-&gt; Maybe (ConstructorType, [Maybe Name])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621681609778"><span class="hs-identifier hs-var">declType</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(Referent -&gt; Maybe Name) -&gt; [Referent] -&gt; [Maybe Name]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Referent -&gt; Maybe Name
+</span><a href="#local-6989586621681609791"><span class="hs-identifier hs-var">bestNameForConstructorReferent</span></a></span><span> </span><span class="annot"><span class="annottext">[Referent]
+</span><a href="#local-6989586621681609784"><span class="hs-identifier hs-var">constructorReferents</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>                    </span><span class="annot"><span class="annottext">Maybe (Branch IO)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (ConstructorType, [Maybe Name])
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-103"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+-&gt; Either
+     (Defn
+        (Conflicted Name Referent)
+        (Conflicted Name (Reference' Text Hash)))
+     UnconflictedLocalDefnsView
+forall (m :: * -&gt; *).
+Branch0 m
+-&gt; Either
+     (Defn
+        (Conflicted Name Referent)
+        (Conflicted Name (Reference' Text Hash)))
+     UnconflictedLocalDefnsView
+</span><span class="hs-identifier hs-var">Branch.asUnconflicted</span></span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621681609746"><span class="hs-identifier hs-var">projectNamespace0</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-104"></span><span>                  </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621681609802"><span class="annot"><span class="annottext">UnconflictedLocalDefnsView
+</span><a href="#local-6989586621681609802"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-105"></span><span>                    </span><span class="hs-special">(</span><span id="local-6989586621681609803"><span class="annot"><a href="#local-6989586621681609803"><span class="hs-identifier hs-var">declType</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681609804"><span class="annot"><a href="#local-6989586621681609804"><span class="hs-identifier hs-var">declNameLookup</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-106"></span><span>                      </span><span class="annot"><span class="annottext">Transaction (ConstructorType, PartialDeclNameLookup)
+-&gt; Cli (ConstructorType, PartialDeclNameLookup)
+forall a. Transaction a -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#runTransaction"><span class="hs-identifier hs-var">Cli.runTransaction</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-107"></span><span>                        </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>                          </span><span class="annot"><span class="annottext">(ConstructorType
+ -&gt; PartialDeclNameLookup
+ -&gt; (ConstructorType, PartialDeclNameLookup))
+-&gt; Transaction ConstructorType
+-&gt; Transaction
+     (PartialDeclNameLookup -&gt; (ConstructorType, PartialDeclNameLookup))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+-&gt; Reference' Text Hash -&gt; Transaction ConstructorType
+forall (m :: * -&gt; *) v a.
+Codebase m v a
+-&gt; Reference' Text Hash -&gt; Transaction ConstructorType
+</span><span class="hs-identifier hs-var">Codebase.getDeclType</span></span><span> </span><span class="annot"><span class="annottext">Env
+</span><a href="#local-6989586621681609741"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">codebase</span><span> </span><span class="annot"><span class="annottext">Reference' Text Hash
+</span><a href="#local-6989586621681609764"><span class="hs-identifier hs-var">typ</span></a></span><span>
+</span><span id="line-109"></span><span>                          </span><span class="annot"><span class="annottext">Transaction
+  (PartialDeclNameLookup -&gt; (ConstructorType, PartialDeclNameLookup))
+-&gt; Transaction PartialDeclNameLookup
+-&gt; Transaction (ConstructorType, PartialDeclNameLookup)
+forall a b. Transaction (a -&gt; b) -&gt; Transaction a -&gt; Transaction b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+-&gt; BranchHash
+-&gt; UnconflictedLocalDefnsView
+-&gt; Transaction PartialDeclNameLookup
+forall (m :: * -&gt; *) v a.
+Codebase m v a
+-&gt; BranchHash
+-&gt; UnconflictedLocalDefnsView
+-&gt; Transaction PartialDeclNameLookup
+</span><span class="hs-identifier hs-var">Codebase.getBranchPartialDeclNameLookup</span></span><span>
+</span><span id="line-110"></span><span>                            </span><span class="annot"><span class="annottext">Env
+</span><a href="#local-6989586621681609741"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">codebase</span><span>
+</span><span id="line-111"></span><span>                            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch IO -&gt; BranchHash
+forall (m :: * -&gt; *). Branch m -&gt; BranchHash
+</span><span class="hs-identifier hs-var">Branch.namespaceHash</span></span><span> </span><span class="annot"><span class="annottext">Branch IO
+</span><a href="#local-6989586621681609744"><span class="hs-identifier hs-var">projectNamespace</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>                            </span><span class="annot"><span class="annottext">UnconflictedLocalDefnsView
+</span><a href="#local-6989586621681609802"><span class="hs-identifier hs-var">defns</span></a></span><span>
+</span><span id="line-113"></span><span>                    </span><span class="annot"><span class="hs-identifier">declNameLookup</span></span><span class="hs-operator">.</span><span class="hs-identifier">declToConstructors</span><span>
+</span><span id="line-114"></span><span>                      </span><span class="annot"><span class="hs-operator hs-type">&amp;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map.lookup</span></span><span> </span><span class="annot"><a href="#local-6989586621681609760"><span class="hs-identifier hs-type">actualTypeName</span></a></span><span>
+</span><span id="line-115"></span><span>                      </span><span class="annot"><span class="hs-operator hs-type">&amp;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">maybe</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="hs-identifier">Name.stripNamePrefix</span></span><span> </span><span class="annot"><span class="hs-identifier">actualTypeName</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>                      </span><span class="annot"><span class="hs-operator hs-type">&amp;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681609803"><span class="hs-identifier hs-type">declType</span></a></span><span class="hs-special">,</span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>                      </span><span class="annot"><span class="hs-operator hs-type">&amp;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span>
+</span><span id="line-118"></span><span>                      </span><span class="annot"><span class="hs-operator hs-type">&amp;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span>
+</span><span id="line-119"></span><span>                  </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">Defn
+  (Conflicted Name Referent) (Conflicted Name (Reference' Text Hash))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (ConstructorType, [Maybe Name])
+-&gt; Cli (Maybe (ConstructorType, [Maybe Name]))
+forall a. a -&gt; Cli a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe (ConstructorType, [Maybe Name])
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681609764"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681609773"><span class="hs-identifier hs-type">constructorNames</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621681609810"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621681609810"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-123"></span><span>        </span><span id="local-6989586621681609811"><span class="annot"><a href="#local-6989586621681609811"><span class="hs-identifier hs-var">types</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Transaction (Set (Reference' Text Hash))
+-&gt; Cli (Set (Reference' Text Hash))
+forall a. Transaction a -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#runTransaction"><span class="hs-identifier hs-var">Cli.runTransaction</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortHash -&gt; Transaction (Set (Reference' Text Hash))
+</span><span class="hs-identifier hs-var">Backend.typeReferencesByShortHash</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621681609810"><span class="hs-identifier hs-var">hash</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>        </span><span id="local-6989586621681609813"><span class="annot"><a href="#local-6989586621681609813"><span class="hs-identifier hs-var">typ</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-125"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Set.asSingleton</span></span><span> </span><span class="annot"><a href="#local-6989586621681609811"><span class="hs-identifier hs-type">types</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&amp;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">onNothing</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-126"></span><span>            </span><span class="annot"><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-type">Cli.returnEarly</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-127"></span><span>              </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set.null</span></span><span> </span><span class="annot"><a href="#local-6989586621681609811"><span class="hs-identifier hs-type">types</span></a></span><span>
+</span><span id="line-128"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#TypeNotFound%27"><span class="hs-identifier hs-type">TypeNotFound'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681609810"><span class="hs-identifier hs-type">hash</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#HashAmbiguous"><span class="hs-identifier hs-type">HashAmbiguous</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681609810"><span class="hs-identifier hs-type">hash</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set.map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent.Ref</span></span><span> </span><span class="annot"><a href="#local-6989586621681609811"><span class="hs-identifier hs-type">types</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681609813"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681609818"><span class="hs-identifier hs-type">dest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Split</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Absolute</span></span><span>
+</span><span id="line-133"></span><span>      </span><span id="local-6989586621681609818"><span class="annot"><a href="#local-6989586621681609818"><span class="hs-identifier hs-var hs-var">dest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-134"></span><span>        </span><span class="annot"><span class="annottext">ASetter (Split Path') (Split Absolute) Path' Absolute
+-&gt; (Path' -&gt; Absolute) -&gt; Split Path' -&gt; Split Absolute
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="annot"><span class="annottext">ASetter (Split Path') (Split Absolute) Path' Absolute
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens (Split Path') (Split Absolute) Path' Absolute
+</span><span class="hs-identifier hs-var">_1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Absolute -&gt; Path' -&gt; Absolute
+forall l r o. Resolve l r o =&gt; l -&gt; r -&gt; o
+</span><span class="hs-identifier hs-var">Path.resolve</span></span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681609742"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">absPath</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Split Path'
+</span><a href="#local-6989586621681609740"><span class="hs-identifier hs-var">dest'</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681609819"><span class="hs-identifier hs-type">destConstructors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.Split</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.Absolute</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-137"></span><span>      </span><span id="local-6989586621681609819"><span class="annot"><a href="#local-6989586621681609819"><span class="hs-identifier hs-var hs-var">destConstructors</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-138"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe (ConstructorType, [Maybe Name])
+</span><a href="#local-6989586621681609749"><span class="hs-identifier hs-var">maybeSrcConstructors</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-139"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681609820"><span class="annot"><span class="annottext">ConstructorType
+</span><a href="#local-6989586621681609820"><span class="hs-identifier hs-var">declType</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681609821"><span class="annot"><span class="annottext">[Maybe Name]
+</span><a href="#local-6989586621681609821"><span class="hs-identifier hs-var">srcConstructors</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-140"></span><span>            </span><span class="annot"><span class="annottext">[Maybe Name]
+</span><a href="#local-6989586621681609821"><span class="hs-identifier hs-var">srcConstructors</span></a></span><span>
+</span><span id="line-141"></span><span>              </span><span class="annot"><span class="annottext">[Maybe Name]
+-&gt; ([Maybe Name] -&gt; [(ConstructorId, Maybe Name)])
+-&gt; [(ConstructorId, Maybe Name)]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">[ConstructorId] -&gt; [Maybe Name] -&gt; [(ConstructorId, Maybe Name)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ConstructorId</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span>
+</span><span id="line-142"></span><span>              </span><span class="annot"><span class="annottext">[(ConstructorId, Maybe Name)]
+-&gt; ([(ConstructorId, Maybe Name)] -&gt; [(Split Absolute, Referent)])
+-&gt; [(Split Absolute, Referent)]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">((ConstructorId, Maybe Name) -&gt; Maybe (Split Absolute, Referent))
+-&gt; [(ConstructorId, Maybe Name)] -&gt; [(Split Absolute, Referent)]
+forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b.
+Filterable f =&gt;
+(a -&gt; Maybe b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">mapMaybe</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681609823"><span class="annot"><span class="annottext">ConstructorId
+</span><a href="#local-6989586621681609823"><span class="hs-identifier hs-var">cid</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681609824"><span class="annot"><span class="annottext">Maybe Name
+</span><a href="#local-6989586621681609824"><span class="hs-identifier hs-var">maybeConstructorName</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-143"></span><span>                </span><span id="local-6989586621681609825"><span class="annot"><a href="#local-6989586621681609825"><span class="hs-identifier hs-var">constructorName</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Name
+</span><a href="#local-6989586621681609824"><span class="hs-identifier hs-var">maybeConstructorName</span></a></span><span>
+</span><span id="line-144"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span>
+</span><span id="line-145"></span><span>                  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.resolve</span></span><span>
+</span><span id="line-146"></span><span>                      </span><span class="annot"><a href="#local-6989586621681609818"><span class="hs-identifier hs-type">dest</span></a></span><span>
+</span><span id="line-147"></span><span>                      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.splitFromName</span></span><span> </span><span class="annot"><a href="#local-6989586621681609825"><span class="hs-identifier hs-type">constructorName</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-148"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Referent.Con</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConstructorReference</span></span><span> </span><span class="annot"><a href="#local-6989586621681609748"><span class="hs-identifier hs-type">srcType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681609823"><span class="hs-identifier hs-type">cid</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621681609820"><span class="hs-identifier hs-type">declType</span></a></span><span>
+</span><span id="line-149"></span><span>                  </span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>          </span><span class="annot"><span class="annottext">Maybe (ConstructorType, [Maybe Name])
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">not</span></span><span> </span><span class="annot"><a href="#local-6989586621681609738"><span class="hs-identifier hs-type">force</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681609829"><span class="hs-identifier hs-type">destTypes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span>
+</span><span id="line-154"></span><span>        </span><span id="local-6989586621681609829"><span class="annot"><a href="#local-6989586621681609829"><span class="hs-identifier hs-var hs-var">destTypes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-155"></span><span>          </span><span class="annot"><span class="annottext">HashQualified (Split Path)
+-&gt; Branch0 IO -&gt; Set (Reference' Text Hash)
+forall (m :: * -&gt; *).
+HashQualified (Split Path)
+-&gt; Branch0 m -&gt; Set (Reference' Text Hash)
+</span><span class="hs-identifier hs-var">BranchUtil.getType</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Split Path -&gt; HashQualified (Split Path)
+forall n. n -&gt; HashQualified n
+</span><span class="hs-identifier hs-var">HQ'.NameOnly</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASetter (Split Absolute) (Split Path) Absolute Path
+-&gt; (Absolute -&gt; Path) -&gt; Split Absolute -&gt; Split Path
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="annot"><span class="annottext">ASetter (Split Absolute) (Split Path) Absolute Path
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens (Split Absolute) (Split Path) Absolute Path
+</span><span class="hs-identifier hs-var">_1</span></span><span> </span><span class="annot"><span class="annottext">Absolute -&gt; Path
+</span><span class="hs-identifier hs-var">Path.unabsolute</span></span><span> </span><span class="annot"><span class="annottext">Split Absolute
+</span><a href="#local-6989586621681609818"><span class="hs-identifier hs-var">dest</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621681609746"><span class="hs-identifier hs-var">projectNamespace0</span></a></span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set.null</span></span><span> </span><span class="annot"><a href="#local-6989586621681609829"><span class="hs-identifier hs-type">destTypes</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-158"></span><span>      </span><span class="annot"><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-type">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#TypeAlreadyExists"><span class="hs-identifier hs-type">TypeAlreadyExists</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681609740"><span class="hs-identifier hs-type">dest'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681609829"><span class="hs-identifier hs-type">destTypes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">for_</span></span><span> </span><span class="annot"><a href="#local-6989586621681609819"><span class="hs-identifier hs-type">destConstructors</span></a></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681609833"><span class="annot"><span class="annottext">Split Absolute
+</span><a href="#local-6989586621681609833"><span class="hs-identifier hs-var">constructorPath</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681609834"><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681609834"><span class="hs-identifier hs-var">constructorReferent</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-161"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681609835"><span class="annot"><span class="annottext">existingTerms :: Set Referent
+</span><a href="#local-6989586621681609835"><span class="hs-identifier hs-var hs-var">existingTerms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashQualified (Split Path) -&gt; Branch0 IO -&gt; Set Referent
+forall (m :: * -&gt; *).
+HashQualified (Split Path) -&gt; Branch0 m -&gt; Set Referent
+</span><span class="hs-identifier hs-var">BranchUtil.getTerm</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Split Path -&gt; HashQualified (Split Path)
+forall n. n -&gt; HashQualified n
+</span><span class="hs-identifier hs-var">HQ'.fromName</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASetter (Split Absolute) (Split Path) Absolute Path
+-&gt; (Absolute -&gt; Path) -&gt; Split Absolute -&gt; Split Path
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="annot"><span class="annottext">ASetter (Split Absolute) (Split Path) Absolute Path
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens (Split Absolute) (Split Path) Absolute Path
+</span><span class="hs-identifier hs-var">_1</span></span><span> </span><span class="annot"><span class="annottext">Absolute -&gt; Path
+</span><span class="hs-identifier hs-var">Path.unabsolute</span></span><span> </span><span class="annot"><span class="annottext">Split Absolute
+</span><a href="#local-6989586621681609833"><span class="hs-identifier hs-var">constructorPath</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621681609746"><span class="hs-identifier hs-var">projectNamespace0</span></a></span><span>
+</span><span id="line-162"></span><span>          </span><span id="local-6989586621681609838"><span class="annot"><span class="annottext">numExistingTerms :: Int
+</span><a href="#local-6989586621681609838"><span class="hs-identifier hs-var hs-var">numExistingTerms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set Referent -&gt; Int
+forall a. Set a -&gt; Int
+</span><span class="hs-identifier hs-var">Set.size</span></span><span> </span><span class="annot"><span class="annottext">Set Referent
+</span><a href="#local-6989586621681609835"><span class="hs-identifier hs-var">existingTerms</span></a></span><span>
+</span><span id="line-163"></span><span>      </span><span class="annot"><span class="annottext">Bool -&gt; Cli () -&gt; Cli ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681609838"><span class="hs-identifier hs-var">numExistingTerms</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681609838"><span class="hs-identifier hs-var">numExistingTerms</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Set Referent -&gt; Referent
+forall a. Set a -&gt; a
+</span><span class="hs-identifier hs-var">Set.findMin</span></span><span> </span><span class="annot"><span class="annottext">Set Referent
+</span><a href="#local-6989586621681609835"><span class="hs-identifier hs-var">existingTerms</span></a></span><span> </span><span class="annot"><span class="annottext">Referent -&gt; Referent -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681609834"><span class="hs-identifier hs-var">constructorReferent</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-164"></span><span>        </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Split Path' -&gt; Set Referent -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#TermAlreadyExists"><span class="hs-identifier hs-var">TermAlreadyExists</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASetter (Split Absolute) (Split Path') Absolute Path'
+-&gt; (Absolute -&gt; Path') -&gt; Split Absolute -&gt; Split Path'
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="annot"><span class="annottext">ASetter (Split Absolute) (Split Path') Absolute Path'
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens (Split Absolute) (Split Path') Absolute Path'
+</span><span class="hs-identifier hs-var">_1</span></span><span> </span><span class="annot"><span class="annottext">Absolute -&gt; Path'
+</span><span class="hs-identifier hs-var">Path.absoluteToPath'</span></span><span> </span><span class="annot"><span class="annottext">Split Absolute
+</span><a href="#local-6989586621681609833"><span class="hs-identifier hs-var">constructorPath</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Set Referent
+</span><a href="#local-6989586621681609835"><span class="hs-identifier hs-var">existingTerms</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><a href="Unison.Cli.MonadUtils.html#stepManyAt"><span class="hs-identifier hs-type">Cli.stepManyAt</span></a></span><span>
+</span><span id="line-167"></span><span>    </span><span class="annot"><span class="hs-identifier">pp</span></span><span class="hs-operator">.</span><span class="hs-identifier">branch</span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621681609738"><span class="hs-identifier hs-type">force</span></a></span><span>
+</span><span id="line-169"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-string">&quot;debug.alias.type.force &quot;</span></span><span>
+</span><span id="line-170"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-string">&quot;alias.type &quot;</span></span><span>
+</span><span id="line-171"></span><span>      </span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>        </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SH.toText</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HQ'.toTextWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.toText</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Path.unsplit</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621681609739"><span class="hs-identifier hs-type">src'</span></a></span><span>
+</span><span id="line-173"></span><span>        </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><span class="hs-string">&quot; &quot;</span></span><span>
+</span><span id="line-174"></span><span>        </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">into</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.unsplit</span></span><span> </span><span class="annot"><a href="#local-6989586621681609818"><span class="hs-identifier hs-type">dest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BranchUtil.makeAddTypeName</span></span><span> </span><span class="annot"><a href="#local-6989586621681609818"><span class="hs-identifier hs-type">dest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681609748"><span class="hs-identifier hs-type">srcType</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681609855"><span class="annot"><span class="annottext">Split Absolute
+</span><a href="#local-6989586621681609855"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681609856"><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681609856"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Split Absolute -&gt; Referent -&gt; (Absolute, Branch0 IO -&gt; Branch0 IO)
+forall p (m :: * -&gt; *).
+Split p -&gt; Referent -&gt; (p, Branch0 m -&gt; Branch0 m)
+</span><span class="hs-identifier hs-var">BranchUtil.makeAddTermName</span></span><span> </span><span class="annot"><span class="annottext">Split Absolute
+</span><a href="#local-6989586621681609855"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681609856"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621681609819"><span class="hs-identifier hs-type">destConstructors</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span>  </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span>
+</span><span id="line-179"></span></pre></body></html>

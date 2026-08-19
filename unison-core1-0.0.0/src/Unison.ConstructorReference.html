@@ -1,0 +1,265 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | The constructor reference type.</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.ConstructorReference.html"><span class="hs-identifier">Unison.ConstructorReference</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.ConstructorReference.html#GConstructorReference"><span class="hs-identifier">GConstructorReference</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier">ConstructorReference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReferenceId"><span class="hs-identifier">ConstructorReferenceId</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.ConstructorReference.html#reference_"><span class="hs-identifier">reference_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.ConstructorReference.html#toId"><span class="hs-identifier">toId</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.ConstructorReference.html#toShortHash"><span class="hs-identifier">toShortHash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.ConstructorReference.html#toText"><span class="hs-identifier">toText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.DataDeclaration.ConstructorId.html"><span class="hs-identifier">Unison.DataDeclaration.ConstructorId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.DataDeclaration.ConstructorId.html#ConstructorId"><span class="hs-identifier">ConstructorId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.OrBuiltin</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">OrBuiltin</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Reference.html"><span class="hs-identifier">Unison.Reference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">TypeReference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TypeReferenceId</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Reference.html"><span class="hs-identifier">Unison.Reference</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Reference</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ShortHash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ShortHash</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><span class="hs-comment">-- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">data</span><span> </span><span id="GConstructorReference"><span class="annot"><a href="Unison.ConstructorReference.html#GConstructorReference"><span class="hs-identifier hs-var">GConstructorReference</span></a></span></span><span> </span><span id="local-6989586621679324157"><span class="annot"><a href="#local-6989586621679324157"><span class="hs-identifier hs-type">r</span></a></span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ConstructorReference"><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-var">ConstructorReference</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679324157"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.DataDeclaration.ConstructorId.html#ConstructorId"><span class="hs-identifier hs-type">ConstructorId</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679324252"><span id="local-6989586621679324257"><span class="annot"><span class="annottext">GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+(GConstructorReference r -&gt; GConstructorReference r -&gt; Bool)
+-&gt; (GConstructorReference r -&gt; GConstructorReference r -&gt; Bool)
+-&gt; Eq (GConstructorReference r)
+forall r.
+Eq r =&gt;
+GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall r.
+Eq r =&gt;
+GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+== :: GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+$c/= :: forall r.
+Eq r =&gt;
+GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+/= :: GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679324262"><span id="local-6989586621679324264"><span class="annot"><span class="annottext">(forall a b.
+ (a -&gt; b) -&gt; GConstructorReference a -&gt; GConstructorReference b)
+-&gt; (forall a b.
+    a -&gt; GConstructorReference b -&gt; GConstructorReference a)
+-&gt; Functor GConstructorReference
+forall a b. a -&gt; GConstructorReference b -&gt; GConstructorReference a
+forall a b.
+(a -&gt; b) -&gt; GConstructorReference a -&gt; GConstructorReference b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b.
+(a -&gt; b) -&gt; GConstructorReference a -&gt; GConstructorReference b
+fmap :: forall a b.
+(a -&gt; b) -&gt; GConstructorReference a -&gt; GConstructorReference b
+$c&lt;$ :: forall a b. a -&gt; GConstructorReference b -&gt; GConstructorReference a
+&lt;$ :: forall a b. a -&gt; GConstructorReference b -&gt; GConstructorReference a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679324269"><span id="local-6989586621679324271"><span class="annot"><span class="annottext">(forall x.
+ GConstructorReference r -&gt; Rep (GConstructorReference r) x)
+-&gt; (forall x.
+    Rep (GConstructorReference r) x -&gt; GConstructorReference r)
+-&gt; Generic (GConstructorReference r)
+forall x.
+Rep (GConstructorReference r) x -&gt; GConstructorReference r
+forall x.
+GConstructorReference r -&gt; Rep (GConstructorReference r) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall r x.
+Rep (GConstructorReference r) x -&gt; GConstructorReference r
+forall r x.
+GConstructorReference r -&gt; Rep (GConstructorReference r) x
+$cfrom :: forall r x.
+GConstructorReference r -&gt; Rep (GConstructorReference r) x
+from :: forall x.
+GConstructorReference r -&gt; Rep (GConstructorReference r) x
+$cto :: forall r x.
+Rep (GConstructorReference r) x -&gt; GConstructorReference r
+to :: forall x.
+Rep (GConstructorReference r) x -&gt; GConstructorReference r
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679324281"><span id="local-6989586621679324286"><span id="local-6989586621679324290"><span id="local-6989586621679324294"><span id="local-6989586621679324297"><span id="local-6989586621679324300"><span id="local-6989586621679324303"><span class="annot"><span class="annottext">Eq (GConstructorReference r)
+Eq (GConstructorReference r) =&gt;
+(GConstructorReference r -&gt; GConstructorReference r -&gt; Ordering)
+-&gt; (GConstructorReference r -&gt; GConstructorReference r -&gt; Bool)
+-&gt; (GConstructorReference r -&gt; GConstructorReference r -&gt; Bool)
+-&gt; (GConstructorReference r -&gt; GConstructorReference r -&gt; Bool)
+-&gt; (GConstructorReference r -&gt; GConstructorReference r -&gt; Bool)
+-&gt; (GConstructorReference r
+    -&gt; GConstructorReference r -&gt; GConstructorReference r)
+-&gt; (GConstructorReference r
+    -&gt; GConstructorReference r -&gt; GConstructorReference r)
+-&gt; Ord (GConstructorReference r)
+GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+GConstructorReference r -&gt; GConstructorReference r -&gt; Ordering
+GConstructorReference r
+-&gt; GConstructorReference r -&gt; GConstructorReference r
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall r. Ord r =&gt; Eq (GConstructorReference r)
+forall r.
+Ord r =&gt;
+GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+forall r.
+Ord r =&gt;
+GConstructorReference r -&gt; GConstructorReference r -&gt; Ordering
+forall r.
+Ord r =&gt;
+GConstructorReference r
+-&gt; GConstructorReference r -&gt; GConstructorReference r
+$ccompare :: forall r.
+Ord r =&gt;
+GConstructorReference r -&gt; GConstructorReference r -&gt; Ordering
+compare :: GConstructorReference r -&gt; GConstructorReference r -&gt; Ordering
+$c&lt; :: forall r.
+Ord r =&gt;
+GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+&lt; :: GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+$c&lt;= :: forall r.
+Ord r =&gt;
+GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+&lt;= :: GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+$c&gt; :: forall r.
+Ord r =&gt;
+GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+&gt; :: GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+$c&gt;= :: forall r.
+Ord r =&gt;
+GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+&gt;= :: GConstructorReference r -&gt; GConstructorReference r -&gt; Bool
+$cmax :: forall r.
+Ord r =&gt;
+GConstructorReference r
+-&gt; GConstructorReference r -&gt; GConstructorReference r
+max :: GConstructorReference r
+-&gt; GConstructorReference r -&gt; GConstructorReference r
+$cmin :: forall r.
+Ord r =&gt;
+GConstructorReference r
+-&gt; GConstructorReference r -&gt; GConstructorReference r
+min :: GConstructorReference r
+-&gt; GConstructorReference r -&gt; GConstructorReference r
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679324313"><span id="local-6989586621679324320"><span id="local-6989586621679324324"><span class="annot"><span class="annottext">Int -&gt; GConstructorReference r -&gt; ShowS
+[GConstructorReference r] -&gt; ShowS
+GConstructorReference r -&gt; String
+(Int -&gt; GConstructorReference r -&gt; ShowS)
+-&gt; (GConstructorReference r -&gt; String)
+-&gt; ([GConstructorReference r] -&gt; ShowS)
+-&gt; Show (GConstructorReference r)
+forall r. Show r =&gt; Int -&gt; GConstructorReference r -&gt; ShowS
+forall r. Show r =&gt; [GConstructorReference r] -&gt; ShowS
+forall r. Show r =&gt; GConstructorReference r -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall r. Show r =&gt; Int -&gt; GConstructorReference r -&gt; ShowS
+showsPrec :: Int -&gt; GConstructorReference r -&gt; ShowS
+$cshow :: forall r. Show r =&gt; GConstructorReference r -&gt; String
+show :: GConstructorReference r -&gt; String
+$cshowList :: forall r. Show r =&gt; [GConstructorReference r] -&gt; ShowS
+showList :: [GConstructorReference r] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679324330"><span class="annot"><span class="annottext">GConstructorReference r -&gt; ()
+(GConstructorReference r -&gt; ()) -&gt; NFData (GConstructorReference r)
+forall r. NFData r =&gt; GConstructorReference r -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: forall r. NFData r =&gt; GConstructorReference r -&gt; ()
+rnf :: GConstructorReference r -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">type</span><span> </span><span id="ConstructorReference"><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-var">ConstructorReference</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Unison.ConstructorReference.html#GConstructorReference"><span class="hs-identifier hs-type">GConstructorReference</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">type</span><span> </span><span id="ConstructorReferenceId"><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReferenceId"><span class="hs-identifier hs-var">ConstructorReferenceId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Unison.ConstructorReference.html#GConstructorReference"><span class="hs-identifier hs-type">GConstructorReference</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><span class="hs-comment">-- | A lens onto the reference part of a constructor reference.</span></span><span>
+</span><span id="line-33"></span><span id="local-6989586621679324147"><span id="local-6989586621679324148"><span class="annot"><a href="Unison.ConstructorReference.html#reference_"><span class="hs-identifier hs-type">reference_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#GConstructorReference"><span class="hs-identifier hs-type">GConstructorReference</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679324147"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#GConstructorReference"><span class="hs-identifier hs-type">GConstructorReference</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679324148"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679324147"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679324148"><span class="hs-identifier hs-type">s</span></a></span></span></span><span>
+</span><span id="line-34"></span><span id="reference_"><span class="annot"><span class="annottext">reference_ :: forall r s (f :: * -&gt; *).
+Functor f =&gt;
+(r -&gt; f s)
+-&gt; GConstructorReference r -&gt; f (GConstructorReference s)
+</span><a href="Unison.ConstructorReference.html#reference_"><span class="hs-identifier hs-var hs-var">reference_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="annottext">(GConstructorReference r -&gt; r)
+-&gt; (GConstructorReference r -&gt; s -&gt; GConstructorReference s)
+-&gt; Lens (GConstructorReference r) (GConstructorReference s) r s
+forall s a b t. (s -&gt; a) -&gt; (s -&gt; b -&gt; t) -&gt; Lens s t a b
+</span><span class="hs-identifier hs-var">lens</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span id="local-6989586621679324351"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679324351"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679324351"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679324352"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679324352"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679324353"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679324353"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">s -&gt; Word64 -&gt; GConstructorReference s
+forall r. r -&gt; Word64 -&gt; GConstructorReference r
+</span><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-var">ConstructorReference</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679324353"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679324352"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Unison.ConstructorReference.html#toId"><span class="hs-identifier hs-type">toId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReferenceId"><span class="hs-identifier hs-type">ConstructorReferenceId</span></a></span><span>
+</span><span id="line-38"></span><span id="toId"><span class="annot"><span class="annottext">toId :: ConstructorReference -&gt; Maybe ConstructorReferenceId
+</span><a href="Unison.ConstructorReference.html#toId"><span class="hs-identifier hs-var hs-var">toId</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span id="local-6989586621679324354"><span class="annot"><span class="annottext">TypeReference
+</span><a href="#local-6989586621679324354"><span class="hs-identifier hs-var">typeRef</span></a></span></span><span> </span><span id="local-6989586621679324355"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679324355"><span class="hs-identifier hs-var">conId</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="annottext">TypeReferenceId -&gt; Word64 -&gt; ConstructorReferenceId
+forall r. r -&gt; Word64 -&gt; GConstructorReference r
+</span><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-var">ConstructorReference</span></a></span><span> </span><span class="annot"><span class="annottext">(TypeReferenceId -&gt; Word64 -&gt; ConstructorReferenceId)
+-&gt; Maybe TypeReferenceId
+-&gt; Maybe (Word64 -&gt; ConstructorReferenceId)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">TypeReference -&gt; Maybe TypeReferenceId
+</span><span class="hs-identifier hs-var">Reference.toId</span></span><span> </span><span class="annot"><span class="annottext">TypeReference
+</span><a href="#local-6989586621679324354"><span class="hs-identifier hs-var">typeRef</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Word64 -&gt; ConstructorReferenceId)
+-&gt; Maybe Word64 -&gt; Maybe ConstructorReferenceId
+forall a b. Maybe (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Maybe Word64
+forall a. a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679324355"><span class="hs-identifier hs-var">conId</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="annot"><a href="Unison.ConstructorReference.html#toShortHash"><span class="hs-identifier hs-type">toShortHash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortHash</span></span><span>
+</span><span id="line-42"></span><span id="toShortHash"><span class="annot"><span class="annottext">toShortHash :: ConstructorReference -&gt; ShortHash
+</span><a href="Unison.ConstructorReference.html#toShortHash"><span class="hs-identifier hs-var hs-var">toShortHash</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span id="local-6989586621679324358"><span class="annot"><span class="annottext">TypeReference
+</span><a href="#local-6989586621679324358"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679324359"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679324359"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><span class="annottext">TypeReference -&gt; ShortHash
+</span><span class="hs-identifier hs-var">Reference.toShortHash</span></span><span> </span><span class="annot"><span class="annottext">TypeReference
+</span><a href="#local-6989586621679324358"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; (ShortHash -&gt; ShortHash) -&gt; ShortHash
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">ASetter ShortHash ShortHash (Maybe Word64) (Maybe Word64)
+-&gt; Maybe Word64 -&gt; ShortHash -&gt; ShortHash
+forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ShortHash1 -&gt; Identity ShortHash1)
+-&gt; ShortHash -&gt; Identity ShortHash
+forall a b b' (f :: * -&gt; *).
+Applicative f =&gt;
+(b -&gt; f b') -&gt; OrBuiltin a b -&gt; f (OrBuiltin a b')
+</span><span class="hs-identifier hs-var">OrBuiltin.notBuiltin_</span></span><span> </span><span class="annot"><span class="annottext">((ShortHash1 -&gt; Identity ShortHash1)
+ -&gt; ShortHash -&gt; Identity ShortHash)
+-&gt; ((Maybe Word64 -&gt; Identity (Maybe Word64))
+    -&gt; ShortHash1 -&gt; Identity ShortHash1)
+-&gt; ASetter ShortHash ShortHash (Maybe Word64) (Maybe Word64)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Word64 -&gt; Identity (Maybe Word64))
+-&gt; ShortHash1 -&gt; Identity ShortHash1
+</span><span class="">#cid</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Maybe Word64
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679324359"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Unison.ConstructorReference.html#toText"><span class="hs-identifier hs-type">toText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-46"></span><span id="toText"><span class="annot"><span class="annottext">toText :: ConstructorReference -&gt; Text
+</span><a href="Unison.ConstructorReference.html#toText"><span class="hs-identifier hs-var hs-var">toText</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span id="local-6989586621679324365"><span class="annot"><span class="annottext">TypeReference
+</span><a href="#local-6989586621679324365"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="annottext">TypeReference -&gt; Text
+</span><a href="Unison.Reference.html#toText"><span class="hs-identifier hs-var">Reference.toText</span></a></span><span> </span><span class="annot"><span class="annottext">TypeReference
+</span><a href="#local-6989586621679324365"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-48"></span></pre></body></html>

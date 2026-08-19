@@ -1,0 +1,164 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- Copyright (c) 2016-present, Facebook, Inc.</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- All rights reserved.</span><span>
+</span><span id="line-3"></span><span class="hs-comment">--</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- This source code is licensed under the BSD-style license found in</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- the LICENSE file in the root directory of this source tree. An</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- additional grant of patent rights can be found in the PATENTS file</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- in the same directory.</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE MultiWayIf #-}</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Module      : Codec.Compression.Zstd.Lazy</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Copyright   : (c) 2016-present, Facebook, Inc. All rights reserved.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- License     : BSD3</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Maintainer  : bryano@fb.com</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Portability : GHC</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Lazy compression and decompression support for zstd.  Under the</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- hood, these are implemented using the streaming APIs.</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Lazy.html"><span class="hs-identifier">Codec.Compression.Zstd.Lazy</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-25"></span><span>      </span><span class="annot"><a href="Codec.Compression.Zstd.Lazy.html#compress"><span class="hs-identifier">compress</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Lazy.html#decompress"><span class="hs-identifier">decompress</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.FFI.html#maxCLevel"><span class="hs-identifier">S.maxCLevel</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy.Internal</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">L</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeInterleaveIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unsafePerformIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Streaming.html"><span class="hs-identifier">Codec.Compression.Zstd.Streaming</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">L</span></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Compress a payload.  The input will be consumed lazily, and the</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- compressed result generated lazily.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- /Note:/ if any error occurs, compression will fail part-way through</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- with a call to 'error'.</span><span>
+</span><span id="line-41"></span><span class="annot"><a href="Codec.Compression.Zstd.Lazy.html#compress"><span class="hs-identifier hs-type">compress</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-42"></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Compression level. Must be &gt;= 1 and &lt;= 'S.maxCLevel'.</span></span><span>
+</span><span id="line-43"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-44"></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Payload to compress.  This will be consumed lazily.</span></span><span>
+</span><span id="line-45"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-46"></span><span id="compress"><span class="annot"><span class="annottext">compress :: Int -&gt; ByteString -&gt; ByteString
+</span><a href="Codec.Compression.Zstd.Lazy.html#compress"><span class="hs-identifier hs-var hs-var">compress</span></a></span></span><span> </span><span id="local-6989586621679055811"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679055811"><span class="hs-identifier hs-var">level</span></a></span></span><span> </span><span id="local-6989586621679055812"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055812"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Result -&gt; ByteString -&gt; ByteString
+</span><a href="Codec.Compression.Zstd.Lazy.html#lazy"><span class="hs-identifier hs-var">lazy</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; IO Result
+</span><a href="Codec.Compression.Zstd.Streaming.html#compress"><span class="hs-identifier hs-var">S.compress</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679055811"><span class="hs-identifier hs-var">level</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055812"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | Decompress a payload.  The input will be consumed lazily, and the</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- decompressed result generated lazily.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- /Note:/ if any error occurs, decompression will fail part-way</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- through with a call to 'error'.</span><span>
+</span><span id="line-53"></span><span class="annot"><a href="Codec.Compression.Zstd.Lazy.html#decompress"><span class="hs-identifier hs-type">decompress</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-54"></span><span id="decompress"><span class="annot"><span class="annottext">decompress :: ByteString -&gt; ByteString
+</span><a href="Codec.Compression.Zstd.Lazy.html#decompress"><span class="hs-identifier hs-var hs-var">decompress</span></a></span></span><span> </span><span id="local-6989586621679055815"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055815"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Result -&gt; ByteString -&gt; ByteString
+</span><a href="Codec.Compression.Zstd.Lazy.html#lazy"><span class="hs-identifier hs-var">lazy</span></a></span><span> </span><span class="annot"><span class="annottext">IO Result
+</span><a href="Codec.Compression.Zstd.Streaming.html#decompress"><span class="hs-identifier hs-var">S.decompress</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055815"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><a href="Codec.Compression.Zstd.Lazy.html#lazy"><span class="hs-identifier hs-type">lazy</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Streaming.html#Result"><span class="hs-identifier hs-type">S.Result</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-57"></span><span id="lazy"><span class="annot"><span class="annottext">lazy :: IO Result -&gt; ByteString -&gt; ByteString
+</span><a href="Codec.Compression.Zstd.Lazy.html#lazy"><span class="hs-identifier hs-var hs-var">lazy</span></a></span></span><span> </span><span id="local-6989586621679055817"><span class="annot"><span class="annottext">IO Result
+</span><a href="#local-6989586621679055817"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621679055818"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055818"><span class="hs-identifier hs-var">b0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO ByteString -&gt; ByteString
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Result -&gt; IO ByteString
+</span><a href="#local-6989586621679055819"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055818"><span class="hs-identifier hs-var">b0</span></a></span><span> </span><span class="annot"><span class="annottext">(Result -&gt; IO ByteString) -&gt; IO Result -&gt; IO ByteString
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IO Result
+</span><a href="#local-6989586621679055817"><span class="hs-identifier hs-var">start</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679055819"><span class="annot"><span class="annottext">go :: ByteString -&gt; Result -&gt; IO ByteString
+</span><a href="#local-6989586621679055819"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Streaming.html#Error"><span class="hs-identifier hs-type">S.Error</span></a></span><span> </span><span id="local-6989586621679055836"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679055836"><span class="hs-identifier hs-var">who</span></a></span></span><span> </span><span id="local-6989586621679055837"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679055837"><span class="hs-identifier hs-var">what</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO ByteString
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679055836"><span class="hs-identifier hs-var">who</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679055837"><span class="hs-identifier hs-var">what</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="#local-6989586621679055819"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679055838"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055838"><span class="hs-identifier hs-var">bs</span></a></span></span><span>           </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Streaming.html#Produce"><span class="hs-identifier hs-type">S.Produce</span></a></span><span> </span><span id="local-6989586621679055840"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055840"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span id="local-6989586621679055841"><span class="annot"><span class="annottext">IO Result
+</span><a href="#local-6989586621679055841"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679055842"><span class="annot"><a href="#local-6989586621679055842"><span class="hs-identifier hs-var">os</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ByteString -&gt; IO ByteString
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">unsafeInterleaveIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Result -&gt; IO ByteString
+</span><a href="#local-6989586621679055819"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055838"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">(Result -&gt; IO ByteString) -&gt; IO Result -&gt; IO ByteString
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IO Result
+</span><a href="#local-6989586621679055841"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">L.chunk</span></span><span> </span><span class="annot"><a href="#local-6989586621679055840"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679055842"><span class="hs-identifier hs-type">os</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="#local-6989586621679055819"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Chunk</span></span><span> </span><span id="local-6989586621679055845"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055845"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679055846"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055846"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Streaming.html#Consume"><span class="hs-identifier hs-type">S.Consume</span></a></span><span> </span><span id="local-6989586621679055848"><span class="annot"><span class="annottext">ByteString -&gt; IO Result
+</span><a href="#local-6989586621679055848"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Result -&gt; IO ByteString
+</span><a href="#local-6989586621679055819"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055846"><span class="hs-identifier hs-var">cs</span></a></span><span> </span><span class="annot"><span class="annottext">(Result -&gt; IO ByteString) -&gt; IO Result -&gt; IO ByteString
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO Result
+</span><a href="#local-6989586621679055848"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055845"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="#local-6989586621679055819"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679055849"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055849"><span class="hs-identifier hs-var">empty</span></a></span></span><span>        </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Streaming.html#Consume"><span class="hs-identifier hs-type">S.Consume</span></a></span><span> </span><span id="local-6989586621679055850"><span class="annot"><span class="annottext">ByteString -&gt; IO Result
+</span><a href="#local-6989586621679055850"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Result -&gt; IO ByteString
+</span><a href="#local-6989586621679055819"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055849"><span class="hs-identifier hs-var">empty</span></a></span><span> </span><span class="annot"><span class="annottext">(Result -&gt; IO ByteString) -&gt; IO Result -&gt; IO ByteString
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO Result
+</span><a href="#local-6989586621679055850"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">B.empty</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="#local-6989586621679055819"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">Empty</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Streaming.html#Done"><span class="hs-identifier hs-type">S.Done</span></a></span><span> </span><span id="local-6989586621679055854"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055854"><span class="hs-identifier hs-var">o</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO ByteString
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">chunk</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055854"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">Empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><a href="#local-6989586621679055819"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679055855"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055855"><span class="hs-identifier hs-var">input</span></a></span></span><span>        </span><span id="local-6989586621679055856"><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679055856"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO ByteString
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO ByteString) -&gt; String -&gt; IO ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-67"></span><span>                          </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;unpossible! &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span>
+</span><span id="line-68"></span><span>                          </span><span class="annot"><span class="annottext">Int64 -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int64
+</span><span class="hs-identifier hs-var">L.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679055855"><span class="hs-identifier hs-var">input</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; bytes of input left, &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span>
+</span><span id="line-69"></span><span>                          </span><span class="annot"><span class="annottext">Result -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Result
+</span><a href="#local-6989586621679055856"><span class="hs-identifier hs-var">state</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; stream state&quot;</span></span><span>
+</span><span id="line-70"></span></pre></body></html>

@@ -1,0 +1,964 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html"><span class="hs-identifier">Unison.Runtime.ANF.Serialize.ValueV5</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValueWithHeader"><span class="hs-identifier">getValueWithHeader</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValueWithHeader"><span class="hs-identifier">putValueWithHeader</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putVersionedValue"><span class="hs-identifier">putVersionedValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#versionedValueBytes"><span class="hs-identifier">versionedValueBytes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">replicateM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Builder</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BU</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">L</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html"><span class="hs-identifier">Unison.Runtime.ANF</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ANF</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.TypeTags.html#Tag"><span class="hs-identifier">Tag</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.CodeV4.html"><span class="hs-identifier">Unison.Runtime.ANF.Serialize.CodeV4</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.Tags.html"><span class="hs-identifier">Unison.Runtime.ANF.Serialize.Tags</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html"><span class="hs-identifier">Unison.Runtime.Referenced</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html"><span class="hs-identifier">Unison.Runtime.Serialize</span></a></span><span> </span><span class="hs-keyword">hiding</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html#getConstructorReference"><span class="hs-identifier">getConstructorReference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Serialize.html#getReference"><span class="hs-identifier">getReference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Serialize.html#getReferent"><span class="hs-identifier">getReferent</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Serialize.html#putConstructorReference"><span class="hs-identifier">putConstructorReference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Serialize.html#putReference"><span class="hs-identifier">putReference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Serialize.html#putReferent"><span class="hs-identifier">putReferent</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.html"><span class="hs-identifier">Unison.Runtime.Serialize</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SER</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.Get.html"><span class="hs-identifier">Unison.Runtime.Serialize.Get</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Util.Text</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getChar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">putChar</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putGroupRef"><span class="hs-identifier hs-type">putGroupRef</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#GroupRef"><span class="hs-identifier hs-type">GroupRef</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span>
+</span><span id="line-32"></span><span id="putGroupRef"><span class="annot"><span class="annottext">putGroupRef :: GroupRef RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putGroupRef"><span class="hs-identifier hs-var hs-var">putGroupRef</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#GR"><span class="hs-identifier hs-type">GR</span></a></span><span> </span><span id="local-6989586621680732169"><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680732169"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621680732170"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732170"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RefNum -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putRefNum"><span class="hs-identifier hs-var">putRefNum</span></a></span><span> </span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680732169"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Builder
+forall a.
+(Integral a, Integral (Unsigned a), Bits (Unsigned a)) =&gt;
+a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putVarInt"><span class="hs-identifier hs-var">putVarInt</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732170"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putGroupRef"><span class="hs-pragma hs-type">putGroupRef</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span id="local-6989586621680731948"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getGroupRef"><span class="hs-identifier hs-type">getGroupRef</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimBase</span></span><span> </span><span class="annot"><a href="#local-6989586621680731948"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.Get.html#Get"><span class="hs-identifier hs-type">Get</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680731948"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#GroupRef"><span class="hs-identifier hs-type">GroupRef</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-36"></span><span id="getGroupRef"><span class="annot"><span class="annottext">getGroupRef :: forall (m :: * -&gt; *). PrimBase m =&gt; Get m (GroupRef RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getGroupRef"><span class="hs-identifier hs-var hs-var">getGroupRef</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RefNum -&gt; Word64 -&gt; GroupRef RefNum
+forall ref. ref -&gt; Word64 -&gt; GroupRef ref
+</span><a href="Unison.Runtime.ANF.html#GR"><span class="hs-identifier hs-var">GR</span></a></span><span> </span><span class="annot"><span class="annottext">(RefNum -&gt; Word64 -&gt; GroupRef RefNum)
+-&gt; Get m RefNum -&gt; Get m (Word64 -&gt; GroupRef RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m RefNum
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m RefNum
+</span><a href="Unison.Runtime.Serialize.html#getRefNum"><span class="hs-identifier hs-var">getRefNum</span></a></span><span> </span><span class="annot"><span class="annottext">Get m (Word64 -&gt; GroupRef RefNum)
+-&gt; Get m Word64 -&gt; Get m (GroupRef RefNum)
+forall a b. Get m (a -&gt; b) -&gt; Get m a -&gt; Get m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Word64
+forall int (m :: * -&gt; *).
+(Bits int, Num int, Ord int, PrimBase m) =&gt;
+Get m int
+</span><a href="Unison.Runtime.Serialize.Get.html#getVarInt"><span class="hs-identifier hs-var">getVarInt</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getGroupRef"><span class="hs-pragma hs-type">getGroupRef</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- Notes</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- Starting with version 4 of the value format, it is expected that</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- unboxed data does not actually occur in the values being sent. For</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- most values this was not a problem:</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--   - Partial applications had no way of directly including unboxed</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--     values, because they all result from surface level unison</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--     applications</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--   - Unboxed values in Data only occurred to represent certain</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--     builtin types. Those have been replaced by BLits.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- However, some work was required to make sure no unboxed data ended</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- up in Cont. The runtime has been modified to avoid using the</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- unboxed stack in generated code, so now only builtins use it,</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- effectively. Since continuations are never captured inside builtins</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- (and even if we wanted to do that, we could arrange for a clean</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- unboxed stack), this is no longer a problem, either.</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- So, unboxed data is completely absent from the format. We are now</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- exchanging unison surface values, effectively.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- -----------------</span><span>
+</span><span id="line-62"></span><span class="hs-comment">--</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- Version 5 departs significantly from previous versions to try to</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- optimize the format. The two major changes are:</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--   1. Using variable width integers everywhere to avoid</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--      unnecessarily padded values for tags and such</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--   2. Pulling references out into a header section so that each is</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--      only serialized once, and most reference occurrences are just</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--      numbers.</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- this second change reduces the size of the format considerably, as</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- most of the serialized representation previously was repeated</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- occurrences of the 64 byte hashes.</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- At the moment, the reference change is implemented by using stable</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- names, and expecting canonically constructed values. This was done</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- to avoid a significant refactoring effort, but should be able to be</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- reworked in the future.</span><span>
+</span><span id="line-80"></span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-type">putValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span>
+</span><span id="line-81"></span><span id="putValue"><span class="annot"><span class="annottext">putValue :: Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var hs-var">putValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Partial"><span class="hs-identifier hs-type">Partial</span></a></span><span> </span><span id="local-6989586621680732199"><span class="annot"><span class="annottext">GroupRef RefNum
+</span><a href="#local-6989586621680732199"><span class="hs-identifier hs-var">gr</span></a></span></span><span> </span><span id="local-6989586621680732200"><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732200"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="annottext">VaTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PartialT"><span class="hs-identifier hs-var">PartialT</span></a></span><span>
+</span><span id="line-84"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">GroupRef RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putGroupRef"><span class="hs-identifier hs-var">putGroupRef</span></a></span><span> </span><span class="annot"><span class="annottext">GroupRef RefNum
+</span><a href="#local-6989586621680732199"><span class="hs-identifier hs-var">gr</span></a></span><span>
+</span><span id="line-85"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Value RefNum -&gt; Builder) -&gt; ValList RefNum -&gt; Builder
+forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+(a -&gt; Builder) -&gt; f a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putFoldable"><span class="hs-identifier hs-var">putFoldable</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var">putValue</span></a></span><span> </span><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732200"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Data"><span class="hs-identifier hs-type">Data</span></a></span><span> </span><span id="local-6989586621680732205"><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680732205"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621680732206"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732206"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621680732207"><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732207"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><span class="annottext">VaTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#DataT"><span class="hs-identifier hs-var">DataT</span></a></span><span>
+</span><span id="line-88"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">RefNum -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putRefNum"><span class="hs-identifier hs-var">putRefNum</span></a></span><span> </span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680732205"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-89"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Builder
+forall a.
+(Integral a, Integral (Unsigned a), Bits (Unsigned a)) =&gt;
+a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putVarInt"><span class="hs-identifier hs-var">putVarInt</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732206"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-90"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Value RefNum -&gt; Builder) -&gt; ValList RefNum -&gt; Builder
+forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+(a -&gt; Builder) -&gt; f a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putFoldable"><span class="hs-identifier hs-var">putFoldable</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var">putValue</span></a></span><span> </span><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732207"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Cont"><span class="hs-identifier hs-type">Cont</span></a></span><span> </span><span id="local-6989586621680732210"><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732210"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span id="local-6989586621680732211"><span class="annot"><span class="annottext">Cont RefNum
+</span><a href="#local-6989586621680732211"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><span class="annottext">VaTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ContT"><span class="hs-identifier hs-var">ContT</span></a></span><span>
+</span><span id="line-93"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Value RefNum -&gt; Builder) -&gt; ValList RefNum -&gt; Builder
+forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+(a -&gt; Builder) -&gt; f a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putFoldable"><span class="hs-identifier hs-var">putFoldable</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var">putValue</span></a></span><span> </span><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732210"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-94"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Cont RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putCont"><span class="hs-identifier hs-var">putCont</span></a></span><span> </span><span class="annot"><span class="annottext">Cont RefNum
+</span><a href="#local-6989586621680732211"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#BLit"><span class="hs-identifier hs-type">BLit</span></a></span><span> </span><span id="local-6989586621680732215"><span class="annot"><span class="annottext">BLit RefNum
+</span><a href="#local-6989586621680732215"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">VaTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BLitT"><span class="hs-identifier hs-var">BLitT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">BLit RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putBLit"><span class="hs-identifier hs-var">putBLit</span></a></span><span> </span><span class="annot"><span class="annottext">BLit RefNum
+</span><a href="#local-6989586621680732215"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span id="local-6989586621680731975"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-type">getValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimBase</span></span><span> </span><span class="annot"><a href="#local-6989586621680731975"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.Get.html#Get"><span class="hs-identifier hs-type">Get</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680731975"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-98"></span><span id="getValue"><span class="annot"><span class="annottext">getValue :: forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var hs-var">getValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><span class="annottext">Get m VaTag
+forall (m :: * -&gt; *) t. (PrimBase m, Tag t) =&gt; Get m t
+</span><a href="Unison.Runtime.Serialize.html#getTag"><span class="hs-identifier hs-var">getTag</span></a></span><span> </span><span class="annot"><span class="annottext">Get m VaTag
+-&gt; (VaTag -&gt; Get m (Value RefNum)) -&gt; Get m (Value RefNum)
+forall a b. Get m a -&gt; (a -&gt; Get m b) -&gt; Get m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PartialT"><span class="hs-identifier hs-var">PartialT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-101"></span><span>      </span><span id="local-6989586621680732251"><span class="annot"><span class="annottext">GroupRef RefNum
+</span><a href="#local-6989586621680732251"><span class="hs-identifier hs-var">gr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get m (GroupRef RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (GroupRef RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getGroupRef"><span class="hs-identifier hs-var">getGroupRef</span></a></span><span>
+</span><span id="line-102"></span><span>      </span><span id="local-6989586621680732252"><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732252"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum) -&gt; Get m (ValList RefNum)
+forall (m :: * -&gt; *) a. PrimBase m =&gt; Get m a -&gt; Get m [a]
+</span><a href="Unison.Runtime.Serialize.Get.html#getList"><span class="hs-identifier hs-var">getList</span></a></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span>
+</span><span id="line-103"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">GroupRef RefNum -&gt; ValList RefNum -&gt; Value RefNum
+forall ref. GroupRef ref -&gt; ValList ref -&gt; Value ref
+</span><a href="Unison.Runtime.ANF.html#Partial"><span class="hs-identifier hs-var">Partial</span></a></span><span> </span><span class="annot"><span class="annottext">GroupRef RefNum
+</span><a href="#local-6989586621680732251"><span class="hs-identifier hs-var">gr</span></a></span><span> </span><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732252"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#DataT"><span class="hs-identifier hs-var">DataT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-105"></span><span>      </span><span id="local-6989586621680732254"><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680732254"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get m RefNum
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m RefNum
+</span><a href="Unison.Runtime.Serialize.html#getRefNum"><span class="hs-identifier hs-var">getRefNum</span></a></span><span>
+</span><span id="line-106"></span><span>      </span><span id="local-6989586621680732255"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732255"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get m Word64
+forall int (m :: * -&gt; *).
+(Bits int, Num int, Ord int, PrimBase m) =&gt;
+Get m int
+</span><a href="Unison.Runtime.Serialize.Get.html#getVarInt"><span class="hs-identifier hs-var">getVarInt</span></a></span><span>
+</span><span id="line-107"></span><span>      </span><span id="local-6989586621680732256"><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732256"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum) -&gt; Get m (ValList RefNum)
+forall (m :: * -&gt; *) a. PrimBase m =&gt; Get m a -&gt; Get m [a]
+</span><a href="Unison.Runtime.Serialize.Get.html#getList"><span class="hs-identifier hs-var">getList</span></a></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span>
+</span><span id="line-108"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">RefNum -&gt; Word64 -&gt; ValList RefNum -&gt; Value RefNum
+forall ref. ref -&gt; Word64 -&gt; ValList ref -&gt; Value ref
+</span><a href="Unison.Runtime.ANF.html#Data"><span class="hs-identifier hs-var">Data</span></a></span><span> </span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680732254"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732255"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732256"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ContT"><span class="hs-identifier hs-var">ContT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-110"></span><span>      </span><span id="local-6989586621680732257"><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732257"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum) -&gt; Get m (ValList RefNum)
+forall (m :: * -&gt; *) a. PrimBase m =&gt; Get m a -&gt; Get m [a]
+</span><a href="Unison.Runtime.Serialize.Get.html#getList"><span class="hs-identifier hs-var">getList</span></a></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span>
+</span><span id="line-111"></span><span>      </span><span id="local-6989586621680732258"><span class="annot"><span class="annottext">Cont RefNum
+</span><a href="#local-6989586621680732258"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get m (Cont RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Cont RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getCont"><span class="hs-identifier hs-var">getCont</span></a></span><span>
+</span><span id="line-112"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">ValList RefNum -&gt; Cont RefNum -&gt; Value RefNum
+forall ref. ValList ref -&gt; Cont ref -&gt; Value ref
+</span><a href="Unison.Runtime.ANF.html#Cont"><span class="hs-identifier hs-var">Cont</span></a></span><span> </span><span class="annot"><span class="annottext">ValList RefNum
+</span><a href="#local-6989586621680732257"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">Cont RefNum
+</span><a href="#local-6989586621680732258"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><span class="annottext">VaTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BLitT"><span class="hs-identifier hs-var">BLitT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLit RefNum -&gt; Value RefNum
+forall ref. BLit ref -&gt; Value ref
+</span><a href="Unison.Runtime.ANF.html#BLit"><span class="hs-identifier hs-var">BLit</span></a></span><span> </span><span class="annot"><span class="annottext">(BLit RefNum -&gt; Value RefNum)
+-&gt; Get m (BLit RefNum) -&gt; Get m (Value RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (BLit RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (BLit RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getBLit"><span class="hs-identifier hs-var">getBLit</span></a></span><span>
+</span><span id="line-114"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-pragma hs-type">getValue</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putCont"><span class="hs-identifier hs-type">putCont</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#Cont"><span class="hs-identifier hs-type">Cont</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span>
+</span><span id="line-117"></span><span id="putCont"><span class="annot"><span class="annottext">putCont :: Cont RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putCont"><span class="hs-identifier hs-var hs-var">putCont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><span class="annottext">Cont RefNum
+</span><a href="Unison.Runtime.ANF.html#KE"><span class="hs-identifier hs-var">KE</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CoTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#KET"><span class="hs-identifier hs-var">KET</span></a></span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Mark"><span class="hs-identifier hs-type">Mark</span></a></span><span> </span><span id="local-6989586621680732264"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732264"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621680732265"><span class="annot"><span class="annottext">[RefNum]
+</span><a href="#local-6989586621680732265"><span class="hs-identifier hs-var">rs</span></a></span></span><span> </span><span id="local-6989586621680732266"><span class="annot"><span class="annottext">[(RefNum, Value RefNum)]
+</span><a href="#local-6989586621680732266"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span id="local-6989586621680732267"><span class="annot"><span class="annottext">Cont RefNum
+</span><a href="#local-6989586621680732267"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><span class="annottext">CoTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MarkT"><span class="hs-identifier hs-var">MarkT</span></a></span><span>
+</span><span id="line-121"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Builder
+forall a.
+(Integral a, Integral (Unsigned a), Bits (Unsigned a)) =&gt;
+a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putVarInt"><span class="hs-identifier hs-var">putVarInt</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732264"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-122"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(RefNum -&gt; Builder) -&gt; [RefNum] -&gt; Builder
+forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+(a -&gt; Builder) -&gt; f a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putFoldable"><span class="hs-identifier hs-var">putFoldable</span></a></span><span> </span><span class="annot"><span class="annottext">RefNum -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putRefNum"><span class="hs-identifier hs-var">putRefNum</span></a></span><span> </span><span class="annot"><span class="annottext">[RefNum]
+</span><a href="#local-6989586621680732265"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><span id="line-123"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(RefNum -&gt; Builder)
+-&gt; (Value RefNum -&gt; Builder) -&gt; [(RefNum, Value RefNum)] -&gt; Builder
+forall a b. (a -&gt; Builder) -&gt; (b -&gt; Builder) -&gt; [(a, b)] -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putMapping"><span class="hs-identifier hs-var">putMapping</span></a></span><span> </span><span class="annot"><span class="annottext">RefNum -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putRefNum"><span class="hs-identifier hs-var">putRefNum</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var">putValue</span></a></span><span> </span><span class="annot"><span class="annottext">[(RefNum, Value RefNum)]
+</span><a href="#local-6989586621680732266"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-124"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Cont RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putCont"><span class="hs-identifier hs-var">putCont</span></a></span><span> </span><span class="annot"><span class="annottext">Cont RefNum
+</span><a href="#local-6989586621680732267"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Push"><span class="hs-identifier hs-type">Push</span></a></span><span> </span><span id="local-6989586621680732271"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732271"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621680732272"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732272"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621680732273"><span class="annot"><span class="annottext">GroupRef RefNum
+</span><a href="#local-6989586621680732273"><span class="hs-identifier hs-var">gr</span></a></span></span><span> </span><span id="local-6989586621680732274"><span class="annot"><span class="annottext">Cont RefNum
+</span><a href="#local-6989586621680732274"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="annottext">CoTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PushT"><span class="hs-identifier hs-var">PushT</span></a></span><span>
+</span><span id="line-127"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Builder
+forall a.
+(Integral a, Integral (Unsigned a), Bits (Unsigned a)) =&gt;
+a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putVarInt"><span class="hs-identifier hs-var">putVarInt</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732271"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-128"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Builder
+forall a.
+(Integral a, Integral (Unsigned a), Bits (Unsigned a)) =&gt;
+a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putVarInt"><span class="hs-identifier hs-var">putVarInt</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732272"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-129"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">GroupRef RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putGroupRef"><span class="hs-identifier hs-var">putGroupRef</span></a></span><span> </span><span class="annot"><span class="annottext">GroupRef RefNum
+</span><a href="#local-6989586621680732273"><span class="hs-identifier hs-var">gr</span></a></span><span>
+</span><span id="line-130"></span><span>      </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Cont RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putCont"><span class="hs-identifier hs-var">putCont</span></a></span><span> </span><span class="annot"><span class="annottext">Cont RefNum
+</span><a href="#local-6989586621680732274"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span id="local-6989586621680731988"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getCont"><span class="hs-identifier hs-type">getCont</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimBase</span></span><span> </span><span class="annot"><a href="#local-6989586621680731988"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.Get.html#Get"><span class="hs-identifier hs-type">Get</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680731988"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#Cont"><span class="hs-identifier hs-type">Cont</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-133"></span><span id="getCont"><span class="annot"><span class="annottext">getCont :: forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Cont RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getCont"><span class="hs-identifier hs-var hs-var">getCont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-134"></span><span>  </span><span class="annot"><span class="annottext">Get m CoTag
+forall (m :: * -&gt; *) t. (PrimBase m, Tag t) =&gt; Get m t
+</span><a href="Unison.Runtime.Serialize.html#getTag"><span class="hs-identifier hs-var">getTag</span></a></span><span> </span><span class="annot"><span class="annottext">Get m CoTag
+-&gt; (CoTag -&gt; Get m (Cont RefNum)) -&gt; Get m (Cont RefNum)
+forall a b. Get m a -&gt; (a -&gt; Get m b) -&gt; Get m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-135"></span><span>    </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#KET"><span class="hs-identifier hs-var">KET</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Cont RefNum -&gt; Get m (Cont RefNum)
+forall a. a -&gt; Get m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Cont RefNum
+forall ref. Cont ref
+</span><a href="Unison.Runtime.ANF.html#KE"><span class="hs-identifier hs-var">KE</span></a></span><span>
+</span><span id="line-136"></span><span>    </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MarkT"><span class="hs-identifier hs-var">MarkT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-137"></span><span>      </span><span class="annot"><span class="annottext">Word64
+-&gt; [RefNum]
+-&gt; [(RefNum, Value RefNum)]
+-&gt; Cont RefNum
+-&gt; Cont RefNum
+forall ref.
+Word64 -&gt; [ref] -&gt; [(ref, Value ref)] -&gt; Cont ref -&gt; Cont ref
+</span><a href="Unison.Runtime.ANF.html#Mark"><span class="hs-identifier hs-var">Mark</span></a></span><span>
+</span><span id="line-138"></span><span>        </span><span class="annot"><span class="annottext">(Word64
+ -&gt; [RefNum]
+ -&gt; [(RefNum, Value RefNum)]
+ -&gt; Cont RefNum
+ -&gt; Cont RefNum)
+-&gt; Get m Word64
+-&gt; Get
+     m
+     ([RefNum]
+      -&gt; [(RefNum, Value RefNum)] -&gt; Cont RefNum -&gt; Cont RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Word64
+forall int (m :: * -&gt; *).
+(Bits int, Num int, Ord int, PrimBase m) =&gt;
+Get m int
+</span><a href="Unison.Runtime.Serialize.Get.html#getVarInt"><span class="hs-identifier hs-var">getVarInt</span></a></span><span>
+</span><span id="line-139"></span><span>        </span><span class="annot"><span class="annottext">Get
+  m
+  ([RefNum]
+   -&gt; [(RefNum, Value RefNum)] -&gt; Cont RefNum -&gt; Cont RefNum)
+-&gt; Get m [RefNum]
+-&gt; Get m ([(RefNum, Value RefNum)] -&gt; Cont RefNum -&gt; Cont RefNum)
+forall a b. Get m (a -&gt; b) -&gt; Get m a -&gt; Get m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m RefNum -&gt; Get m [RefNum]
+forall (m :: * -&gt; *) a. PrimBase m =&gt; Get m a -&gt; Get m [a]
+</span><a href="Unison.Runtime.Serialize.Get.html#getList"><span class="hs-identifier hs-var">getList</span></a></span><span> </span><span class="annot"><span class="annottext">Get m RefNum
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m RefNum
+</span><a href="Unison.Runtime.Serialize.html#getRefNum"><span class="hs-identifier hs-var">getRefNum</span></a></span><span>
+</span><span id="line-140"></span><span>        </span><span class="annot"><span class="annottext">Get m ([(RefNum, Value RefNum)] -&gt; Cont RefNum -&gt; Cont RefNum)
+-&gt; Get m [(RefNum, Value RefNum)]
+-&gt; Get m (Cont RefNum -&gt; Cont RefNum)
+forall a b. Get m (a -&gt; b) -&gt; Get m a -&gt; Get m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m RefNum
+-&gt; Get m (Value RefNum) -&gt; Get m [(RefNum, Value RefNum)]
+forall (m :: * -&gt; *) a b.
+PrimBase m =&gt;
+Get m a -&gt; Get m b -&gt; Get m [(a, b)]
+</span><a href="Unison.Runtime.Serialize.html#getMapping"><span class="hs-identifier hs-var">getMapping</span></a></span><span> </span><span class="annot"><span class="annottext">Get m RefNum
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m RefNum
+</span><a href="Unison.Runtime.Serialize.html#getRefNum"><span class="hs-identifier hs-var">getRefNum</span></a></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span>
+</span><span id="line-141"></span><span>        </span><span class="annot"><span class="annottext">Get m (Cont RefNum -&gt; Cont RefNum)
+-&gt; Get m (Cont RefNum) -&gt; Get m (Cont RefNum)
+forall a b. Get m (a -&gt; b) -&gt; Get m a -&gt; Get m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (Cont RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Cont RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getCont"><span class="hs-identifier hs-var">getCont</span></a></span><span>
+</span><span id="line-142"></span><span>    </span><span class="annot"><span class="annottext">CoTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PushT"><span class="hs-identifier hs-var">PushT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-143"></span><span>      </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; GroupRef RefNum -&gt; Cont RefNum -&gt; Cont RefNum
+forall ref.
+Word64 -&gt; Word64 -&gt; GroupRef ref -&gt; Cont ref -&gt; Cont ref
+</span><a href="Unison.Runtime.ANF.html#Push"><span class="hs-identifier hs-var">Push</span></a></span><span>
+</span><span id="line-144"></span><span>        </span><span class="annot"><span class="annottext">(Word64 -&gt; Word64 -&gt; GroupRef RefNum -&gt; Cont RefNum -&gt; Cont RefNum)
+-&gt; Get m Word64
+-&gt; Get m (Word64 -&gt; GroupRef RefNum -&gt; Cont RefNum -&gt; Cont RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Word64
+forall int (m :: * -&gt; *).
+(Bits int, Num int, Ord int, PrimBase m) =&gt;
+Get m int
+</span><a href="Unison.Runtime.Serialize.Get.html#getVarInt"><span class="hs-identifier hs-var">getVarInt</span></a></span><span>
+</span><span id="line-145"></span><span>        </span><span class="annot"><span class="annottext">Get m (Word64 -&gt; GroupRef RefNum -&gt; Cont RefNum -&gt; Cont RefNum)
+-&gt; Get m Word64
+-&gt; Get m (GroupRef RefNum -&gt; Cont RefNum -&gt; Cont RefNum)
+forall a b. Get m (a -&gt; b) -&gt; Get m a -&gt; Get m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Word64
+forall int (m :: * -&gt; *).
+(Bits int, Num int, Ord int, PrimBase m) =&gt;
+Get m int
+</span><a href="Unison.Runtime.Serialize.Get.html#getVarInt"><span class="hs-identifier hs-var">getVarInt</span></a></span><span>
+</span><span id="line-146"></span><span>        </span><span class="annot"><span class="annottext">Get m (GroupRef RefNum -&gt; Cont RefNum -&gt; Cont RefNum)
+-&gt; Get m (GroupRef RefNum) -&gt; Get m (Cont RefNum -&gt; Cont RefNum)
+forall a b. Get m (a -&gt; b) -&gt; Get m a -&gt; Get m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (GroupRef RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (GroupRef RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getGroupRef"><span class="hs-identifier hs-var">getGroupRef</span></a></span><span>
+</span><span id="line-147"></span><span>        </span><span class="annot"><span class="annottext">Get m (Cont RefNum -&gt; Cont RefNum)
+-&gt; Get m (Cont RefNum) -&gt; Get m (Cont RefNum)
+forall a b. Get m (a -&gt; b) -&gt; Get m a -&gt; Get m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (Cont RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Cont RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getCont"><span class="hs-identifier hs-var">getCont</span></a></span><span>
+</span><span id="line-148"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getCont"><span class="hs-pragma hs-type">getCont</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putBLit"><span class="hs-identifier hs-type">putBLit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#BLit"><span class="hs-identifier hs-type">BLit</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span>
+</span><span id="line-151"></span><span id="putBLit"><span class="annot"><span class="annottext">putBLit :: BLit RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putBLit"><span class="hs-identifier hs-var hs-var">putBLit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-152"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621680732315"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680732315"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TextT"><span class="hs-identifier hs-var">TextT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putText"><span class="hs-identifier hs-var">putText</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">Util.Text.toText</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680732315"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span id="local-6989586621680732320"><span class="annot"><span class="annottext">Seq (Value RefNum)
+</span><a href="#local-6989586621680732320"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ListT"><span class="hs-identifier hs-var">ListT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Value RefNum -&gt; Builder) -&gt; Seq (Value RefNum) -&gt; Builder
+forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+(a -&gt; Builder) -&gt; f a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putFoldable"><span class="hs-identifier hs-var">putFoldable</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var">putValue</span></a></span><span> </span><span class="annot"><span class="annottext">Seq (Value RefNum)
+</span><a href="#local-6989586621680732320"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-154"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TmLink"><span class="hs-identifier hs-type">TmLink</span></a></span><span> </span><span id="local-6989586621680732323"><span class="annot"><span class="annottext">Referent' RefNum
+</span><a href="#local-6989586621680732323"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TmLinkT"><span class="hs-identifier hs-var">TmLinkT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Referent' RefNum -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putNumberedReferent"><span class="hs-identifier hs-var">putNumberedReferent</span></a></span><span> </span><span class="annot"><span class="annottext">Referent' RefNum
+</span><a href="#local-6989586621680732323"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-155"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TyLink"><span class="hs-identifier hs-type">TyLink</span></a></span><span> </span><span id="local-6989586621680732327"><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680732327"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TyLinkT"><span class="hs-identifier hs-var">TyLinkT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">RefNum -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putRefNum"><span class="hs-identifier hs-var">putRefNum</span></a></span><span> </span><span class="annot"><span class="annottext">RefNum
+</span><a href="#local-6989586621680732327"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-156"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Bytes"><span class="hs-identifier hs-type">Bytes</span></a></span><span> </span><span id="local-6989586621680732330"><span class="annot"><span class="annottext">Bytes
+</span><a href="#local-6989586621680732330"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BytesT"><span class="hs-identifier hs-var">BytesT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Bytes -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putBytes"><span class="hs-identifier hs-var">putBytes</span></a></span><span> </span><span class="annot"><span class="annottext">Bytes
+</span><a href="#local-6989586621680732330"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-157"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Quote"><span class="hs-identifier hs-type">Quote</span></a></span><span> </span><span id="local-6989586621680732334"><span class="annot"><span class="annottext">Value RefNum
+</span><a href="#local-6989586621680732334"><span class="hs-identifier hs-var">vl</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#QuoteT"><span class="hs-identifier hs-var">QuoteT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var">putValue</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum
+</span><a href="#local-6989586621680732334"><span class="hs-identifier hs-var">vl</span></a></span><span>
+</span><span id="line-158"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Code"><span class="hs-identifier hs-type">Code</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#CodeRep"><span class="hs-identifier hs-type">CodeRep</span></a></span><span> </span><span id="local-6989586621680732338"><span class="annot"><span class="annottext">SuperGroup RefNum Symbol
+</span><a href="#local-6989586621680732338"><span class="hs-identifier hs-var">sg</span></a></span></span><span> </span><span id="local-6989586621680732339"><span class="annot"><span class="annottext">Cacheability
+</span><a href="#local-6989586621680732339"><span class="hs-identifier hs-var">ch</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-159"></span><span>    </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="#local-6989586621680732340"><span class="hs-identifier hs-var">tag</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; SuperGroup RefNum Symbol -&gt; Builder
+forall v. Var v =&gt; Bool -&gt; SuperGroup RefNum v -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.CodeV4.html#putGroup"><span class="hs-identifier hs-var">putGroup</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">SuperGroup RefNum Symbol
+</span><a href="#local-6989586621680732338"><span class="hs-identifier hs-var">sg</span></a></span><span>
+</span><span id="line-160"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-161"></span><span>      </span><span id="local-6989586621680732340"><span class="annot"><span class="annottext">tag :: BLTag
+</span><a href="#local-6989586621680732340"><span class="hs-identifier hs-var hs-var">tag</span></a></span></span><span>
+</span><span id="line-162"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Cacheability
+</span><a href="Unison.Runtime.ANF.html#Cacheable"><span class="hs-identifier hs-var">Cacheable</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cacheability
+</span><a href="#local-6989586621680732339"><span class="hs-identifier hs-var">ch</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CachedCodeT"><span class="hs-identifier hs-var">CachedCodeT</span></a></span><span>
+</span><span id="line-163"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CodeT"><span class="hs-identifier hs-var">CodeT</span></a></span><span>
+</span><span id="line-164"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#BArr"><span class="hs-identifier hs-type">BArr</span></a></span><span> </span><span id="local-6989586621680732346"><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621680732346"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BArrT"><span class="hs-identifier hs-var">BArrT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteArray -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putByteArray"><span class="hs-identifier hs-var">putByteArray</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621680732346"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-165"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Pos"><span class="hs-identifier hs-type">Pos</span></a></span><span> </span><span id="local-6989586621680732350"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732350"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PosT"><span class="hs-identifier hs-var">PosT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Builder
+forall n.
+(Bits n, Bits (Unsigned n), Integral n, Integral (Unsigned n)) =&gt;
+n -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putPositive"><span class="hs-identifier hs-var">putPositive</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732350"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Neg"><span class="hs-identifier hs-type">Neg</span></a></span><span> </span><span id="local-6989586621680732354"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732354"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#NegT"><span class="hs-identifier hs-var">NegT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Builder
+forall n.
+(Bits n, Bits (Unsigned n), Integral n, Integral (Unsigned n)) =&gt;
+n -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putPositive"><span class="hs-identifier hs-var">putPositive</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680732354"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-167"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span id="local-6989586621680732357"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680732357"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CharT"><span class="hs-identifier hs-var">CharT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putChar"><span class="hs-identifier hs-var">putChar</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680732357"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-168"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Float"><span class="hs-identifier hs-type">Float</span></a></span><span> </span><span id="local-6989586621680732361"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621680732361"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FloatT"><span class="hs-identifier hs-var">FloatT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putFloat"><span class="hs-identifier hs-var">putFloat</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621680732361"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-169"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Arr"><span class="hs-identifier hs-type">Arr</span></a></span><span> </span><span id="local-6989586621680732365"><span class="annot"><span class="annottext">Array (Value RefNum)
+</span><a href="#local-6989586621680732365"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ArrT"><span class="hs-identifier hs-var">ArrT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Value RefNum -&gt; Builder) -&gt; Array (Value RefNum) -&gt; Builder
+forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+(a -&gt; Builder) -&gt; f a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putFoldable"><span class="hs-identifier hs-var">putFoldable</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var">putValue</span></a></span><span> </span><span class="annot"><span class="annottext">Array (Value RefNum)
+</span><a href="#local-6989586621680732365"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-170"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#Map"><span class="hs-identifier hs-type">Map</span></a></span><span> </span><span id="local-6989586621680732368"><span class="annot"><span class="annottext">[(Value RefNum, Value RefNum)]
+</span><a href="#local-6989586621680732368"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MapT"><span class="hs-identifier hs-var">MapT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Value RefNum -&gt; Builder)
+-&gt; (Value RefNum -&gt; Builder)
+-&gt; [(Value RefNum, Value RefNum)]
+-&gt; Builder
+forall a b. (a -&gt; Builder) -&gt; (b -&gt; Builder) -&gt; [(a, b)] -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putMapping"><span class="hs-identifier hs-var">putMapping</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var">putValue</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var">putValue</span></a></span><span> </span><span class="annot"><span class="annottext">[(Value RefNum, Value RefNum)]
+</span><a href="#local-6989586621680732368"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-171"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#BigInt"><span class="hs-identifier hs-type">BigInt</span></a></span><span> </span><span id="local-6989586621680732371"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680732371"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BigIntT"><span class="hs-identifier hs-var">BigIntT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putInteger"><span class="hs-identifier hs-var">putInteger</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680732371"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-172"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#BigNat"><span class="hs-identifier hs-type">BigNat</span></a></span><span> </span><span id="local-6989586621680732375"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621680732375"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BLTag -&gt; Builder
+forall t. Tag t =&gt; t -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putTag"><span class="hs-identifier hs-var">putTag</span></a></span><span> </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BigNatT"><span class="hs-identifier hs-var">BigNatT</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putNatural"><span class="hs-identifier hs-var">putNatural</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621680732375"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span id="local-6989586621680731989"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getBLit"><span class="hs-identifier hs-type">getBLit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimBase</span></span><span> </span><span class="annot"><a href="#local-6989586621680731989"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.Get.html#Get"><span class="hs-identifier hs-type">Get</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680731989"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#BLit"><span class="hs-identifier hs-type">BLit</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-175"></span><span id="getBLit"><span class="annot"><span class="annottext">getBLit :: forall (m :: * -&gt; *). PrimBase m =&gt; Get m (BLit RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getBLit"><span class="hs-identifier hs-var hs-var">getBLit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-176"></span><span>  </span><span class="annot"><span class="annottext">Get m BLTag
+forall (m :: * -&gt; *) t. (PrimBase m, Tag t) =&gt; Get m t
+</span><a href="Unison.Runtime.Serialize.html#getTag"><span class="hs-identifier hs-var">getTag</span></a></span><span> </span><span class="annot"><span class="annottext">Get m BLTag
+-&gt; (BLTag -&gt; Get m (BLit RefNum)) -&gt; Get m (BLit RefNum)
+forall a b. Get m a -&gt; (a -&gt; Get m b) -&gt; Get m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-177"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TextT"><span class="hs-identifier hs-var">TextT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; BLit RefNum
+forall ref. Text -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Text"><span class="hs-identifier hs-var">Text</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; BLit RefNum) -&gt; (Text -&gt; Text) -&gt; Text -&gt; BLit RefNum
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">Util.Text.fromText</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; BLit RefNum) -&gt; Get m Text -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Text
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m Text
+</span><a href="Unison.Runtime.Serialize.html#getText"><span class="hs-identifier hs-var">getText</span></a></span><span>
+</span><span id="line-178"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ListT"><span class="hs-identifier hs-var">ListT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Seq (Value RefNum) -&gt; BLit RefNum
+forall ref. Seq (Value ref) -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#List"><span class="hs-identifier hs-var">List</span></a></span><span> </span><span class="annot"><span class="annottext">(Seq (Value RefNum) -&gt; BLit RefNum)
+-&gt; Get m (Seq (Value RefNum)) -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum) -&gt; Get m (Seq (Value RefNum))
+forall (m :: * -&gt; *) a. PrimBase m =&gt; Get m a -&gt; Get m (Seq a)
+</span><a href="Unison.Runtime.Serialize.Get.html#getSeq"><span class="hs-identifier hs-var">getSeq</span></a></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span>
+</span><span id="line-179"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TmLinkT"><span class="hs-identifier hs-var">TmLinkT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Referent' RefNum -&gt; BLit RefNum
+forall ref. Referent' ref -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#TmLink"><span class="hs-identifier hs-var">TmLink</span></a></span><span> </span><span class="annot"><span class="annottext">(Referent' RefNum -&gt; BLit RefNum)
+-&gt; Get m (Referent' RefNum) -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (Referent' RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Referent' RefNum)
+</span><a href="Unison.Runtime.Serialize.html#getNumberedReferent"><span class="hs-identifier hs-var">getNumberedReferent</span></a></span><span>
+</span><span id="line-180"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#TyLinkT"><span class="hs-identifier hs-var">TyLinkT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RefNum -&gt; BLit RefNum
+forall ref. ref -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#TyLink"><span class="hs-identifier hs-var">TyLink</span></a></span><span> </span><span class="annot"><span class="annottext">(RefNum -&gt; BLit RefNum) -&gt; Get m RefNum -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m RefNum
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m RefNum
+</span><a href="Unison.Runtime.Serialize.html#getRefNum"><span class="hs-identifier hs-var">getRefNum</span></a></span><span>
+</span><span id="line-181"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BytesT"><span class="hs-identifier hs-var">BytesT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bytes -&gt; BLit RefNum
+forall ref. Bytes -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Bytes"><span class="hs-identifier hs-var">Bytes</span></a></span><span> </span><span class="annot"><span class="annottext">(Bytes -&gt; BLit RefNum) -&gt; Get m Bytes -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Bytes
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m Bytes
+</span><a href="Unison.Runtime.Serialize.html#getBytes"><span class="hs-identifier hs-var">getBytes</span></a></span><span>
+</span><span id="line-182"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#QuoteT"><span class="hs-identifier hs-var">QuoteT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; BLit RefNum
+forall ref. Value ref -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Quote"><span class="hs-identifier hs-var">Quote</span></a></span><span> </span><span class="annot"><span class="annottext">(Value RefNum -&gt; BLit RefNum)
+-&gt; Get m (Value RefNum) -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span>
+</span><span id="line-183"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CodeT"><span class="hs-identifier hs-var">CodeT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-184"></span><span>      </span><span class="annot"><span class="annottext">Code RefNum -&gt; BLit RefNum
+forall ref. Code ref -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Code"><span class="hs-identifier hs-var">Code</span></a></span><span> </span><span class="annot"><span class="annottext">(Code RefNum -&gt; BLit RefNum)
+-&gt; (SuperGroup RefNum Symbol -&gt; Code RefNum)
+-&gt; SuperGroup RefNum Symbol
+-&gt; BLit RefNum
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(SuperGroup RefNum Symbol -&gt; Cacheability -&gt; Code RefNum)
+-&gt; Cacheability -&gt; SuperGroup RefNum Symbol -&gt; Code RefNum
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">SuperGroup RefNum Symbol -&gt; Cacheability -&gt; Code RefNum
+forall ref. SuperGroup ref Symbol -&gt; Cacheability -&gt; Code ref
+</span><a href="Unison.Runtime.ANF.html#CodeRep"><span class="hs-identifier hs-var">CodeRep</span></a></span><span> </span><span class="annot"><span class="annottext">Cacheability
+</span><a href="Unison.Runtime.ANF.html#Uncacheable"><span class="hs-identifier hs-var">Uncacheable</span></a></span><span> </span><span class="annot"><span class="annottext">(SuperGroup RefNum Symbol -&gt; BLit RefNum)
+-&gt; Get m (SuperGroup RefNum Symbol) -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (SuperGroup RefNum Symbol)
+forall (m :: * -&gt; *) v.
+(PrimBase m, Var v) =&gt;
+Get m (SuperGroup RefNum v)
+</span><a href="Unison.Runtime.ANF.Serialize.CodeV4.html#getGroup"><span class="hs-identifier hs-var">getGroup</span></a></span><span>
+</span><span id="line-185"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BArrT"><span class="hs-identifier hs-var">BArrT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteArray -&gt; BLit RefNum
+forall ref. ByteArray -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#BArr"><span class="hs-identifier hs-var">BArr</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteArray -&gt; BLit RefNum)
+-&gt; Get m ByteArray -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m ByteArray
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m ByteArray
+</span><a href="Unison.Runtime.Serialize.html#getByteArray"><span class="hs-identifier hs-var">getByteArray</span></a></span><span>
+</span><span id="line-186"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#PosT"><span class="hs-identifier hs-var">PosT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; BLit RefNum
+forall ref. Word64 -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Pos"><span class="hs-identifier hs-var">Pos</span></a></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; BLit RefNum) -&gt; Get m Word64 -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Word64
+forall (m :: * -&gt; *) n.
+(Bounded n, Integral n, PrimBase m) =&gt;
+Get m n
+</span><a href="Unison.Runtime.Serialize.html#getPositive"><span class="hs-identifier hs-var">getPositive</span></a></span><span>
+</span><span id="line-187"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#NegT"><span class="hs-identifier hs-var">NegT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; BLit RefNum
+forall ref. Word64 -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Neg"><span class="hs-identifier hs-var">Neg</span></a></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; BLit RefNum) -&gt; Get m Word64 -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Word64
+forall (m :: * -&gt; *) n.
+(Bounded n, Integral n, PrimBase m) =&gt;
+Get m n
+</span><a href="Unison.Runtime.Serialize.html#getPositive"><span class="hs-identifier hs-var">getPositive</span></a></span><span>
+</span><span id="line-188"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CharT"><span class="hs-identifier hs-var">CharT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; BLit RefNum
+forall ref. Char -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Char"><span class="hs-identifier hs-var">Char</span></a></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; BLit RefNum) -&gt; Get m Char -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Char
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m Char
+</span><a href="Unison.Runtime.Serialize.html#getChar"><span class="hs-identifier hs-var">getChar</span></a></span><span>
+</span><span id="line-189"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#FloatT"><span class="hs-identifier hs-var">FloatT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Double -&gt; BLit RefNum
+forall ref. Double -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Float"><span class="hs-identifier hs-var">Float</span></a></span><span> </span><span class="annot"><span class="annottext">(Double -&gt; BLit RefNum) -&gt; Get m Double -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Double
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m Double
+</span><a href="Unison.Runtime.Serialize.html#getFloat"><span class="hs-identifier hs-var">getFloat</span></a></span><span>
+</span><span id="line-190"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#ArrT"><span class="hs-identifier hs-var">ArrT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Array (Value RefNum) -&gt; BLit RefNum
+forall ref. Array (Value ref) -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Arr"><span class="hs-identifier hs-var">Arr</span></a></span><span> </span><span class="annot"><span class="annottext">(Array (Value RefNum) -&gt; BLit RefNum)
+-&gt; Get m (Array (Value RefNum)) -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum) -&gt; Get m (Array (Value RefNum))
+forall (m :: * -&gt; *) a. PrimBase m =&gt; Get m a -&gt; Get m (Array a)
+</span><a href="Unison.Runtime.Serialize.Get.html#getArray"><span class="hs-identifier hs-var">getArray</span></a></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span>
+</span><span id="line-191"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#CachedCodeT"><span class="hs-identifier hs-var">CachedCodeT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Code RefNum -&gt; BLit RefNum
+forall ref. Code ref -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Code"><span class="hs-identifier hs-var">Code</span></a></span><span> </span><span class="annot"><span class="annottext">(Code RefNum -&gt; BLit RefNum)
+-&gt; (SuperGroup RefNum Symbol -&gt; Code RefNum)
+-&gt; SuperGroup RefNum Symbol
+-&gt; BLit RefNum
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(SuperGroup RefNum Symbol -&gt; Cacheability -&gt; Code RefNum)
+-&gt; Cacheability -&gt; SuperGroup RefNum Symbol -&gt; Code RefNum
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">SuperGroup RefNum Symbol -&gt; Cacheability -&gt; Code RefNum
+forall ref. SuperGroup ref Symbol -&gt; Cacheability -&gt; Code ref
+</span><a href="Unison.Runtime.ANF.html#CodeRep"><span class="hs-identifier hs-var">CodeRep</span></a></span><span> </span><span class="annot"><span class="annottext">Cacheability
+</span><a href="Unison.Runtime.ANF.html#Cacheable"><span class="hs-identifier hs-var">Cacheable</span></a></span><span> </span><span class="annot"><span class="annottext">(SuperGroup RefNum Symbol -&gt; BLit RefNum)
+-&gt; Get m (SuperGroup RefNum Symbol) -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (SuperGroup RefNum Symbol)
+forall (m :: * -&gt; *) v.
+(PrimBase m, Var v) =&gt;
+Get m (SuperGroup RefNum v)
+</span><a href="Unison.Runtime.ANF.Serialize.CodeV4.html#getGroup"><span class="hs-identifier hs-var">getGroup</span></a></span><span>
+</span><span id="line-192"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#MapT"><span class="hs-identifier hs-var">MapT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[(Value RefNum, Value RefNum)] -&gt; BLit RefNum
+forall ref. [(Value ref, Value ref)] -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#Map"><span class="hs-identifier hs-var">Map</span></a></span><span> </span><span class="annot"><span class="annottext">([(Value RefNum, Value RefNum)] -&gt; BLit RefNum)
+-&gt; Get m [(Value RefNum, Value RefNum)] -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+-&gt; Get m (Value RefNum) -&gt; Get m [(Value RefNum, Value RefNum)]
+forall (m :: * -&gt; *) a b.
+PrimBase m =&gt;
+Get m a -&gt; Get m b -&gt; Get m [(a, b)]
+</span><a href="Unison.Runtime.Serialize.html#getMapping"><span class="hs-identifier hs-var">getMapping</span></a></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span>
+</span><span id="line-193"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BigIntT"><span class="hs-identifier hs-var">BigIntT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; BLit RefNum
+forall ref. Integer -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#BigInt"><span class="hs-identifier hs-var">BigInt</span></a></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; BLit RefNum) -&gt; Get m Integer -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Integer
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m Integer
+</span><a href="Unison.Runtime.Serialize.html#getInteger"><span class="hs-identifier hs-var">getInteger</span></a></span><span>
+</span><span id="line-194"></span><span>    </span><span class="annot"><span class="annottext">BLTag
+</span><a href="Unison.Runtime.ANF.Serialize.Tags.html#BigNatT"><span class="hs-identifier hs-var">BigNatT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; BLit RefNum
+forall ref. Natural -&gt; BLit ref
+</span><a href="Unison.Runtime.ANF.html#BigNat"><span class="hs-identifier hs-var">BigNat</span></a></span><span> </span><span class="annot"><span class="annottext">(Natural -&gt; BLit RefNum) -&gt; Get m Natural -&gt; Get m (BLit RefNum)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get m Natural
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m Natural
+</span><a href="Unison.Runtime.Serialize.html#getNatural"><span class="hs-identifier hs-var">getNatural</span></a></span><span>
+</span><span id="line-195"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getBLit"><span class="hs-pragma hs-type">getBLit</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValueWithHeader"><span class="hs-identifier hs-type">putValueWithHeader</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-198"></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span>
+</span><span id="line-199"></span><span id="putValueWithHeader"><span class="annot"><span class="annottext">putValueWithHeader :: [Reference] -&gt; [Reference] -&gt; Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValueWithHeader"><span class="hs-identifier hs-var hs-var">putValueWithHeader</span></a></span></span><span> </span><span id="local-6989586621680732447"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732447"><span class="hs-identifier hs-var">tyrs</span></a></span></span><span> </span><span id="local-6989586621680732448"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732448"><span class="hs-identifier hs-var">tmrs</span></a></span></span><span> </span><span id="local-6989586621680732449"><span class="annot"><span class="annottext">Value RefNum
+</span><a href="#local-6989586621680732449"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-200"></span><span>  </span><span class="annot"><span class="annottext">(Reference -&gt; Builder) -&gt; [Reference] -&gt; Builder
+forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+(a -&gt; Builder) -&gt; f a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putFoldable"><span class="hs-identifier hs-var">putFoldable</span></a></span><span> </span><span class="annot"><span class="annottext">Reference -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putReference"><span class="hs-identifier hs-var">SER.putReference</span></a></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732447"><span class="hs-identifier hs-var">tyrs</span></a></span><span>
+</span><span id="line-201"></span><span>    </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Reference -&gt; Builder) -&gt; [Reference] -&gt; Builder
+forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+(a -&gt; Builder) -&gt; f a -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putFoldable"><span class="hs-identifier hs-var">putFoldable</span></a></span><span> </span><span class="annot"><span class="annottext">Reference -&gt; Builder
+</span><a href="Unison.Runtime.Serialize.html#putReference"><span class="hs-identifier hs-var">SER.putReference</span></a></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732448"><span class="hs-identifier hs-var">tmrs</span></a></span><span>
+</span><span id="line-202"></span><span>    </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValue"><span class="hs-identifier hs-var">putValue</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum
+</span><a href="#local-6989586621680732449"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putVersionedValue"><span class="hs-identifier hs-type">putVersionedValue</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span>
+</span><span id="line-206"></span><span id="putVersionedValue"><span class="annot"><span class="annottext">putVersionedValue :: [Reference] -&gt; [Reference] -&gt; Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putVersionedValue"><span class="hs-identifier hs-var hs-var">putVersionedValue</span></a></span></span><span> </span><span id="local-6989586621680732450"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732450"><span class="hs-identifier hs-var">tyrs</span></a></span></span><span> </span><span id="local-6989586621680732451"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732451"><span class="hs-identifier hs-var">tmrs</span></a></span></span><span> </span><span id="local-6989586621680732452"><span class="annot"><span class="annottext">Value RefNum
+</span><a href="#local-6989586621680732452"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-207"></span><span>  </span><span class="annot"><span class="annottext">Word32 -&gt; Builder
+</span><span class="hs-identifier hs-var">BU.word32BE</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">5</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Reference] -&gt; [Reference] -&gt; Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putValueWithHeader"><span class="hs-identifier hs-var">putValueWithHeader</span></a></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732450"><span class="hs-identifier hs-var">tyrs</span></a></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732451"><span class="hs-identifier hs-var">tmrs</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum
+</span><a href="#local-6989586621680732452"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#versionedValueBytes"><span class="hs-identifier hs-type">versionedValueBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Referenced.html#RefNum"><span class="hs-identifier hs-type">RefNum</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">L.ByteString</span></span><span>
+</span><span id="line-211"></span><span id="versionedValueBytes"><span class="annot"><span class="annottext">versionedValueBytes :: [Reference] -&gt; [Reference] -&gt; Value RefNum -&gt; ByteString
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#versionedValueBytes"><span class="hs-identifier hs-var hs-var">versionedValueBytes</span></a></span></span><span> </span><span id="local-6989586621680732454"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732454"><span class="hs-identifier hs-var">tyrs</span></a></span></span><span> </span><span id="local-6989586621680732455"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732455"><span class="hs-identifier hs-var">tmrs</span></a></span></span><span> </span><span id="local-6989586621680732456"><span class="annot"><span class="annottext">Value RefNum
+</span><a href="#local-6989586621680732456"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-212"></span><span>  </span><span class="annot"><span class="annottext">Builder -&gt; ByteString
+</span><span class="hs-identifier hs-var">BU.toLazyByteString</span></span><span> </span><span class="annot"><span class="annottext">(Builder -&gt; ByteString) -&gt; Builder -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Reference] -&gt; [Reference] -&gt; Value RefNum -&gt; Builder
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#putVersionedValue"><span class="hs-identifier hs-var">putVersionedValue</span></a></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732454"><span class="hs-identifier hs-var">tyrs</span></a></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732455"><span class="hs-identifier hs-var">tmrs</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum
+</span><a href="#local-6989586621680732456"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span id="local-6989586621680732040"><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValueWithHeader"><span class="hs-identifier hs-type">getValueWithHeader</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimBase</span></span><span> </span><span class="annot"><a href="#local-6989586621680732040"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Serialize.Get.html#Get"><span class="hs-identifier hs-type">Get</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680732040"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Referenced.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-215"></span><span id="getValueWithHeader"><span class="annot"><span class="annottext">getValueWithHeader :: forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Referenced Value)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValueWithHeader"><span class="hs-identifier hs-var hs-var">getValueWithHeader</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-216"></span><span>  </span><span id="local-6989586621680732491"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680732491"><span class="hs-identifier hs-var">tyl</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get m Int
+forall (m :: * -&gt; *) n.
+(PrimBase m, Integral n, Integral (Unsigned n), Bits n,
+ Bits (Unsigned n)) =&gt;
+Get m n
+</span><a href="Unison.Runtime.Serialize.html#getLength"><span class="hs-identifier hs-var">getLength</span></a></span><span>
+</span><span id="line-217"></span><span>  </span><span id="local-6989586621680732493"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732493"><span class="hs-identifier hs-var">tys</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Get m Reference -&gt; Get m [Reference]
+forall (m :: * -&gt; *) a. Applicative m =&gt; Int -&gt; m a -&gt; m [a]
+</span><span class="hs-identifier hs-var">replicateM</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680732491"><span class="hs-identifier hs-var">tyl</span></a></span><span> </span><span class="annot"><span class="annottext">Get m Reference
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m Reference
+</span><a href="Unison.Runtime.Serialize.html#getReference"><span class="hs-identifier hs-var">SER.getReference</span></a></span><span>
+</span><span id="line-218"></span><span>  </span><span id="local-6989586621680732494"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680732494"><span class="hs-identifier hs-var">tml</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get m Int
+forall (m :: * -&gt; *) n.
+(PrimBase m, Integral n, Integral (Unsigned n), Bits n,
+ Bits (Unsigned n)) =&gt;
+Get m n
+</span><a href="Unison.Runtime.Serialize.html#getLength"><span class="hs-identifier hs-var">getLength</span></a></span><span>
+</span><span id="line-219"></span><span>  </span><span id="local-6989586621680732495"><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732495"><span class="hs-identifier hs-var">tms</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Get m Reference -&gt; Get m [Reference]
+forall (m :: * -&gt; *) a. Applicative m =&gt; Int -&gt; m a -&gt; m [a]
+</span><span class="hs-identifier hs-var">replicateM</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680732494"><span class="hs-identifier hs-var">tml</span></a></span><span> </span><span class="annot"><span class="annottext">Get m Reference
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m Reference
+</span><a href="Unison.Runtime.Serialize.html#getReference"><span class="hs-identifier hs-var">SER.getReference</span></a></span><span>
+</span><span id="line-220"></span><span>  </span><span id="local-6989586621680732496"><span class="annot"><span class="annottext">Value RefNum
+</span><a href="#local-6989586621680732496"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get m (Value RefNum)
+forall (m :: * -&gt; *). PrimBase m =&gt; Get m (Value RefNum)
+</span><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValue"><span class="hs-identifier hs-var">getValue</span></a></span><span>
+</span><span id="line-221"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Reference] -&gt; [Reference] -&gt; Value RefNum -&gt; Referenced Value
+forall (t :: * -&gt; *).
+[Reference] -&gt; [Reference] -&gt; t RefNum -&gt; Referenced t
+</span><a href="Unison.Runtime.Referenced.html#WithRefs"><span class="hs-identifier hs-var">WithRefs</span></a></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732493"><span class="hs-identifier hs-var">tys</span></a></span><span> </span><span class="annot"><span class="annottext">[Reference]
+</span><a href="#local-6989586621680732495"><span class="hs-identifier hs-var">tms</span></a></span><span> </span><span class="annot"><span class="annottext">Value RefNum
+</span><a href="#local-6989586621680732496"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-222"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.Serialize.ValueV5.html#getValueWithHeader"><span class="hs-pragma hs-type">getValueWithHeader</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-223"></span></pre></body></html>

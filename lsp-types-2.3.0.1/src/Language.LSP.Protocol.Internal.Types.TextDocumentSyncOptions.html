@@ -1,0 +1,314 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SaveOptions.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.SaveOptions</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><span class="hs-comment">{-|
+
+-}</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="TextDocumentSyncOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#TextDocumentSyncOptions"><span class="hs-identifier hs-var">TextDocumentSyncOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TextDocumentSyncOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#TextDocumentSyncOptions"><span class="hs-identifier hs-var">TextDocumentSyncOptions</span></a></span></span><span> </span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Open and close notifications are sent to the server. If omitted open close notification should not
+  be sent.
+  -}</span></span><span>
+</span><span id="line-30"></span><span>  </span><span id="_openClose"><span class="annot"><span class="annottext">TextDocumentSyncOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#_openClose"><span class="hs-identifier hs-var hs-var">_openClose</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Change notifications are sent to the server. See TextDocumentSyncKind.None, TextDocumentSyncKind.Full
+  and TextDocumentSyncKind.Incremental. If omitted it defaults to TextDocumentSyncKind.None.
+  -}</span></span><span>
+</span><span id="line-35"></span><span>  </span><span id="_change"><span class="annot"><span class="annottext">TextDocumentSyncOptions -&gt; Maybe TextDocumentSyncKind
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#_change"><span class="hs-identifier hs-var hs-var">_change</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.html#TextDocumentSyncKind"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.TextDocumentSyncKind.TextDocumentSyncKind</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  If present will save notifications are sent to the server. If omitted the notification should not be
+  sent.
+  -}</span></span><span>
+</span><span id="line-40"></span><span>  </span><span id="_willSave"><span class="annot"><span class="annottext">TextDocumentSyncOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#_willSave"><span class="hs-identifier hs-var hs-var">_willSave</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  If present will save wait until requests are sent to the server. If omitted the request should not be
+  sent.
+  -}</span></span><span>
+</span><span id="line-45"></span><span>  </span><span id="_willSaveWaitUntil"><span class="annot"><span class="annottext">TextDocumentSyncOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#_willSaveWaitUntil"><span class="hs-identifier hs-var hs-var">_willSaveWaitUntil</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  If present save notifications are sent to the server. If omitted the notification should not be
+  sent.
+  -}</span></span><span>
+</span><span id="line-50"></span><span>  </span><span id="_save"><span class="annot"><span class="annottext">TextDocumentSyncOptions -&gt; Maybe (Bool |? SaveOptions)
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#_save"><span class="hs-identifier hs-var hs-var">_save</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SaveOptions.html#SaveOptions"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.SaveOptions.SaveOptions</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682513257"><span id="local-6989586621682513270"><span id="local-6989586621682513274"><span class="annot"><span class="annottext">Int -&gt; TextDocumentSyncOptions -&gt; ShowS
+[TextDocumentSyncOptions] -&gt; ShowS
+TextDocumentSyncOptions -&gt; String
+(Int -&gt; TextDocumentSyncOptions -&gt; ShowS)
+-&gt; (TextDocumentSyncOptions -&gt; String)
+-&gt; ([TextDocumentSyncOptions] -&gt; ShowS)
+-&gt; Show TextDocumentSyncOptions
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; TextDocumentSyncOptions -&gt; ShowS
+showsPrec :: Int -&gt; TextDocumentSyncOptions -&gt; ShowS
+$cshow :: TextDocumentSyncOptions -&gt; String
+show :: TextDocumentSyncOptions -&gt; String
+$cshowList :: [TextDocumentSyncOptions] -&gt; ShowS
+showList :: [TextDocumentSyncOptions] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682513284"><span id="local-6989586621682513295"><span class="annot"><span class="annottext">TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+(TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool)
+-&gt; (TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool)
+-&gt; Eq TextDocumentSyncOptions
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+== :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+$c/= :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+/= :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682513307"><span id="local-6989586621682513318"><span id="local-6989586621682513328"><span id="local-6989586621682513332"><span id="local-6989586621682513335"><span id="local-6989586621682513338"><span id="local-6989586621682513341"><span class="annot"><span class="annottext">Eq TextDocumentSyncOptions
+Eq TextDocumentSyncOptions =&gt;
+(TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Ordering)
+-&gt; (TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool)
+-&gt; (TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool)
+-&gt; (TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool)
+-&gt; (TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool)
+-&gt; (TextDocumentSyncOptions
+    -&gt; TextDocumentSyncOptions -&gt; TextDocumentSyncOptions)
+-&gt; (TextDocumentSyncOptions
+    -&gt; TextDocumentSyncOptions -&gt; TextDocumentSyncOptions)
+-&gt; Ord TextDocumentSyncOptions
+TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Ordering
+TextDocumentSyncOptions
+-&gt; TextDocumentSyncOptions -&gt; TextDocumentSyncOptions
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Ordering
+compare :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Ordering
+$c&lt; :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+&lt; :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+$c&lt;= :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+&lt;= :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+$c&gt; :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+&gt; :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+$c&gt;= :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+&gt;= :: TextDocumentSyncOptions -&gt; TextDocumentSyncOptions -&gt; Bool
+$cmax :: TextDocumentSyncOptions
+-&gt; TextDocumentSyncOptions -&gt; TextDocumentSyncOptions
+max :: TextDocumentSyncOptions
+-&gt; TextDocumentSyncOptions -&gt; TextDocumentSyncOptions
+$cmin :: TextDocumentSyncOptions
+-&gt; TextDocumentSyncOptions -&gt; TextDocumentSyncOptions
+min :: TextDocumentSyncOptions
+-&gt; TextDocumentSyncOptions -&gt; TextDocumentSyncOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682513355"><span id="local-6989586621682513357"><span class="annot"><span class="annottext">(forall x.
+ TextDocumentSyncOptions -&gt; Rep TextDocumentSyncOptions x)
+-&gt; (forall x.
+    Rep TextDocumentSyncOptions x -&gt; TextDocumentSyncOptions)
+-&gt; Generic TextDocumentSyncOptions
+forall x. Rep TextDocumentSyncOptions x -&gt; TextDocumentSyncOptions
+forall x. TextDocumentSyncOptions -&gt; Rep TextDocumentSyncOptions x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. TextDocumentSyncOptions -&gt; Rep TextDocumentSyncOptions x
+from :: forall x. TextDocumentSyncOptions -&gt; Rep TextDocumentSyncOptions x
+$cto :: forall x. Rep TextDocumentSyncOptions x -&gt; TextDocumentSyncOptions
+to :: forall x. Rep TextDocumentSyncOptions x -&gt; TextDocumentSyncOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682513363"><span class="annot"><span class="annottext">TextDocumentSyncOptions -&gt; ()
+(TextDocumentSyncOptions -&gt; ()) -&gt; NFData TextDocumentSyncOptions
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: TextDocumentSyncOptions -&gt; ()
+rnf :: TextDocumentSyncOptions -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682513401"><span id="local-6989586621682513408"><span class="annot"><span class="annottext">Eq TextDocumentSyncOptions
+Eq TextDocumentSyncOptions =&gt;
+(Int -&gt; TextDocumentSyncOptions -&gt; Int)
+-&gt; (TextDocumentSyncOptions -&gt; Int)
+-&gt; Hashable TextDocumentSyncOptions
+Int -&gt; TextDocumentSyncOptions -&gt; Int
+TextDocumentSyncOptions -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; TextDocumentSyncOptions -&gt; Int
+hashWithSalt :: Int -&gt; TextDocumentSyncOptions -&gt; Int
+$chash :: TextDocumentSyncOptions -&gt; Int
+hash :: TextDocumentSyncOptions -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682513440"><span id="local-6989586621682513446"><span class="annot"><span class="annottext">(forall ann. TextDocumentSyncOptions -&gt; Doc ann)
+-&gt; (forall ann. [TextDocumentSyncOptions] -&gt; Doc ann)
+-&gt; Pretty TextDocumentSyncOptions
+forall ann. [TextDocumentSyncOptions] -&gt; Doc ann
+forall ann. TextDocumentSyncOptions -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. TextDocumentSyncOptions -&gt; Doc ann
+pretty :: forall ann. TextDocumentSyncOptions -&gt; Doc ann
+$cprettyList :: forall ann. [TextDocumentSyncOptions] -&gt; Doc ann
+prettyList :: forall ann. [TextDocumentSyncOptions] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#TextDocumentSyncOptions"><span class="hs-identifier hs-type">TextDocumentSyncOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682513457"><span id="local-6989586621682513460"><span id="local-6989586621682513463"><span id="local-6989586621682513466"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#TextDocumentSyncOptions"><span class="hs-identifier hs-type">TextDocumentSyncOptions</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621682513489"><span class="annot"><span class="annottext">toJSON :: TextDocumentSyncOptions -&gt; Value
+</span><a href="#local-6989586621682513489"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#TextDocumentSyncOptions"><span class="hs-identifier hs-type">TextDocumentSyncOptions</span></a></span><span> </span><span id="local-6989586621682513491"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682513491"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682513492"><span class="annot"><span class="annottext">Maybe TextDocumentSyncKind
+</span><a href="#local-6989586621682513492"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682513493"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682513493"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621682513494"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682513494"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621682513495"><span class="annot"><span class="annottext">Maybe (Bool |? SaveOptions)
+</span><a href="#local-6989586621682513495"><span class="hs-identifier hs-var">arg4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Pair]] -&gt; [Pair]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[Pair]] -&gt; [Pair]) -&gt; [[Pair]] -&gt; [Pair]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;openClose&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Bool -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682513491"><span class="hs-identifier hs-var">arg0</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;change&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe TextDocumentSyncKind -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe TextDocumentSyncKind
+</span><a href="#local-6989586621682513492"><span class="hs-identifier hs-var">arg1</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;willSave&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Bool -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682513493"><span class="hs-identifier hs-var">arg2</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;willSaveWaitUntil&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Bool -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682513494"><span class="hs-identifier hs-var">arg3</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;save&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe (Bool |? SaveOptions) -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Bool |? SaveOptions)
+</span><a href="#local-6989586621682513495"><span class="hs-identifier hs-var">arg4</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682513501"><span id="local-6989586621682513505"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#TextDocumentSyncOptions"><span class="hs-identifier hs-type">TextDocumentSyncOptions</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621682513533"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser TextDocumentSyncOptions
+</span><a href="#local-6989586621682513533"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser TextDocumentSyncOptions)
+-&gt; Value
+-&gt; Parser TextDocumentSyncOptions
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TextDocumentSyncOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser TextDocumentSyncOptions)
+ -&gt; Value -&gt; Parser TextDocumentSyncOptions)
+-&gt; (Object -&gt; Parser TextDocumentSyncOptions)
+-&gt; Value
+-&gt; Parser TextDocumentSyncOptions
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682513536"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682513536"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+-&gt; Maybe TextDocumentSyncKind
+-&gt; Maybe Bool
+-&gt; Maybe Bool
+-&gt; Maybe (Bool |? SaveOptions)
+-&gt; TextDocumentSyncOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.TextDocumentSyncOptions.html#TextDocumentSyncOptions"><span class="hs-identifier hs-var">TextDocumentSyncOptions</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Bool
+ -&gt; Maybe TextDocumentSyncKind
+ -&gt; Maybe Bool
+ -&gt; Maybe Bool
+ -&gt; Maybe (Bool |? SaveOptions)
+ -&gt; TextDocumentSyncOptions)
+-&gt; Parser (Maybe Bool)
+-&gt; Parser
+     (Maybe TextDocumentSyncKind
+      -&gt; Maybe Bool
+      -&gt; Maybe Bool
+      -&gt; Maybe (Bool |? SaveOptions)
+      -&gt; TextDocumentSyncOptions)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682513536"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Bool)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;openClose&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe TextDocumentSyncKind
+   -&gt; Maybe Bool
+   -&gt; Maybe Bool
+   -&gt; Maybe (Bool |? SaveOptions)
+   -&gt; TextDocumentSyncOptions)
+-&gt; Parser (Maybe TextDocumentSyncKind)
+-&gt; Parser
+     (Maybe Bool
+      -&gt; Maybe Bool
+      -&gt; Maybe (Bool |? SaveOptions)
+      -&gt; TextDocumentSyncOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682513536"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe TextDocumentSyncKind)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;change&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe Bool
+   -&gt; Maybe Bool
+   -&gt; Maybe (Bool |? SaveOptions)
+   -&gt; TextDocumentSyncOptions)
+-&gt; Parser (Maybe Bool)
+-&gt; Parser
+     (Maybe Bool
+      -&gt; Maybe (Bool |? SaveOptions) -&gt; TextDocumentSyncOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682513536"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Bool)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;willSave&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe Bool
+   -&gt; Maybe (Bool |? SaveOptions) -&gt; TextDocumentSyncOptions)
+-&gt; Parser (Maybe Bool)
+-&gt; Parser (Maybe (Bool |? SaveOptions) -&gt; TextDocumentSyncOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682513536"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Bool)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;willSaveWaitUntil&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Maybe (Bool |? SaveOptions) -&gt; TextDocumentSyncOptions)
+-&gt; Parser (Maybe (Bool |? SaveOptions))
+-&gt; Parser TextDocumentSyncOptions
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682513536"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe (Bool |? SaveOptions))
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;save&quot;</span></span><span>
+</span><span id="line-65"></span></pre></body></html>

@@ -1,0 +1,540 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE UnboxedTuples, BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span class="annot"><span class="hs-comment">-- | JSON Canonicalization Scheme https://datatracker.ietf.org/doc/html/rfc8785</span></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Aeson.RFC8785.html"><span class="hs-identifier">Data.Aeson.RFC8785</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Data.Aeson.RFC8785.html#encodeCanonical"><span class="hs-identifier">encodeCanonical</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">sortBy</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">comparing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Integer</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">quotRemInteger</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Math.NumberTheory.Logarithms</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">integerLog10</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Aeson.html"><span class="hs-identifier">Data.Aeson</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Aeson.Encoding.html"><span class="hs-identifier">Data.Aeson.Encoding</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Aeson.Encoding.Internal.html"><span class="hs-identifier">Data.Aeson.Encoding.Internal</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Aeson.Internal.Prelude.html"><span class="hs-identifier">Data.Aeson.Internal.Prelude</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Aeson.Key.html"><span class="hs-identifier">Data.Aeson.Key</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Key</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Aeson.KeyMap.html"><span class="hs-identifier">Data.Aeson.KeyMap</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">KM</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder.Prim</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BP</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LBS</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Scientific</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Sci</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TE</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word8.Patterns</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">W8</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- &gt;&gt;&gt; import Data.Aeson</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Encode to JSON according to RFC 8785 canonicalization scheme.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- https://datatracker.ietf.org/doc/html/rfc8785</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- 'encodeCanonical' uses 'toJSON' to produce intermediate 'Value',</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- as 'toEncoding' may (and most likely) produces non-canonical JSON.</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- Note: @decode (encodeCanonical v) === Just v@ for all @v :: Value@,</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- i.e. 'encodeCanonical' doesn't lose any information.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- However, the example in RFC8785 /loses/ information as the intermediate</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- number representation is 'Double', also current @toJSON :: Double -&gt; Value@</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- sometimes produces too precise values. For example</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- &gt;&gt;&gt; toJSON (1e23 :: Double)</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- Number 9.999999999999999e22</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- 'show' also behaves the same:</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- &gt;&gt;&gt; 1e23 :: Double</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- 9.999999999999999e22</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- Note: RFC8785 is __not the same scheme__ as used in</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- [canonical-json](https://hackage.haskell.org/package/canonical-json) package</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- (https://wiki.laptop.org/go/Canonical_JSON).</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- That scheme produces /invalid/ JSON (e.g. control characters encoded as is, not escaped)</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- and cannot encode non-integral numbers.</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- @since 2.2.1.0</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span id="local-6989586621679243934"><span class="annot"><a href="Data.Aeson.RFC8785.html#encodeCanonical"><span class="hs-identifier hs-type">encodeCanonical</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Aeson.Types.ToJSON.html#ToJSON"><span class="hs-identifier hs-type">ToJSON</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243934"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679243934"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">LBS.ByteString</span></span></span><span>
+</span><span id="line-61"></span><span id="encodeCanonical"><span class="annot"><span class="annottext">encodeCanonical :: forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><a href="Data.Aeson.RFC8785.html#encodeCanonical"><span class="hs-identifier hs-var hs-var">encodeCanonical</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Encoding' Value -&gt; ByteString
+forall a. Encoding' a -&gt; ByteString
+</span><a href="Data.Aeson.Encoding.Internal.html#encodingToLazyByteString"><span class="hs-identifier hs-var">encodingToLazyByteString</span></a></span><span> </span><span class="annot"><span class="annottext">(Encoding' Value -&gt; ByteString)
+-&gt; (a -&gt; Encoding' Value) -&gt; a -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Encoding' Value
+</span><a href="Data.Aeson.RFC8785.html#toCanonical"><span class="hs-identifier hs-var">toCanonical</span></a></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Encoding' Value) -&gt; (a -&gt; Value) -&gt; a -&gt; Encoding' Value
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><a href="Data.Aeson.Types.ToJSON.html#toJSON"><span class="hs-identifier hs-var">toJSON</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#toCanonical"><span class="hs-identifier hs-type">toCanonical</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Aeson.Types.Internal.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Aeson.Encoding.Internal.html#Encoding"><span class="hs-identifier hs-type">Encoding</span></a></span><span>
+</span><span id="line-64"></span><span id="toCanonical"><span class="annot"><span class="annottext">toCanonical :: Value -&gt; Encoding' Value
+</span><a href="Data.Aeson.RFC8785.html#toCanonical"><span class="hs-identifier hs-var hs-var">toCanonical</span></a></span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="Data.Aeson.Types.Internal.html#Null"><span class="hs-identifier hs-var">Null</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Encoding' Value
+</span><a href="Data.Aeson.Encoding.Internal.html#null_"><span class="hs-identifier hs-var">null_</span></a></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#toCanonical"><span class="hs-identifier hs-var">toCanonical</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Types.Internal.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span> </span><span id="local-6989586621679244071"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679244071"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Encoding' Value
+</span><a href="Data.Aeson.Encoding.Internal.html#bool"><span class="hs-identifier hs-var">bool</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679244071"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#toCanonical"><span class="hs-identifier hs-var">toCanonical</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Types.Internal.html#Number"><span class="hs-identifier hs-type">Number</span></a></span><span> </span><span id="local-6989586621679244074"><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244074"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; Encoding' Value
+</span><a href="Data.Aeson.RFC8785.html#canonicalNumber"><span class="hs-identifier hs-var">canonicalNumber</span></a></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244074"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#toCanonical"><span class="hs-identifier hs-var">toCanonical</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Types.Internal.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span id="local-6989586621679244077"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679244077"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Encoding' Value
+forall a. Text -&gt; Encoding' a
+</span><a href="Data.Aeson.RFC8785.html#canonicalString"><span class="hs-identifier hs-var">canonicalString</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679244077"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#toCanonical"><span class="hs-identifier hs-var">toCanonical</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Types.Internal.html#Array"><span class="hs-identifier hs-type">Array</span></a></span><span> </span><span id="local-6989586621679244080"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679244080"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Encoding' Value) -&gt; [Value] -&gt; Encoding' Value
+forall a. (a -&gt; Encoding' Value) -&gt; [a] -&gt; Encoding' Value
+</span><a href="Data.Aeson.Encoding.Internal.html#list"><span class="hs-identifier hs-var">list</span></a></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Encoding' Value
+</span><a href="Data.Aeson.RFC8785.html#toCanonical"><span class="hs-identifier hs-var">toCanonical</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Array -&gt; [Value]
+forall a. Vector a -&gt; [a]
+</span><span class="hs-identifier hs-var">V.toList</span></span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621679244080"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#toCanonical"><span class="hs-identifier hs-var">toCanonical</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Types.Internal.html#Object"><span class="hs-identifier hs-type">Object</span></a></span><span> </span><span id="local-6989586621679244084"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679244084"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Key -&gt; Encoding' Key)
+-&gt; (Value -&gt; Encoding' Value)
+-&gt; (forall a. (Key -&gt; Value -&gt; a -&gt; a) -&gt; a -&gt; [(Key, Value)] -&gt; a)
+-&gt; [(Key, Value)]
+-&gt; Encoding' Value
+forall k v m.
+(k -&gt; Encoding' Key)
+-&gt; (v -&gt; Encoding' Value)
+-&gt; (forall a. (k -&gt; v -&gt; a -&gt; a) -&gt; a -&gt; m -&gt; a)
+-&gt; m
+-&gt; Encoding' Value
+</span><a href="Data.Aeson.Encoding.Internal.html#dict"><span class="hs-identifier hs-var">dict</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Encoding' Key
+forall a. Text -&gt; Encoding' a
+</span><a href="Data.Aeson.RFC8785.html#canonicalString"><span class="hs-identifier hs-var">canonicalString</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Encoding' Key) -&gt; (Key -&gt; Text) -&gt; Key -&gt; Encoding' Key
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text
+</span><a href="Data.Aeson.Key.html#toText"><span class="hs-identifier hs-var">Key.toText</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Encoding' Value
+</span><a href="Data.Aeson.RFC8785.html#toCanonical"><span class="hs-identifier hs-var">toCanonical</span></a></span><span> </span><span class="annot"><span class="annottext">(Key -&gt; Value -&gt; a -&gt; a) -&gt; a -&gt; [(Key, Value)] -&gt; a
+forall a. (Key -&gt; Value -&gt; a -&gt; a) -&gt; a -&gt; [(Key, Value)] -&gt; a
+forall k v a. (k -&gt; v -&gt; a -&gt; a) -&gt; a -&gt; [(k, v)] -&gt; a
+</span><a href="Data.Aeson.RFC8785.html#ifr"><span class="hs-identifier hs-var">ifr</span></a></span><span> </span><span class="annot"><span class="annottext">([(Key, Value)] -&gt; Encoding' Value)
+-&gt; [(Key, Value)] -&gt; Encoding' Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="annot"><span class="annottext">((Key, Value) -&gt; (Key, Value) -&gt; Ordering)
+-&gt; [(Key, Value)] -&gt; [(Key, Value)]
+forall a. (a -&gt; a -&gt; Ordering) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">sortBy</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679244088"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679244088"><span class="hs-identifier hs-var">k1</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679244089"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679244089"><span class="hs-identifier hs-var">k2</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Key -&gt; Key -&gt; Ordering
+</span><a href="Data.Aeson.RFC8785.html#propertyCmp"><span class="hs-identifier hs-var">propertyCmp</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679244088"><span class="hs-identifier hs-var">k1</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679244089"><span class="hs-identifier hs-var">k2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Object -&gt; [(Key, Value)]
+forall v. KeyMap v -&gt; [(Key, v)]
+</span><a href="Data.Aeson.KeyMap.html#toList"><span class="hs-identifier hs-var">KM.toList</span></a></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679244084"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span id="local-6989586621679243958"><span id="local-6989586621679243959"><span id="local-6989586621679243960"><span class="annot"><a href="Data.Aeson.RFC8785.html#ifr"><span class="hs-identifier hs-type">ifr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679243958"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679243959"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679243960"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679243960"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679243960"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679243958"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679243959"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679243960"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-73"></span><span id="ifr"><span class="annot"><span class="annottext">ifr :: forall k v a. (k -&gt; v -&gt; a -&gt; a) -&gt; a -&gt; [(k, v)] -&gt; a
+</span><a href="Data.Aeson.RFC8785.html#ifr"><span class="hs-identifier hs-var hs-var">ifr</span></a></span></span><span> </span><span id="local-6989586621679244094"><span class="annot"><span class="annottext">k -&gt; v -&gt; a -&gt; a
+</span><a href="#local-6989586621679244094"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679244095"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679244095"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((k, v) -&gt; a -&gt; a) -&gt; a -&gt; [(k, v)] -&gt; a
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679244097"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679244097"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679244098"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679244098"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">k -&gt; v -&gt; a -&gt; a
+</span><a href="#local-6989586621679244094"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679244097"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679244098"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679244095"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-74"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Aeson.RFC8785.html#ifr"><span class="hs-pragma hs-type">ifr</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- Property name strings to be sorted are formatted as arrays of UTF-16 code units.</span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#propertyCmp"><span class="hs-identifier hs-type">propertyCmp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Aeson.Key.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Aeson.Key.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span>
+</span><span id="line-78"></span><span id="propertyCmp"><span class="annot"><span class="annottext">propertyCmp :: Key -&gt; Key -&gt; Ordering
+</span><a href="Data.Aeson.RFC8785.html#propertyCmp"><span class="hs-identifier hs-var hs-var">propertyCmp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Key -&gt; ByteString) -&gt; Key -&gt; Key -&gt; Ordering
+forall a b. Ord a =&gt; (b -&gt; a) -&gt; b -&gt; b -&gt; Ordering
+</span><span class="hs-identifier hs-var">comparing</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; ByteString
+</span><a href="#local-6989586621679244099"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-comment">-- this is slow implementation, but it's obviously not wrong.</span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><a href="#local-6989586621679244099"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Aeson.Key.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621679244099"><span class="annot"><span class="annottext">f :: Key -&gt; ByteString
+</span><a href="#local-6989586621679244099"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf16BE</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; ByteString) -&gt; (Key -&gt; Text) -&gt; Key -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text
+</span><a href="Data.Aeson.Key.html#toText"><span class="hs-identifier hs-var">Key.toText</span></a></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- strings are already serialized canonically.</span><span>
+</span><span id="line-84"></span><span id="local-6989586621679243946"><span class="annot"><a href="Data.Aeson.RFC8785.html#canonicalString"><span class="hs-identifier hs-type">canonicalString</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Aeson.Encoding.Internal.html#Encoding%27"><span class="hs-identifier hs-type">Encoding'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243946"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-85"></span><span id="canonicalString"><span class="annot"><span class="annottext">canonicalString :: forall a. Text -&gt; Encoding' a
+</span><a href="Data.Aeson.RFC8785.html#canonicalString"><span class="hs-identifier hs-var hs-var">canonicalString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Encoding' a
+forall a. Text -&gt; Encoding' a
+</span><a href="Data.Aeson.Encoding.Internal.html#text"><span class="hs-identifier hs-var">text</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- RFC 8785 is outsourcing number format to ECMA-262.</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- 10th edition, 7.1.12.1 NumberToString</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- https://262.ecma-international.org/10.0/#sec-tostring-applied-to-the-number-type</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- Note: this specification is not lossy</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- Given 'Scientific' we can choose n,k,s uniquely: 'nks'.</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- RFC8785 Appendix D says &quot;don't use bignums&quot;.</span><span>
+</span><span id="line-95"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#canonicalNumber"><span class="hs-identifier hs-type">canonicalNumber</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Scientific</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Aeson.Encoding.Internal.html#Encoding"><span class="hs-identifier hs-type">Encoding</span></a></span><span>
+</span><span id="line-96"></span><span id="canonicalNumber"><span class="annot"><span class="annottext">canonicalNumber :: Scientific -&gt; Encoding' Value
+</span><a href="Data.Aeson.RFC8785.html#canonicalNumber"><span class="hs-identifier hs-var hs-var">canonicalNumber</span></a></span></span><span> </span><span id="local-6989586621679244102"><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244102"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; Scientific -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244102"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Encoding' Value
+forall tag. Builder -&gt; Encoding' tag
+</span><a href="Data.Aeson.Encoding.Internal.html#Encoding"><span class="hs-identifier hs-var">Encoding</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.DIGIT_0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Encoding' Value
+forall tag. Builder -&gt; Encoding' tag
+</span><a href="Data.Aeson.Encoding.Internal.html#Encoding"><span class="hs-identifier hs-var">Encoding</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.HYPHEN</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Encoding' Value -&gt; Builder
+forall tag. Encoding' tag -&gt; Builder
+</span><a href="Data.Aeson.Encoding.Internal.html#fromEncoding"><span class="hs-identifier hs-var">fromEncoding</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scientific -&gt; Encoding' Value
+</span><a href="Data.Aeson.RFC8785.html#canonicalNumber%27"><span class="hs-identifier hs-var">canonicalNumber'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scientific -&gt; Scientific
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">negate</span></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244102"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; Encoding' Value
+</span><a href="Data.Aeson.RFC8785.html#canonicalNumber%27"><span class="hs-identifier hs-var">canonicalNumber'</span></a></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244102"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- input: Positive number</span><span>
+</span><span id="line-102"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#canonicalNumber%27"><span class="hs-identifier hs-type">canonicalNumber'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Scientific</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Aeson.Encoding.Internal.html#Encoding"><span class="hs-identifier hs-type">Encoding</span></a></span><span>
+</span><span id="line-103"></span><span id="canonicalNumber%27"><span class="annot"><span class="annottext">canonicalNumber' :: Scientific -&gt; Encoding' Value
+</span><a href="Data.Aeson.RFC8785.html#canonicalNumber%27"><span class="hs-identifier hs-var hs-var">canonicalNumber'</span></a></span></span><span> </span><span id="local-6989586621679244110"><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244110"><span class="hs-identifier hs-var">m</span></a></span></span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244111"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">21</span></span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Encoding' Value
+forall tag. Builder -&gt; Encoding' tag
+</span><a href="Data.Aeson.Encoding.Internal.html#Encoding"><span class="hs-identifier hs-var">Encoding</span></a></span><span> </span><span class="annot"><span class="annottext">(Builder -&gt; Encoding' Value) -&gt; Builder -&gt; Encoding' Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-106"></span><span>        </span><span class="annot"><span class="annottext">FixedPrim Word8 -&gt; [Word8] -&gt; Builder
+forall a. FixedPrim a -&gt; [a] -&gt; Builder
+</span><span class="hs-identifier hs-var">BP.primMapListFixed</span></span><span> </span><span class="annot"><span class="annottext">FixedPrim Word8
+</span><span class="hs-identifier hs-var">BP.word8</span></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244116"><span class="hs-identifier hs-var">ds</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-107"></span><span>        </span><span class="annot"><span class="annottext">FixedPrim Word8 -&gt; [Word8] -&gt; Builder
+forall a. FixedPrim a -&gt; [a] -&gt; Builder
+</span><span class="hs-identifier hs-var">BP.primMapListFixed</span></span><span> </span><span class="annot"><span class="annottext">FixedPrim Word8
+</span><span class="hs-identifier hs-var">BP.word8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word8 -&gt; [Word8]
+forall a. Int -&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244111"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.DIGIT_0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">21</span></span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679244119"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244119"><span class="hs-identifier hs-var">pfx</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679244120"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244120"><span class="hs-identifier hs-var">sfx</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Word8] -&gt; ([Word8], [Word8])
+forall a. Int -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244116"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-111"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Encoding' Value
+forall tag. Builder -&gt; Encoding' tag
+</span><a href="Data.Aeson.Encoding.Internal.html#Encoding"><span class="hs-identifier hs-var">Encoding</span></a></span><span> </span><span class="annot"><span class="annottext">(Builder -&gt; Encoding' Value) -&gt; Builder -&gt; Encoding' Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-112"></span><span>        </span><span class="annot"><span class="annottext">FixedPrim Word8 -&gt; [Word8] -&gt; Builder
+forall a. FixedPrim a -&gt; [a] -&gt; Builder
+</span><span class="hs-identifier hs-var">BP.primMapListFixed</span></span><span> </span><span class="annot"><span class="annottext">FixedPrim Word8
+</span><span class="hs-identifier hs-var">BP.word8</span></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244119"><span class="hs-identifier hs-var">pfx</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-113"></span><span>        </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.PERIOD</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-114"></span><span>        </span><span class="annot"><span class="annottext">FixedPrim Word8 -&gt; [Word8] -&gt; Builder
+forall a. FixedPrim a -&gt; [a] -&gt; Builder
+</span><span class="hs-identifier hs-var">BP.primMapListFixed</span></span><span> </span><span class="annot"><span class="annottext">FixedPrim Word8
+</span><span class="hs-identifier hs-var">BP.word8</span></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244120"><span class="hs-identifier hs-var">sfx</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Encoding' Value
+forall tag. Builder -&gt; Encoding' tag
+</span><a href="Data.Aeson.Encoding.Internal.html#Encoding"><span class="hs-identifier hs-var">Encoding</span></a></span><span> </span><span class="annot"><span class="annottext">(Builder -&gt; Encoding' Value) -&gt; Builder -&gt; Encoding' Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-118"></span><span>        </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.DIGIT_0</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-119"></span><span>        </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.PERIOD</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-120"></span><span>        </span><span class="annot"><span class="annottext">FixedPrim Word8 -&gt; [Word8] -&gt; Builder
+forall a. FixedPrim a -&gt; [a] -&gt; Builder
+</span><span class="hs-identifier hs-var">BP.primMapListFixed</span></span><span> </span><span class="annot"><span class="annottext">FixedPrim Word8
+</span><span class="hs-identifier hs-var">BP.word8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word8 -&gt; [Word8]
+forall a. Int -&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">negate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.DIGIT_0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-121"></span><span>        </span><span class="annot"><span class="annottext">FixedPrim Word8 -&gt; [Word8] -&gt; Builder
+forall a. FixedPrim a -&gt; [a] -&gt; Builder
+</span><span class="hs-identifier hs-var">BP.primMapListFixed</span></span><span> </span><span class="annot"><span class="annottext">FixedPrim Word8
+</span><span class="hs-identifier hs-var">BP.word8</span></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244116"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244111"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span id="local-6989586621679244123"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679244123"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244116"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-124"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Encoding' Value
+forall tag. Builder -&gt; Encoding' tag
+</span><a href="Data.Aeson.Encoding.Internal.html#Encoding"><span class="hs-identifier hs-var">Encoding</span></a></span><span> </span><span class="annot"><span class="annottext">(Builder -&gt; Encoding' Value) -&gt; Builder -&gt; Encoding' Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-125"></span><span>        </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679244123"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-126"></span><span>        </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.LOWER_E</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-127"></span><span>        </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.PLUS</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.HYPHEN</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-128"></span><span>        </span><span class="annot"><span class="annottext">FixedPrim Word8 -&gt; [Word8] -&gt; Builder
+forall a. FixedPrim a -&gt; [a] -&gt; Builder
+</span><span class="hs-identifier hs-var">BP.primMapListFixed</span></span><span> </span><span class="annot"><span class="annottext">FixedPrim Word8
+</span><span class="hs-identifier hs-var">BP.word8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; [Word8]
+</span><a href="Data.Aeson.RFC8785.html#integerToDecimalDigits"><span class="hs-identifier hs-var">integerToDecimalDigits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679244128"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679244128"><span class="hs-identifier hs-var">d</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679244129"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244129"><span class="hs-identifier hs-var">ds'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244116"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Encoding' Value
+forall tag. Builder -&gt; Encoding' tag
+</span><a href="Data.Aeson.Encoding.Internal.html#Encoding"><span class="hs-identifier hs-var">Encoding</span></a></span><span> </span><span class="annot"><span class="annottext">(Builder -&gt; Encoding' Value) -&gt; Builder -&gt; Encoding' Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-132"></span><span>        </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679244128"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-133"></span><span>        </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.PERIOD</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-134"></span><span>        </span><span class="annot"><span class="annottext">FixedPrim Word8 -&gt; [Word8] -&gt; Builder
+forall a. FixedPrim a -&gt; [a] -&gt; Builder
+</span><span class="hs-identifier hs-var">BP.primMapListFixed</span></span><span> </span><span class="annot"><span class="annottext">FixedPrim Word8
+</span><span class="hs-identifier hs-var">BP.word8</span></span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244129"><span class="hs-identifier hs-var">ds'</span></a></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-135"></span><span>        </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.LOWER_E</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-136"></span><span>        </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">B.word8</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.PLUS</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.HYPHEN</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span>
+</span><span id="line-137"></span><span>        </span><span class="annot"><span class="annottext">FixedPrim Word8 -&gt; [Word8] -&gt; Builder
+forall a. FixedPrim a -&gt; [a] -&gt; Builder
+</span><span class="hs-identifier hs-var">BP.primMapListFixed</span></span><span> </span><span class="annot"><span class="annottext">FixedPrim Word8
+</span><span class="hs-identifier hs-var">BP.word8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; [Word8]
+</span><a href="Data.Aeson.RFC8785.html#integerToDecimalDigits"><span class="hs-identifier hs-var">integerToDecimalDigits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Encoding' Value
+forall a. String -&gt; Encoding' a
+</span><a href="Data.Aeson.Encoding.Internal.html#string"><span class="hs-identifier hs-var">string</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;0&quot;</span></span><span> </span><span class="hs-comment">-- shouldn't happen, but we need a default case.</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-comment">-- 5. Otherwise, let n, k, and s be integers such that</span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-comment">-- k &#8805; 1, 10k - 1 &#8804; s &lt; 10k, the Number value for s &#215; 10n - k is m,</span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-comment">-- and k is as small as possible.</span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-comment">-- Note that k is the number of digits in the decimal representation of s,</span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-comment">-- that s is not divisible by 10, and that the least significant digit of s</span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-comment">-- is not necessarily uniquely determined by these criteria.</span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679244113"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244113"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679244111"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244111"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679244131"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679244131"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; (Int, Int, Integer)
+</span><a href="Data.Aeson.RFC8785.html#nks"><span class="hs-identifier hs-var">nks</span></a></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244110"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-150"></span><span>    </span><span id="local-6989586621679244116"><span class="annot"><span class="annottext">ds :: [Word8]
+</span><a href="#local-6989586621679244116"><span class="hs-identifier hs-var hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; [Word8]
+</span><a href="Data.Aeson.RFC8785.html#integerToDecimalDigits"><span class="hs-identifier hs-var">integerToDecimalDigits</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679244131"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- 5. Otherwise, let n, k, and s be integers such that k &#8805; 1, 10^(k - 1) &#8804; s &lt; 10^k,</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- the Number value for s &#215; 10^(n - k) is m, and k is as small as possible.</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- Note that k is the number of digits in the decimal representation of s,</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- that s is not divisible by 10, and that the least significant digit of s</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- is not necessarily uniquely determined by these criteria.</span><span>
+</span><span id="line-157"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#nks"><span class="hs-identifier hs-type">nks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Scientific</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span id="nks"><span class="annot"><span class="annottext">nks :: Scientific -&gt; (Int, Int, Integer)
+</span><a href="Data.Aeson.RFC8785.html#nks"><span class="hs-identifier hs-var hs-var">nks</span></a></span></span><span> </span><span id="local-6989586621679244133"><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244133"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244134"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244136"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244136"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679244137"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-160"></span><span>    </span><span id="local-6989586621679244138"><span class="annot"><span class="annottext">m' :: Scientific
+</span><a href="#local-6989586621679244138"><span class="hs-identifier hs-var hs-var">m'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; Scientific
+</span><span class="hs-identifier hs-var">Sci.normalize</span></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244133"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-161"></span><span>    </span><span id="local-6989586621679244137"><span class="annot"><span class="annottext">c :: Integer
+</span><a href="#local-6989586621679244137"><span class="hs-identifier hs-var hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; Integer
+</span><span class="hs-identifier hs-var">Sci.coefficient</span></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244138"><span class="hs-identifier hs-var">m'</span></a></span><span>
+</span><span id="line-162"></span><span>    </span><span id="local-6989586621679244134"><span class="annot"><span class="annottext">e :: Int
+</span><a href="#local-6989586621679244134"><span class="hs-identifier hs-var hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; Int
+</span><span class="hs-identifier hs-var">Sci.base10Exponent</span></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679244138"><span class="hs-identifier hs-var">m'</span></a></span><span>
+</span><span id="line-163"></span><span>    </span><span id="local-6989586621679244136"><span class="annot"><span class="annottext">k :: Int
+</span><a href="#local-6989586621679244136"><span class="hs-identifier hs-var hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int
+</span><span class="hs-identifier hs-var">integerLog10</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679244137"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="annot"><a href="Data.Aeson.RFC8785.html#integerToDecimalDigits"><span class="hs-identifier hs-type">integerToDecimalDigits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">]</span><span>
+</span><span id="line-166"></span><span id="integerToDecimalDigits"><span class="annot"><span class="annottext">integerToDecimalDigits :: Integer -&gt; [Word8]
+</span><a href="Data.Aeson.RFC8785.html#integerToDecimalDigits"><span class="hs-identifier hs-var hs-var">integerToDecimalDigits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; Integer -&gt; [Word8]
+</span><a href="#local-6989586621679244144"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-167"></span><span>    </span><span id="local-6989586621679244144"><span class="annot"><span class="annottext">go :: [Word8] -&gt; Integer -&gt; [Word8]
+</span><a href="#local-6989586621679244144"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679244148"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244148"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244148"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-168"></span><span>    </span><span class="annot"><a href="#local-6989586621679244144"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679244149"><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244149"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679244150"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679244150"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; (# Integer, Integer #)
+</span><span class="hs-identifier hs-var">quotRemInteger</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679244150"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-169"></span><span>        </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679244151"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679244151"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679244152"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679244152"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; Integer -&gt; [Word8]
+</span><a href="#local-6989586621679244144"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679244153"><span class="hs-identifier hs-var">d</span></a></span><span class="annot"><span class="annottext">Word8 -&gt; [Word8] -&gt; [Word8]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[Word8]
+</span><a href="#local-6989586621679244149"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679244151"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="hs-keyword">where</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679244153"><span class="annot"><span class="annottext">d :: Word8
+</span><a href="#local-6989586621679244153"><span class="hs-identifier hs-var hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679244152"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier hs-var">W8.DIGIT_0</span></span><span>
+</span><span id="line-170"></span></pre></body></html>

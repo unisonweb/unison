@@ -1,0 +1,263 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.HistoryComment.html"><span class="hs-identifier">Unison.HistoryComment</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.HistoryComment.html#LatestHistoryComment"><span class="hs-identifier">LatestHistoryComment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.HistoryComment.html#HistoryComment"><span class="hs-identifier">HistoryComment</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.HistoryComment.html#HistoryCommentRevision"><span class="hs-identifier">HistoryCommentRevision</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">type</span><span> </span><span id="LatestHistoryComment"><span class="annot"><a href="Unison.HistoryComment.html#LatestHistoryComment"><span class="hs-identifier hs-var">LatestHistoryComment</span></a></span></span><span> </span><span id="local-6989586621679320867"><span class="annot"><a href="#local-6989586621679320867"><span class="hs-identifier hs-type">thumbprint</span></a></span></span><span> </span><span id="local-6989586621679320868"><span class="annot"><a href="#local-6989586621679320868"><span class="hs-identifier hs-type">causal</span></a></span></span><span> </span><span id="local-6989586621679320869"><span class="annot"><a href="#local-6989586621679320869"><span class="hs-identifier hs-type">revisionId</span></a></span></span><span> </span><span id="local-6989586621679320870"><span class="annot"><a href="#local-6989586621679320870"><span class="hs-identifier hs-type">commentId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-13"></span><span>  </span><span class="annot"><a href="Unison.HistoryComment.html#HistoryCommentRevision"><span class="hs-identifier hs-type">HistoryCommentRevision</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679320869"><span class="hs-identifier hs-type">revisionId</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.HistoryComment.html#HistoryComment"><span class="hs-identifier hs-type">HistoryComment</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><a href="#local-6989586621679320867"><span class="hs-identifier hs-type">thumbprint</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679320868"><span class="hs-identifier hs-type">causal</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679320870"><span class="hs-identifier hs-type">commentId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">data</span><span> </span><span id="HistoryComment"><span class="annot"><a href="Unison.HistoryComment.html#HistoryComment"><span class="hs-identifier hs-var">HistoryComment</span></a></span></span><span> </span><span id="local-6989586621679320767"><span class="annot"><a href="#local-6989586621679320767"><span class="hs-identifier hs-type">createdAt</span></a></span></span><span> </span><span id="local-6989586621679320768"><span class="annot"><a href="#local-6989586621679320768"><span class="hs-identifier hs-type">thumbprint</span></a></span></span><span> </span><span id="local-6989586621679320769"><span class="annot"><a href="#local-6989586621679320769"><span class="hs-identifier hs-type">causal</span></a></span></span><span> </span><span id="local-6989586621679320770"><span class="annot"><a href="#local-6989586621679320770"><span class="hs-identifier hs-type">commentId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HistoryComment"><span class="annot"><a href="Unison.HistoryComment.html#HistoryComment"><span class="hs-identifier hs-var">HistoryComment</span></a></span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="author"><span class="annot"><span class="annottext">forall createdAt thumbprint causal commentId.
+HistoryComment createdAt thumbprint causal commentId -&gt; Text
+</span><a href="Unison.HistoryComment.html#author"><span class="hs-identifier hs-var hs-var">author</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-comment">-- The time the comment was created.</span><span>
+</span><span id="line-18"></span><span>    </span><span id="createdAt"><span class="annot"><span class="annottext">forall createdAt thumbprint causal commentId.
+HistoryComment createdAt thumbprint causal commentId -&gt; createdAt
+</span><a href="Unison.HistoryComment.html#createdAt"><span class="hs-identifier hs-var hs-var">createdAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679320767"><span class="hs-identifier hs-type">createdAt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span id="authorThumbprint"><span class="annot"><span class="annottext">forall createdAt thumbprint causal commentId.
+HistoryComment createdAt thumbprint causal commentId -&gt; thumbprint
+</span><a href="Unison.HistoryComment.html#authorThumbprint"><span class="hs-identifier hs-var hs-var">authorThumbprint</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679320768"><span class="hs-identifier hs-type">thumbprint</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span id="causal"><span class="annot"><span class="annottext">forall createdAt thumbprint causal commentId.
+HistoryComment createdAt thumbprint causal commentId -&gt; causal
+</span><a href="Unison.HistoryComment.html#causal"><span class="hs-identifier hs-var hs-var">causal</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679320769"><span class="hs-identifier hs-type">causal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span id="commentId"><span class="annot"><span class="annottext">forall createdAt thumbprint causal commentId.
+HistoryComment createdAt thumbprint causal commentId -&gt; commentId
+</span><a href="Unison.HistoryComment.html#commentId"><span class="hs-identifier hs-var hs-var">commentId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679320770"><span class="hs-identifier hs-type">commentId</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679320882"><span id="local-6989586621679320892"><span id="local-6989586621679320896"><span class="annot"><span class="annottext">Int
+-&gt; HistoryComment createdAt thumbprint causal commentId -&gt; ShowS
+[HistoryComment createdAt thumbprint causal commentId] -&gt; ShowS
+HistoryComment createdAt thumbprint causal commentId -&gt; String
+(Int
+ -&gt; HistoryComment createdAt thumbprint causal commentId -&gt; ShowS)
+-&gt; (HistoryComment createdAt thumbprint causal commentId -&gt; String)
+-&gt; ([HistoryComment createdAt thumbprint causal commentId]
+    -&gt; ShowS)
+-&gt; Show (HistoryComment createdAt thumbprint causal commentId)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall createdAt thumbprint causal commentId.
+(Show createdAt, Show thumbprint, Show causal, Show commentId) =&gt;
+Int
+-&gt; HistoryComment createdAt thumbprint causal commentId -&gt; ShowS
+forall createdAt thumbprint causal commentId.
+(Show createdAt, Show thumbprint, Show causal, Show commentId) =&gt;
+[HistoryComment createdAt thumbprint causal commentId] -&gt; ShowS
+forall createdAt thumbprint causal commentId.
+(Show createdAt, Show thumbprint, Show causal, Show commentId) =&gt;
+HistoryComment createdAt thumbprint causal commentId -&gt; String
+$cshowsPrec :: forall createdAt thumbprint causal commentId.
+(Show createdAt, Show thumbprint, Show causal, Show commentId) =&gt;
+Int
+-&gt; HistoryComment createdAt thumbprint causal commentId -&gt; ShowS
+showsPrec :: Int
+-&gt; HistoryComment createdAt thumbprint causal commentId -&gt; ShowS
+$cshow :: forall createdAt thumbprint causal commentId.
+(Show createdAt, Show thumbprint, Show causal, Show commentId) =&gt;
+HistoryComment createdAt thumbprint causal commentId -&gt; String
+show :: HistoryComment createdAt thumbprint causal commentId -&gt; String
+$cshowList :: forall createdAt thumbprint causal commentId.
+(Show createdAt, Show thumbprint, Show causal, Show commentId) =&gt;
+[HistoryComment createdAt thumbprint causal commentId] -&gt; ShowS
+showList :: [HistoryComment createdAt thumbprint causal commentId] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679320905"><span id="local-6989586621679320913"><span class="annot"><span class="annottext">HistoryComment createdAt thumbprint causal commentId
+-&gt; HistoryComment createdAt thumbprint causal commentId -&gt; Bool
+(HistoryComment createdAt thumbprint causal commentId
+ -&gt; HistoryComment createdAt thumbprint causal commentId -&gt; Bool)
+-&gt; (HistoryComment createdAt thumbprint causal commentId
+    -&gt; HistoryComment createdAt thumbprint causal commentId -&gt; Bool)
+-&gt; Eq (HistoryComment createdAt thumbprint causal commentId)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall createdAt thumbprint causal commentId.
+(Eq createdAt, Eq thumbprint, Eq causal, Eq commentId) =&gt;
+HistoryComment createdAt thumbprint causal commentId
+-&gt; HistoryComment createdAt thumbprint causal commentId -&gt; Bool
+$c== :: forall createdAt thumbprint causal commentId.
+(Eq createdAt, Eq thumbprint, Eq causal, Eq commentId) =&gt;
+HistoryComment createdAt thumbprint causal commentId
+-&gt; HistoryComment createdAt thumbprint causal commentId -&gt; Bool
+== :: HistoryComment createdAt thumbprint causal commentId
+-&gt; HistoryComment createdAt thumbprint causal commentId -&gt; Bool
+$c/= :: forall createdAt thumbprint causal commentId.
+(Eq createdAt, Eq thumbprint, Eq causal, Eq commentId) =&gt;
+HistoryComment createdAt thumbprint causal commentId
+-&gt; HistoryComment createdAt thumbprint causal commentId -&gt; Bool
+/= :: HistoryComment createdAt thumbprint causal commentId
+-&gt; HistoryComment createdAt thumbprint causal commentId -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679320918"><span id="local-6989586621679320920"><span class="annot"><span class="annottext">(forall a b.
+ (a -&gt; b)
+ -&gt; HistoryComment createdAt thumbprint causal a
+ -&gt; HistoryComment createdAt thumbprint causal b)
+-&gt; (forall a b.
+    a
+    -&gt; HistoryComment createdAt thumbprint causal b
+    -&gt; HistoryComment createdAt thumbprint causal a)
+-&gt; Functor (HistoryComment createdAt thumbprint causal)
+forall a b.
+a
+-&gt; HistoryComment createdAt thumbprint causal b
+-&gt; HistoryComment createdAt thumbprint causal a
+forall a b.
+(a -&gt; b)
+-&gt; HistoryComment createdAt thumbprint causal a
+-&gt; HistoryComment createdAt thumbprint causal b
+forall createdAt thumbprint causal a b.
+a
+-&gt; HistoryComment createdAt thumbprint causal b
+-&gt; HistoryComment createdAt thumbprint causal a
+forall createdAt thumbprint causal a b.
+(a -&gt; b)
+-&gt; HistoryComment createdAt thumbprint causal a
+-&gt; HistoryComment createdAt thumbprint causal b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall createdAt thumbprint causal a b.
+(a -&gt; b)
+-&gt; HistoryComment createdAt thumbprint causal a
+-&gt; HistoryComment createdAt thumbprint causal b
+fmap :: forall a b.
+(a -&gt; b)
+-&gt; HistoryComment createdAt thumbprint causal a
+-&gt; HistoryComment createdAt thumbprint causal b
+$c&lt;$ :: forall createdAt thumbprint causal a b.
+a
+-&gt; HistoryComment createdAt thumbprint causal b
+-&gt; HistoryComment createdAt thumbprint causal a
+&lt;$ :: forall a b.
+a
+-&gt; HistoryComment createdAt thumbprint causal b
+-&gt; HistoryComment createdAt thumbprint causal a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="HistoryCommentRevision"><span class="annot"><a href="Unison.HistoryComment.html#HistoryCommentRevision"><span class="hs-identifier hs-var">HistoryCommentRevision</span></a></span></span><span> </span><span id="local-6989586621679320823"><span class="annot"><a href="#local-6989586621679320823"><span class="hs-identifier hs-type">revisionId</span></a></span></span><span> </span><span id="local-6989586621679320824"><span class="annot"><a href="#local-6989586621679320824"><span class="hs-identifier hs-type">createdAt</span></a></span></span><span> </span><span id="local-6989586621679320825"><span class="annot"><a href="#local-6989586621679320825"><span class="hs-identifier hs-type">comment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HistoryCommentRevision"><span class="annot"><a href="Unison.HistoryComment.html#HistoryCommentRevision"><span class="hs-identifier hs-var">HistoryCommentRevision</span></a></span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="subject"><span class="annot"><span class="annottext">forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; Text
+</span><a href="Unison.HistoryComment.html#subject"><span class="hs-identifier hs-var hs-var">subject</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span id="content"><span class="annot"><span class="annottext">forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; Text
+</span><a href="Unison.HistoryComment.html#content"><span class="hs-identifier hs-var hs-var">content</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span id="createdAt"><span class="annot"><span class="annottext">forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; createdAt
+</span><a href="Unison.HistoryComment.html#createdAt"><span class="hs-identifier hs-var hs-var">createdAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679320824"><span class="hs-identifier hs-type">createdAt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-comment">-- The comment this is a revision for.</span><span>
+</span><span id="line-30"></span><span>    </span><span id="comment"><span class="annot"><span class="annottext">forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; comment
+</span><a href="Unison.HistoryComment.html#comment"><span class="hs-identifier hs-var hs-var">comment</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679320825"><span class="hs-identifier hs-type">comment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>    </span><span id="isHidden"><span class="annot"><span class="annottext">forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; Bool
+</span><a href="Unison.HistoryComment.html#isHidden"><span class="hs-identifier hs-var hs-var">isHidden</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>    </span><span id="authorSignature"><span class="annot"><span class="annottext">forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; ByteString
+</span><a href="Unison.HistoryComment.html#authorSignature"><span class="hs-identifier hs-var hs-var">authorSignature</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span id="revisionId"><span class="annot"><span class="annottext">forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; revisionId
+</span><a href="Unison.HistoryComment.html#revisionId"><span class="hs-identifier hs-var hs-var">revisionId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679320823"><span class="hs-identifier hs-type">revisionId</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679320936"><span id="local-6989586621679320948"><span id="local-6989586621679320952"><span class="annot"><span class="annottext">Int -&gt; HistoryCommentRevision revisionId createdAt comment -&gt; ShowS
+[HistoryCommentRevision revisionId createdAt comment] -&gt; ShowS
+HistoryCommentRevision revisionId createdAt comment -&gt; String
+(Int
+ -&gt; HistoryCommentRevision revisionId createdAt comment -&gt; ShowS)
+-&gt; (HistoryCommentRevision revisionId createdAt comment -&gt; String)
+-&gt; ([HistoryCommentRevision revisionId createdAt comment] -&gt; ShowS)
+-&gt; Show (HistoryCommentRevision revisionId createdAt comment)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall revisionId createdAt comment.
+(Show createdAt, Show comment, Show revisionId) =&gt;
+Int -&gt; HistoryCommentRevision revisionId createdAt comment -&gt; ShowS
+forall revisionId createdAt comment.
+(Show createdAt, Show comment, Show revisionId) =&gt;
+[HistoryCommentRevision revisionId createdAt comment] -&gt; ShowS
+forall revisionId createdAt comment.
+(Show createdAt, Show comment, Show revisionId) =&gt;
+HistoryCommentRevision revisionId createdAt comment -&gt; String
+$cshowsPrec :: forall revisionId createdAt comment.
+(Show createdAt, Show comment, Show revisionId) =&gt;
+Int -&gt; HistoryCommentRevision revisionId createdAt comment -&gt; ShowS
+showsPrec :: Int -&gt; HistoryCommentRevision revisionId createdAt comment -&gt; ShowS
+$cshow :: forall revisionId createdAt comment.
+(Show createdAt, Show comment, Show revisionId) =&gt;
+HistoryCommentRevision revisionId createdAt comment -&gt; String
+show :: HistoryCommentRevision revisionId createdAt comment -&gt; String
+$cshowList :: forall revisionId createdAt comment.
+(Show createdAt, Show comment, Show revisionId) =&gt;
+[HistoryCommentRevision revisionId createdAt comment] -&gt; ShowS
+showList :: [HistoryCommentRevision revisionId createdAt comment] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679320958"><span id="local-6989586621679320969"><span class="annot"><span class="annottext">HistoryCommentRevision revisionId createdAt comment
+-&gt; HistoryCommentRevision revisionId createdAt comment -&gt; Bool
+(HistoryCommentRevision revisionId createdAt comment
+ -&gt; HistoryCommentRevision revisionId createdAt comment -&gt; Bool)
+-&gt; (HistoryCommentRevision revisionId createdAt comment
+    -&gt; HistoryCommentRevision revisionId createdAt comment -&gt; Bool)
+-&gt; Eq (HistoryCommentRevision revisionId createdAt comment)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall revisionId createdAt comment.
+(Eq createdAt, Eq comment, Eq revisionId) =&gt;
+HistoryCommentRevision revisionId createdAt comment
+-&gt; HistoryCommentRevision revisionId createdAt comment -&gt; Bool
+$c== :: forall revisionId createdAt comment.
+(Eq createdAt, Eq comment, Eq revisionId) =&gt;
+HistoryCommentRevision revisionId createdAt comment
+-&gt; HistoryCommentRevision revisionId createdAt comment -&gt; Bool
+== :: HistoryCommentRevision revisionId createdAt comment
+-&gt; HistoryCommentRevision revisionId createdAt comment -&gt; Bool
+$c/= :: forall revisionId createdAt comment.
+(Eq createdAt, Eq comment, Eq revisionId) =&gt;
+HistoryCommentRevision revisionId createdAt comment
+-&gt; HistoryCommentRevision revisionId createdAt comment -&gt; Bool
+/= :: HistoryCommentRevision revisionId createdAt comment
+-&gt; HistoryCommentRevision revisionId createdAt comment -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679320973"><span id="local-6989586621679320975"><span class="annot"><span class="annottext">(forall a b.
+ (a -&gt; b)
+ -&gt; HistoryCommentRevision revisionId createdAt a
+ -&gt; HistoryCommentRevision revisionId createdAt b)
+-&gt; (forall a b.
+    a
+    -&gt; HistoryCommentRevision revisionId createdAt b
+    -&gt; HistoryCommentRevision revisionId createdAt a)
+-&gt; Functor (HistoryCommentRevision revisionId createdAt)
+forall a b.
+a
+-&gt; HistoryCommentRevision revisionId createdAt b
+-&gt; HistoryCommentRevision revisionId createdAt a
+forall a b.
+(a -&gt; b)
+-&gt; HistoryCommentRevision revisionId createdAt a
+-&gt; HistoryCommentRevision revisionId createdAt b
+forall revisionId createdAt a b.
+a
+-&gt; HistoryCommentRevision revisionId createdAt b
+-&gt; HistoryCommentRevision revisionId createdAt a
+forall revisionId createdAt a b.
+(a -&gt; b)
+-&gt; HistoryCommentRevision revisionId createdAt a
+-&gt; HistoryCommentRevision revisionId createdAt b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall revisionId createdAt a b.
+(a -&gt; b)
+-&gt; HistoryCommentRevision revisionId createdAt a
+-&gt; HistoryCommentRevision revisionId createdAt b
+fmap :: forall a b.
+(a -&gt; b)
+-&gt; HistoryCommentRevision revisionId createdAt a
+-&gt; HistoryCommentRevision revisionId createdAt b
+$c&lt;$ :: forall revisionId createdAt a b.
+a
+-&gt; HistoryCommentRevision revisionId createdAt b
+-&gt; HistoryCommentRevision revisionId createdAt a
+&lt;$ :: forall a b.
+a
+-&gt; HistoryCommentRevision revisionId createdAt b
+-&gt; HistoryCommentRevision revisionId createdAt a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span></pre></body></html>

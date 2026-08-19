@@ -1,0 +1,96 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | In a multithreaded environment, sharing results of actions can dramatically improve performance.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- For example, web servers need to return the current time with each HTTP response.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- For a high-volume server, it's much faster for a dedicated thread to run every</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- second, and write the current time to a shared 'IORef', than it is for each</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- request to make its own call to 'getCurrentTime'.</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- But for a low-volume server, whose request frequency is less than once per</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- second, that approach will result in /more/ calls to 'getCurrentTime' than</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- necessary, and worse, kills idle GC.</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- This library solves that problem by allowing you to define actions which will</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- either be performed by a dedicated thread, or, in times of low volume, will</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- be executed by the calling thread.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Example usage:</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- import &quot;Data.Time&quot;</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- import &quot;Control.AutoUpdate&quot;</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- getTime &lt;- 'mkAutoUpdate' 'defaultUpdateSettings'</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--              { 'updateAction' = 'Data.Time.Clock.getCurrentTime'</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--              , 'updateFreq' = 1000000 -- The default frequency, once per second</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--              }</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- currentTime &lt;- getTime</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- For more examples, &lt;http://www.yesodweb.com/blog/2014/08/announcing-auto-update see the blog post introducing this library&gt;.</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.AutoUpdate.html"><span class="hs-identifier">Control.AutoUpdate</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Type</span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier">UpdateSettings</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Types.html#defaultUpdateSettings"><span class="hs-identifier">defaultUpdateSettings</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Accessors</span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Types.html#updateAction"><span class="hs-identifier">updateAction</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Types.html#updateFreq"><span class="hs-identifier">updateFreq</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Types.html#updateSpawnThreshold"><span class="hs-identifier">updateSpawnThreshold</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Types.html#updateThreadName"><span class="hs-identifier">updateThreadName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Creation</span></span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.html#mkAutoUpdate"><span class="hs-identifier">mkAutoUpdate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.html#mkAutoUpdateWithModify"><span class="hs-identifier">mkAutoUpdateWithModify</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html"><span class="hs-identifier">Control.AutoUpdate.Types</span></a></span><span class="hs-cpp">
+#ifdef mingw32_HOST_OS
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.AutoUpdate.Thread</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html"><span class="hs-identifier">Control.AutoUpdate.Event</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Event</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Thread.html"><span class="hs-identifier">Control.AutoUpdate.Thread</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Thread</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Event</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span id="local-6989586621679041389"><span class="annot"><a href="Control.AutoUpdate.html#mkAutoUpdate"><span class="hs-identifier hs-type">mkAutoUpdate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041389"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041389"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-58"></span><span id="mkAutoUpdate"><span class="annot"><span class="annottext">mkAutoUpdate :: forall a. UpdateSettings a -&gt; IO (IO a)
+</span><a href="Control.AutoUpdate.html#mkAutoUpdate"><span class="hs-identifier hs-var hs-var">mkAutoUpdate</span></a></span></span><span> </span><span id="local-6989586621679041404"><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041404"><span class="hs-identifier hs-var">settings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679041405"><span class="annot"><a href="#local-6989586621679041405"><span class="hs-identifier hs-var">mmgr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Maybe EventManager)
+</span><span class="hs-identifier hs-var">getSystemEventManager</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679041405"><span class="hs-identifier hs-type">mmgr</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-61"></span><span>      </span><span class="annot"><span class="annottext">Maybe EventManager
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UpdateSettings a -&gt; IO (IO a)
+forall a. UpdateSettings a -&gt; IO (IO a)
+</span><a href="Control.AutoUpdate.Thread.html#mkAutoUpdate"><span class="hs-identifier hs-var">Thread.mkAutoUpdate</span></a></span><span> </span><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041404"><span class="hs-identifier hs-var">settings</span></a></span><span>
+</span><span id="line-62"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679041408"><span class="annot"><span class="annottext">EventManager
+</span><a href="#local-6989586621679041408"><span class="hs-identifier hs-var">_m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UpdateSettings a -&gt; IO (IO a)
+forall a. UpdateSettings a -&gt; IO (IO a)
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdate"><span class="hs-identifier hs-var">Event.mkAutoUpdate</span></a></span><span> </span><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041404"><span class="hs-identifier hs-var">settings</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span id="local-6989586621679041393"><span class="annot"><a href="Control.AutoUpdate.html#mkAutoUpdateWithModify"><span class="hs-identifier hs-type">mkAutoUpdateWithModify</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041393"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679041393"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041393"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041393"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-65"></span><span id="mkAutoUpdateWithModify"><span class="annot"><span class="annottext">mkAutoUpdateWithModify :: forall a. UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO (IO a)
+</span><a href="Control.AutoUpdate.html#mkAutoUpdateWithModify"><span class="hs-identifier hs-var hs-var">mkAutoUpdateWithModify</span></a></span></span><span> </span><span id="local-6989586621679041411"><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041411"><span class="hs-identifier hs-var">settings</span></a></span></span><span> </span><span id="local-6989586621679041412"><span class="annot"><span class="annottext">a -&gt; IO a
+</span><a href="#local-6989586621679041412"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621679041413"><span class="annot"><a href="#local-6989586621679041413"><span class="hs-identifier hs-var">mmgr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Maybe EventManager)
+</span><span class="hs-identifier hs-var">getSystemEventManager</span></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679041413"><span class="hs-identifier hs-type">mmgr</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-68"></span><span>      </span><span class="annot"><span class="annottext">Maybe EventManager
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO (IO a)
+forall a. UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO (IO a)
+</span><a href="Control.AutoUpdate.Thread.html#mkAutoUpdateWithModify"><span class="hs-identifier hs-var">Thread.mkAutoUpdateWithModify</span></a></span><span> </span><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041411"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+</span><a href="#local-6989586621679041412"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-69"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679041415"><span class="annot"><span class="annottext">EventManager
+</span><a href="#local-6989586621679041415"><span class="hs-identifier hs-var">_m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO (IO a)
+forall a. UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO (IO a)
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdateWithModify"><span class="hs-identifier hs-var">Event.mkAutoUpdateWithModify</span></a></span><span> </span><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041411"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+</span><a href="#local-6989586621679041412"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

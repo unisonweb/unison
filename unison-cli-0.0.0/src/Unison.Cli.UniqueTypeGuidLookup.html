@@ -1,0 +1,299 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | This module contains functionality related to computing a &quot;unique type guid lookup&quot; function, which resolves a</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- name to a unique type's GUID to reuse.</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Cli.UniqueTypeGuidLookup.html"><span class="hs-identifier">Unison.Cli.UniqueTypeGuidLookup</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuid"><span class="hs-identifier">loadUniqueTypeGuid</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Branch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase.Branch</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Sqlite.DbId</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Sqlite</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Sqlite.Queries</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Queries</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Path</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Path</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.ProjectPath</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ProjectPath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.ProjectPath</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PP</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.UniqueTypeGuidLookup</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Sqlite</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Sqlite</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuid"><span class="hs-identifier hs-type">loadUniqueTypeGuid</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectPath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.Transaction</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span id="loadUniqueTypeGuid"><span class="annot"><span class="annottext">loadUniqueTypeGuid :: ProjectPath -&gt; Name -&gt; Transaction (Maybe Text)
+</span><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuid"><span class="hs-identifier hs-var hs-var">loadUniqueTypeGuid</span></a></span></span><span> </span><span id="local-6989586621681548992"><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span></span><span> </span><span id="local-6989586621681548993"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681548993"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681548994"><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621681548994"><span class="hs-identifier hs-var hs-var">namePath</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681548995"><span class="annot"><span class="annottext">NameSegment
+</span><a href="#local-6989586621681548995"><span class="hs-identifier hs-var hs-var">finalSegment</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; (Path, NameSegment)
+</span><span class="hs-identifier hs-var">Path.splitFromName</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681548993"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681548997"><span class="annot"><span class="annottext">fullPP :: ProjectPath
+</span><a href="#local-6989586621681548997"><span class="hs-identifier hs-var hs-var hs-var">fullPP</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span> </span><span class="annot"><span class="annottext">ProjectPath -&gt; (ProjectPath -&gt; ProjectPath) -&gt; ProjectPath
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">ASetter ProjectPath ProjectPath Path Path
+-&gt; (Path -&gt; Path) -&gt; ProjectPath -&gt; ProjectPath
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="annot"><span class="annottext">ASetter ProjectPath ProjectPath Path Path
+forall p b (f :: * -&gt; *).
+Functor f =&gt;
+(Path -&gt; f Path) -&gt; ProjectPathG p b -&gt; f (ProjectPathG p b)
+</span><span class="hs-identifier hs-var">PP.path_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Path -&gt; Path -&gt; Path
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Path
+</span><a href="#local-6989586621681548994"><span class="hs-identifier hs-var">namePath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-comment">-- Define an operation to load a branch by its full path from the root namespace.</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-comment">-- This ought to probably lean somewhat on a cache (so long as the caller is aware of the cache, and discrads it at</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-comment">-- an appropriate time, such as after the current unison file finishes parsing).</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681549001"><span class="hs-identifier hs-type">loadBranchAtPath</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectPath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.Transaction</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Codebase.Branch.Branch</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.Transaction</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>      </span><span id="local-6989586621681549001"><span class="annot"><span class="annottext">loadBranchAtPath :: ProjectPath -&gt; Transaction (Maybe (Branch Transaction))
+</span><a href="#local-6989586621681549001"><span class="hs-identifier hs-var hs-var">loadBranchAtPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProjectPath -&gt; Transaction (Maybe (Branch Transaction))
+</span><span class="hs-identifier hs-var">Codebase.getMaybeShallowBranchAtProjectPath</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="annottext">(ProjectPath -&gt; Transaction (Maybe (Branch Transaction)))
+-&gt; ProjectPath -&gt; NameSegment -&gt; Transaction (Maybe Text)
+</span><span class="hs-identifier hs-var">Codebase.loadUniqueTypeGuid</span></span><span> </span><span class="annot"><span class="annottext">ProjectPath -&gt; Transaction (Maybe (Branch Transaction))
+</span><a href="#local-6989586621681549001"><span class="hs-identifier hs-var">loadBranchAtPath</span></a></span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548997"><span class="hs-identifier hs-var">fullPP</span></a></span><span> </span><span class="annot"><span class="annottext">NameSegment
+</span><a href="#local-6989586621681548995"><span class="hs-identifier hs-var">finalSegment</span></a></span><span> </span><span class="annot"><span class="annottext">Transaction (Maybe Text)
+-&gt; (Maybe Text -&gt; Transaction (Maybe Text))
+-&gt; Transaction (Maybe Text)
+forall a b. Transaction a -&gt; (a -&gt; Transaction b) -&gt; Transaction b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549004"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549004"><span class="hs-identifier hs-var">guid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Transaction (Maybe Text)
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549004"><span class="hs-identifier hs-var">guid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-35"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">branch</span><span class="hs-operator">.</span><span class="hs-identifier">isUpdate</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-36"></span><span>          </span><span class="annot"><span class="annottext">ProjectId -&gt; ProjectBranchId -&gt; Transaction (Maybe CausalHashId)
+</span><span class="hs-identifier hs-var">Queries.loadUpdateBranchParentCausalHashId</span></span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">project</span><span class="hs-operator">.</span><span class="hs-identifier">projectId</span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">branch</span><span class="hs-operator">.</span><span class="hs-identifier">branchId</span><span> </span><span class="annot"><span class="annottext">Transaction (Maybe CausalHashId)
+-&gt; (Maybe CausalHashId -&gt; Transaction (Maybe Text))
+-&gt; Transaction (Maybe Text)
+forall a b. Transaction a -&gt; (a -&gt; Transaction b) -&gt; Transaction b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-37"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549006"><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549006"><span class="hs-identifier hs-var">parentCausalHashId</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name -&gt; CausalHashId -&gt; Transaction (Maybe Text)
+</span><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuidFromParent"><span class="hs-identifier hs-var">loadUniqueTypeGuidFromParent</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681548993"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549006"><span class="hs-identifier hs-var">parentCausalHashId</span></a></span><span>
+</span><span id="line-38"></span><span>            </span><span class="annot"><span class="annottext">Maybe CausalHashId
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Transaction (Maybe Text)
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">branch</span><span class="hs-operator">.</span><span class="hs-identifier">isUpgrade</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-40"></span><span>          </span><span class="annot"><span class="annottext">ProjectId -&gt; ProjectBranchId -&gt; Transaction (Maybe CausalHashId)
+</span><span class="hs-identifier hs-var">Queries.loadUpgradeBranchParentCausalHashId</span></span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">project</span><span class="hs-operator">.</span><span class="hs-identifier">projectId</span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">branch</span><span class="hs-operator">.</span><span class="hs-identifier">branchId</span><span> </span><span class="annot"><span class="annottext">Transaction (Maybe CausalHashId)
+-&gt; (Maybe CausalHashId -&gt; Transaction (Maybe Text))
+-&gt; Transaction (Maybe Text)
+forall a b. Transaction a -&gt; (a -&gt; Transaction b) -&gt; Transaction b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-41"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549009"><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549009"><span class="hs-identifier hs-var">parentCausalHashId</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name -&gt; CausalHashId -&gt; Transaction (Maybe Text)
+</span><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuidFromParent"><span class="hs-identifier hs-var">loadUniqueTypeGuidFromParent</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681548993"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549009"><span class="hs-identifier hs-var">parentCausalHashId</span></a></span><span>
+</span><span id="line-42"></span><span>            </span><span class="annot"><span class="annottext">Maybe CausalHashId
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Transaction (Maybe Text)
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">branch</span><span class="hs-operator">.</span><span class="hs-identifier">isMerge</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-44"></span><span>          </span><span class="annot"><span class="annottext">ProjectId
+-&gt; ProjectBranchId
+-&gt; Transaction
+     (Maybe
+        (Maybe ProjectBranchId, CausalHashId, Maybe ProjectBranchId,
+         CausalHashId))
+</span><span class="hs-identifier hs-var">Queries.loadMergeBranchParents</span></span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">project</span><span class="hs-operator">.</span><span class="hs-identifier">projectId</span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">branch</span><span class="hs-operator">.</span><span class="hs-identifier">branchId</span><span> </span><span class="annot"><span class="annottext">Transaction
+  (Maybe
+     (Maybe ProjectBranchId, CausalHashId, Maybe ProjectBranchId,
+      CausalHashId))
+-&gt; (Maybe
+      (Maybe ProjectBranchId, CausalHashId, Maybe ProjectBranchId,
+       CausalHashId)
+    -&gt; Transaction (Maybe Text))
+-&gt; Transaction (Maybe Text)
+forall a b. Transaction a -&gt; (a -&gt; Transaction b) -&gt; Transaction b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-45"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681549011"><span class="annot"><span class="annottext">Maybe ProjectBranchId
+</span><a href="#local-6989586621681549011"><span class="hs-identifier hs-var">bobMaybeBranchId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681549012"><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549012"><span class="hs-identifier hs-var">bobCausalHashId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681549013"><span class="annot"><span class="annottext">Maybe ProjectBranchId
+</span><a href="#local-6989586621681549013"><span class="hs-identifier hs-var">aliceMaybeBranchId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681549014"><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549014"><span class="hs-identifier hs-var">aliceCausalHashId</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-46"></span><span>              </span><span class="annot"><span class="annottext">ProjectPath
+-&gt; Name
+-&gt; Maybe ProjectBranchId
+-&gt; CausalHashId
+-&gt; Maybe ProjectBranchId
+-&gt; CausalHashId
+-&gt; Transaction (Maybe Text)
+</span><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuidFromMergeParents"><span class="hs-identifier hs-var">loadUniqueTypeGuidFromMergeParents</span></a></span><span>
+</span><span id="line-47"></span><span>                </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681548992"><span class="hs-identifier hs-var">pp</span></a></span><span>
+</span><span id="line-48"></span><span>                </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681548993"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-49"></span><span>                </span><span class="annot"><span class="annottext">Maybe ProjectBranchId
+</span><a href="#local-6989586621681549011"><span class="hs-identifier hs-var">bobMaybeBranchId</span></a></span><span>
+</span><span id="line-50"></span><span>                </span><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549012"><span class="hs-identifier hs-var">bobCausalHashId</span></a></span><span>
+</span><span id="line-51"></span><span>                </span><span class="annot"><span class="annottext">Maybe ProjectBranchId
+</span><a href="#local-6989586621681549013"><span class="hs-identifier hs-var">aliceMaybeBranchId</span></a></span><span>
+</span><span id="line-52"></span><span>                </span><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549014"><span class="hs-identifier hs-var">aliceCausalHashId</span></a></span><span>
+</span><span id="line-53"></span><span>            </span><span class="annot"><span class="annottext">Maybe
+  (Maybe ProjectBranchId, CausalHashId, Maybe ProjectBranchId,
+   CausalHashId)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Transaction (Maybe Text)
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-54"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Transaction (Maybe Text)
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- update or upgrade parent</span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuidFromParent"><span class="hs-identifier hs-type">loadUniqueTypeGuidFromParent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.CausalHashId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.Transaction</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span id="loadUniqueTypeGuidFromParent"><span class="annot"><span class="annottext">loadUniqueTypeGuidFromParent :: Name -&gt; CausalHashId -&gt; Transaction (Maybe Text)
+</span><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuidFromParent"><span class="hs-identifier hs-var hs-var">loadUniqueTypeGuidFromParent</span></a></span></span><span> </span><span id="local-6989586621681549016"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681549016"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621681549017"><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549017"><span class="hs-identifier hs-var">causalHashId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621681549018"><span class="annot"><a href="#local-6989586621681549018"><span class="hs-identifier hs-var">namespaceHashId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CausalHashId -&gt; Transaction BranchHashId
+</span><span class="hs-identifier hs-var">Queries.expectCausalValueHashId</span></span><span> </span><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549017"><span class="hs-identifier hs-var">causalHashId</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Queries.loadNamespaceUniqueTypeGuid</span></span><span> </span><span class="annot"><a href="#local-6989586621681549018"><span class="hs-identifier hs-type">namespaceHashId</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681549016"><span class="hs-identifier hs-type">name</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuidFromMergeParents"><span class="hs-identifier hs-type">loadUniqueTypeGuidFromMergeParents</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ProjectPath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.ProjectBranchId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.CausalHashId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.ProjectBranchId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.CausalHashId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.Transaction</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span id="loadUniqueTypeGuidFromMergeParents"><span class="annot"><span class="annottext">loadUniqueTypeGuidFromMergeParents :: ProjectPath
+-&gt; Name
+-&gt; Maybe ProjectBranchId
+-&gt; CausalHashId
+-&gt; Maybe ProjectBranchId
+-&gt; CausalHashId
+-&gt; Transaction (Maybe Text)
+</span><a href="Unison.Cli.UniqueTypeGuidLookup.html#loadUniqueTypeGuidFromMergeParents"><span class="hs-identifier hs-var hs-var">loadUniqueTypeGuidFromMergeParents</span></a></span></span><span> </span><span id="local-6989586621681549021"><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681549021"><span class="hs-identifier hs-var">pp</span></a></span></span><span> </span><span id="local-6989586621681549022"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681549022"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621681549023"><span class="annot"><span class="annottext">Maybe ProjectBranchId
+</span><a href="#local-6989586621681549023"><span class="hs-identifier hs-var">bobMaybeBranchId</span></a></span></span><span> </span><span id="local-6989586621681549024"><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549024"><span class="hs-identifier hs-var">bobCausalHashId</span></a></span></span><span> </span><span id="local-6989586621681549025"><span class="annot"><span class="annottext">Maybe ProjectBranchId
+</span><a href="#local-6989586621681549025"><span class="hs-identifier hs-var">aliceMaybeBranchId</span></a></span></span><span> </span><span id="local-6989586621681549026"><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549026"><span class="hs-identifier hs-var">aliceCausalHashId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-71"></span><span>  </span><span id="local-6989586621681549027"><span class="annot"><a href="#local-6989586621681549027"><span class="hs-identifier hs-var">aliceNamespaceHashId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CausalHashId -&gt; Transaction BranchHashId
+</span><span class="hs-identifier hs-var">Queries.expectCausalValueHashId</span></span><span> </span><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621681549026"><span class="hs-identifier hs-var">aliceCausalHashId</span></a></span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621681549028"><span class="annot"><a href="#local-6989586621681549028"><span class="hs-identifier hs-var">bobNamespaceHashId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Queries.expectCausalValueHashId</span></span><span> </span><span class="annot"><a href="#local-6989586621681549024"><span class="hs-identifier hs-type">bobCausalHashId</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>  </span><span id="local-6989586621681549029"><span class="annot"><a href="#local-6989586621681549029"><span class="hs-identifier hs-var">maybeAliceGuid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Queries.loadNamespaceUniqueTypeGuid</span></span><span> </span><span class="annot"><a href="#local-6989586621681549027"><span class="hs-identifier hs-type">aliceNamespaceHashId</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681549022"><span class="hs-identifier hs-type">name</span></a></span><span>
+</span><span id="line-75"></span><span>  </span><span id="local-6989586621681549030"><span class="annot"><a href="#local-6989586621681549030"><span class="hs-identifier hs-var">maybeBobGuid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Queries.loadNamespaceUniqueTypeGuid</span></span><span> </span><span class="annot"><a href="#local-6989586621681549028"><span class="hs-identifier hs-type">bobNamespaceHashId</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681549022"><span class="hs-identifier hs-type">name</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681549029"><span class="hs-identifier hs-type">maybeAliceGuid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681549030"><span class="hs-identifier hs-type">maybeBobGuid</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-comment">-- A few simple cases &#8211; reuse a GUID if it is sensible to do so</span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549031"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549031"><span class="hs-identifier hs-var">aliceGuid</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549032"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549032"><span class="hs-identifier hs-var">bobGuid</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549031"><span class="hs-identifier hs-var">aliceGuid</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549032"><span class="hs-identifier hs-var">bobGuid</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Transaction (Maybe Text)
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549031"><span class="hs-identifier hs-var">aliceGuid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549033"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549033"><span class="hs-identifier hs-var">aliceGuid</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Transaction (Maybe Text)
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549033"><span class="hs-identifier hs-var">aliceGuid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549034"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549034"><span class="hs-identifier hs-var">bobGuid</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Transaction (Maybe Text)
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549034"><span class="hs-identifier hs-var">bobGuid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Transaction (Maybe Text)
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-comment">-- If alice and bob have different guids, and there is a parent-child relationship between them (i.e. alice was</span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-comment">-- directly branched off of bob or vice versa), then prefer the parent's GUID. Otherwise, just make up a new</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-comment">-- GUID because it's not clear whether alice's or bob's should be preferred.</span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549035"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549035"><span class="hs-identifier hs-var">aliceGuid</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549036"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681549036"><span class="hs-identifier hs-var">bobGuid</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-87"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe ProjectBranchId
+</span><a href="#local-6989586621681549025"><span class="hs-identifier hs-var">aliceMaybeBranchId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe ProjectBranchId
+</span><a href="#local-6989586621681549023"><span class="hs-identifier hs-var">bobMaybeBranchId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-88"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549037"><span class="annot"><span class="annottext">ProjectBranchId
+</span><a href="#local-6989586621681549037"><span class="hs-identifier hs-var">aliceBranchId</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681549038"><span class="annot"><span class="annottext">ProjectBranchId
+</span><a href="#local-6989586621681549038"><span class="hs-identifier hs-var">bobBranchId</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-89"></span><span>          </span><span id="local-6989586621681549039"><span class="annot"><a href="#local-6989586621681549039"><span class="hs-identifier hs-var">aliceParentBranchId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ProjectId -&gt; ProjectBranchId -&gt; Transaction (Maybe ProjectBranchId)
+</span><span class="hs-identifier hs-var">Queries.loadProjectBranchParent</span></span><span> </span><span class="annot"><span class="annottext">ProjectPath
+</span><a href="#local-6989586621681549021"><span class="hs-identifier hs-var">pp</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">project</span><span class="hs-operator">.</span><span class="hs-identifier">projectId</span><span> </span><span class="annot"><span class="annottext">ProjectBranchId
+</span><a href="#local-6989586621681549037"><span class="hs-identifier hs-var">aliceBranchId</span></a></span><span>
+</span><span id="line-90"></span><span>          </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621681549039"><span class="hs-identifier hs-type">aliceParentBranchId</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">==</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="#local-6989586621681549038"><span class="hs-identifier hs-type">bobBranchId</span></a></span><span>
+</span><span id="line-91"></span><span>            </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="#local-6989586621681549036"><span class="hs-identifier hs-type">bobGuid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>            </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-93"></span><span>              </span><span id="local-6989586621681549041"><span class="annot"><a href="#local-6989586621681549041"><span class="hs-identifier hs-var">bobParentBranchId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Queries.loadProjectBranchParent</span></span><span> </span><span class="annot"><span class="hs-identifier">pp</span></span><span class="hs-operator">.</span><span class="hs-identifier">project</span><span class="hs-operator">.</span><span class="hs-identifier">projectId</span><span> </span><span class="annot"><a href="#local-6989586621681549038"><span class="hs-identifier hs-type">bobBranchId</span></a></span><span>
+</span><span id="line-94"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span>
+</span><span id="line-95"></span><span>                </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621681549041"><span class="hs-identifier hs-type">bobParentBranchId</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">==</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="#local-6989586621681549037"><span class="hs-identifier hs-type">aliceBranchId</span></a></span><span>
+</span><span id="line-96"></span><span>                  </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="#local-6989586621681549035"><span class="hs-identifier hs-type">aliceGuid</span></a></span><span>
+</span><span id="line-97"></span><span>                  </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span>
+</span><span id="line-98"></span><span>        </span><span class="annot"><span class="annottext">(Maybe ProjectBranchId, Maybe ProjectBranchId)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Transaction (Maybe Text)
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-99"></span></pre></body></html>

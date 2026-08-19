@@ -1,0 +1,816 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679474776"><span id="local-6989586621679474777"></span></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html"><span class="hs-identifier">GitHub.Data.Reviews</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html"><span class="hs-identifier">GitHub.Data.Definitions</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier">SimpleUser</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.URL.html"><span class="hs-identifier">GitHub.Data.URL</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">data</span><span> </span><span id="ReviewState"><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewState"><span class="hs-identifier hs-var">ReviewState</span></a></span></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="ReviewStatePending"><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewStatePending"><span class="hs-identifier hs-var">ReviewStatePending</span></a></span></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ReviewStateApproved"><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewStateApproved"><span class="hs-identifier hs-var">ReviewStateApproved</span></a></span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ReviewStateDismissed"><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewStateDismissed"><span class="hs-identifier hs-var">ReviewStateDismissed</span></a></span></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ReviewStateCommented"><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewStateCommented"><span class="hs-identifier hs-var">ReviewStateCommented</span></a></span></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ReviewStateChangesRequested"><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewStateChangesRequested"><span class="hs-identifier hs-var">ReviewStateChangesRequested</span></a></span></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679474784"><span id="local-6989586621679474786"><span id="local-6989586621679474790"><span class="annot"><span class="annottext">Int -&gt; ReviewState -&gt; ShowS
+[ReviewState] -&gt; ShowS
+ReviewState -&gt; String
+(Int -&gt; ReviewState -&gt; ShowS)
+-&gt; (ReviewState -&gt; String)
+-&gt; ([ReviewState] -&gt; ShowS)
+-&gt; Show ReviewState
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ReviewState -&gt; ShowS
+showsPrec :: Int -&gt; ReviewState -&gt; ShowS
+$cshow :: ReviewState -&gt; String
+show :: ReviewState -&gt; String
+$cshowList :: [ReviewState] -&gt; ShowS
+showList :: [ReviewState] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679474795"><span id="local-6989586621679474805"><span id="local-6989586621679474812"><span id="local-6989586621679474826"><span id="local-6989586621679474829"><span id="local-6989586621679474834"><span id="local-6989586621679474840"><span id="local-6989586621679474844"><span class="annot"><span class="annottext">Int -&gt; ReviewState
+ReviewState -&gt; Int
+ReviewState -&gt; [ReviewState]
+ReviewState -&gt; ReviewState
+ReviewState -&gt; ReviewState -&gt; [ReviewState]
+ReviewState -&gt; ReviewState -&gt; ReviewState -&gt; [ReviewState]
+(ReviewState -&gt; ReviewState)
+-&gt; (ReviewState -&gt; ReviewState)
+-&gt; (Int -&gt; ReviewState)
+-&gt; (ReviewState -&gt; Int)
+-&gt; (ReviewState -&gt; [ReviewState])
+-&gt; (ReviewState -&gt; ReviewState -&gt; [ReviewState])
+-&gt; (ReviewState -&gt; ReviewState -&gt; [ReviewState])
+-&gt; (ReviewState -&gt; ReviewState -&gt; ReviewState -&gt; [ReviewState])
+-&gt; Enum ReviewState
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: ReviewState -&gt; ReviewState
+succ :: ReviewState -&gt; ReviewState
+$cpred :: ReviewState -&gt; ReviewState
+pred :: ReviewState -&gt; ReviewState
+$ctoEnum :: Int -&gt; ReviewState
+toEnum :: Int -&gt; ReviewState
+$cfromEnum :: ReviewState -&gt; Int
+fromEnum :: ReviewState -&gt; Int
+$cenumFrom :: ReviewState -&gt; [ReviewState]
+enumFrom :: ReviewState -&gt; [ReviewState]
+$cenumFromThen :: ReviewState -&gt; ReviewState -&gt; [ReviewState]
+enumFromThen :: ReviewState -&gt; ReviewState -&gt; [ReviewState]
+$cenumFromTo :: ReviewState -&gt; ReviewState -&gt; [ReviewState]
+enumFromTo :: ReviewState -&gt; ReviewState -&gt; [ReviewState]
+$cenumFromThenTo :: ReviewState -&gt; ReviewState -&gt; ReviewState -&gt; [ReviewState]
+enumFromThenTo :: ReviewState -&gt; ReviewState -&gt; ReviewState -&gt; [ReviewState]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679474852"><span id="local-6989586621679474854"><span class="annot"><span class="annottext">ReviewState
+ReviewState -&gt; ReviewState -&gt; Bounded ReviewState
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: ReviewState
+minBound :: ReviewState
+$cmaxBound :: ReviewState
+maxBound :: ReviewState
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679474860"><span id="local-6989586621679474864"><span class="annot"><span class="annottext">ReviewState -&gt; ReviewState -&gt; Bool
+(ReviewState -&gt; ReviewState -&gt; Bool)
+-&gt; (ReviewState -&gt; ReviewState -&gt; Bool) -&gt; Eq ReviewState
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ReviewState -&gt; ReviewState -&gt; Bool
+== :: ReviewState -&gt; ReviewState -&gt; Bool
+$c/= :: ReviewState -&gt; ReviewState -&gt; Bool
+/= :: ReviewState -&gt; ReviewState -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679474871"><span id="local-6989586621679474875"><span id="local-6989586621679474879"><span id="local-6989586621679474883"><span id="local-6989586621679474886"><span id="local-6989586621679474889"><span id="local-6989586621679474892"><span class="annot"><span class="annottext">Eq ReviewState
+Eq ReviewState =&gt;
+(ReviewState -&gt; ReviewState -&gt; Ordering)
+-&gt; (ReviewState -&gt; ReviewState -&gt; Bool)
+-&gt; (ReviewState -&gt; ReviewState -&gt; Bool)
+-&gt; (ReviewState -&gt; ReviewState -&gt; Bool)
+-&gt; (ReviewState -&gt; ReviewState -&gt; Bool)
+-&gt; (ReviewState -&gt; ReviewState -&gt; ReviewState)
+-&gt; (ReviewState -&gt; ReviewState -&gt; ReviewState)
+-&gt; Ord ReviewState
+ReviewState -&gt; ReviewState -&gt; Bool
+ReviewState -&gt; ReviewState -&gt; Ordering
+ReviewState -&gt; ReviewState -&gt; ReviewState
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ReviewState -&gt; ReviewState -&gt; Ordering
+compare :: ReviewState -&gt; ReviewState -&gt; Ordering
+$c&lt; :: ReviewState -&gt; ReviewState -&gt; Bool
+&lt; :: ReviewState -&gt; ReviewState -&gt; Bool
+$c&lt;= :: ReviewState -&gt; ReviewState -&gt; Bool
+&lt;= :: ReviewState -&gt; ReviewState -&gt; Bool
+$c&gt; :: ReviewState -&gt; ReviewState -&gt; Bool
+&gt; :: ReviewState -&gt; ReviewState -&gt; Bool
+$c&gt;= :: ReviewState -&gt; ReviewState -&gt; Bool
+&gt;= :: ReviewState -&gt; ReviewState -&gt; Bool
+$cmax :: ReviewState -&gt; ReviewState -&gt; ReviewState
+max :: ReviewState -&gt; ReviewState -&gt; ReviewState
+$cmin :: ReviewState -&gt; ReviewState -&gt; ReviewState
+min :: ReviewState -&gt; ReviewState -&gt; ReviewState
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679474900"><span id="local-6989586621679474902"><span class="annot"><span class="annottext">(forall x. ReviewState -&gt; Rep ReviewState x)
+-&gt; (forall x. Rep ReviewState x -&gt; ReviewState)
+-&gt; Generic ReviewState
+forall x. Rep ReviewState x -&gt; ReviewState
+forall x. ReviewState -&gt; Rep ReviewState x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ReviewState -&gt; Rep ReviewState x
+from :: forall x. ReviewState -&gt; Rep ReviewState x
+$cto :: forall x. Rep ReviewState x -&gt; ReviewState
+to :: forall x. Rep ReviewState x -&gt; ReviewState
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679474908"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewState"><span class="hs-identifier hs-type">ReviewState</span></a></span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679474929"><span id="local-6989586621679474936"><span id="local-6989586621679474942"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewState"><span class="hs-identifier hs-type">ReviewState</span></a></span></span></span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679474995"><span id="local-6989586621679474999"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewState"><span class="hs-identifier hs-type">ReviewState</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>    </span><span id="local-6989586621679475026"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ReviewState
+</span><a href="#local-6989586621679475026"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Text -&gt; Parser ReviewState) -&gt; Value -&gt; Parser ReviewState
+forall a. String -&gt; (Text -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withText</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ReviewState&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Text -&gt; Parser ReviewState) -&gt; Value -&gt; Parser ReviewState)
+-&gt; (Text -&gt; Parser ReviewState) -&gt; Value -&gt; Parser ReviewState
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679475029"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679475029"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.toLower</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679475029"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-24"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;approved&quot;</span></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReviewState -&gt; Parser ReviewState
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReviewState
+</span><a href="GitHub.Data.Reviews.html#ReviewStateApproved"><span class="hs-identifier hs-var">ReviewStateApproved</span></a></span><span>
+</span><span id="line-25"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;pending&quot;</span></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReviewState -&gt; Parser ReviewState
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReviewState
+</span><a href="GitHub.Data.Reviews.html#ReviewStatePending"><span class="hs-identifier hs-var">ReviewStatePending</span></a></span><span>
+</span><span id="line-26"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;dismissed&quot;</span></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReviewState -&gt; Parser ReviewState
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReviewState
+</span><a href="GitHub.Data.Reviews.html#ReviewStateDismissed"><span class="hs-identifier hs-var">ReviewStateDismissed</span></a></span><span>
+</span><span id="line-27"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;commented&quot;</span></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReviewState -&gt; Parser ReviewState
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReviewState
+</span><a href="GitHub.Data.Reviews.html#ReviewStateCommented"><span class="hs-identifier hs-var">ReviewStateCommented</span></a></span><span>
+</span><span id="line-28"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;changes_requested&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReviewState -&gt; Parser ReviewState
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReviewState
+</span><a href="GitHub.Data.Reviews.html#ReviewStateChangesRequested"><span class="hs-identifier hs-var">ReviewStateChangesRequested</span></a></span><span>
+</span><span id="line-29"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Parser ReviewState
+forall a. String -&gt; Parser a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Parser ReviewState) -&gt; String -&gt; Parser ReviewState
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unknown ReviewState: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">T.unpack</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679475029"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">data</span><span> </span><span id="Review"><span class="annot"><a href="GitHub.Data.Reviews.html#Review"><span class="hs-identifier hs-var">Review</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Review"><span class="annot"><a href="GitHub.Data.Reviews.html#Review"><span class="hs-identifier hs-var">Review</span></a></span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="reviewBody"><span class="annot"><span class="annottext">Review -&gt; Text
+</span><a href="GitHub.Data.Reviews.html#reviewBody"><span class="hs-identifier hs-var hs-var">reviewBody</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommitId"><span class="annot"><span class="annottext">Review -&gt; Text
+</span><a href="GitHub.Data.Reviews.html#reviewCommitId"><span class="hs-identifier hs-var hs-var">reviewCommitId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewState"><span class="annot"><span class="annottext">Review -&gt; ReviewState
+</span><a href="GitHub.Data.Reviews.html#reviewState"><span class="hs-identifier hs-var hs-var">reviewState</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewState"><span class="hs-identifier hs-type">ReviewState</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewSubmittedAt"><span class="annot"><span class="annottext">Review -&gt; Maybe UTCTime
+</span><a href="GitHub.Data.Reviews.html#reviewSubmittedAt"><span class="hs-identifier hs-var hs-var">reviewSubmittedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewPullRequestUrl"><span class="annot"><span class="annottext">Review -&gt; URL
+</span><a href="GitHub.Data.Reviews.html#reviewPullRequestUrl"><span class="hs-identifier hs-var hs-var">reviewPullRequestUrl</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewHtmlUrl"><span class="annot"><span class="annottext">Review -&gt; Text
+</span><a href="GitHub.Data.Reviews.html#reviewHtmlUrl"><span class="hs-identifier hs-var hs-var">reviewHtmlUrl</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewUser"><span class="annot"><span class="annottext">Review -&gt; SimpleUser
+</span><a href="GitHub.Data.Reviews.html#reviewUser"><span class="hs-identifier hs-var hs-var">reviewUser</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewId"><span class="annot"><span class="annottext">Review -&gt; Id Review
+</span><a href="GitHub.Data.Reviews.html#reviewId"><span class="hs-identifier hs-var hs-var">reviewId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#Review"><span class="hs-identifier hs-type">Review</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679475042"><span id="local-6989586621679475059"><span id="local-6989586621679475063"><span class="annot"><span class="annottext">Int -&gt; Review -&gt; ShowS
+[Review] -&gt; ShowS
+Review -&gt; String
+(Int -&gt; Review -&gt; ShowS)
+-&gt; (Review -&gt; String) -&gt; ([Review] -&gt; ShowS) -&gt; Show Review
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Review -&gt; ShowS
+showsPrec :: Int -&gt; Review -&gt; ShowS
+$cshow :: Review -&gt; String
+show :: Review -&gt; String
+$cshowList :: [Review] -&gt; ShowS
+showList :: [Review] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679475067"><span id="local-6989586621679475069"><span class="annot"><span class="annottext">(forall x. Review -&gt; Rep Review x)
+-&gt; (forall x. Rep Review x -&gt; Review) -&gt; Generic Review
+forall x. Rep Review x -&gt; Review
+forall x. Review -&gt; Rep Review x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Review -&gt; Rep Review x
+from :: forall x. Review -&gt; Rep Review x
+$cto :: forall x. Rep Review x -&gt; Review
+to :: forall x. Rep Review x -&gt; Review
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679475072"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#Review"><span class="hs-identifier hs-type">Review</span></a></span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679475116"><span id="local-6989586621679475123"><span id="local-6989586621679475129"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#Review"><span class="hs-identifier hs-type">Review</span></a></span></span></span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679475201"><span id="local-6989586621679475205"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#Review"><span class="hs-identifier hs-type">Review</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679475238"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Review
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-47"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Review) -&gt; Value -&gt; Parser Review
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Review&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Review) -&gt; Value -&gt; Parser Review)
+-&gt; (Object -&gt; Parser Review) -&gt; Value -&gt; Parser Review
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679475240"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475240"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-48"></span><span>            </span><span class="annot"><span class="annottext">Text
+-&gt; Text
+-&gt; ReviewState
+-&gt; Maybe UTCTime
+-&gt; URL
+-&gt; Text
+-&gt; SimpleUser
+-&gt; Id Review
+-&gt; Review
+</span><a href="GitHub.Data.Reviews.html#Review"><span class="hs-identifier hs-var">Review</span></a></span><span> </span><span class="annot"><span class="annottext">(Text
+ -&gt; Text
+ -&gt; ReviewState
+ -&gt; Maybe UTCTime
+ -&gt; URL
+ -&gt; Text
+ -&gt; SimpleUser
+ -&gt; Id Review
+ -&gt; Review)
+-&gt; Parser Text
+-&gt; Parser
+     (Text
+      -&gt; ReviewState
+      -&gt; Maybe UTCTime
+      -&gt; URL
+      -&gt; Text
+      -&gt; SimpleUser
+      -&gt; Id Review
+      -&gt; Review)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475240"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;body&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Text
+   -&gt; ReviewState
+   -&gt; Maybe UTCTime
+   -&gt; URL
+   -&gt; Text
+   -&gt; SimpleUser
+   -&gt; Id Review
+   -&gt; Review)
+-&gt; Parser Text
+-&gt; Parser
+     (ReviewState
+      -&gt; Maybe UTCTime
+      -&gt; URL
+      -&gt; Text
+      -&gt; SimpleUser
+      -&gt; Id Review
+      -&gt; Review)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475240"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;commit_id&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (ReviewState
+   -&gt; Maybe UTCTime
+   -&gt; URL
+   -&gt; Text
+   -&gt; SimpleUser
+   -&gt; Id Review
+   -&gt; Review)
+-&gt; Parser ReviewState
+-&gt; Parser
+     (Maybe UTCTime -&gt; URL -&gt; Text -&gt; SimpleUser -&gt; Id Review -&gt; Review)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475240"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser ReviewState
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;state&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe UTCTime -&gt; URL -&gt; Text -&gt; SimpleUser -&gt; Id Review -&gt; Review)
+-&gt; Parser (Maybe UTCTime)
+-&gt; Parser (URL -&gt; Text -&gt; SimpleUser -&gt; Id Review -&gt; Review)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span>
+</span><span id="line-49"></span><span>            </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475240"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe UTCTime)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;submitted_at&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (URL -&gt; Text -&gt; SimpleUser -&gt; Id Review -&gt; Review)
+-&gt; Parser URL -&gt; Parser (Text -&gt; SimpleUser -&gt; Id Review -&gt; Review)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span>
+</span><span id="line-50"></span><span>            </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475240"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span>  </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;pull_request_url&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Text -&gt; SimpleUser -&gt; Id Review -&gt; Review)
+-&gt; Parser Text -&gt; Parser (SimpleUser -&gt; Id Review -&gt; Review)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span>
+</span><span id="line-51"></span><span>            </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475240"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span>  </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;html_url&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (SimpleUser -&gt; Id Review -&gt; Review)
+-&gt; Parser SimpleUser -&gt; Parser (Id Review -&gt; Review)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span>
+</span><span id="line-52"></span><span>            </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475240"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser SimpleUser
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span>  </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;user&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Id Review -&gt; Review) -&gt; Parser (Id Review) -&gt; Parser Review
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span>
+</span><span id="line-53"></span><span>            </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475240"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Review)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span>  </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">data</span><span> </span><span id="ReviewComment"><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewComment"><span class="hs-identifier hs-var">ReviewComment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ReviewComment"><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewComment"><span class="hs-identifier hs-var">ReviewComment</span></a></span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="reviewCommentId"><span class="annot"><span class="annottext">ReviewComment -&gt; Id ReviewComment
+</span><a href="GitHub.Data.Reviews.html#reviewCommentId"><span class="hs-identifier hs-var hs-var">reviewCommentId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewComment"><span class="hs-identifier hs-type">ReviewComment</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentUser"><span class="annot"><span class="annottext">ReviewComment -&gt; SimpleUser
+</span><a href="GitHub.Data.Reviews.html#reviewCommentUser"><span class="hs-identifier hs-var hs-var">reviewCommentUser</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentBody"><span class="annot"><span class="annottext">ReviewComment -&gt; Text
+</span><a href="GitHub.Data.Reviews.html#reviewCommentBody"><span class="hs-identifier hs-var hs-var">reviewCommentBody</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentUrl"><span class="annot"><span class="annottext">ReviewComment -&gt; URL
+</span><a href="GitHub.Data.Reviews.html#reviewCommentUrl"><span class="hs-identifier hs-var hs-var">reviewCommentUrl</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentPullRequestReviewId"><span class="annot"><span class="annottext">ReviewComment -&gt; Id Review
+</span><a href="GitHub.Data.Reviews.html#reviewCommentPullRequestReviewId"><span class="hs-identifier hs-var hs-var">reviewCommentPullRequestReviewId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#Review"><span class="hs-identifier hs-type">Review</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentDiffHunk"><span class="annot"><span class="annottext">ReviewComment -&gt; Text
+</span><a href="GitHub.Data.Reviews.html#reviewCommentDiffHunk"><span class="hs-identifier hs-var hs-var">reviewCommentDiffHunk</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentPath"><span class="annot"><span class="annottext">ReviewComment -&gt; Text
+</span><a href="GitHub.Data.Reviews.html#reviewCommentPath"><span class="hs-identifier hs-var hs-var">reviewCommentPath</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentPosition"><span class="annot"><span class="annottext">ReviewComment -&gt; Int
+</span><a href="GitHub.Data.Reviews.html#reviewCommentPosition"><span class="hs-identifier hs-var hs-var">reviewCommentPosition</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentOriginalPosition"><span class="annot"><span class="annottext">ReviewComment -&gt; Int
+</span><a href="GitHub.Data.Reviews.html#reviewCommentOriginalPosition"><span class="hs-identifier hs-var hs-var">reviewCommentOriginalPosition</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentCommitId"><span class="annot"><span class="annottext">ReviewComment -&gt; Text
+</span><a href="GitHub.Data.Reviews.html#reviewCommentCommitId"><span class="hs-identifier hs-var hs-var">reviewCommentCommitId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentOriginalCommitId"><span class="annot"><span class="annottext">ReviewComment -&gt; Text
+</span><a href="GitHub.Data.Reviews.html#reviewCommentOriginalCommitId"><span class="hs-identifier hs-var hs-var">reviewCommentOriginalCommitId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentCreatedAt"><span class="annot"><span class="annottext">ReviewComment -&gt; UTCTime
+</span><a href="GitHub.Data.Reviews.html#reviewCommentCreatedAt"><span class="hs-identifier hs-var hs-var">reviewCommentCreatedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentUpdatedAt"><span class="annot"><span class="annottext">ReviewComment -&gt; UTCTime
+</span><a href="GitHub.Data.Reviews.html#reviewCommentUpdatedAt"><span class="hs-identifier hs-var hs-var">reviewCommentUpdatedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentHtmlUrl"><span class="annot"><span class="annottext">ReviewComment -&gt; URL
+</span><a href="GitHub.Data.Reviews.html#reviewCommentHtmlUrl"><span class="hs-identifier hs-var hs-var">reviewCommentHtmlUrl</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="reviewCommentPullRequestUrl"><span class="annot"><span class="annottext">ReviewComment -&gt; URL
+</span><a href="GitHub.Data.Reviews.html#reviewCommentPullRequestUrl"><span class="hs-identifier hs-var hs-var">reviewCommentPullRequestUrl</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679475261"><span id="local-6989586621679475279"><span id="local-6989586621679475283"><span class="annot"><span class="annottext">Int -&gt; ReviewComment -&gt; ShowS
+[ReviewComment] -&gt; ShowS
+ReviewComment -&gt; String
+(Int -&gt; ReviewComment -&gt; ShowS)
+-&gt; (ReviewComment -&gt; String)
+-&gt; ([ReviewComment] -&gt; ShowS)
+-&gt; Show ReviewComment
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ReviewComment -&gt; ShowS
+showsPrec :: Int -&gt; ReviewComment -&gt; ShowS
+$cshow :: ReviewComment -&gt; String
+show :: ReviewComment -&gt; String
+$cshowList :: [ReviewComment] -&gt; ShowS
+showList :: [ReviewComment] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679475286"><span id="local-6989586621679475288"><span class="annot"><span class="annottext">(forall x. ReviewComment -&gt; Rep ReviewComment x)
+-&gt; (forall x. Rep ReviewComment x -&gt; ReviewComment)
+-&gt; Generic ReviewComment
+forall x. Rep ReviewComment x -&gt; ReviewComment
+forall x. ReviewComment -&gt; Rep ReviewComment x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ReviewComment -&gt; Rep ReviewComment x
+from :: forall x. ReviewComment -&gt; Rep ReviewComment x
+$cto :: forall x. Rep ReviewComment x -&gt; ReviewComment
+to :: forall x. Rep ReviewComment x -&gt; ReviewComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679475291"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewComment"><span class="hs-identifier hs-type">ReviewComment</span></a></span></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679475343"><span id="local-6989586621679475350"><span id="local-6989586621679475356"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewComment"><span class="hs-identifier hs-type">ReviewComment</span></a></span></span></span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679475449"><span id="local-6989586621679475453"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reviews.html#ReviewComment"><span class="hs-identifier hs-type">ReviewComment</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679475501"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ReviewComment
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-78"></span><span>        </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ReviewComment)
+-&gt; Value
+-&gt; Parser ReviewComment
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ReviewComment&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser ReviewComment) -&gt; Value -&gt; Parser ReviewComment)
+-&gt; (Object -&gt; Parser ReviewComment)
+-&gt; Value
+-&gt; Parser ReviewComment
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679475502"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Id ReviewComment
+-&gt; SimpleUser
+-&gt; Text
+-&gt; URL
+-&gt; Id Review
+-&gt; Text
+-&gt; Text
+-&gt; Int
+-&gt; Int
+-&gt; Text
+-&gt; Text
+-&gt; UTCTime
+-&gt; UTCTime
+-&gt; URL
+-&gt; URL
+-&gt; ReviewComment
+</span><a href="GitHub.Data.Reviews.html#ReviewComment"><span class="hs-identifier hs-var">ReviewComment</span></a></span><span>
+</span><span id="line-79"></span><span>            </span><span class="annot"><span class="annottext">(Id ReviewComment
+ -&gt; SimpleUser
+ -&gt; Text
+ -&gt; URL
+ -&gt; Id Review
+ -&gt; Text
+ -&gt; Text
+ -&gt; Int
+ -&gt; Int
+ -&gt; Text
+ -&gt; Text
+ -&gt; UTCTime
+ -&gt; UTCTime
+ -&gt; URL
+ -&gt; URL
+ -&gt; ReviewComment)
+-&gt; Parser (Id ReviewComment)
+-&gt; Parser
+     (SimpleUser
+      -&gt; Text
+      -&gt; URL
+      -&gt; Id Review
+      -&gt; Text
+      -&gt; Text
+      -&gt; Int
+      -&gt; Int
+      -&gt; Text
+      -&gt; Text
+      -&gt; UTCTime
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; URL
+      -&gt; ReviewComment)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id ReviewComment)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-80"></span><span>            </span><span class="annot"><span class="annottext">Parser
+  (SimpleUser
+   -&gt; Text
+   -&gt; URL
+   -&gt; Id Review
+   -&gt; Text
+   -&gt; Text
+   -&gt; Int
+   -&gt; Int
+   -&gt; Text
+   -&gt; Text
+   -&gt; UTCTime
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; URL
+   -&gt; ReviewComment)
+-&gt; Parser SimpleUser
+-&gt; Parser
+     (Text
+      -&gt; URL
+      -&gt; Id Review
+      -&gt; Text
+      -&gt; Text
+      -&gt; Int
+      -&gt; Int
+      -&gt; Text
+      -&gt; Text
+      -&gt; UTCTime
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; URL
+      -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser SimpleUser
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;user&quot;</span></span><span>
+</span><span id="line-81"></span><span>            </span><span class="annot"><span class="annottext">Parser
+  (Text
+   -&gt; URL
+   -&gt; Id Review
+   -&gt; Text
+   -&gt; Text
+   -&gt; Int
+   -&gt; Int
+   -&gt; Text
+   -&gt; Text
+   -&gt; UTCTime
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; URL
+   -&gt; ReviewComment)
+-&gt; Parser Text
+-&gt; Parser
+     (URL
+      -&gt; Id Review
+      -&gt; Text
+      -&gt; Text
+      -&gt; Int
+      -&gt; Int
+      -&gt; Text
+      -&gt; Text
+      -&gt; UTCTime
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; URL
+      -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;body&quot;</span></span><span>
+</span><span id="line-82"></span><span>            </span><span class="annot"><span class="annottext">Parser
+  (URL
+   -&gt; Id Review
+   -&gt; Text
+   -&gt; Text
+   -&gt; Int
+   -&gt; Int
+   -&gt; Text
+   -&gt; Text
+   -&gt; UTCTime
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; URL
+   -&gt; ReviewComment)
+-&gt; Parser URL
+-&gt; Parser
+     (Id Review
+      -&gt; Text
+      -&gt; Text
+      -&gt; Int
+      -&gt; Int
+      -&gt; Text
+      -&gt; Text
+      -&gt; UTCTime
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; URL
+      -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-83"></span><span>            </span><span class="annot"><span class="annottext">Parser
+  (Id Review
+   -&gt; Text
+   -&gt; Text
+   -&gt; Int
+   -&gt; Int
+   -&gt; Text
+   -&gt; Text
+   -&gt; UTCTime
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; URL
+   -&gt; ReviewComment)
+-&gt; Parser (Id Review)
+-&gt; Parser
+     (Text
+      -&gt; Text
+      -&gt; Int
+      -&gt; Int
+      -&gt; Text
+      -&gt; Text
+      -&gt; UTCTime
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; URL
+      -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Review)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;pull_request_review_id&quot;</span></span><span>
+</span><span id="line-84"></span><span>            </span><span class="annot"><span class="annottext">Parser
+  (Text
+   -&gt; Text
+   -&gt; Int
+   -&gt; Int
+   -&gt; Text
+   -&gt; Text
+   -&gt; UTCTime
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; URL
+   -&gt; ReviewComment)
+-&gt; Parser Text
+-&gt; Parser
+     (Text
+      -&gt; Int
+      -&gt; Int
+      -&gt; Text
+      -&gt; Text
+      -&gt; UTCTime
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; URL
+      -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;diff_hunk&quot;</span></span><span>
+</span><span id="line-85"></span><span>            </span><span class="annot"><span class="annottext">Parser
+  (Text
+   -&gt; Int
+   -&gt; Int
+   -&gt; Text
+   -&gt; Text
+   -&gt; UTCTime
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; URL
+   -&gt; ReviewComment)
+-&gt; Parser Text
+-&gt; Parser
+     (Int
+      -&gt; Int
+      -&gt; Text
+      -&gt; Text
+      -&gt; UTCTime
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; URL
+      -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;path&quot;</span></span><span>
+</span><span id="line-86"></span><span>            </span><span class="annot"><span class="annottext">Parser
+  (Int
+   -&gt; Int
+   -&gt; Text
+   -&gt; Text
+   -&gt; UTCTime
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; URL
+   -&gt; ReviewComment)
+-&gt; Parser Int
+-&gt; Parser
+     (Int
+      -&gt; Text
+      -&gt; Text
+      -&gt; UTCTime
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; URL
+      -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;position&quot;</span></span><span>
+</span><span id="line-87"></span><span>            </span><span class="annot"><span class="annottext">Parser
+  (Int
+   -&gt; Text
+   -&gt; Text
+   -&gt; UTCTime
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; URL
+   -&gt; ReviewComment)
+-&gt; Parser Int
+-&gt; Parser
+     (Text -&gt; Text -&gt; UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;original_position&quot;</span></span><span>
+</span><span id="line-88"></span><span>            </span><span class="annot"><span class="annottext">Parser
+  (Text -&gt; Text -&gt; UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; ReviewComment)
+-&gt; Parser Text
+-&gt; Parser
+     (Text -&gt; UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;commit_id&quot;</span></span><span>
+</span><span id="line-89"></span><span>            </span><span class="annot"><span class="annottext">Parser (Text -&gt; UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; ReviewComment)
+-&gt; Parser Text
+-&gt; Parser (UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;original_commit_id&quot;</span></span><span>
+</span><span id="line-90"></span><span>            </span><span class="annot"><span class="annottext">Parser (UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; ReviewComment)
+-&gt; Parser UTCTime
+-&gt; Parser (UTCTime -&gt; URL -&gt; URL -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-91"></span><span>            </span><span class="annot"><span class="annottext">Parser (UTCTime -&gt; URL -&gt; URL -&gt; ReviewComment)
+-&gt; Parser UTCTime -&gt; Parser (URL -&gt; URL -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;updated_at&quot;</span></span><span>
+</span><span id="line-92"></span><span>            </span><span class="annot"><span class="annottext">Parser (URL -&gt; URL -&gt; ReviewComment)
+-&gt; Parser URL -&gt; Parser (URL -&gt; ReviewComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;html_url&quot;</span></span><span>
+</span><span id="line-93"></span><span>            </span><span class="annot"><span class="annottext">Parser (URL -&gt; ReviewComment) -&gt; Parser URL -&gt; Parser ReviewComment
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679475502"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;pull_request_url&quot;</span></span><span>
+</span><span id="line-94"></span></pre></body></html>

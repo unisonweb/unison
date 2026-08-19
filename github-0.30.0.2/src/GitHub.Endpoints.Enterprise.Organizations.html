@@ -1,0 +1,59 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The GitHub Enterprise orgs API as described on &lt;https://developer.github.com/enterprise/v3/enterprise-admin/orgs/&gt;.</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Enterprise.Organizations.html"><span class="hs-identifier">GitHub.Endpoints.Enterprise.Organizations</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Enterprise.Organizations.html#createOrganizationR"><span class="hs-identifier">createOrganizationR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Enterprise.Organizations.html#renameOrganizationR"><span class="hs-identifier">renameOrganizationR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Enterprise.html"><span class="hs-identifier">GitHub.Data.Enterprise</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- | Create an organization.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- See &lt;https://developer.github.com/enterprise/v3/enterprise-admin/orgs/#create-an-organization&gt;</span><span>
+</span><span id="line-17"></span><span class="annot"><a href="GitHub.Endpoints.Enterprise.Organizations.html#createOrganizationR"><span class="hs-identifier hs-type">createOrganizationR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Enterprise.Organizations.html#CreateOrganization"><span class="hs-identifier hs-type">CreateOrganization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleOrganization"><span class="hs-identifier hs-type">SimpleOrganization</span></a></span><span>
+</span><span id="line-18"></span><span id="createOrganizationR"><span class="annot"><span class="annottext">createOrganizationR :: CreateOrganization -&gt; Request 'RW SimpleOrganization
+</span><a href="GitHub.Endpoints.Enterprise.Organizations.html#createOrganizationR"><span class="hs-identifier hs-var hs-var">createOrganizationR</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod
+-&gt; Paths -&gt; ByteString -&gt; Request 'RW SimpleOrganization
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;admin&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;organizations&quot;</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request 'RW SimpleOrganization)
+-&gt; (CreateOrganization -&gt; ByteString)
+-&gt; CreateOrganization
+-&gt; Request 'RW SimpleOrganization
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CreateOrganization -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- | Rename an organization.</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- See &lt;https://developer.github.com/enterprise/v3/enterprise-admin/orgs/#rename-an-organization&gt;</span><span>
+</span><span id="line-23"></span><span class="annot"><a href="GitHub.Endpoints.Enterprise.Organizations.html#renameOrganizationR"><span class="hs-identifier hs-type">renameOrganizationR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Organization"><span class="hs-identifier hs-type">Organization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Enterprise.Organizations.html#RenameOrganization"><span class="hs-identifier hs-type">RenameOrganization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Enterprise.Organizations.html#RenameOrganizationResponse"><span class="hs-identifier hs-type">RenameOrganizationResponse</span></a></span><span>
+</span><span id="line-24"></span><span id="renameOrganizationR"><span class="annot"><span class="annottext">renameOrganizationR :: Name Organization
+-&gt; RenameOrganization -&gt; Request 'RW RenameOrganizationResponse
+</span><a href="GitHub.Endpoints.Enterprise.Organizations.html#renameOrganizationR"><span class="hs-identifier hs-var hs-var">renameOrganizationR</span></a></span></span><span> </span><span id="local-6989586621679575862"><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679575862"><span class="hs-identifier hs-var">org</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod
+-&gt; Paths -&gt; ByteString -&gt; Request 'RW RenameOrganizationResponse
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Patch"><span class="hs-identifier hs-var">Patch</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;admin&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;organizations&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Organization -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679575862"><span class="hs-identifier hs-var">org</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request 'RW RenameOrganizationResponse)
+-&gt; (RenameOrganization -&gt; ByteString)
+-&gt; RenameOrganization
+-&gt; Request 'RW RenameOrganizationResponse
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">RenameOrganization -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span>
+</span><span id="line-26"></span></pre></body></html>

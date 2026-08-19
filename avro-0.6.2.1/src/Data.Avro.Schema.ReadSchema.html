@@ -1,0 +1,884 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveAnyClass  #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric   #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase      #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html"><span class="hs-identifier">Data.Avro.Schema.ReadSchema</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier">ReadSchema</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadField"><span class="hs-identifier">ReadField</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadLong"><span class="hs-identifier">ReadLong</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadFloat"><span class="hs-identifier">ReadFloat</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadDouble"><span class="hs-identifier">ReadDouble</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier">fromSchema</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#fromField"><span class="hs-identifier">fromField</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#extractBindings"><span class="hs-identifier">extractBindings</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Decimal"><span class="hs-identifier">S.Decimal</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeBytes"><span class="hs-identifier">S.LogicalTypeBytes</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeFixed"><span class="hs-identifier">S.LogicalTypeFixed</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeInt"><span class="hs-identifier">S.LogicalTypeInt</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeLong"><span class="hs-identifier">S.LogicalTypeLong</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeString"><span class="hs-identifier">S.LogicalTypeString</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#FieldStatus"><span class="hs-identifier">FieldStatus</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Avro.Schema.Schema.html"><span class="hs-identifier">Data.Avro.Schema.Schema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeBytes"><span class="hs-identifier">LogicalTypeBytes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeFixed"><span class="hs-identifier">LogicalTypeFixed</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeInt"><span class="hs-identifier">LogicalTypeInt</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeLong"><span class="hs-identifier">LogicalTypeLong</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeString"><span class="hs-identifier">LogicalTypeString</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Order"><span class="hs-identifier">Order</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#TypeName"><span class="hs-identifier">TypeName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html"><span class="hs-identifier">Data.Avro.Schema.Schema</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.HashMap.Strict</span></span><span>     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HashMap</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span>             </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | How to decode a value of target type @Long@.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- This type controls how many bits are needed to be read from the encoded bytestring.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- The number of bits can be different depending on differences between reader and writer schemas.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- The rules are described in &lt;https://avro.apache.org/docs/current/spec.html#Schema+Resolution&gt;</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="ReadLong"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadLong"><span class="hs-identifier hs-var">ReadLong</span></a></span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="LongFromInt"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#LongFromInt"><span class="hs-identifier hs-var">LongFromInt</span></a></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Read @Int@ (32 bits) and cast it to @Long@ (Rule: int is promotable to long, float, or double)</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReadLong"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadLong"><span class="hs-identifier hs-var">ReadLong</span></a></span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Read @Long@ (64 bits) and use as is</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679518477"><span id="local-6989586621679518479"><span id="local-6989586621679518483"><span class="annot"><span class="annottext">Int -&gt; ReadLong -&gt; ShowS
+[ReadLong] -&gt; ShowS
+ReadLong -&gt; String
+(Int -&gt; ReadLong -&gt; ShowS)
+-&gt; (ReadLong -&gt; String) -&gt; ([ReadLong] -&gt; ShowS) -&gt; Show ReadLong
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ReadLong -&gt; ShowS
+showsPrec :: Int -&gt; ReadLong -&gt; ShowS
+$cshow :: ReadLong -&gt; String
+show :: ReadLong -&gt; String
+$cshowList :: [ReadLong] -&gt; ShowS
+showList :: [ReadLong] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518488"><span id="local-6989586621679518493"><span class="annot"><span class="annottext">ReadLong -&gt; ReadLong -&gt; Bool
+(ReadLong -&gt; ReadLong -&gt; Bool)
+-&gt; (ReadLong -&gt; ReadLong -&gt; Bool) -&gt; Eq ReadLong
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ReadLong -&gt; ReadLong -&gt; Bool
+== :: ReadLong -&gt; ReadLong -&gt; Bool
+$c/= :: ReadLong -&gt; ReadLong -&gt; Bool
+/= :: ReadLong -&gt; ReadLong -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518500"><span id="local-6989586621679518502"><span id="local-6989586621679518504"><span id="local-6989586621679518508"><span id="local-6989586621679518511"><span id="local-6989586621679518514"><span id="local-6989586621679518517"><span class="annot"><span class="annottext">Eq ReadLong
+Eq ReadLong =&gt;
+(ReadLong -&gt; ReadLong -&gt; Ordering)
+-&gt; (ReadLong -&gt; ReadLong -&gt; Bool)
+-&gt; (ReadLong -&gt; ReadLong -&gt; Bool)
+-&gt; (ReadLong -&gt; ReadLong -&gt; Bool)
+-&gt; (ReadLong -&gt; ReadLong -&gt; Bool)
+-&gt; (ReadLong -&gt; ReadLong -&gt; ReadLong)
+-&gt; (ReadLong -&gt; ReadLong -&gt; ReadLong)
+-&gt; Ord ReadLong
+ReadLong -&gt; ReadLong -&gt; Bool
+ReadLong -&gt; ReadLong -&gt; Ordering
+ReadLong -&gt; ReadLong -&gt; ReadLong
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ReadLong -&gt; ReadLong -&gt; Ordering
+compare :: ReadLong -&gt; ReadLong -&gt; Ordering
+$c&lt; :: ReadLong -&gt; ReadLong -&gt; Bool
+&lt; :: ReadLong -&gt; ReadLong -&gt; Bool
+$c&lt;= :: ReadLong -&gt; ReadLong -&gt; Bool
+&lt;= :: ReadLong -&gt; ReadLong -&gt; Bool
+$c&gt; :: ReadLong -&gt; ReadLong -&gt; Bool
+&gt; :: ReadLong -&gt; ReadLong -&gt; Bool
+$c&gt;= :: ReadLong -&gt; ReadLong -&gt; Bool
+&gt;= :: ReadLong -&gt; ReadLong -&gt; Bool
+$cmax :: ReadLong -&gt; ReadLong -&gt; ReadLong
+max :: ReadLong -&gt; ReadLong -&gt; ReadLong
+$cmin :: ReadLong -&gt; ReadLong -&gt; ReadLong
+min :: ReadLong -&gt; ReadLong -&gt; ReadLong
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518525"><span id="local-6989586621679518527"><span class="annot"><span class="annottext">(forall x. ReadLong -&gt; Rep ReadLong x)
+-&gt; (forall x. Rep ReadLong x -&gt; ReadLong) -&gt; Generic ReadLong
+forall x. Rep ReadLong x -&gt; ReadLong
+forall x. ReadLong -&gt; Rep ReadLong x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ReadLong -&gt; Rep ReadLong x
+from :: forall x. ReadLong -&gt; Rep ReadLong x
+$cto :: forall x. Rep ReadLong x -&gt; ReadLong
+to :: forall x. Rep ReadLong x -&gt; ReadLong
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518533"><span class="annot"><span class="annottext">ReadLong -&gt; ()
+(ReadLong -&gt; ()) -&gt; NFData ReadLong
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: ReadLong -&gt; ()
+rnf :: ReadLong -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- | How to decode a value of target type @Float@.</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- This type controls how many bits are needed to be read from the encoded bytestring.</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- The number of bits can be different depending on differences between reader and writer schemas.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- The rules are described in &lt;https://avro.apache.org/docs/current/spec.html#Schema+Resolution&gt;</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">data</span><span> </span><span id="ReadFloat"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadFloat"><span class="hs-identifier hs-var">ReadFloat</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="FloatFromInt"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#FloatFromInt"><span class="hs-identifier hs-var">FloatFromInt</span></a></span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Read @Int@ (32 bits) and cast it to @Float@</span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FloatFromLong"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#FloatFromLong"><span class="hs-identifier hs-var">FloatFromLong</span></a></span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ Read @Long@ (64 bits) and cast it to @Float@ (Rule: long is promotable to float or double)</span></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReadFloat"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadFloat"><span class="hs-identifier hs-var">ReadFloat</span></a></span></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ Read @Float@ and use as is</span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679518551"><span id="local-6989586621679518553"><span id="local-6989586621679518557"><span class="annot"><span class="annottext">Int -&gt; ReadFloat -&gt; ShowS
+[ReadFloat] -&gt; ShowS
+ReadFloat -&gt; String
+(Int -&gt; ReadFloat -&gt; ShowS)
+-&gt; (ReadFloat -&gt; String)
+-&gt; ([ReadFloat] -&gt; ShowS)
+-&gt; Show ReadFloat
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ReadFloat -&gt; ShowS
+showsPrec :: Int -&gt; ReadFloat -&gt; ShowS
+$cshow :: ReadFloat -&gt; String
+show :: ReadFloat -&gt; String
+$cshowList :: [ReadFloat] -&gt; ShowS
+showList :: [ReadFloat] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518560"><span id="local-6989586621679518564"><span class="annot"><span class="annottext">ReadFloat -&gt; ReadFloat -&gt; Bool
+(ReadFloat -&gt; ReadFloat -&gt; Bool)
+-&gt; (ReadFloat -&gt; ReadFloat -&gt; Bool) -&gt; Eq ReadFloat
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ReadFloat -&gt; ReadFloat -&gt; Bool
+== :: ReadFloat -&gt; ReadFloat -&gt; Bool
+$c/= :: ReadFloat -&gt; ReadFloat -&gt; Bool
+/= :: ReadFloat -&gt; ReadFloat -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518570"><span id="local-6989586621679518574"><span id="local-6989586621679518578"><span id="local-6989586621679518582"><span id="local-6989586621679518585"><span id="local-6989586621679518588"><span id="local-6989586621679518591"><span class="annot"><span class="annottext">Eq ReadFloat
+Eq ReadFloat =&gt;
+(ReadFloat -&gt; ReadFloat -&gt; Ordering)
+-&gt; (ReadFloat -&gt; ReadFloat -&gt; Bool)
+-&gt; (ReadFloat -&gt; ReadFloat -&gt; Bool)
+-&gt; (ReadFloat -&gt; ReadFloat -&gt; Bool)
+-&gt; (ReadFloat -&gt; ReadFloat -&gt; Bool)
+-&gt; (ReadFloat -&gt; ReadFloat -&gt; ReadFloat)
+-&gt; (ReadFloat -&gt; ReadFloat -&gt; ReadFloat)
+-&gt; Ord ReadFloat
+ReadFloat -&gt; ReadFloat -&gt; Bool
+ReadFloat -&gt; ReadFloat -&gt; Ordering
+ReadFloat -&gt; ReadFloat -&gt; ReadFloat
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ReadFloat -&gt; ReadFloat -&gt; Ordering
+compare :: ReadFloat -&gt; ReadFloat -&gt; Ordering
+$c&lt; :: ReadFloat -&gt; ReadFloat -&gt; Bool
+&lt; :: ReadFloat -&gt; ReadFloat -&gt; Bool
+$c&lt;= :: ReadFloat -&gt; ReadFloat -&gt; Bool
+&lt;= :: ReadFloat -&gt; ReadFloat -&gt; Bool
+$c&gt; :: ReadFloat -&gt; ReadFloat -&gt; Bool
+&gt; :: ReadFloat -&gt; ReadFloat -&gt; Bool
+$c&gt;= :: ReadFloat -&gt; ReadFloat -&gt; Bool
+&gt;= :: ReadFloat -&gt; ReadFloat -&gt; Bool
+$cmax :: ReadFloat -&gt; ReadFloat -&gt; ReadFloat
+max :: ReadFloat -&gt; ReadFloat -&gt; ReadFloat
+$cmin :: ReadFloat -&gt; ReadFloat -&gt; ReadFloat
+min :: ReadFloat -&gt; ReadFloat -&gt; ReadFloat
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518594"><span id="local-6989586621679518596"><span class="annot"><span class="annottext">(forall x. ReadFloat -&gt; Rep ReadFloat x)
+-&gt; (forall x. Rep ReadFloat x -&gt; ReadFloat) -&gt; Generic ReadFloat
+forall x. Rep ReadFloat x -&gt; ReadFloat
+forall x. ReadFloat -&gt; Rep ReadFloat x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ReadFloat -&gt; Rep ReadFloat x
+from :: forall x. ReadFloat -&gt; Rep ReadFloat x
+$cto :: forall x. Rep ReadFloat x -&gt; ReadFloat
+to :: forall x. Rep ReadFloat x -&gt; ReadFloat
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518599"><span class="annot"><span class="annottext">ReadFloat -&gt; ()
+(ReadFloat -&gt; ()) -&gt; NFData ReadFloat
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: ReadFloat -&gt; ()
+rnf :: ReadFloat -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | How to decode a value of target type @Double@.</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- This type controls how many bits are needed to be read from the encoded bytestring.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- The number of bits can be different depending on differences between reader and writer schemas.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- The rules are described in &lt;https://avro.apache.org/docs/current/spec.html#Schema+Resolution&gt;</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">data</span><span> </span><span id="ReadDouble"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadDouble"><span class="hs-identifier hs-var">ReadDouble</span></a></span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="DoubleFromInt"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#DoubleFromInt"><span class="hs-identifier hs-var">DoubleFromInt</span></a></span></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ Read @Int@ (32 bits) and cast it to @Double@ (Rule: int is promotable to long, float, or double)</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DoubleFromFloat"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#DoubleFromFloat"><span class="hs-identifier hs-var">DoubleFromFloat</span></a></span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ Read @Float@ (64 bits) and cast it to @Double@ (Rule: float is promotable to float or double)</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DoubleFromLong"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#DoubleFromLong"><span class="hs-identifier hs-var">DoubleFromLong</span></a></span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Read @Long@ (64 bits) and cast it to @Double@ (Rule: long is promotable to float or double)</span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReadDouble"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadDouble"><span class="hs-identifier hs-var">ReadDouble</span></a></span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679518616"><span id="local-6989586621679518618"><span id="local-6989586621679518622"><span class="annot"><span class="annottext">Int -&gt; ReadDouble -&gt; ShowS
+[ReadDouble] -&gt; ShowS
+ReadDouble -&gt; String
+(Int -&gt; ReadDouble -&gt; ShowS)
+-&gt; (ReadDouble -&gt; String)
+-&gt; ([ReadDouble] -&gt; ShowS)
+-&gt; Show ReadDouble
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ReadDouble -&gt; ShowS
+showsPrec :: Int -&gt; ReadDouble -&gt; ShowS
+$cshow :: ReadDouble -&gt; String
+show :: ReadDouble -&gt; String
+$cshowList :: [ReadDouble] -&gt; ShowS
+showList :: [ReadDouble] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518625"><span id="local-6989586621679518629"><span class="annot"><span class="annottext">ReadDouble -&gt; ReadDouble -&gt; Bool
+(ReadDouble -&gt; ReadDouble -&gt; Bool)
+-&gt; (ReadDouble -&gt; ReadDouble -&gt; Bool) -&gt; Eq ReadDouble
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ReadDouble -&gt; ReadDouble -&gt; Bool
+== :: ReadDouble -&gt; ReadDouble -&gt; Bool
+$c/= :: ReadDouble -&gt; ReadDouble -&gt; Bool
+/= :: ReadDouble -&gt; ReadDouble -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518635"><span id="local-6989586621679518639"><span id="local-6989586621679518643"><span id="local-6989586621679518647"><span id="local-6989586621679518650"><span id="local-6989586621679518653"><span id="local-6989586621679518656"><span class="annot"><span class="annottext">Eq ReadDouble
+Eq ReadDouble =&gt;
+(ReadDouble -&gt; ReadDouble -&gt; Ordering)
+-&gt; (ReadDouble -&gt; ReadDouble -&gt; Bool)
+-&gt; (ReadDouble -&gt; ReadDouble -&gt; Bool)
+-&gt; (ReadDouble -&gt; ReadDouble -&gt; Bool)
+-&gt; (ReadDouble -&gt; ReadDouble -&gt; Bool)
+-&gt; (ReadDouble -&gt; ReadDouble -&gt; ReadDouble)
+-&gt; (ReadDouble -&gt; ReadDouble -&gt; ReadDouble)
+-&gt; Ord ReadDouble
+ReadDouble -&gt; ReadDouble -&gt; Bool
+ReadDouble -&gt; ReadDouble -&gt; Ordering
+ReadDouble -&gt; ReadDouble -&gt; ReadDouble
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ReadDouble -&gt; ReadDouble -&gt; Ordering
+compare :: ReadDouble -&gt; ReadDouble -&gt; Ordering
+$c&lt; :: ReadDouble -&gt; ReadDouble -&gt; Bool
+&lt; :: ReadDouble -&gt; ReadDouble -&gt; Bool
+$c&lt;= :: ReadDouble -&gt; ReadDouble -&gt; Bool
+&lt;= :: ReadDouble -&gt; ReadDouble -&gt; Bool
+$c&gt; :: ReadDouble -&gt; ReadDouble -&gt; Bool
+&gt; :: ReadDouble -&gt; ReadDouble -&gt; Bool
+$c&gt;= :: ReadDouble -&gt; ReadDouble -&gt; Bool
+&gt;= :: ReadDouble -&gt; ReadDouble -&gt; Bool
+$cmax :: ReadDouble -&gt; ReadDouble -&gt; ReadDouble
+max :: ReadDouble -&gt; ReadDouble -&gt; ReadDouble
+$cmin :: ReadDouble -&gt; ReadDouble -&gt; ReadDouble
+min :: ReadDouble -&gt; ReadDouble -&gt; ReadDouble
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518659"><span id="local-6989586621679518661"><span class="annot"><span class="annottext">(forall x. ReadDouble -&gt; Rep ReadDouble x)
+-&gt; (forall x. Rep ReadDouble x -&gt; ReadDouble) -&gt; Generic ReadDouble
+forall x. Rep ReadDouble x -&gt; ReadDouble
+forall x. ReadDouble -&gt; Rep ReadDouble x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ReadDouble -&gt; Rep ReadDouble x
+from :: forall x. ReadDouble -&gt; Rep ReadDouble x
+$cto :: forall x. Rep ReadDouble x -&gt; ReadDouble
+to :: forall x. Rep ReadDouble x -&gt; ReadDouble
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518664"><span class="annot"><span class="annottext">ReadDouble -&gt; ()
+(ReadDouble -&gt; ()) -&gt; NFData ReadDouble
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: ReadDouble -&gt; ()
+rnf :: ReadDouble -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- | This type represents a /deconflicted/ version of a 'Schema'.</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- Schema resolution is described in Avro specification: &lt;https://avro.apache.org/docs/current/spec.html#Schema+Resolution&gt;</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- This library represents &quot;normal&quot; schema and &quot;deconflicted&quot; schema as different types to avoid confusion</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- between these two usecases (we shouldn't serialise values with such schema) and to be able to accomodate</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- some extra information that links between how data is supposed transformed between what reader wants</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- and what writer has.</span><span>
+</span><span id="line-69"></span><span class="hs-keyword">data</span><span> </span><span id="ReadSchema"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-var">ReadSchema</span></a></span></span><span>
+</span><span id="line-70"></span><span>      </span><span class="hs-glyph">=</span><span>
+</span><span id="line-71"></span><span>      </span><span class="hs-comment">-- Basic types</span><span>
+</span><span id="line-72"></span><span>        </span><span id="Null"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Null"><span class="hs-identifier hs-var">Null</span></a></span></span><span>
+</span><span id="line-73"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Boolean"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Boolean"><span class="hs-identifier hs-var">Boolean</span></a></span></span><span>
+</span><span id="line-74"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Int"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Int"><span class="hs-identifier hs-var">Int</span></a></span></span><span>    </span><span class="hs-special">{</span><span> </span><span id="logicalTypeI"><span class="annot"><span class="annottext">ReadSchema -&gt; Maybe LogicalTypeInt
+</span><a href="Data.Avro.Schema.ReadSchema.html#logicalTypeI"><span class="hs-identifier hs-var hs-var">logicalTypeI</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeInt"><span class="hs-identifier hs-type">LogicalTypeInt</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-75"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Long"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Long"><span class="hs-identifier hs-var">Long</span></a></span></span><span>   </span><span class="hs-special">{</span><span> </span><span id="longReadFrom"><span class="annot"><span class="annottext">ReadSchema -&gt; ReadLong
+</span><a href="Data.Avro.Schema.ReadSchema.html#longReadFrom"><span class="hs-identifier hs-var hs-var">longReadFrom</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadLong"><span class="hs-identifier hs-type">ReadLong</span></a></span><span class="hs-special">,</span><span> </span><span id="logicalTypeL"><span class="annot"><span class="annottext">ReadSchema -&gt; Maybe LogicalTypeLong
+</span><a href="Data.Avro.Schema.ReadSchema.html#logicalTypeL"><span class="hs-identifier hs-var hs-var">logicalTypeL</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeLong"><span class="hs-identifier hs-type">LogicalTypeLong</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-76"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Float"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Float"><span class="hs-identifier hs-var">Float</span></a></span></span><span>  </span><span class="hs-special">{</span><span> </span><span id="floatReadFrom"><span class="annot"><span class="annottext">ReadSchema -&gt; ReadFloat
+</span><a href="Data.Avro.Schema.ReadSchema.html#floatReadFrom"><span class="hs-identifier hs-var hs-var">floatReadFrom</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadFloat"><span class="hs-identifier hs-type">ReadFloat</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-77"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Double"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Double"><span class="hs-identifier hs-var">Double</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="doubleReadFrom"><span class="annot"><span class="annottext">ReadSchema -&gt; ReadDouble
+</span><a href="Data.Avro.Schema.ReadSchema.html#doubleReadFrom"><span class="hs-identifier hs-var hs-var">doubleReadFrom</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadDouble"><span class="hs-identifier hs-type">ReadDouble</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Bytes"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Bytes"><span class="hs-identifier hs-var">Bytes</span></a></span></span><span>  </span><span class="hs-special">{</span><span> </span><span id="logicalTypeB"><span class="annot"><span class="annottext">ReadSchema -&gt; Maybe LogicalTypeBytes
+</span><a href="Data.Avro.Schema.ReadSchema.html#logicalTypeB"><span class="hs-identifier hs-var hs-var">logicalTypeB</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeBytes"><span class="hs-identifier hs-type">LogicalTypeBytes</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="String"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#String"><span class="hs-identifier hs-var">String</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="logicalTypeS"><span class="annot"><span class="annottext">ReadSchema -&gt; Maybe LogicalTypeString
+</span><a href="Data.Avro.Schema.ReadSchema.html#logicalTypeS"><span class="hs-identifier hs-var hs-var">logicalTypeS</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeString"><span class="hs-identifier hs-type">LogicalTypeString</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Array"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Array"><span class="hs-identifier hs-var">Array</span></a></span></span><span>  </span><span class="hs-special">{</span><span> </span><span id="item"><span class="annot"><span class="annottext">ReadSchema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#item"><span class="hs-identifier hs-var hs-var">item</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-type">ReadSchema</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-81"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Map"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Map"><span class="hs-identifier hs-var">Map</span></a></span></span><span>    </span><span class="hs-special">{</span><span> </span><span id="values"><span class="annot"><span class="annottext">ReadSchema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#values"><span class="hs-identifier hs-var hs-var">values</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-type">ReadSchema</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-82"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="NamedType"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#NamedType"><span class="hs-identifier hs-var">NamedType</span></a></span></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#TypeName"><span class="hs-identifier hs-type">TypeName</span></a></span><span>
+</span><span id="line-83"></span><span>      </span><span class="hs-comment">-- Declared types</span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Record"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Record"><span class="hs-identifier hs-var">Record</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="name"><span class="annot"><span class="annottext">ReadSchema -&gt; TypeName
+</span><a href="Data.Avro.Schema.ReadSchema.html#name"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#TypeName"><span class="hs-identifier hs-type">TypeName</span></a></span><span>
+</span><span id="line-85"></span><span>               </span><span class="hs-special">,</span><span> </span><span id="aliases"><span class="annot"><span class="annottext">ReadSchema -&gt; [TypeName]
+</span><a href="Data.Avro.Schema.ReadSchema.html#aliases"><span class="hs-identifier hs-var hs-var">aliases</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#TypeName"><span class="hs-identifier hs-type">TypeName</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-86"></span><span>               </span><span class="hs-special">,</span><span> </span><span id="doc"><span class="annot"><span class="annottext">ReadSchema -&gt; Maybe Text
+</span><a href="Data.Avro.Schema.ReadSchema.html#doc"><span class="hs-identifier hs-var hs-var">doc</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-87"></span><span>               </span><span class="hs-special">,</span><span> </span><span id="fields"><span class="annot"><span class="annottext">ReadSchema -&gt; [ReadField]
+</span><a href="Data.Avro.Schema.ReadSchema.html#fields"><span class="hs-identifier hs-var hs-var">fields</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadField"><span class="hs-identifier hs-type">ReadField</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-88"></span><span>               </span><span class="hs-special">}</span><span>
+</span><span id="line-89"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Enum"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Enum"><span class="hs-identifier hs-var">Enum</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="name"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#name"><span class="hs-identifier hs-var">name</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#TypeName"><span class="hs-identifier hs-type">TypeName</span></a></span><span>
+</span><span id="line-90"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="aliases"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#aliases"><span class="hs-identifier hs-var">aliases</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#TypeName"><span class="hs-identifier hs-type">TypeName</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-91"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="doc"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#doc"><span class="hs-identifier hs-var">doc</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-92"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="symbols"><span class="annot"><span class="annottext">ReadSchema -&gt; Vector Text
+</span><a href="Data.Avro.Schema.ReadSchema.html#symbols"><span class="hs-identifier hs-var hs-var">symbols</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-93"></span><span>             </span><span class="hs-special">}</span><span>
+</span><span id="line-94"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Union"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Union"><span class="hs-identifier hs-var">Union</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="options"><span class="annot"><span class="annottext">ReadSchema -&gt; Vector (Int, ReadSchema)
+</span><a href="Data.Avro.Schema.ReadSchema.html#options"><span class="hs-identifier hs-var hs-var">options</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-type">ReadSchema</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>              </span><span class="annot"><span class="hs-comment">-- ^ Order of values represents order in the writer schema, an index represents order in a reader schema</span></span><span>
+</span><span id="line-96"></span><span>              </span><span class="hs-special">}</span><span>
+</span><span id="line-97"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="Fixed"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Fixed"><span class="hs-identifier hs-var">Fixed</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="name"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#name"><span class="hs-identifier hs-var">name</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#TypeName"><span class="hs-identifier hs-type">TypeName</span></a></span><span>
+</span><span id="line-98"></span><span>              </span><span class="hs-special">,</span><span> </span><span id="aliases"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#aliases"><span class="hs-identifier hs-var">aliases</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#TypeName"><span class="hs-identifier hs-type">TypeName</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-99"></span><span>              </span><span class="hs-special">,</span><span> </span><span id="size"><span class="annot"><span class="annottext">ReadSchema -&gt; Int
+</span><a href="Data.Avro.Schema.ReadSchema.html#size"><span class="hs-identifier hs-var hs-var">size</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-100"></span><span>              </span><span class="hs-special">,</span><span> </span><span id="logicalTypeF"><span class="annot"><span class="annottext">ReadSchema -&gt; Maybe LogicalTypeFixed
+</span><a href="Data.Avro.Schema.ReadSchema.html#logicalTypeF"><span class="hs-identifier hs-var hs-var">logicalTypeF</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#LogicalTypeFixed"><span class="hs-identifier hs-type">LogicalTypeFixed</span></a></span><span>
+</span><span id="line-101"></span><span>              </span><span class="hs-special">}</span><span>
+</span><span id="line-102"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="FreeUnion"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#FreeUnion"><span class="hs-identifier hs-var">FreeUnion</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="pos"><span class="annot"><span class="annottext">ReadSchema -&gt; Int
+</span><a href="Data.Avro.Schema.ReadSchema.html#pos"><span class="hs-identifier hs-var hs-var">pos</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span id="ty"><span class="annot"><span class="annottext">ReadSchema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#ty"><span class="hs-identifier hs-var hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-type">ReadSchema</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679518714"><span id="local-6989586621679518756"><span class="annot"><span class="annottext">ReadSchema -&gt; ReadSchema -&gt; Bool
+(ReadSchema -&gt; ReadSchema -&gt; Bool)
+-&gt; (ReadSchema -&gt; ReadSchema -&gt; Bool) -&gt; Eq ReadSchema
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ReadSchema -&gt; ReadSchema -&gt; Bool
+== :: ReadSchema -&gt; ReadSchema -&gt; Bool
+$c/= :: ReadSchema -&gt; ReadSchema -&gt; Bool
+/= :: ReadSchema -&gt; ReadSchema -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518768"><span id="local-6989586621679518824"><span id="local-6989586621679518827"><span class="annot"><span class="annottext">Int -&gt; ReadSchema -&gt; ShowS
+[ReadSchema] -&gt; ShowS
+ReadSchema -&gt; String
+(Int -&gt; ReadSchema -&gt; ShowS)
+-&gt; (ReadSchema -&gt; String)
+-&gt; ([ReadSchema] -&gt; ShowS)
+-&gt; Show ReadSchema
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ReadSchema -&gt; ShowS
+showsPrec :: Int -&gt; ReadSchema -&gt; ShowS
+$cshow :: ReadSchema -&gt; String
+show :: ReadSchema -&gt; String
+$cshowList :: [ReadSchema] -&gt; ShowS
+showList :: [ReadSchema] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518839"><span id="local-6989586621679518841"><span class="annot"><span class="annottext">(forall x. ReadSchema -&gt; Rep ReadSchema x)
+-&gt; (forall x. Rep ReadSchema x -&gt; ReadSchema) -&gt; Generic ReadSchema
+forall x. Rep ReadSchema x -&gt; ReadSchema
+forall x. ReadSchema -&gt; Rep ReadSchema x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ReadSchema -&gt; Rep ReadSchema x
+from :: forall x. ReadSchema -&gt; Rep ReadSchema x
+$cto :: forall x. Rep ReadSchema x -&gt; ReadSchema
+to :: forall x. Rep ReadSchema x -&gt; ReadSchema
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518844"><span class="annot"><span class="annottext">ReadSchema -&gt; ()
+(ReadSchema -&gt; ()) -&gt; NFData ReadSchema
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: ReadSchema -&gt; ()
+rnf :: ReadSchema -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- | Depending on differences between reader and writer schemas,</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- a record field can be found:</span><span>
+</span><span id="line-107"></span><span class="hs-comment">--</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- * Present in the reader schema but missing from the writer schema.</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- In this case the reader field is marked as 'Defaulted' with the</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- default value from the reader schema. An index value represents</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- the position of the field in the reader schema.</span><span>
+</span><span id="line-112"></span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- * Present in the writer schema but missing from the reader schema.</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- In this case the record field is marked as 'Ignored': the corresponding</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- bytes still need to be read from the payload (to advance the position in a bytestring),</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- but the result is discarded.</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- * Present in both reader and writer schemas.</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- In this case the field is marked to be read 'AsIs' with an index that</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- represents the field's position in the reader schema.</span><span>
+</span><span id="line-121"></span><span class="hs-keyword">data</span><span> </span><span id="FieldStatus"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#FieldStatus"><span class="hs-identifier hs-var">FieldStatus</span></a></span></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="AsIs"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#AsIs"><span class="hs-identifier hs-var">AsIs</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Ignored"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Ignored"><span class="hs-identifier hs-var">Ignored</span></a></span></span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Defaulted"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Defaulted"><span class="hs-identifier hs-var">Defaulted</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#DefaultValue"><span class="hs-identifier hs-type">S.DefaultValue</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679518969"><span id="local-6989586621679518977"><span id="local-6989586621679518981"><span class="annot"><span class="annottext">Int -&gt; FieldStatus -&gt; ShowS
+[FieldStatus] -&gt; ShowS
+FieldStatus -&gt; String
+(Int -&gt; FieldStatus -&gt; ShowS)
+-&gt; (FieldStatus -&gt; String)
+-&gt; ([FieldStatus] -&gt; ShowS)
+-&gt; Show FieldStatus
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; FieldStatus -&gt; ShowS
+showsPrec :: Int -&gt; FieldStatus -&gt; ShowS
+$cshow :: FieldStatus -&gt; String
+show :: FieldStatus -&gt; String
+$cshowList :: [FieldStatus] -&gt; ShowS
+showList :: [FieldStatus] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518984"><span id="local-6989586621679518992"><span class="annot"><span class="annottext">FieldStatus -&gt; FieldStatus -&gt; Bool
+(FieldStatus -&gt; FieldStatus -&gt; Bool)
+-&gt; (FieldStatus -&gt; FieldStatus -&gt; Bool) -&gt; Eq FieldStatus
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: FieldStatus -&gt; FieldStatus -&gt; Bool
+== :: FieldStatus -&gt; FieldStatus -&gt; Bool
+$c/= :: FieldStatus -&gt; FieldStatus -&gt; Bool
+/= :: FieldStatus -&gt; FieldStatus -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518998"><span id="local-6989586621679519004"><span id="local-6989586621679519009"><span id="local-6989586621679519013"><span id="local-6989586621679519016"><span id="local-6989586621679519019"><span id="local-6989586621679519022"><span class="annot"><span class="annottext">Eq FieldStatus
+Eq FieldStatus =&gt;
+(FieldStatus -&gt; FieldStatus -&gt; Ordering)
+-&gt; (FieldStatus -&gt; FieldStatus -&gt; Bool)
+-&gt; (FieldStatus -&gt; FieldStatus -&gt; Bool)
+-&gt; (FieldStatus -&gt; FieldStatus -&gt; Bool)
+-&gt; (FieldStatus -&gt; FieldStatus -&gt; Bool)
+-&gt; (FieldStatus -&gt; FieldStatus -&gt; FieldStatus)
+-&gt; (FieldStatus -&gt; FieldStatus -&gt; FieldStatus)
+-&gt; Ord FieldStatus
+FieldStatus -&gt; FieldStatus -&gt; Bool
+FieldStatus -&gt; FieldStatus -&gt; Ordering
+FieldStatus -&gt; FieldStatus -&gt; FieldStatus
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: FieldStatus -&gt; FieldStatus -&gt; Ordering
+compare :: FieldStatus -&gt; FieldStatus -&gt; Ordering
+$c&lt; :: FieldStatus -&gt; FieldStatus -&gt; Bool
+&lt; :: FieldStatus -&gt; FieldStatus -&gt; Bool
+$c&lt;= :: FieldStatus -&gt; FieldStatus -&gt; Bool
+&lt;= :: FieldStatus -&gt; FieldStatus -&gt; Bool
+$c&gt; :: FieldStatus -&gt; FieldStatus -&gt; Bool
+&gt; :: FieldStatus -&gt; FieldStatus -&gt; Bool
+$c&gt;= :: FieldStatus -&gt; FieldStatus -&gt; Bool
+&gt;= :: FieldStatus -&gt; FieldStatus -&gt; Bool
+$cmax :: FieldStatus -&gt; FieldStatus -&gt; FieldStatus
+max :: FieldStatus -&gt; FieldStatus -&gt; FieldStatus
+$cmin :: FieldStatus -&gt; FieldStatus -&gt; FieldStatus
+min :: FieldStatus -&gt; FieldStatus -&gt; FieldStatus
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519025"><span id="local-6989586621679519027"><span class="annot"><span class="annottext">(forall x. FieldStatus -&gt; Rep FieldStatus x)
+-&gt; (forall x. Rep FieldStatus x -&gt; FieldStatus)
+-&gt; Generic FieldStatus
+forall x. Rep FieldStatus x -&gt; FieldStatus
+forall x. FieldStatus -&gt; Rep FieldStatus x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. FieldStatus -&gt; Rep FieldStatus x
+from :: forall x. FieldStatus -&gt; Rep FieldStatus x
+$cto :: forall x. Rep FieldStatus x -&gt; FieldStatus
+to :: forall x. Rep FieldStatus x -&gt; FieldStatus
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519030"><span class="annot"><span class="annottext">FieldStatus -&gt; ()
+(FieldStatus -&gt; ()) -&gt; NFData FieldStatus
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: FieldStatus -&gt; ()
+rnf :: FieldStatus -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="annot"><span class="hs-comment">-- | Deconflicted record field.</span></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">data</span><span> </span><span id="ReadField"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadField"><span class="hs-identifier hs-var">ReadField</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ReadField"><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadField"><span class="hs-identifier hs-var">ReadField</span></a></span></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="fldName"><span class="annot"><span class="annottext">ReadField -&gt; Text
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldName"><span class="hs-identifier hs-var hs-var">fldName</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="fldAliases"><span class="annot"><span class="annottext">ReadField -&gt; [Text]
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldAliases"><span class="hs-identifier hs-var hs-var">fldAliases</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="fldDoc"><span class="annot"><span class="annottext">ReadField -&gt; Maybe Text
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldDoc"><span class="hs-identifier hs-var hs-var">fldDoc</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="fldOrder"><span class="annot"><span class="annottext">ReadField -&gt; Maybe Order
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldOrder"><span class="hs-identifier hs-var hs-var">fldOrder</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Order"><span class="hs-identifier hs-type">Order</span></a></span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="fldStatus"><span class="annot"><span class="annottext">ReadField -&gt; FieldStatus
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldStatus"><span class="hs-identifier hs-var hs-var">fldStatus</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#FieldStatus"><span class="hs-identifier hs-type">FieldStatus</span></a></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ How the value of this field should be treated. See 'FieldStatus' documentation.</span></span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="fldType"><span class="annot"><span class="annottext">ReadField -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldType"><span class="hs-identifier hs-var hs-var">fldType</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-type">ReadSchema</span></a></span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="fldDefault"><span class="annot"><span class="annottext">ReadField -&gt; Maybe DefaultValue
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldDefault"><span class="hs-identifier hs-var hs-var">fldDefault</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#DefaultValue"><span class="hs-identifier hs-type">S.DefaultValue</span></a></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679519059"><span id="local-6989586621679519070"><span class="annot"><span class="annottext">ReadField -&gt; ReadField -&gt; Bool
+(ReadField -&gt; ReadField -&gt; Bool)
+-&gt; (ReadField -&gt; ReadField -&gt; Bool) -&gt; Eq ReadField
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ReadField -&gt; ReadField -&gt; Bool
+== :: ReadField -&gt; ReadField -&gt; Bool
+$c/= :: ReadField -&gt; ReadField -&gt; Bool
+/= :: ReadField -&gt; ReadField -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519074"><span id="local-6989586621679519086"><span id="local-6989586621679519089"><span class="annot"><span class="annottext">Int -&gt; ReadField -&gt; ShowS
+[ReadField] -&gt; ShowS
+ReadField -&gt; String
+(Int -&gt; ReadField -&gt; ShowS)
+-&gt; (ReadField -&gt; String)
+-&gt; ([ReadField] -&gt; ShowS)
+-&gt; Show ReadField
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ReadField -&gt; ShowS
+showsPrec :: Int -&gt; ReadField -&gt; ShowS
+$cshow :: ReadField -&gt; String
+show :: ReadField -&gt; String
+$cshowList :: [ReadField] -&gt; ShowS
+showList :: [ReadField] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519093"><span id="local-6989586621679519095"><span class="annot"><span class="annottext">(forall x. ReadField -&gt; Rep ReadField x)
+-&gt; (forall x. Rep ReadField x -&gt; ReadField) -&gt; Generic ReadField
+forall x. Rep ReadField x -&gt; ReadField
+forall x. ReadField -&gt; Rep ReadField x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ReadField -&gt; Rep ReadField x
+from :: forall x. ReadField -&gt; Rep ReadField x
+$cto :: forall x. Rep ReadField x -&gt; ReadField
+to :: forall x. Rep ReadField x -&gt; ReadField
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519098"><span class="annot"><span class="annottext">ReadField -&gt; ()
+(ReadField -&gt; ()) -&gt; NFData ReadField
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: ReadField -&gt; ()
+rnf :: ReadField -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- | Converts Avro Schema to ReaderSchema trivially.</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- This function is useful when no deconflicting is required.</span><span>
+</span><span id="line-141"></span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier hs-type">fromSchema</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">S.Schema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-type">ReadSchema</span></a></span><span>
+</span><span id="line-142"></span><span id="fromSchema"><span class="annot"><span class="annottext">fromSchema :: Schema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier hs-var hs-var">fromSchema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-143"></span><span>  </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Null"><span class="hs-identifier hs-var">S.Null</span></a></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#Null"><span class="hs-identifier hs-var">Null</span></a></span><span>
+</span><span id="line-144"></span><span>  </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Boolean"><span class="hs-identifier hs-var">S.Boolean</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#Boolean"><span class="hs-identifier hs-var">Boolean</span></a></span><span>
+</span><span id="line-145"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Int"><span class="hs-identifier hs-type">S.Int</span></a></span><span> </span><span id="local-6989586621679519137"><span class="annot"><span class="annottext">Maybe LogicalTypeInt
+</span><a href="#local-6989586621679519137"><span class="hs-identifier hs-var">l</span></a></span></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeInt -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#Int"><span class="hs-identifier hs-var">Int</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeInt
+</span><a href="#local-6989586621679519137"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-146"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Long"><span class="hs-identifier hs-type">S.Long</span></a></span><span> </span><span id="local-6989586621679519139"><span class="annot"><span class="annottext">Maybe LogicalTypeLong
+</span><a href="#local-6989586621679519139"><span class="hs-identifier hs-var">l</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReadLong -&gt; Maybe LogicalTypeLong -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#Long"><span class="hs-identifier hs-var">Long</span></a></span><span> </span><span class="annot"><span class="annottext">ReadLong
+</span><a href="Data.Avro.Schema.ReadSchema.html#ReadLong"><span class="hs-identifier hs-var">ReadLong</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeLong
+</span><a href="#local-6989586621679519139"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-147"></span><span>  </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Float"><span class="hs-identifier hs-var">S.Float</span></a></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReadFloat -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#Float"><span class="hs-identifier hs-var">Float</span></a></span><span> </span><span class="annot"><span class="annottext">ReadFloat
+</span><a href="Data.Avro.Schema.ReadSchema.html#ReadFloat"><span class="hs-identifier hs-var">ReadFloat</span></a></span><span>
+</span><span id="line-148"></span><span>  </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Double"><span class="hs-identifier hs-var">S.Double</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReadDouble -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#Double"><span class="hs-identifier hs-var">Double</span></a></span><span> </span><span class="annot"><span class="annottext">ReadDouble
+</span><a href="Data.Avro.Schema.ReadSchema.html#ReadDouble"><span class="hs-identifier hs-var">ReadDouble</span></a></span><span>
+</span><span id="line-149"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Bytes"><span class="hs-identifier hs-type">S.Bytes</span></a></span><span> </span><span id="local-6989586621679519143"><span class="annot"><span class="annottext">Maybe LogicalTypeBytes
+</span><a href="#local-6989586621679519143"><span class="hs-identifier hs-var">l</span></a></span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeBytes -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#Bytes"><span class="hs-identifier hs-var">Bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeBytes
+</span><a href="#local-6989586621679519143"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-150"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#String"><span class="hs-identifier hs-type">S.String</span></a></span><span> </span><span id="local-6989586621679519145"><span class="annot"><span class="annottext">Maybe LogicalTypeString
+</span><a href="#local-6989586621679519145"><span class="hs-identifier hs-var">l</span></a></span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeString -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#String"><span class="hs-identifier hs-var">String</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeString
+</span><a href="#local-6989586621679519145"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-151"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Array"><span class="hs-identifier hs-type">S.Array</span></a></span><span> </span><span id="local-6989586621679519147"><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519147"><span class="hs-identifier hs-var">vs</span></a></span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#Array"><span class="hs-identifier hs-var">Array</span></a></span><span> </span><span class="annot"><span class="annottext">(ReadSchema -&gt; ReadSchema) -&gt; ReadSchema -&gt; ReadSchema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier hs-var">fromSchema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519147"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-152"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Map"><span class="hs-identifier hs-type">S.Map</span></a></span><span> </span><span id="local-6989586621679519149"><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519149"><span class="hs-identifier hs-var">vs</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#Map"><span class="hs-identifier hs-var">Map</span></a></span><span> </span><span class="annot"><span class="annottext">(ReadSchema -&gt; ReadSchema) -&gt; ReadSchema -&gt; ReadSchema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier hs-var">fromSchema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519149"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#NamedType"><span class="hs-identifier hs-type">S.NamedType</span></a></span><span> </span><span id="local-6989586621679519151"><span class="annot"><span class="annottext">TypeName
+</span><a href="#local-6989586621679519151"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TypeName -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#NamedType"><span class="hs-identifier hs-var">NamedType</span></a></span><span> </span><span class="annot"><span class="annottext">TypeName
+</span><a href="#local-6989586621679519151"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-154"></span><span>  </span><span id="local-6989586621679519152"><span class="annot"><span class="annottext">v :: Schema
+</span><a href="#local-6989586621679519152"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Record"><span class="hs-identifier hs-type">S.Record</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span>
+</span><span id="line-155"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">name :: TypeName
+</span><a href="Data.Avro.Schema.ReadSchema.html#name"><span class="hs-identifier hs-var">name</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; TypeName
+</span><a href="Data.Avro.Schema.Schema.html#name"><span class="hs-identifier hs-var">S.name</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519152"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">aliases :: [TypeName]
+</span><a href="Data.Avro.Schema.ReadSchema.html#aliases"><span class="hs-identifier hs-var">aliases</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; [TypeName]
+</span><a href="Data.Avro.Schema.Schema.html#aliases"><span class="hs-identifier hs-var">S.aliases</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519152"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">doc :: Maybe Text
+</span><a href="Data.Avro.Schema.ReadSchema.html#doc"><span class="hs-identifier hs-var">doc</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Maybe Text
+</span><a href="Data.Avro.Schema.Schema.html#doc"><span class="hs-identifier hs-var">S.doc</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519152"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-158"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fields :: [ReadField]
+</span><a href="Data.Avro.Schema.ReadSchema.html#fields"><span class="hs-identifier hs-var">fields</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679519157"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679519157"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519158"><span class="annot"><span class="annottext">Field
+</span><a href="#local-6989586621679519158"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FieldStatus -&gt; Field -&gt; ReadField
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromField"><span class="hs-identifier hs-var">fromField</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; FieldStatus
+</span><a href="Data.Avro.Schema.ReadSchema.html#AsIs"><span class="hs-identifier hs-var">AsIs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679519157"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Field
+</span><a href="#local-6989586621679519158"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Int, Field) -&gt; ReadField) -&gt; [(Int, Field)] -&gt; [ReadField]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [Field] -&gt; [(Int, Field)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Schema -&gt; [Field]
+</span><a href="Data.Avro.Schema.Schema.html#fields"><span class="hs-identifier hs-var">S.fields</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519152"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-160"></span><span>  </span><span id="local-6989586621679519161"><span class="annot"><span class="annottext">v :: Schema
+</span><a href="#local-6989586621679519161"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Enum"><span class="hs-identifier hs-type">S.Enum</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Enum"><span class="hs-identifier hs-type">Enum</span></a></span><span>
+</span><span id="line-161"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">name :: TypeName
+</span><a href="Data.Avro.Schema.ReadSchema.html#name"><span class="hs-identifier hs-var">name</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; TypeName
+</span><a href="Data.Avro.Schema.Schema.html#name"><span class="hs-identifier hs-var">S.name</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519161"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">aliases :: [TypeName]
+</span><a href="Data.Avro.Schema.ReadSchema.html#aliases"><span class="hs-identifier hs-var">aliases</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; [TypeName]
+</span><a href="Data.Avro.Schema.Schema.html#aliases"><span class="hs-identifier hs-var">S.aliases</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519161"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">doc :: Maybe Text
+</span><a href="Data.Avro.Schema.ReadSchema.html#doc"><span class="hs-identifier hs-var">doc</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Maybe Text
+</span><a href="Data.Avro.Schema.Schema.html#doc"><span class="hs-identifier hs-var">S.doc</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519161"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">symbols :: Vector Text
+</span><a href="Data.Avro.Schema.ReadSchema.html#symbols"><span class="hs-identifier hs-var">symbols</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Vector Text
+</span><a href="Data.Avro.Schema.Schema.html#symbols"><span class="hs-identifier hs-var">S.symbols</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519161"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-165"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Union"><span class="hs-identifier hs-type">S.Union</span></a></span><span> </span><span id="local-6989586621679519165"><span class="annot"><span class="annottext">Vector Schema
+</span><a href="#local-6989586621679519165"><span class="hs-identifier hs-var">vs</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Vector (Int, ReadSchema) -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#Union"><span class="hs-identifier hs-var">Union</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector (Int, ReadSchema) -&gt; ReadSchema)
+-&gt; (Vector ReadSchema -&gt; Vector (Int, ReadSchema))
+-&gt; Vector ReadSchema
+-&gt; ReadSchema
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Vector ReadSchema -&gt; Vector (Int, ReadSchema)
+forall a. Vector a -&gt; Vector (Int, a)
+</span><span class="hs-identifier hs-var">V.indexed</span></span><span> </span><span class="annot"><span class="annottext">(Vector ReadSchema -&gt; ReadSchema)
+-&gt; Vector ReadSchema -&gt; ReadSchema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier hs-var">fromSchema</span></a></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; ReadSchema) -&gt; Vector Schema -&gt; Vector ReadSchema
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Vector Schema
+</span><a href="#local-6989586621679519165"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-167"></span><span>  </span><span id="local-6989586621679519168"><span class="annot"><span class="annottext">v :: Schema
+</span><a href="#local-6989586621679519168"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Fixed"><span class="hs-identifier hs-type">S.Fixed</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Fixed"><span class="hs-identifier hs-type">Fixed</span></a></span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">name :: TypeName
+</span><a href="Data.Avro.Schema.ReadSchema.html#name"><span class="hs-identifier hs-var">name</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; TypeName
+</span><a href="Data.Avro.Schema.Schema.html#name"><span class="hs-identifier hs-var">S.name</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519168"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">aliases :: [TypeName]
+</span><a href="Data.Avro.Schema.ReadSchema.html#aliases"><span class="hs-identifier hs-var">aliases</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; [TypeName]
+</span><a href="Data.Avro.Schema.Schema.html#aliases"><span class="hs-identifier hs-var">S.aliases</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519168"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">size :: Int
+</span><a href="Data.Avro.Schema.ReadSchema.html#size"><span class="hs-identifier hs-var">size</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Int
+</span><a href="Data.Avro.Schema.Schema.html#size"><span class="hs-identifier hs-var">S.size</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519168"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">logicalTypeF :: Maybe LogicalTypeFixed
+</span><a href="Data.Avro.Schema.ReadSchema.html#logicalTypeF"><span class="hs-identifier hs-var">logicalTypeF</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Maybe LogicalTypeFixed
+</span><a href="Data.Avro.Schema.Schema.html#logicalTypeF"><span class="hs-identifier hs-var">S.logicalTypeF</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621679519168"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#fromField"><span class="hs-identifier hs-type">fromField</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#FieldStatus"><span class="hs-identifier hs-type">FieldStatus</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Field"><span class="hs-identifier hs-type">S.Field</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadField"><span class="hs-identifier hs-type">ReadField</span></a></span><span>
+</span><span id="line-175"></span><span id="fromField"><span class="annot"><span class="annottext">fromField :: FieldStatus -&gt; Field -&gt; ReadField
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromField"><span class="hs-identifier hs-var hs-var">fromField</span></a></span></span><span> </span><span id="local-6989586621679519172"><span class="annot"><span class="annottext">FieldStatus
+</span><a href="#local-6989586621679519172"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679519173"><span class="annot"><span class="annottext">Field
+</span><a href="#local-6989586621679519173"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadField"><span class="hs-identifier hs-type">ReadField</span></a></span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">fldName :: Text
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldName"><span class="hs-identifier hs-var">fldName</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Field -&gt; Text
+</span><a href="Data.Avro.Schema.Schema.html#fldName"><span class="hs-identifier hs-var">S.fldName</span></a></span><span> </span><span class="annot"><span class="annottext">Field
+</span><a href="#local-6989586621679519173"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-177"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fldAliases :: [Text]
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldAliases"><span class="hs-identifier hs-var">fldAliases</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Field -&gt; [Text]
+</span><a href="Data.Avro.Schema.Schema.html#fldAliases"><span class="hs-identifier hs-var">S.fldAliases</span></a></span><span> </span><span class="annot"><span class="annottext">Field
+</span><a href="#local-6989586621679519173"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-178"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fldDoc :: Maybe Text
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldDoc"><span class="hs-identifier hs-var">fldDoc</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Field -&gt; Maybe Text
+</span><a href="Data.Avro.Schema.Schema.html#fldDoc"><span class="hs-identifier hs-var">S.fldDoc</span></a></span><span> </span><span class="annot"><span class="annottext">Field
+</span><a href="#local-6989586621679519173"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fldOrder :: Maybe Order
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldOrder"><span class="hs-identifier hs-var">fldOrder</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Field -&gt; Maybe Order
+</span><a href="Data.Avro.Schema.Schema.html#fldOrder"><span class="hs-identifier hs-var">S.fldOrder</span></a></span><span> </span><span class="annot"><span class="annottext">Field
+</span><a href="#local-6989586621679519173"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fldStatus :: FieldStatus
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldStatus"><span class="hs-identifier hs-var">fldStatus</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FieldStatus
+</span><a href="#local-6989586621679519172"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fldType :: ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldType"><span class="hs-identifier hs-var">fldType</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fromSchema"><span class="hs-identifier hs-var">fromSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Field -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#fldType"><span class="hs-identifier hs-var">S.fldType</span></a></span><span> </span><span class="annot"><span class="annottext">Field
+</span><a href="#local-6989586621679519173"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fldDefault :: Maybe DefaultValue
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldDefault"><span class="hs-identifier hs-var">fldDefault</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Field -&gt; Maybe DefaultValue
+</span><a href="Data.Avro.Schema.Schema.html#fldDefault"><span class="hs-identifier hs-var">S.fldDefault</span></a></span><span> </span><span class="annot"><span class="annottext">Field
+</span><a href="#local-6989586621679519173"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-183"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- | @extractBindings schema@ traverses a schema and builds a map of all declared</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- types.</span><span>
+</span><span id="line-187"></span><span class="hs-comment">--</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- Types declared implicitly in record field definitions are also included. No distinction</span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- is made between aliases and normal names.</span><span>
+</span><span id="line-190"></span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#extractBindings"><span class="hs-identifier hs-type">extractBindings</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-type">ReadSchema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HashMap.HashMap</span></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#TypeName"><span class="hs-identifier hs-type">TypeName</span></a></span><span> </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#ReadSchema"><span class="hs-identifier hs-type">ReadSchema</span></a></span><span>
+</span><span id="line-191"></span><span id="extractBindings"><span class="annot"><span class="annottext">extractBindings :: ReadSchema -&gt; HashMap TypeName ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#extractBindings"><span class="hs-identifier hs-var hs-var">extractBindings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-192"></span><span>  </span><span id="local-6989586621679519180"><span class="annot"><span class="annottext">t :: ReadSchema
+</span><a href="#local-6989586621679519180"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span class="hs-special">{</span><span id="local-6989586621679519181"><span id="local-6989586621679519182"><span id="local-6989586621679519183"><span id="local-6989586621679519184"><span class="annot"><span class="annottext">[TypeName]
+[ReadField]
+Maybe Text
+TypeName
+name :: ReadSchema -&gt; TypeName
+aliases :: ReadSchema -&gt; [TypeName]
+doc :: ReadSchema -&gt; Maybe Text
+fields :: ReadSchema -&gt; [ReadField]
+name :: TypeName
+aliases :: [TypeName]
+doc :: Maybe Text
+fields :: [ReadField]
+</span><a href="Data.Avro.Schema.ReadSchema.html#name"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-193"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679519187"><span class="annot"><span class="annottext">withRecord :: HashMap TypeName ReadSchema
+</span><a href="#local-6989586621679519187"><span class="hs-identifier hs-var hs-var">withRecord</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(TypeName, ReadSchema)] -&gt; HashMap TypeName ReadSchema
+forall k v. (Eq k, Hashable k) =&gt; [(k, v)] -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HashMap.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(TypeName, ReadSchema)] -&gt; HashMap TypeName ReadSchema)
+-&gt; [(TypeName, ReadSchema)] -&gt; HashMap TypeName ReadSchema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypeName
+</span><a href="#local-6989586621679519181"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">TypeName -&gt; [TypeName] -&gt; [TypeName]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[TypeName]
+</span><a href="#local-6989586621679519182"><span class="hs-identifier hs-var">aliases</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[TypeName] -&gt; [ReadSchema] -&gt; [(TypeName, ReadSchema)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-operator hs-var">`zip`</span></span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; [ReadSchema]
+forall a. a -&gt; [a]
+</span><span class="hs-identifier hs-var">repeat</span></span><span> </span><span class="annot"><span class="annottext">ReadSchema
+</span><a href="#local-6989586621679519180"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-194"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[HashMap TypeName ReadSchema] -&gt; HashMap TypeName ReadSchema
+forall k v. Eq k =&gt; [HashMap k v] -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HashMap.unions</span></span><span> </span><span class="annot"><span class="annottext">([HashMap TypeName ReadSchema] -&gt; HashMap TypeName ReadSchema)
+-&gt; [HashMap TypeName ReadSchema] -&gt; HashMap TypeName ReadSchema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">HashMap TypeName ReadSchema
+</span><a href="#local-6989586621679519187"><span class="hs-identifier hs-var">withRecord</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap TypeName ReadSchema
+-&gt; [HashMap TypeName ReadSchema] -&gt; [HashMap TypeName ReadSchema]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ReadSchema -&gt; HashMap TypeName ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#extractBindings"><span class="hs-identifier hs-var">extractBindings</span></a></span><span> </span><span class="annot"><span class="annottext">(ReadSchema -&gt; HashMap TypeName ReadSchema)
+-&gt; (ReadField -&gt; ReadSchema)
+-&gt; ReadField
+-&gt; HashMap TypeName ReadSchema
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ReadField -&gt; ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#fldType"><span class="hs-identifier hs-var">fldType</span></a></span><span> </span><span class="annot"><span class="annottext">(ReadField -&gt; HashMap TypeName ReadSchema)
+-&gt; [ReadField] -&gt; [HashMap TypeName ReadSchema]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[ReadField]
+</span><a href="#local-6989586621679519184"><span class="hs-identifier hs-var">fields</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span>  </span><span id="local-6989586621679519191"><span class="annot"><span class="annottext">e :: ReadSchema
+</span><a href="#local-6989586621679519191"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Enum"><span class="hs-identifier hs-type">Enum</span></a></span><span class="hs-special">{</span><span id="local-6989586621679519192"><span id="local-6989586621679519193"><span id="local-6989586621679519194"><span id="local-6989586621679519195"><span class="annot"><span class="annottext">[TypeName]
+Maybe Text
+Vector Text
+TypeName
+name :: ReadSchema -&gt; TypeName
+aliases :: ReadSchema -&gt; [TypeName]
+doc :: ReadSchema -&gt; Maybe Text
+symbols :: ReadSchema -&gt; Vector Text
+name :: TypeName
+aliases :: [TypeName]
+doc :: Maybe Text
+symbols :: Vector Text
+</span><a href="Data.Avro.Schema.ReadSchema.html#name"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[(TypeName, ReadSchema)] -&gt; HashMap TypeName ReadSchema
+forall k v. (Eq k, Hashable k) =&gt; [(k, v)] -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HashMap.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(TypeName, ReadSchema)] -&gt; HashMap TypeName ReadSchema)
+-&gt; [(TypeName, ReadSchema)] -&gt; HashMap TypeName ReadSchema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypeName
+</span><a href="#local-6989586621679519192"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">TypeName -&gt; [TypeName] -&gt; [TypeName]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[TypeName]
+</span><a href="#local-6989586621679519193"><span class="hs-identifier hs-var">aliases</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[TypeName] -&gt; [ReadSchema] -&gt; [(TypeName, ReadSchema)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-operator hs-var">`zip`</span></span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; [ReadSchema]
+forall a. a -&gt; [a]
+</span><span class="hs-identifier hs-var">repeat</span></span><span> </span><span class="annot"><span class="annottext">ReadSchema
+</span><a href="#local-6989586621679519191"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-196"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Union"><span class="hs-identifier hs-type">Union</span></a></span><span class="hs-special">{</span><span id="local-6989586621679519196"><span class="annot"><span class="annottext">Vector (Int, ReadSchema)
+options :: ReadSchema -&gt; Vector (Int, ReadSchema)
+options :: Vector (Int, ReadSchema)
+</span><a href="Data.Avro.Schema.ReadSchema.html#options"><span class="hs-glyph hs-var hs-var">..</span></a></span></span><span class="hs-special">}</span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[HashMap TypeName ReadSchema] -&gt; HashMap TypeName ReadSchema
+forall k v. Eq k =&gt; [HashMap k v] -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HashMap.unions</span></span><span> </span><span class="annot"><span class="annottext">([HashMap TypeName ReadSchema] -&gt; HashMap TypeName ReadSchema)
+-&gt; [HashMap TypeName ReadSchema] -&gt; HashMap TypeName ReadSchema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Vector (HashMap TypeName ReadSchema)
+-&gt; [HashMap TypeName ReadSchema]
+forall a. Vector a -&gt; [a]
+</span><span class="hs-identifier hs-var">V.toList</span></span><span> </span><span class="annot"><span class="annottext">(Vector (HashMap TypeName ReadSchema)
+ -&gt; [HashMap TypeName ReadSchema])
+-&gt; Vector (HashMap TypeName ReadSchema)
+-&gt; [HashMap TypeName ReadSchema]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; HashMap TypeName ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#extractBindings"><span class="hs-identifier hs-var">extractBindings</span></a></span><span> </span><span class="annot"><span class="annottext">(ReadSchema -&gt; HashMap TypeName ReadSchema)
+-&gt; ((Int, ReadSchema) -&gt; ReadSchema)
+-&gt; (Int, ReadSchema)
+-&gt; HashMap TypeName ReadSchema
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Int, ReadSchema) -&gt; ReadSchema
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">((Int, ReadSchema) -&gt; HashMap TypeName ReadSchema)
+-&gt; Vector (Int, ReadSchema) -&gt; Vector (HashMap TypeName ReadSchema)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Vector (Int, ReadSchema)
+</span><a href="#local-6989586621679519196"><span class="hs-identifier hs-var">options</span></a></span><span>
+</span><span id="line-197"></span><span>  </span><span id="local-6989586621679519199"><span class="annot"><span class="annottext">f :: ReadSchema
+</span><a href="#local-6989586621679519199"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Fixed"><span class="hs-identifier hs-type">Fixed</span></a></span><span class="hs-special">{</span><span id="local-6989586621679519200"><span id="local-6989586621679519201"><span id="local-6989586621679519202"><span id="local-6989586621679519203"><span class="annot"><span class="annottext">Int
+[TypeName]
+Maybe LogicalTypeFixed
+TypeName
+name :: ReadSchema -&gt; TypeName
+aliases :: ReadSchema -&gt; [TypeName]
+size :: ReadSchema -&gt; Int
+logicalTypeF :: ReadSchema -&gt; Maybe LogicalTypeFixed
+name :: TypeName
+aliases :: [TypeName]
+size :: Int
+logicalTypeF :: Maybe LogicalTypeFixed
+</span><a href="Data.Avro.Schema.ReadSchema.html#name"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[(TypeName, ReadSchema)] -&gt; HashMap TypeName ReadSchema
+forall k v. (Eq k, Hashable k) =&gt; [(k, v)] -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HashMap.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(TypeName, ReadSchema)] -&gt; HashMap TypeName ReadSchema)
+-&gt; [(TypeName, ReadSchema)] -&gt; HashMap TypeName ReadSchema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypeName
+</span><a href="#local-6989586621679519200"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">TypeName -&gt; [TypeName] -&gt; [TypeName]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[TypeName]
+</span><a href="#local-6989586621679519201"><span class="hs-identifier hs-var">aliases</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[TypeName] -&gt; [ReadSchema] -&gt; [(TypeName, ReadSchema)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-operator hs-var">`zip`</span></span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; [ReadSchema]
+forall a. a -&gt; [a]
+</span><span class="hs-identifier hs-var">repeat</span></span><span> </span><span class="annot"><span class="annottext">ReadSchema
+</span><a href="#local-6989586621679519199"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-198"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Array"><span class="hs-identifier hs-type">Array</span></a></span><span class="hs-special">{</span><span id="local-6989586621679519204"><span class="annot"><span class="annottext">ReadSchema
+item :: ReadSchema -&gt; ReadSchema
+item :: ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#item"><span class="hs-glyph hs-var hs-var">..</span></a></span></span><span class="hs-special">}</span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; HashMap TypeName ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#extractBindings"><span class="hs-identifier hs-var">extractBindings</span></a></span><span> </span><span class="annot"><span class="annottext">ReadSchema
+</span><a href="#local-6989586621679519204"><span class="hs-identifier hs-var">item</span></a></span><span>
+</span><span id="line-199"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#Map"><span class="hs-identifier hs-type">Map</span></a></span><span class="hs-special">{</span><span id="local-6989586621679519205"><span class="annot"><span class="annottext">ReadSchema
+values :: ReadSchema -&gt; ReadSchema
+values :: ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#values"><span class="hs-glyph hs-var hs-var">..</span></a></span></span><span class="hs-special">}</span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; HashMap TypeName ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#extractBindings"><span class="hs-identifier hs-var">extractBindings</span></a></span><span> </span><span class="annot"><span class="annottext">ReadSchema
+</span><a href="#local-6989586621679519205"><span class="hs-identifier hs-var">values</span></a></span><span>
+</span><span id="line-200"></span><span>  </span><span class="annot"><a href="Data.Avro.Schema.ReadSchema.html#FreeUnion"><span class="hs-identifier hs-type">FreeUnion</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679519206"><span id="local-6989586621679519207"><span class="annot"><span class="annottext">Int
+ReadSchema
+pos :: ReadSchema -&gt; Int
+ty :: ReadSchema -&gt; ReadSchema
+pos :: Int
+ty :: ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#pos"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReadSchema -&gt; HashMap TypeName ReadSchema
+</span><a href="Data.Avro.Schema.ReadSchema.html#extractBindings"><span class="hs-identifier hs-var">extractBindings</span></a></span><span> </span><span class="annot"><span class="annottext">ReadSchema
+</span><a href="#local-6989586621679519207"><span class="hs-identifier hs-var">ty</span></a></span><span>
+</span><span id="line-201"></span><span>  </span><span class="annot"><span class="annottext">ReadSchema
+</span><span class="hs-identifier">_</span></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HashMap TypeName ReadSchema
+forall k v. HashMap k v
+</span><span class="hs-identifier hs-var">HashMap.empty</span></span><span>
+</span><span id="line-202"></span></pre></body></html>

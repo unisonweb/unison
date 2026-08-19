@@ -1,0 +1,89 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Merge.TwoOrThreeWay.html"><span class="hs-identifier">Unison.Merge.TwoOrThreeWay</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier">TwoOrThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Merge.TwoOrThreeWay.html#forgetLca"><span class="hs-identifier">forgetLca</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Merge.TwoOrThreeWay.html#toThreeWay"><span class="hs-identifier">toThreeWay</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Merge.TwoOrThreeWay.html#toThreeWayA"><span class="hs-identifier">toThreeWayA</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html"><span class="hs-identifier">Unison.Merge.Internal.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier">ThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier">TwoOrThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span id="local-6989586621679214060"><span class="annot"><a href="Unison.Merge.TwoOrThreeWay.html#forgetLca"><span class="hs-identifier hs-type">forgetLca</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679214060"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679214060"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-13"></span><span id="forgetLca"><span class="annot"><span class="annottext">forgetLca :: forall a. TwoOrThreeWay a -&gt; TwoWay a
+</span><a href="Unison.Merge.TwoOrThreeWay.html#forgetLca"><span class="hs-identifier hs-var hs-var">forgetLca</span></a></span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679214083"><span class="annot"><span class="annottext">a
+alice :: a
+alice :: forall a. TwoOrThreeWay a -&gt; a
+</span><a href="#local-6989586621679214083"><span class="hs-identifier hs-var hs-var">alice</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679214085"><span class="annot"><span class="annottext">a
+bob :: a
+bob :: forall a. TwoOrThreeWay a -&gt; a
+</span><a href="#local-6989586621679214085"><span class="hs-identifier hs-var hs-var">bob</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-14"></span><span>  </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">a
+alice :: a
+alice :: a
+</span><a href="#local-6989586621679214083"><span class="hs-identifier hs-var hs-var">alice</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+bob :: a
+bob :: a
+</span><a href="#local-6989586621679214085"><span class="hs-identifier hs-var hs-var">bob</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span id="local-6989586621679214065"><span class="annot"><a href="Unison.Merge.TwoOrThreeWay.html#toThreeWay"><span class="hs-identifier hs-type">toThreeWay</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679214065"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679214065"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679214065"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-17"></span><span id="toThreeWay"><span class="annot"><span class="annottext">toThreeWay :: forall a. a -&gt; TwoOrThreeWay a -&gt; ThreeWay a
+</span><a href="Unison.Merge.TwoOrThreeWay.html#toThreeWay"><span class="hs-identifier hs-var hs-var">toThreeWay</span></a></span></span><span> </span><span id="local-6989586621679214090"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679214090"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679214091"><span class="annot"><span class="annottext">a
+alice :: forall a. TwoOrThreeWay a -&gt; a
+alice :: a
+</span><a href="Unison.Merge.Internal.Types.html#alice"><span class="hs-identifier hs-var hs-var">alice</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679214092"><span class="annot"><span class="annottext">a
+bob :: forall a. TwoOrThreeWay a -&gt; a
+bob :: a
+</span><a href="Unison.Merge.Internal.Types.html#bob"><span class="hs-identifier hs-var hs-var">bob</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679214093"><span class="annot"><span class="annottext">Maybe a
+lca :: Maybe a
+lca :: forall a. TwoOrThreeWay a -&gt; Maybe a
+</span><a href="#local-6989586621679214093"><span class="hs-identifier hs-var hs-var">lca</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-18"></span><span>  </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">a
+alice :: a
+alice :: a
+</span><a href="#local-6989586621679214091"><span class="hs-identifier hs-var hs-var">alice</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+bob :: a
+bob :: a
+</span><a href="#local-6989586621679214092"><span class="hs-identifier hs-var hs-var">bob</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">lca :: a
+</span><a href="Unison.Merge.Internal.Types.html#lca"><span class="hs-identifier hs-var">lca</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a -&gt; a
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679214090"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679214093"><span class="hs-identifier hs-var">lca</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span id="local-6989586621679214070"><span id="local-6989586621679214071"><span class="annot"><a href="Unison.Merge.TwoOrThreeWay.html#toThreeWayA"><span class="hs-identifier hs-type">toThreeWayA</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679214070"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679214070"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679214071"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679214071"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679214070"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679214071"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-21"></span><span id="toThreeWayA"><span class="annot"><span class="annottext">toThreeWayA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+f a -&gt; TwoOrThreeWay a -&gt; f (ThreeWay a)
+</span><a href="Unison.Merge.TwoOrThreeWay.html#toThreeWayA"><span class="hs-identifier hs-var hs-var">toThreeWayA</span></a></span></span><span> </span><span id="local-6989586621679214108"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679214108"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679214109"><span class="annot"><span class="annottext">TwoOrThreeWay a
+</span><a href="#local-6989586621679214109"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TwoOrThreeWay a
+</span><a href="#local-6989586621679214109"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">lca</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679214110"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679214110"><span class="hs-identifier hs-var">lca</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ThreeWay a -&gt; f (ThreeWay a)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; ThreeWay a
+</span><a href="#local-6989586621679214111"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679214110"><span class="hs-identifier hs-var">lca</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; ThreeWay a
+</span><a href="#local-6989586621679214111"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; ThreeWay a) -&gt; f a -&gt; f (ThreeWay a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679214108"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>    </span><span id="local-6989586621679214111"><span class="annot"><span class="annottext">g :: a -&gt; ThreeWay a
+</span><a href="#local-6989586621679214111"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679214113"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679214113"><span class="hs-identifier hs-var">lca</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-27"></span><span>      </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">alice :: a
+</span><a href="Unison.Merge.Internal.Types.html#alice"><span class="hs-identifier hs-var">alice</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TwoOrThreeWay a
+</span><a href="#local-6989586621679214109"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">alice</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">bob :: a
+</span><a href="Unison.Merge.Internal.Types.html#bob"><span class="hs-identifier hs-var">bob</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TwoOrThreeWay a
+</span><a href="#local-6989586621679214109"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">bob</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+lca :: a
+lca :: a
+</span><a href="Unison.Merge.Internal.Types.html#lca"><span class="hs-identifier hs-var hs-var">lca</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span></pre></body></html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.MCP.Prompts.html"><span class="hs-identifier">Unison.MCP.Prompts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.MCP.Prompts.html#prompts"><span class="hs-identifier">prompts</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.MCP.Types</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MCP</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.MCP.StaticResources.html"><span class="hs-identifier">Unison.MCP.StaticResources</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.MCP.StaticResources.html#unisonGuideText"><span class="hs-identifier">unisonGuideText</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.MCP.Types.html"><span class="hs-identifier">Unison.MCP.Types</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.MCP.Wrapper.html"><span class="hs-identifier">Unison.MCP.Wrapper</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.MCP.Wrapper.html"><span class="hs-identifier">Unison.MCP.Wrapper</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MCPWrapper</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="annot"><a href="Unison.MCP.Prompts.html#prompts"><span class="hs-identifier hs-type">prompts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.MCP.Wrapper.html#Prompt"><span class="hs-identifier hs-type">MCPWrapper.Prompt</span></a></span><span> </span><span class="annot"><a href="Unison.MCP.Types.html#MCP"><span class="hs-identifier hs-type">MCP</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-12"></span><span id="prompts"><span class="annot"><span class="annottext">prompts :: [Prompt MCP]
+</span><a href="Unison.MCP.Prompts.html#prompts"><span class="hs-identifier hs-var hs-var">prompts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Prompt MCP
+</span><a href="Unison.MCP.Prompts.html#writeUnisonCodePrompt"><span class="hs-identifier hs-var">writeUnisonCodePrompt</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">]</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="annot"><a href="Unison.MCP.Prompts.html#writeUnisonCodePrompt"><span class="hs-identifier hs-type">writeUnisonCodePrompt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.MCP.Wrapper.html#Prompt"><span class="hs-identifier hs-type">Prompt</span></a></span><span> </span><span class="annot"><a href="Unison.MCP.Types.html#MCP"><span class="hs-identifier hs-type">MCP</span></a></span><span>
+</span><span id="line-17"></span><span id="writeUnisonCodePrompt"><span class="annot"><span class="annottext">writeUnisonCodePrompt :: Prompt MCP
+</span><a href="Unison.MCP.Prompts.html#writeUnisonCodePrompt"><span class="hs-identifier hs-var hs-var">writeUnisonCodePrompt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-18"></span><span>  </span><span class="annot"><a href="Unison.MCP.Wrapper.html#Prompt"><span class="hs-identifier hs-type">Prompt</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">promptName :: Text
+</span><a href="Unison.MCP.Wrapper.html#promptName"><span class="hs-identifier hs-var">promptName</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;unison-programming-assistant&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>      </span><span class="annot"><span class="annottext">promptDescription :: Text
+</span><a href="Unison.MCP.Wrapper.html#promptDescription"><span class="hs-identifier hs-var">promptDescription</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Unison Programming Assistant&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>      </span><span class="annot"><span class="annottext">promptArgs :: Map Text PromptArgument
+</span><a href="Unison.MCP.Wrapper.html#promptArgs"><span class="hs-identifier hs-var">promptArgs</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-22"></span><span>        </span><span class="annot"><span class="annottext">[(Text, PromptArgument)] -&gt; Map Text PromptArgument
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span>
+</span><span id="line-23"></span><span>          </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;project-and-branch&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>              </span><span class="annot"><a href="Unison.MCP.Wrapper.html#PromptArgument"><span class="hs-identifier hs-type">PromptArgument</span></a></span><span>
+</span><span id="line-25"></span><span>                </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">promptArgumentDescription :: Text
+</span><a href="Unison.MCP.Wrapper.html#promptArgumentDescription"><span class="hs-identifier hs-var">promptArgumentDescription</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;[Optional] The Unison project and branch this code should be implemented in. E.g. scratch/main&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>                  </span><span class="annot"><span class="annottext">promptArgumentRequired :: Bool
+</span><a href="Unison.MCP.Wrapper.html#promptArgumentRequired"><span class="hs-identifier hs-var">promptArgumentRequired</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-27"></span><span>                </span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>            </span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>            </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;preferred-libraries&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>              </span><span class="annot"><a href="Unison.MCP.Wrapper.html#PromptArgument"><span class="hs-identifier hs-type">PromptArgument</span></a></span><span>
+</span><span id="line-31"></span><span>                </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">promptArgumentDescription :: Text
+</span><a href="Unison.MCP.Wrapper.html#promptArgumentDescription"><span class="hs-identifier hs-var">promptArgumentDescription</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;[Optional] Specific libraries you'd like to be used. E.g. `@ceedubs/json and @unison/base`&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>                  </span><span class="annot"><span class="annottext">promptArgumentRequired :: Bool
+</span><a href="Unison.MCP.Wrapper.html#promptArgumentRequired"><span class="hs-identifier hs-var">promptArgumentRequired</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-33"></span><span>                </span><span class="hs-special">}</span><span>
+</span><span id="line-34"></span><span>            </span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>          </span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>      </span><span class="annot"><span class="annottext">promptHandler :: Map Text Text -&gt; MCP GetPromptResult
+</span><a href="Unison.MCP.Wrapper.html#promptHandler"><span class="hs-identifier hs-var">promptHandler</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681574844"><span class="annot"><span class="annottext">Map Text Text
+</span><a href="#local-6989586621681574844"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><span class="annottext">GetPromptResult -&gt; MCP GetPromptResult
+forall a. a -&gt; MCP a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(GetPromptResult -&gt; MCP GetPromptResult)
+-&gt; GetPromptResult -&gt; MCP GetPromptResult
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-38"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">MCP.GetPromptResult</span></span><span>
+</span><span id="line-39"></span><span>            </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">getPromptDescription :: Maybe Text
+</span><a href="#local-6989586621681574846"><span class="hs-identifier hs-var">getPromptDescription</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Ask the agent to write some Unison code for you.&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>              </span><span class="annot"><span class="annottext">getPromptMessages :: [PromptMessage]
+</span><a href="#local-6989586621681574847"><span class="hs-identifier hs-var">getPromptMessages</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>                </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MCP.PromptMessage</span></span><span>
+</span><span id="line-42"></span><span>                    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">promptMessageRole :: Text
+</span><a href="#local-6989586621681574849"><span class="hs-identifier hs-var">promptMessageRole</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;assistant&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>                      </span><span class="annot"><span class="annottext">promptMessageContent :: PromptContent
+</span><a href="#local-6989586621681574850"><span class="hs-identifier hs-var">promptMessageContent</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-44"></span><span>                        </span><span class="annot"><span class="hs-identifier hs-type">MCP.PromptContent</span></span><span>
+</span><span id="line-45"></span><span>                          </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">promptContentType :: PromptContentType
+</span><a href="#local-6989586621681574852"><span class="hs-identifier hs-var">promptContentType</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PromptContentType
+</span><span class="hs-identifier hs-var">TextPromptContent</span></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>                            </span><span class="annot"><span class="annottext">promptContentText :: Text
+</span><a href="#local-6989586621681574854"><span class="hs-identifier hs-var">promptContentText</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-47"></span><span>                              </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">Text.unlines</span></span><span>
+</span><span id="line-48"></span><span>                                </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Your role is to be a helpful Unison programming assistant. You will be given a description of a program to write in Unison, and you should write the code to implement it.&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>                                  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Map Text Text -&gt; Maybe Text
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;preferred-libraries&quot;</span></span><span> </span><span class="annot"><span class="annottext">Map Text Text
+</span><a href="#local-6989586621681574844"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-50"></span><span>                                    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681574857"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681574857"><span class="hs-identifier hs-var">preferredLibs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;You should use the following unison libraries to accomplish the task if they are applicable: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681574857"><span class="hs-identifier hs-var">preferredLibs</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; if they are not already installed, you may search share for the libraries and then install them.&quot;</span></span><span>
+</span><span id="line-51"></span><span>                                    </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>                                  </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;After implementing the code, ensure you typecheck it, and add watch expressions to test any pure functions.&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>                                  </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;You can use the tools available to search Unison Share and the local project and its dependencies for definitions and documentation to help you accomplish your task.&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>                                  </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>                                  </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;You should use the following guidelines when writing Unison code:&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>                                  </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>                                  </span><span class="annot"><span class="annottext">Text
+</span><a href="Unison.MCP.StaticResources.html#unisonGuideText"><span class="hs-identifier hs-var">unisonGuideText</span></a></span><span>
+</span><span id="line-58"></span><span>                                </span><span class="hs-special">]</span><span>
+</span><span id="line-59"></span><span>                          </span><span class="hs-special">}</span><span>
+</span><span id="line-60"></span><span>                    </span><span class="hs-special">}</span><span>
+</span><span id="line-61"></span><span>                </span><span class="hs-special">]</span><span>
+</span><span id="line-62"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-64"></span></pre></body></html>

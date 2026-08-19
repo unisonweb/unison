@@ -1,0 +1,984 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679467982"><span id="local-6989586621679467983"><span id="local-6989586621679467984"><span id="local-6989586621679467985"><span id="local-6989586621679467986"><span id="local-6989586621679467987"></span></span></span></span></span></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     :  BSD-3-Clause</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  :  Todd Mohney &lt;toddmohney@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html"><span class="hs-identifier">GitHub.Data.PublicSSHKeys</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.URL.html"><span class="hs-identifier">GitHub.Data.URL</span></a></span><span>         </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">data</span><span> </span><span id="PublicSSHKeyBasic"><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKeyBasic"><span class="hs-identifier hs-var">PublicSSHKeyBasic</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PublicSSHKeyBasic"><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKeyBasic"><span class="hs-identifier hs-var">PublicSSHKeyBasic</span></a></span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="basicPublicSSHKeyId"><span class="annot"><span class="annottext">PublicSSHKeyBasic -&gt; Id PublicSSHKey
+</span><a href="GitHub.Data.PublicSSHKeys.html#basicPublicSSHKeyId"><span class="hs-identifier hs-var hs-var">basicPublicSSHKeyId</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-type">PublicSSHKey</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="basicPublicSSHKeyKey"><span class="annot"><span class="annottext">PublicSSHKeyBasic -&gt; Text
+</span><a href="GitHub.Data.PublicSSHKeys.html#basicPublicSSHKeyKey"><span class="hs-identifier hs-var hs-var">basicPublicSSHKeyKey</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679467992"><span id="local-6989586621679468000"><span id="local-6989586621679468004"><span class="annot"><span class="annottext">Int -&gt; PublicSSHKeyBasic -&gt; ShowS
+[PublicSSHKeyBasic] -&gt; ShowS
+PublicSSHKeyBasic -&gt; String
+(Int -&gt; PublicSSHKeyBasic -&gt; ShowS)
+-&gt; (PublicSSHKeyBasic -&gt; String)
+-&gt; ([PublicSSHKeyBasic] -&gt; ShowS)
+-&gt; Show PublicSSHKeyBasic
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PublicSSHKeyBasic -&gt; ShowS
+showsPrec :: Int -&gt; PublicSSHKeyBasic -&gt; ShowS
+$cshow :: PublicSSHKeyBasic -&gt; String
+show :: PublicSSHKeyBasic -&gt; String
+$cshowList :: [PublicSSHKeyBasic] -&gt; ShowS
+showList :: [PublicSSHKeyBasic] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468011"><span id="local-6989586621679468018"><span id="local-6989586621679468023"><span id="local-6989586621679468025"><span id="local-6989586621679468027"><span id="local-6989586621679468033"><span id="local-6989586621679468038"><span id="local-6989586621679468041"><span id="local-6989586621679468044"><span id="local-6989586621679468047"><span id="local-6989586621679468050"><span id="local-6989586621679468053"><span id="local-6989586621679468058"><span id="local-6989586621679468063"><span class="annot"><span class="annottext">Typeable PublicSSHKeyBasic
+Typeable PublicSSHKeyBasic =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g)
+ -&gt; PublicSSHKeyBasic
+ -&gt; c PublicSSHKeyBasic)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PublicSSHKeyBasic)
+-&gt; (PublicSSHKeyBasic -&gt; Constr)
+-&gt; (PublicSSHKeyBasic -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PublicSSHKeyBasic))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c PublicSSHKeyBasic))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKeyBasic -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKeyBasic -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKeyBasic -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKeyBasic -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic)
+-&gt; Data PublicSSHKeyBasic
+PublicSSHKeyBasic -&gt; Constr
+PublicSSHKeyBasic -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKeyBasic -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKeyBasic -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKeyBasic -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKeyBasic -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PublicSSHKeyBasic
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PublicSSHKeyBasic -&gt; c PublicSSHKeyBasic
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PublicSSHKeyBasic)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PublicSSHKeyBasic)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PublicSSHKeyBasic -&gt; c PublicSSHKeyBasic
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PublicSSHKeyBasic -&gt; c PublicSSHKeyBasic
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PublicSSHKeyBasic
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PublicSSHKeyBasic
+$ctoConstr :: PublicSSHKeyBasic -&gt; Constr
+toConstr :: PublicSSHKeyBasic -&gt; Constr
+$cdataTypeOf :: PublicSSHKeyBasic -&gt; DataType
+dataTypeOf :: PublicSSHKeyBasic -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PublicSSHKeyBasic)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PublicSSHKeyBasic)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PublicSSHKeyBasic)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PublicSSHKeyBasic)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic
+gmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKeyBasic -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKeyBasic -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKeyBasic -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKeyBasic -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKeyBasic -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKeyBasic -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKeyBasic -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKeyBasic -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PublicSSHKeyBasic -&gt; m PublicSSHKeyBasic
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468074"><span id="local-6989586621679468080"><span class="annot"><span class="annottext">PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+(PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool)
+-&gt; (PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool)
+-&gt; Eq PublicSSHKeyBasic
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+== :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+$c/= :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+/= :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468087"><span id="local-6989586621679468093"><span id="local-6989586621679468097"><span id="local-6989586621679468101"><span id="local-6989586621679468104"><span id="local-6989586621679468107"><span id="local-6989586621679468110"><span class="annot"><span class="annottext">Eq PublicSSHKeyBasic
+Eq PublicSSHKeyBasic =&gt;
+(PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Ordering)
+-&gt; (PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool)
+-&gt; (PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool)
+-&gt; (PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool)
+-&gt; (PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool)
+-&gt; (PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic)
+-&gt; (PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic)
+-&gt; Ord PublicSSHKeyBasic
+PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Ordering
+PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Ordering
+compare :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Ordering
+$c&lt; :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+&lt; :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+$c&lt;= :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+&lt;= :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+$c&gt; :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+&gt; :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+$c&gt;= :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+&gt;= :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; Bool
+$cmax :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic
+max :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic
+$cmin :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic
+min :: PublicSSHKeyBasic -&gt; PublicSSHKeyBasic -&gt; PublicSSHKeyBasic
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468118"><span id="local-6989586621679468120"><span class="annot"><span class="annottext">(forall x. PublicSSHKeyBasic -&gt; Rep PublicSSHKeyBasic x)
+-&gt; (forall x. Rep PublicSSHKeyBasic x -&gt; PublicSSHKeyBasic)
+-&gt; Generic PublicSSHKeyBasic
+forall x. Rep PublicSSHKeyBasic x -&gt; PublicSSHKeyBasic
+forall x. PublicSSHKeyBasic -&gt; Rep PublicSSHKeyBasic x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. PublicSSHKeyBasic -&gt; Rep PublicSSHKeyBasic x
+from :: forall x. PublicSSHKeyBasic -&gt; Rep PublicSSHKeyBasic x
+$cto :: forall x. Rep PublicSSHKeyBasic x -&gt; PublicSSHKeyBasic
+to :: forall x. Rep PublicSSHKeyBasic x -&gt; PublicSSHKeyBasic
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679468127"><span id="local-6989586621679468131"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKeyBasic"><span class="hs-identifier hs-type">PublicSSHKeyBasic</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>    </span><span id="local-6989586621679468145"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser PublicSSHKeyBasic
+</span><a href="#local-6989586621679468145"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser PublicSSHKeyBasic)
+-&gt; Value
+-&gt; Parser PublicSSHKeyBasic
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PublicSSHKeyBasic&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser PublicSSHKeyBasic)
+ -&gt; Value -&gt; Parser PublicSSHKeyBasic)
+-&gt; (Object -&gt; Parser PublicSSHKeyBasic)
+-&gt; Value
+-&gt; Parser PublicSSHKeyBasic
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679468148"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468148"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Id PublicSSHKey -&gt; Text -&gt; PublicSSHKeyBasic
+</span><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKeyBasic"><span class="hs-identifier hs-var">PublicSSHKeyBasic</span></a></span><span>
+</span><span id="line-21"></span><span>        </span><span class="annot"><span class="annottext">(Id PublicSSHKey -&gt; Text -&gt; PublicSSHKeyBasic)
+-&gt; Parser (Id PublicSSHKey) -&gt; Parser (Text -&gt; PublicSSHKeyBasic)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468148"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id PublicSSHKey)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-22"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; PublicSSHKeyBasic)
+-&gt; Parser Text -&gt; Parser PublicSSHKeyBasic
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468148"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;key&quot;</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">data</span><span> </span><span id="PublicSSHKey"><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-var">PublicSSHKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PublicSSHKey"><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-var">PublicSSHKey</span></a></span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="publicSSHKeyId"><span class="annot"><span class="annottext">PublicSSHKey -&gt; Id PublicSSHKey
+</span><a href="GitHub.Data.PublicSSHKeys.html#publicSSHKeyId"><span class="hs-identifier hs-var hs-var">publicSSHKeyId</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-type">PublicSSHKey</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="publicSSHKeyKey"><span class="annot"><span class="annottext">PublicSSHKey -&gt; Text
+</span><a href="GitHub.Data.PublicSSHKeys.html#publicSSHKeyKey"><span class="hs-identifier hs-var hs-var">publicSSHKeyKey</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="publicSSHKeyUrl"><span class="annot"><span class="annottext">PublicSSHKey -&gt; URL
+</span><a href="GitHub.Data.PublicSSHKeys.html#publicSSHKeyUrl"><span class="hs-identifier hs-var hs-var">publicSSHKeyUrl</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="publicSSHKeyTitle"><span class="annot"><span class="annottext">PublicSSHKey -&gt; Text
+</span><a href="GitHub.Data.PublicSSHKeys.html#publicSSHKeyTitle"><span class="hs-identifier hs-var hs-var">publicSSHKeyTitle</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="publicSSHKeyVerified"><span class="annot"><span class="annottext">PublicSSHKey -&gt; Bool
+</span><a href="GitHub.Data.PublicSSHKeys.html#publicSSHKeyVerified"><span class="hs-identifier hs-var hs-var">publicSSHKeyVerified</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="publicSSHKeyCreatedAt"><span class="annot"><span class="annottext">PublicSSHKey -&gt; Maybe UTCTime
+</span><a href="GitHub.Data.PublicSSHKeys.html#publicSSHKeyCreatedAt"><span class="hs-identifier hs-var hs-var">publicSSHKeyCreatedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="publicSSHKeyReadOnly"><span class="annot"><span class="annottext">PublicSSHKey -&gt; Bool
+</span><a href="GitHub.Data.PublicSSHKeys.html#publicSSHKeyReadOnly"><span class="hs-identifier hs-var hs-var">publicSSHKeyReadOnly</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679468160"><span id="local-6989586621679468174"><span id="local-6989586621679468178"><span class="annot"><span class="annottext">Int -&gt; PublicSSHKey -&gt; ShowS
+[PublicSSHKey] -&gt; ShowS
+PublicSSHKey -&gt; String
+(Int -&gt; PublicSSHKey -&gt; ShowS)
+-&gt; (PublicSSHKey -&gt; String)
+-&gt; ([PublicSSHKey] -&gt; ShowS)
+-&gt; Show PublicSSHKey
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PublicSSHKey -&gt; ShowS
+showsPrec :: Int -&gt; PublicSSHKey -&gt; ShowS
+$cshow :: PublicSSHKey -&gt; String
+show :: PublicSSHKey -&gt; String
+$cshowList :: [PublicSSHKey] -&gt; ShowS
+showList :: [PublicSSHKey] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468184"><span id="local-6989586621679468198"><span id="local-6989586621679468209"><span id="local-6989586621679468211"><span id="local-6989586621679468213"><span id="local-6989586621679468218"><span id="local-6989586621679468223"><span id="local-6989586621679468226"><span id="local-6989586621679468229"><span id="local-6989586621679468232"><span id="local-6989586621679468235"><span id="local-6989586621679468238"><span id="local-6989586621679468243"><span id="local-6989586621679468248"><span class="annot"><span class="annottext">Typeable PublicSSHKey
+Typeable PublicSSHKey =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; PublicSSHKey -&gt; c PublicSSHKey)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PublicSSHKey)
+-&gt; (PublicSSHKey -&gt; Constr)
+-&gt; (PublicSSHKey -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PublicSSHKey))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c PublicSSHKey))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; PublicSSHKey -&gt; PublicSSHKey)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKey -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKey -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKey -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKey -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey)
+-&gt; Data PublicSSHKey
+PublicSSHKey -&gt; Constr
+PublicSSHKey -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; PublicSSHKey -&gt; PublicSSHKey
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKey -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKey -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKey -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKey -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PublicSSHKey
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PublicSSHKey -&gt; c PublicSSHKey
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PublicSSHKey)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PublicSSHKey)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PublicSSHKey -&gt; c PublicSSHKey
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PublicSSHKey -&gt; c PublicSSHKey
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PublicSSHKey
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PublicSSHKey
+$ctoConstr :: PublicSSHKey -&gt; Constr
+toConstr :: PublicSSHKey -&gt; Constr
+$cdataTypeOf :: PublicSSHKey -&gt; DataType
+dataTypeOf :: PublicSSHKey -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PublicSSHKey)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PublicSSHKey)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PublicSSHKey)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PublicSSHKey)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; PublicSSHKey -&gt; PublicSSHKey
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; PublicSSHKey -&gt; PublicSSHKey
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKey -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKey -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKey -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PublicSSHKey -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKey -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKey -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKey -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PublicSSHKey -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; PublicSSHKey -&gt; m PublicSSHKey
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468254"><span id="local-6989586621679468267"><span class="annot"><span class="annottext">PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+(PublicSSHKey -&gt; PublicSSHKey -&gt; Bool)
+-&gt; (PublicSSHKey -&gt; PublicSSHKey -&gt; Bool) -&gt; Eq PublicSSHKey
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+== :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+$c/= :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+/= :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468274"><span id="local-6989586621679468287"><span id="local-6989586621679468297"><span id="local-6989586621679468301"><span id="local-6989586621679468304"><span id="local-6989586621679468307"><span id="local-6989586621679468310"><span class="annot"><span class="annottext">Eq PublicSSHKey
+Eq PublicSSHKey =&gt;
+(PublicSSHKey -&gt; PublicSSHKey -&gt; Ordering)
+-&gt; (PublicSSHKey -&gt; PublicSSHKey -&gt; Bool)
+-&gt; (PublicSSHKey -&gt; PublicSSHKey -&gt; Bool)
+-&gt; (PublicSSHKey -&gt; PublicSSHKey -&gt; Bool)
+-&gt; (PublicSSHKey -&gt; PublicSSHKey -&gt; Bool)
+-&gt; (PublicSSHKey -&gt; PublicSSHKey -&gt; PublicSSHKey)
+-&gt; (PublicSSHKey -&gt; PublicSSHKey -&gt; PublicSSHKey)
+-&gt; Ord PublicSSHKey
+PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+PublicSSHKey -&gt; PublicSSHKey -&gt; Ordering
+PublicSSHKey -&gt; PublicSSHKey -&gt; PublicSSHKey
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: PublicSSHKey -&gt; PublicSSHKey -&gt; Ordering
+compare :: PublicSSHKey -&gt; PublicSSHKey -&gt; Ordering
+$c&lt; :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+&lt; :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+$c&lt;= :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+&lt;= :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+$c&gt; :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+&gt; :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+$c&gt;= :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+&gt;= :: PublicSSHKey -&gt; PublicSSHKey -&gt; Bool
+$cmax :: PublicSSHKey -&gt; PublicSSHKey -&gt; PublicSSHKey
+max :: PublicSSHKey -&gt; PublicSSHKey -&gt; PublicSSHKey
+$cmin :: PublicSSHKey -&gt; PublicSSHKey -&gt; PublicSSHKey
+min :: PublicSSHKey -&gt; PublicSSHKey -&gt; PublicSSHKey
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468314"><span id="local-6989586621679468316"><span class="annot"><span class="annottext">(forall x. PublicSSHKey -&gt; Rep PublicSSHKey x)
+-&gt; (forall x. Rep PublicSSHKey x -&gt; PublicSSHKey)
+-&gt; Generic PublicSSHKey
+forall x. Rep PublicSSHKey x -&gt; PublicSSHKey
+forall x. PublicSSHKey -&gt; Rep PublicSSHKey x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. PublicSSHKey -&gt; Rep PublicSSHKey x
+from :: forall x. PublicSSHKey -&gt; Rep PublicSSHKey x
+$cto :: forall x. Rep PublicSSHKey x -&gt; PublicSSHKey
+to :: forall x. Rep PublicSSHKey x -&gt; PublicSSHKey
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679468320"><span id="local-6989586621679468324"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-type">PublicSSHKey</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>    </span><span id="local-6989586621679468350"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser PublicSSHKey
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser PublicSSHKey) -&gt; Value -&gt; Parser PublicSSHKey
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PublicSSHKey&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser PublicSSHKey) -&gt; Value -&gt; Parser PublicSSHKey)
+-&gt; (Object -&gt; Parser PublicSSHKey) -&gt; Value -&gt; Parser PublicSSHKey
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679468351"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468351"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Id PublicSSHKey
+-&gt; Text
+-&gt; URL
+-&gt; Text
+-&gt; Bool
+-&gt; Maybe UTCTime
+-&gt; Bool
+-&gt; PublicSSHKey
+</span><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-var">PublicSSHKey</span></a></span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><span class="annottext">(Id PublicSSHKey
+ -&gt; Text
+ -&gt; URL
+ -&gt; Text
+ -&gt; Bool
+ -&gt; Maybe UTCTime
+ -&gt; Bool
+ -&gt; PublicSSHKey)
+-&gt; Parser (Id PublicSSHKey)
+-&gt; Parser
+     (Text
+      -&gt; URL -&gt; Text -&gt; Bool -&gt; Maybe UTCTime -&gt; Bool -&gt; PublicSSHKey)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468351"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id PublicSSHKey)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-38"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Text
+   -&gt; URL -&gt; Text -&gt; Bool -&gt; Maybe UTCTime -&gt; Bool -&gt; PublicSSHKey)
+-&gt; Parser Text
+-&gt; Parser
+     (URL -&gt; Text -&gt; Bool -&gt; Maybe UTCTime -&gt; Bool -&gt; PublicSSHKey)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468351"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;key&quot;</span></span><span>
+</span><span id="line-39"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (URL -&gt; Text -&gt; Bool -&gt; Maybe UTCTime -&gt; Bool -&gt; PublicSSHKey)
+-&gt; Parser URL
+-&gt; Parser (Text -&gt; Bool -&gt; Maybe UTCTime -&gt; Bool -&gt; PublicSSHKey)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468351"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; Bool -&gt; Maybe UTCTime -&gt; Bool -&gt; PublicSSHKey)
+-&gt; Parser Text
+-&gt; Parser (Bool -&gt; Maybe UTCTime -&gt; Bool -&gt; PublicSSHKey)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468351"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;title&quot;</span></span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="annottext">Parser (Bool -&gt; Maybe UTCTime -&gt; Bool -&gt; PublicSSHKey)
+-&gt; Parser Bool -&gt; Parser (Maybe UTCTime -&gt; Bool -&gt; PublicSSHKey)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468351"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Bool
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;verified&quot;</span></span><span>
+</span><span id="line-42"></span><span>        </span><span class="annot"><span class="annottext">Parser (Maybe UTCTime -&gt; Bool -&gt; PublicSSHKey)
+-&gt; Parser (Maybe UTCTime) -&gt; Parser (Bool -&gt; PublicSSHKey)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468351"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe UTCTime)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><span class="annottext">Parser (Bool -&gt; PublicSSHKey) -&gt; Parser Bool -&gt; Parser PublicSSHKey
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468351"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Bool
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;read_only&quot;</span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">data</span><span> </span><span id="NewPublicSSHKey"><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#NewPublicSSHKey"><span class="hs-identifier hs-var">NewPublicSSHKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NewPublicSSHKey"><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#NewPublicSSHKey"><span class="hs-identifier hs-var">NewPublicSSHKey</span></a></span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="newPublicSSHKeyKey"><span class="annot"><span class="annottext">NewPublicSSHKey -&gt; Text
+</span><a href="GitHub.Data.PublicSSHKeys.html#newPublicSSHKeyKey"><span class="hs-identifier hs-var hs-var">newPublicSSHKeyKey</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newPublicSSHKeyTitle"><span class="annot"><span class="annottext">NewPublicSSHKey -&gt; Text
+</span><a href="GitHub.Data.PublicSSHKeys.html#newPublicSSHKeyTitle"><span class="hs-identifier hs-var hs-var">newPublicSSHKeyTitle</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679468357"><span id="local-6989586621679468362"><span id="local-6989586621679468366"><span class="annot"><span class="annottext">Int -&gt; NewPublicSSHKey -&gt; ShowS
+[NewPublicSSHKey] -&gt; ShowS
+NewPublicSSHKey -&gt; String
+(Int -&gt; NewPublicSSHKey -&gt; ShowS)
+-&gt; (NewPublicSSHKey -&gt; String)
+-&gt; ([NewPublicSSHKey] -&gt; ShowS)
+-&gt; Show NewPublicSSHKey
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NewPublicSSHKey -&gt; ShowS
+showsPrec :: Int -&gt; NewPublicSSHKey -&gt; ShowS
+$cshow :: NewPublicSSHKey -&gt; String
+show :: NewPublicSSHKey -&gt; String
+$cshowList :: [NewPublicSSHKey] -&gt; ShowS
+showList :: [NewPublicSSHKey] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468371"><span id="local-6989586621679468375"><span id="local-6989586621679468379"><span id="local-6989586621679468381"><span id="local-6989586621679468383"><span id="local-6989586621679468389"><span id="local-6989586621679468394"><span id="local-6989586621679468397"><span id="local-6989586621679468400"><span id="local-6989586621679468403"><span id="local-6989586621679468406"><span id="local-6989586621679468409"><span id="local-6989586621679468414"><span id="local-6989586621679468419"><span class="annot"><span class="annottext">Typeable NewPublicSSHKey
+Typeable NewPublicSSHKey =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; NewPublicSSHKey -&gt; c NewPublicSSHKey)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewPublicSSHKey)
+-&gt; (NewPublicSSHKey -&gt; Constr)
+-&gt; (NewPublicSSHKey -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewPublicSSHKey))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c NewPublicSSHKey))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPublicSSHKey -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPublicSSHKey -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; NewPublicSSHKey -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewPublicSSHKey -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey)
+-&gt; Data NewPublicSSHKey
+NewPublicSSHKey -&gt; Constr
+NewPublicSSHKey -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewPublicSSHKey -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewPublicSSHKey -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPublicSSHKey -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPublicSSHKey -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewPublicSSHKey
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewPublicSSHKey -&gt; c NewPublicSSHKey
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewPublicSSHKey)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewPublicSSHKey)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewPublicSSHKey -&gt; c NewPublicSSHKey
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewPublicSSHKey -&gt; c NewPublicSSHKey
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewPublicSSHKey
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewPublicSSHKey
+$ctoConstr :: NewPublicSSHKey -&gt; Constr
+toConstr :: NewPublicSSHKey -&gt; Constr
+$cdataTypeOf :: NewPublicSSHKey -&gt; DataType
+dataTypeOf :: NewPublicSSHKey -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewPublicSSHKey)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewPublicSSHKey)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewPublicSSHKey)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewPublicSSHKey)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPublicSSHKey -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPublicSSHKey -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPublicSSHKey -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPublicSSHKey -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewPublicSSHKey -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewPublicSSHKey -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewPublicSSHKey -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewPublicSSHKey -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPublicSSHKey -&gt; m NewPublicSSHKey
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468424"><span id="local-6989586621679468428"><span class="annot"><span class="annottext">NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+(NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool)
+-&gt; (NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool)
+-&gt; Eq NewPublicSSHKey
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+== :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+$c/= :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+/= :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468434"><span id="local-6989586621679468438"><span id="local-6989586621679468442"><span id="local-6989586621679468446"><span id="local-6989586621679468449"><span id="local-6989586621679468452"><span id="local-6989586621679468455"><span class="annot"><span class="annottext">Eq NewPublicSSHKey
+Eq NewPublicSSHKey =&gt;
+(NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Ordering)
+-&gt; (NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool)
+-&gt; (NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool)
+-&gt; (NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool)
+-&gt; (NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool)
+-&gt; (NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey)
+-&gt; (NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey)
+-&gt; Ord NewPublicSSHKey
+NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Ordering
+NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Ordering
+compare :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Ordering
+$c&lt; :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+&lt; :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+$c&lt;= :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+&lt;= :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+$c&gt; :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+&gt; :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+$c&gt;= :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+&gt;= :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; Bool
+$cmax :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey
+max :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey
+$cmin :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey
+min :: NewPublicSSHKey -&gt; NewPublicSSHKey -&gt; NewPublicSSHKey
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679468458"><span id="local-6989586621679468460"><span class="annot"><span class="annottext">(forall x. NewPublicSSHKey -&gt; Rep NewPublicSSHKey x)
+-&gt; (forall x. Rep NewPublicSSHKey x -&gt; NewPublicSSHKey)
+-&gt; Generic NewPublicSSHKey
+forall x. Rep NewPublicSSHKey x -&gt; NewPublicSSHKey
+forall x. NewPublicSSHKey -&gt; Rep NewPublicSSHKey x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. NewPublicSSHKey -&gt; Rep NewPublicSSHKey x
+from :: forall x. NewPublicSSHKey -&gt; Rep NewPublicSSHKey x
+$cto :: forall x. Rep NewPublicSSHKey x -&gt; NewPublicSSHKey
+to :: forall x. Rep NewPublicSSHKey x -&gt; NewPublicSSHKey
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679468464"><span id="local-6989586621679468468"><span id="local-6989586621679468471"><span id="local-6989586621679468474"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#NewPublicSSHKey"><span class="hs-identifier hs-type">NewPublicSSHKey</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>    </span><span id="local-6989586621679468487"><span class="annot"><span class="annottext">toJSON :: NewPublicSSHKey -&gt; Value
+</span><a href="#local-6989586621679468487"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#NewPublicSSHKey"><span class="hs-identifier hs-type">NewPublicSSHKey</span></a></span><span> </span><span id="local-6989586621679468489"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679468489"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span id="local-6989586621679468490"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679468490"><span class="hs-identifier hs-var">title</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span>
+</span><span id="line-53"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;key&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679468489"><span class="hs-identifier hs-var">key</span></a></span><span>
+</span><span id="line-54"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;title&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679468490"><span class="hs-identifier hs-var">title</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679468495"><span id="local-6989586621679468499"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#NewPublicSSHKey"><span class="hs-identifier hs-type">NewPublicSSHKey</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679468507"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser NewPublicSSHKey
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser NewPublicSSHKey)
+-&gt; Value
+-&gt; Parser NewPublicSSHKey
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PublicSSHKey&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser NewPublicSSHKey)
+ -&gt; Value -&gt; Parser NewPublicSSHKey)
+-&gt; (Object -&gt; Parser NewPublicSSHKey)
+-&gt; Value
+-&gt; Parser NewPublicSSHKey
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679468508"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468508"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; NewPublicSSHKey
+</span><a href="GitHub.Data.PublicSSHKeys.html#NewPublicSSHKey"><span class="hs-identifier hs-var">NewPublicSSHKey</span></a></span><span>
+</span><span id="line-59"></span><span>        </span><span class="annot"><span class="annottext">(Text -&gt; Text -&gt; NewPublicSSHKey)
+-&gt; Parser Text -&gt; Parser (Text -&gt; NewPublicSSHKey)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468508"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;key&quot;</span></span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; NewPublicSSHKey)
+-&gt; Parser Text -&gt; Parser NewPublicSSHKey
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679468508"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;title&quot;</span></span><span>
+</span><span id="line-61"></span></pre></body></html>

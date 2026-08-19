@@ -1,0 +1,32 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Copyright:   (c) 2021-2022 Andrew Lelechenko</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Licence:     BSD3</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer:  Andrew Lelechenko &lt;andrew.lelechenko@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- @since 0.2</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Text.Utf16.Rope.Mixed.html"><span class="hs-identifier">Data.Text.Utf16.Rope.Mixed</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#Rope"><span class="hs-identifier">Mixed.Rope</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#fromText"><span class="hs-identifier">Mixed.fromText</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#fromTextLines"><span class="hs-identifier">Mixed.fromTextLines</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#toText"><span class="hs-identifier">Mixed.toText</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#toTextLines"><span class="hs-identifier">Mixed.toTextLines</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#null"><span class="hs-identifier">Mixed.null</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Lines</span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#lines"><span class="hs-identifier">Mixed.lines</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#lengthInLines"><span class="hs-identifier">Mixed.lengthInLines</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#splitAtLine"><span class="hs-identifier">Mixed.splitAtLine</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Code points</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#charLength"><span class="hs-identifier">Mixed.charLength</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#charSplitAt"><span class="hs-identifier">Mixed.charSplitAt</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#charLengthAsPosition"><span class="hs-identifier">Mixed.charLengthAsPosition</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#charSplitAtPosition"><span class="hs-identifier">Mixed.charSplitAtPosition</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><span class="hs-comment">-- * UTF-16 code units</span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#utf16Length"><span class="hs-identifier">Mixed.utf16Length</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#utf16SplitAt"><span class="hs-identifier">Mixed.utf16SplitAt</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#utf16LengthAsPosition"><span class="hs-identifier">Mixed.utf16LengthAsPosition</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html#utf16SplitAtPosition"><span class="hs-identifier">Mixed.utf16SplitAtPosition</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Text.Mixed.Rope.html"><span class="hs-identifier">Data.Text.Mixed.Rope</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Mixed</span></span><span>
+</span><span id="line-32"></span></pre></body></html>

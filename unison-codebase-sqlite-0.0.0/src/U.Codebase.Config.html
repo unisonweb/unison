@@ -1,0 +1,200 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679668107"><span id="local-6989586621679668108"></span></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="U.Codebase.Config.html"><span class="hs-identifier">U.Codebase.Config</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="U.Codebase.Config.html#AuthorName"><span class="hs-identifier">AuthorName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="U.Codebase.Config.html#ConfigKey"><span class="hs-identifier">ConfigKey</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="U.Codebase.Config.html#allKeys"><span class="hs-identifier">allKeys</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="U.Codebase.Config.html#mkAuthorName"><span class="hs-identifier">mkAuthorName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="U.Codebase.Config.html#unAuthorName"><span class="hs-identifier">unAuthorName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="U.Codebase.Config.html#keyToText"><span class="hs-identifier">keyToText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="U.Codebase.Config.html#keyFromText"><span class="hs-identifier">keyFromText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="U.Codebase.Config.html#allKeysText"><span class="hs-identifier">allKeysText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Sqlite</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Sqlite</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">data</span><span> </span><span id="ConfigKey"><span class="annot"><a href="U.Codebase.Config.html#ConfigKey"><span class="hs-identifier hs-var">ConfigKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="AuthorNameKey"><span class="annot"><a href="U.Codebase.Config.html#AuthorNameKey"><span class="hs-identifier hs-var">AuthorNameKey</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679668135"><span id="local-6989586621679668137"><span class="annot"><span class="annottext">ConfigKey -&gt; ConfigKey -&gt; Bool
+(ConfigKey -&gt; ConfigKey -&gt; Bool)
+-&gt; (ConfigKey -&gt; ConfigKey -&gt; Bool) -&gt; Eq ConfigKey
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ConfigKey -&gt; ConfigKey -&gt; Bool
+== :: ConfigKey -&gt; ConfigKey -&gt; Bool
+$c/= :: ConfigKey -&gt; ConfigKey -&gt; Bool
+/= :: ConfigKey -&gt; ConfigKey -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679668142"><span id="local-6989586621679668151"><span id="local-6989586621679668158"><span id="local-6989586621679668171"><span id="local-6989586621679668174"><span id="local-6989586621679668179"><span id="local-6989586621679668185"><span id="local-6989586621679668188"><span class="annot"><span class="annottext">Int -&gt; ConfigKey
+ConfigKey -&gt; Int
+ConfigKey -&gt; [ConfigKey]
+ConfigKey -&gt; ConfigKey
+ConfigKey -&gt; ConfigKey -&gt; [ConfigKey]
+ConfigKey -&gt; ConfigKey -&gt; ConfigKey -&gt; [ConfigKey]
+(ConfigKey -&gt; ConfigKey)
+-&gt; (ConfigKey -&gt; ConfigKey)
+-&gt; (Int -&gt; ConfigKey)
+-&gt; (ConfigKey -&gt; Int)
+-&gt; (ConfigKey -&gt; [ConfigKey])
+-&gt; (ConfigKey -&gt; ConfigKey -&gt; [ConfigKey])
+-&gt; (ConfigKey -&gt; ConfigKey -&gt; [ConfigKey])
+-&gt; (ConfigKey -&gt; ConfigKey -&gt; ConfigKey -&gt; [ConfigKey])
+-&gt; Enum ConfigKey
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: ConfigKey -&gt; ConfigKey
+succ :: ConfigKey -&gt; ConfigKey
+$cpred :: ConfigKey -&gt; ConfigKey
+pred :: ConfigKey -&gt; ConfigKey
+$ctoEnum :: Int -&gt; ConfigKey
+toEnum :: Int -&gt; ConfigKey
+$cfromEnum :: ConfigKey -&gt; Int
+fromEnum :: ConfigKey -&gt; Int
+$cenumFrom :: ConfigKey -&gt; [ConfigKey]
+enumFrom :: ConfigKey -&gt; [ConfigKey]
+$cenumFromThen :: ConfigKey -&gt; ConfigKey -&gt; [ConfigKey]
+enumFromThen :: ConfigKey -&gt; ConfigKey -&gt; [ConfigKey]
+$cenumFromTo :: ConfigKey -&gt; ConfigKey -&gt; [ConfigKey]
+enumFromTo :: ConfigKey -&gt; ConfigKey -&gt; [ConfigKey]
+$cenumFromThenTo :: ConfigKey -&gt; ConfigKey -&gt; ConfigKey -&gt; [ConfigKey]
+enumFromThenTo :: ConfigKey -&gt; ConfigKey -&gt; ConfigKey -&gt; [ConfigKey]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679668196"><span id="local-6989586621679668198"><span class="annot"><span class="annottext">ConfigKey
+ConfigKey -&gt; ConfigKey -&gt; Bounded ConfigKey
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: ConfigKey
+minBound :: ConfigKey
+$cmaxBound :: ConfigKey
+maxBound :: ConfigKey
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679668203"><span id="local-6989586621679668208"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="U.Codebase.Config.html#ConfigKey"><span class="hs-identifier hs-type">ConfigKey</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>  </span><span id="local-6989586621679668211"><span class="annot"><span class="annottext">show :: ConfigKey -&gt; [Char]
+</span><a href="#local-6989586621679668211"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span id="local-6989586621679668213"><span class="annot"><span class="annottext">ConfigKey
+</span><a href="#local-6989586621679668213"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Char]
+</span><span class="hs-identifier hs-var">Text.unpack</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; [Char]) -&gt; (ConfigKey -&gt; Text) -&gt; ConfigKey -&gt; [Char]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ConfigKey -&gt; Text
+</span><a href="U.Codebase.Config.html#keyToText"><span class="hs-identifier hs-var">keyToText</span></a></span><span> </span><span class="annot"><span class="annottext">(ConfigKey -&gt; [Char]) -&gt; ConfigKey -&gt; [Char]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ConfigKey
+</span><a href="#local-6989586621679668213"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><a href="U.Codebase.Config.html#allKeys"><span class="hs-identifier hs-type">allKeys</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="U.Codebase.Config.html#ConfigKey"><span class="hs-identifier hs-type">ConfigKey</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-24"></span><span id="allKeys"><span class="annot"><span class="annottext">allKeys :: [ConfigKey]
+</span><a href="U.Codebase.Config.html#allKeys"><span class="hs-identifier hs-var hs-var">allKeys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ConfigKey
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">ConfigKey
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span class="hs-special">]</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="U.Codebase.Config.html#allKeysText"><span class="hs-identifier hs-type">allKeysText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span>
+</span><span id="line-27"></span><span id="allKeysText"><span class="annot"><span class="annottext">allKeysText :: [Text]
+</span><a href="U.Codebase.Config.html#allKeysText"><span class="hs-identifier hs-var hs-var">allKeysText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConfigKey -&gt; Text
+</span><a href="U.Codebase.Config.html#keyToText"><span class="hs-identifier hs-var">keyToText</span></a></span><span> </span><span class="annot"><span class="annottext">(ConfigKey -&gt; Text) -&gt; [ConfigKey] -&gt; [Text]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[ConfigKey]
+</span><a href="U.Codebase.Config.html#allKeys"><span class="hs-identifier hs-var">allKeys</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><a href="U.Codebase.Config.html#keyToText"><span class="hs-identifier hs-type">keyToText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="U.Codebase.Config.html#ConfigKey"><span class="hs-identifier hs-type">ConfigKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-30"></span><span id="keyToText"><span class="annot"><span class="annottext">keyToText :: ConfigKey -&gt; Text
+</span><a href="U.Codebase.Config.html#keyToText"><span class="hs-identifier hs-var hs-var">keyToText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="annottext">ConfigKey
+</span><a href="U.Codebase.Config.html#AuthorNameKey"><span class="hs-identifier hs-var">AuthorNameKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;author.name&quot;</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><a href="U.Codebase.Config.html#keyFromText"><span class="hs-identifier hs-type">keyFromText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="U.Codebase.Config.html#ConfigKey"><span class="hs-identifier hs-type">ConfigKey</span></a></span><span>
+</span><span id="line-34"></span><span id="keyFromText"><span class="annot"><span class="annottext">keyFromText :: Text -&gt; Maybe ConfigKey
+</span><a href="U.Codebase.Config.html#keyFromText"><span class="hs-identifier hs-var hs-var">keyFromText</span></a></span></span><span> </span><span id="local-6989586621679668217"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679668217"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679668217"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;author.name&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ConfigKey -&gt; Maybe ConfigKey
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ConfigKey
+</span><a href="U.Codebase.Config.html#AuthorNameKey"><span class="hs-identifier hs-var">AuthorNameKey</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ConfigKey
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Sqlite.ToField</span></span><span> </span><span class="annot"><a href="U.Codebase.Config.html#ConfigKey"><span class="hs-identifier hs-type">ConfigKey</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621679668223"><span class="annot"><span class="annottext">toField :: ConfigKey -&gt; SQLData
+</span><a href="#local-6989586621679668223"><span class="hs-identifier hs-var hs-var hs-var">toField</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConfigKey
+</span><a href="U.Codebase.Config.html#AuthorNameKey"><span class="hs-identifier hs-var">AuthorNameKey</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; SQLData
+forall a. ToField a =&gt; a -&gt; SQLData
+</span><span class="hs-identifier hs-var">Sqlite.toField</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ConfigKey -&gt; Text
+</span><a href="U.Codebase.Config.html#keyToText"><span class="hs-identifier hs-var">keyToText</span></a></span><span> </span><span class="annot"><span class="annottext">ConfigKey
+</span><a href="U.Codebase.Config.html#AuthorNameKey"><span class="hs-identifier hs-var">AuthorNameKey</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="annot"><a href="U.Codebase.Config.html#mkAuthorName"><span class="hs-identifier hs-type">mkAuthorName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="U.Codebase.Config.html#AuthorName"><span class="hs-identifier hs-type">AuthorName</span></a></span><span>
+</span><span id="line-42"></span><span id="mkAuthorName"><span class="annot"><span class="annottext">mkAuthorName :: Text -&gt; Either Text AuthorName
+</span><a href="U.Codebase.Config.html#mkAuthorName"><span class="hs-identifier hs-var hs-var">mkAuthorName</span></a></span></span><span> </span><span id="local-6989586621679668225"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679668225"><span class="hs-identifier hs-var">name</span></a></span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">Text.null</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.strip</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679668225"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text AuthorName
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Author name cannot be empty.&quot;</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">Text.length</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679668225"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">100</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text AuthorName
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Author name cannot exceed 100 characters.&quot;</span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AuthorName -&gt; Either Text AuthorName
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; AuthorName
+</span><a href="U.Codebase.Config.html#AuthorName"><span class="hs-identifier hs-var">AuthorName</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679668225"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">newtype</span><span> </span><span id="AuthorName"><span class="annot"><a href="U.Codebase.Config.html#AuthorName"><span class="hs-identifier hs-var">AuthorName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="AuthorName"><span class="annot"><a href="U.Codebase.Config.html#AuthorName"><span class="hs-identifier hs-var">AuthorName</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unAuthorName"><span class="annot"><span class="annottext">AuthorName -&gt; Text
+</span><a href="U.Codebase.Config.html#unAuthorName"><span class="hs-identifier hs-var hs-var">unAuthorName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">}</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679668232"><span id="local-6989586621679668235"><span class="annot"><span class="annottext">AuthorName -&gt; AuthorName -&gt; Bool
+(AuthorName -&gt; AuthorName -&gt; Bool)
+-&gt; (AuthorName -&gt; AuthorName -&gt; Bool) -&gt; Eq AuthorName
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: AuthorName -&gt; AuthorName -&gt; Bool
+== :: AuthorName -&gt; AuthorName -&gt; Bool
+$c/= :: AuthorName -&gt; AuthorName -&gt; Bool
+/= :: AuthorName -&gt; AuthorName -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679668239"><span id="local-6989586621679668244"><span id="local-6989586621679668248"><span class="annot"><span class="annottext">Int -&gt; AuthorName -&gt; [Char] -&gt; [Char]
+[AuthorName] -&gt; [Char] -&gt; [Char]
+AuthorName -&gt; [Char]
+(Int -&gt; AuthorName -&gt; [Char] -&gt; [Char])
+-&gt; (AuthorName -&gt; [Char])
+-&gt; ([AuthorName] -&gt; [Char] -&gt; [Char])
+-&gt; Show AuthorName
+forall a.
+(Int -&gt; a -&gt; [Char] -&gt; [Char])
+-&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; [Char] -&gt; [Char]) -&gt; Show a
+$cshowsPrec :: Int -&gt; AuthorName -&gt; [Char] -&gt; [Char]
+showsPrec :: Int -&gt; AuthorName -&gt; [Char] -&gt; [Char]
+$cshow :: AuthorName -&gt; [Char]
+show :: AuthorName -&gt; [Char]
+$cshowList :: [AuthorName] -&gt; [Char] -&gt; [Char]
+showList :: [AuthorName] -&gt; [Char] -&gt; [Char]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679668252"><span class="annot"><span class="annottext">AuthorName -&gt; SQLData
+(AuthorName -&gt; SQLData) -&gt; ToField AuthorName
+forall a. (a -&gt; SQLData) -&gt; ToField a
+$ctoField :: AuthorName -&gt; SQLData
+toField :: AuthorName -&gt; SQLData
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Sqlite.ToField</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679668257"><span class="annot"><span class="annottext">FieldParser AuthorName
+FieldParser AuthorName -&gt; FromField AuthorName
+forall a. FieldParser a -&gt; FromField a
+$cfromField :: FieldParser AuthorName
+fromField :: FieldParser AuthorName
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Sqlite.FromField</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span></pre></body></html>

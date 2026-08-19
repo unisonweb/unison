@@ -1,0 +1,140 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html"><span class="hs-identifier">Data.Avro.Internal.DecodeRaw</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier">DecodeRaw</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Avro.Internal.Zag.html"><span class="hs-identifier">Data.Avro.Internal.Zag</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary.Get</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span id="local-6989586621679514302"><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#getNonNegative"><span class="hs-identifier hs-type">getNonNegative</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bits</span></span><span> </span><span class="annot"><a href="#local-6989586621679514302"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679514302"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><a href="#local-6989586621679514302"><span class="hs-identifier hs-type">i</span></a></span></span><span>
+</span><span id="line-13"></span><span id="getNonNegative"><span class="annot"><span class="annottext">getNonNegative :: forall i. (Bits i, Integral i) =&gt; Get i
+</span><a href="Data.Avro.Internal.DecodeRaw.html#getNonNegative"><span class="hs-identifier hs-var hs-var">getNonNegative</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-14"></span><span>  </span><span id="local-6989586621679514354"><span class="annot"><a href="#local-6989586621679514354"><span class="hs-identifier hs-var">orig</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get [Word8]
+</span><a href="Data.Avro.Internal.DecodeRaw.html#getWord8s"><span class="hs-identifier hs-var">getWord8s</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$!</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">foldl'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679514358"><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679514358"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679514359"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679514359"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">i
+</span><a href="#local-6989586621679514358"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">i -&gt; Int -&gt; i
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">i -&gt; i -&gt; i
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; i
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679514359"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">reverse</span></span><span> </span><span class="annot"><a href="#local-6989586621679514354"><span class="hs-identifier hs-type">orig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#getWord8s"><span class="hs-identifier hs-type">getWord8s</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">]</span><span>
+</span><span id="line-18"></span><span id="getWord8s"><span class="annot"><span class="annottext">getWord8s :: Get [Word8]
+</span><a href="Data.Avro.Internal.DecodeRaw.html#getWord8s"><span class="hs-identifier hs-var hs-var">getWord8s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-19"></span><span>  </span><span id="local-6989586621679514363"><span class="annot"><a href="#local-6989586621679514363"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get Word8
+</span><span class="hs-identifier hs-var">getWord8</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679514366"><span class="annot"><a href="#local-6989586621679514366"><span class="hs-identifier hs-var hs-var">msb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679514363"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Int -&gt; Bool
+forall a. Bits a =&gt; a -&gt; Int -&gt; Bool
+</span><span class="hs-operator hs-var">`testBit`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">w</span></span><span> </span><span class="annot"><span class="hs-operator">.&amp;.</span></span><span> </span><span class="annot"><span class="hs-number">0x7F</span></span><span> </span><span class="annot"><span class="hs-glyph">:</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621679514366"><span class="hs-identifier hs-type">msb</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#getWord8s"><span class="hs-identifier hs-type">getWord8s</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">class</span><span> </span><span id="DecodeRaw"><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-var">DecodeRaw</span></a></span></span><span> </span><span id="local-6989586621679514324"><span class="annot"><a href="#local-6989586621679514324"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>  </span><span id="decodeRaw"><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-type">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><a href="#local-6989586621679514324"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>  </span><span id="local-6989586621679514378"><span class="annot"><span class="annottext">decodeRaw :: Get Word
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var hs-var hs-var">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get Word
+forall i. (Bits i, Integral i) =&gt; Get i
+</span><a href="Data.Avro.Internal.DecodeRaw.html#getNonNegative"><span class="hs-identifier hs-var">getNonNegative</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-pragma hs-type">decodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>  </span><span id="local-6989586621679514383"><span class="annot"><span class="annottext">decodeRaw :: Get Word8
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var hs-var hs-var">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get Word8
+forall i. (Bits i, Integral i) =&gt; Get i
+</span><a href="Data.Avro.Internal.DecodeRaw.html#getNonNegative"><span class="hs-identifier hs-var">getNonNegative</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-pragma hs-type">decodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621679514390"><span class="annot"><span class="annottext">decodeRaw :: Get Word16
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var hs-var hs-var">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get Word16
+forall i. (Bits i, Integral i) =&gt; Get i
+</span><a href="Data.Avro.Internal.DecodeRaw.html#getNonNegative"><span class="hs-identifier hs-var">getNonNegative</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-pragma hs-type">decodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621679514397"><span class="annot"><span class="annottext">decodeRaw :: Get Word32
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var hs-var hs-var">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get Word32
+forall i. (Bits i, Integral i) =&gt; Get i
+</span><a href="Data.Avro.Internal.DecodeRaw.html#getNonNegative"><span class="hs-identifier hs-var">getNonNegative</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-pragma hs-type">decodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621679514404"><span class="annot"><span class="annottext">decodeRaw :: Get Word64
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var hs-var hs-var">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get Word64
+forall i. (Bits i, Integral i) =&gt; Get i
+</span><a href="Data.Avro.Internal.DecodeRaw.html#getNonNegative"><span class="hs-identifier hs-var">getNonNegative</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-pragma hs-type">decodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679514411"><span class="annot"><span class="annottext">decodeRaw :: Get Int
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var hs-var hs-var">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Int
+Word -&gt; Zagged Word
+forall a. Zag a =&gt; a -&gt; Zagged a
+</span><a href="Data.Avro.Internal.Zag.html#zag"><span class="hs-identifier hs-var">zag</span></a></span><span> </span><span class="annot"><span class="annottext">(Word -&gt; Int) -&gt; Get Word -&gt; Get Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Get Word
+forall a. DecodeRaw a =&gt; Get a
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var">decodeRaw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-pragma hs-type">decodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int8</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679514419"><span class="annot"><span class="annottext">decodeRaw :: Get Int8
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var hs-var hs-var">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Int8
+Word8 -&gt; Zagged Word8
+forall a. Zag a =&gt; a -&gt; Zagged a
+</span><a href="Data.Avro.Internal.Zag.html#zag"><span class="hs-identifier hs-var">zag</span></a></span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Int8) -&gt; Get Word8 -&gt; Get Int8
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Get Word8
+forall a. DecodeRaw a =&gt; Get a
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var">decodeRaw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-pragma hs-type">decodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int16</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679514426"><span class="annot"><span class="annottext">decodeRaw :: Get Int16
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var hs-var hs-var">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Int16
+Word16 -&gt; Zagged Word16
+forall a. Zag a =&gt; a -&gt; Zagged a
+</span><a href="Data.Avro.Internal.Zag.html#zag"><span class="hs-identifier hs-var">zag</span></a></span><span> </span><span class="annot"><span class="annottext">(Word16 -&gt; Int16) -&gt; Get Word16 -&gt; Get Int16
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Get Word16
+forall a. DecodeRaw a =&gt; Get a
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var">decodeRaw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-pragma hs-type">decodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621679514433"><span class="annot"><span class="annottext">decodeRaw :: Get Int32
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var hs-var hs-var">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Int32
+Word32 -&gt; Zagged Word32
+forall a. Zag a =&gt; a -&gt; Zagged a
+</span><a href="Data.Avro.Internal.Zag.html#zag"><span class="hs-identifier hs-var">zag</span></a></span><span> </span><span class="annot"><span class="annottext">(Word32 -&gt; Int32) -&gt; Get Word32 -&gt; Get Int32
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Get Word32
+forall a. DecodeRaw a =&gt; Get a
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var">decodeRaw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-pragma hs-type">decodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679514440"><span class="annot"><span class="annottext">decodeRaw :: Get Int64
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var hs-var hs-var">decodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int64
+Word64 -&gt; Zagged Word64
+forall a. Zag a =&gt; a -&gt; Zagged a
+</span><a href="Data.Avro.Internal.Zag.html#zag"><span class="hs-identifier hs-var">zag</span></a></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Int64) -&gt; Get Word64 -&gt; Get Int64
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Get Word64
+forall a. DecodeRaw a =&gt; Get a
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var">decodeRaw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-pragma hs-type">decodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-66"></span></pre></body></html>

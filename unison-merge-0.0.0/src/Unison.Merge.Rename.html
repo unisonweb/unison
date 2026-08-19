@@ -1,0 +1,308 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html"><span class="hs-identifier">Unison.Merge.Rename</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier">Rename</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Merge.Rename.html#makeRenames"><span class="hs-identifier">makeRenames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Merge.Rename.html#SimpleRenames"><span class="hs-identifier">SimpleRenames</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Merge.Rename.html#makeSimpleRenames"><span class="hs-identifier">makeSimpleRenames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Merge.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.NonEmpty</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NESet</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.NonEmpty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set.NonEmpty</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html"><span class="hs-identifier">Unison.Merge.Synhashed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier">Synhashed</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Updated.html"><span class="hs-identifier">Unison.Merge.Updated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#GUpdated"><span class="hs-identifier">GUpdated</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier">Updated</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">TypeReference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Referent</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ReferentPrime</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent'</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Defns</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DefnsF</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">zipDefnsWith</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | A &quot;rename&quot; is a venn partition of two non-empty sets of names: both set differences and the set intersection.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- Invariant: the sets are all disjoint</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- Invariant: it is not the case that adds and deletes are both empty</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">data</span><span> </span><span id="Rename"><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-var">Rename</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Rename"><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-var">Rename</span></a></span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="adds"><span class="annot"><span class="annottext">Rename -&gt; Set Name
+</span><a href="Unison.Merge.Rename.html#adds"><span class="hs-identifier hs-var hs-var">adds</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span id="deletes"><span class="annot"><span class="annottext">Rename -&gt; Set Name
+</span><a href="Unison.Merge.Rename.html#deletes"><span class="hs-identifier hs-var hs-var">deletes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span id="unchanged"><span class="annot"><span class="annottext">Rename -&gt; Set Name
+</span><a href="Unison.Merge.Rename.html#unchanged"><span class="hs-identifier hs-var hs-var">unchanged</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Unison.Merge.Rename.html#makeRenames"><span class="hs-identifier hs-type">makeRenames</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">DefnsF</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span>
+</span><span id="line-40"></span><span id="makeRenames"><span class="annot"><span class="annottext">makeRenames :: Updated
+  (Defns
+     (BiMultimap (Synhashed Referent) Name)
+     (BiMultimap (Synhashed TypeReference) Name))
+-&gt; DefnsF [] Rename Rename
+</span><a href="Unison.Merge.Rename.html#makeRenames"><span class="hs-identifier hs-var hs-var">makeRenames</span></a></span></span><span> </span><span id="local-6989586621679216451"><span class="annot"><span class="annottext">Updated
+  (Defns
+     (BiMultimap (Synhashed Referent) Name)
+     (BiMultimap (Synhashed TypeReference) Name))
+</span><a href="#local-6989586621679216451"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="annottext">(BiMultimap (Synhashed Referent) Name
+ -&gt; BiMultimap (Synhashed Referent) Name -&gt; [Rename])
+-&gt; (BiMultimap (Synhashed TypeReference) Name
+    -&gt; BiMultimap (Synhashed TypeReference) Name -&gt; [Rename])
+-&gt; Defns
+     (BiMultimap (Synhashed Referent) Name)
+     (BiMultimap (Synhashed TypeReference) Name)
+-&gt; Defns
+     (BiMultimap (Synhashed Referent) Name)
+     (BiMultimap (Synhashed TypeReference) Name)
+-&gt; DefnsF [] Rename Rename
+forall tm1 tm2 tm3 ty1 ty2 ty3.
+(tm1 -&gt; tm2 -&gt; tm3)
+-&gt; (ty1 -&gt; ty2 -&gt; ty3)
+-&gt; Defns tm1 ty1
+-&gt; Defns tm2 ty2
+-&gt; Defns tm3 ty3
+</span><span class="hs-identifier hs-var">zipDefnsWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Synhashed Referent -&gt; NESet Name -&gt; NESet Name -&gt; Maybe Rename)
+-&gt; BiMultimap (Synhashed Referent) Name
+-&gt; BiMultimap (Synhashed Referent) Name
+-&gt; [Rename]
+forall ref.
+Ord ref =&gt;
+(ref -&gt; NESet Name -&gt; NESet Name -&gt; Maybe Rename)
+-&gt; BiMultimap ref Name -&gt; BiMultimap ref Name -&gt; [Rename]
+</span><a href="#local-6989586621679216452"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Synhashed Referent -&gt; NESet Name -&gt; NESet Name -&gt; Maybe Rename
+</span><a href="Unison.Merge.Rename.html#termNamingsToRename"><span class="hs-identifier hs-var">termNamingsToRename</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Synhashed TypeReference
+ -&gt; NESet Name -&gt; NESet Name -&gt; Maybe Rename)
+-&gt; BiMultimap (Synhashed TypeReference) Name
+-&gt; BiMultimap (Synhashed TypeReference) Name
+-&gt; [Rename]
+forall ref.
+Ord ref =&gt;
+(ref -&gt; NESet Name -&gt; NESet Name -&gt; Maybe Rename)
+-&gt; BiMultimap ref Name -&gt; BiMultimap ref Name -&gt; [Rename]
+</span><a href="#local-6989586621679216452"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Synhashed TypeReference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NESet Name -&gt; NESet Name -&gt; Maybe Rename
+</span><a href="Unison.Merge.Rename.html#namingsToRename"><span class="hs-identifier hs-var">namingsToRename</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Updated
+  (Defns
+     (BiMultimap (Synhashed Referent) Name)
+     (BiMultimap (Synhashed TypeReference) Name))
+</span><a href="#local-6989586621679216451"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">old</span><span> </span><span class="annot"><span class="annottext">Updated
+  (Defns
+     (BiMultimap (Synhashed Referent) Name)
+     (BiMultimap (Synhashed TypeReference) Name))
+</span><a href="#local-6989586621679216451"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">new</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>    </span><span id="local-6989586621679216363"><span class="annot"><a href="#local-6989586621679216452"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-44"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679216363"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679216363"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NESet</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NESet</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679216363"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-47"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679216363"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-48"></span><span>      </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621679216452"><span class="annot"><span class="annottext">f :: forall ref.
+Ord ref =&gt;
+(ref -&gt; NESet Name -&gt; NESet Name -&gt; Maybe Rename)
+-&gt; BiMultimap ref Name -&gt; BiMultimap ref Name -&gt; [Rename]
+</span><a href="#local-6989586621679216452"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679216461"><span class="annot"><span class="annottext">ref -&gt; NESet Name -&gt; NESet Name -&gt; Maybe Rename
+</span><a href="#local-6989586621679216461"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679216462"><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679216462"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span id="local-6989586621679216463"><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679216463"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-50"></span><span>      </span><span class="annot"><span class="annottext">Map ref Rename -&gt; [Rename]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">(Map ref Rename -&gt; [Rename]) -&gt; Map ref Rename -&gt; [Rename]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><span class="annottext">SimpleWhenMissing ref (NESet Name) Rename
+-&gt; SimpleWhenMissing ref (NESet Name) Rename
+-&gt; SimpleWhenMatched ref (NESet Name) (NESet Name) Rename
+-&gt; Map ref (NESet Name)
+-&gt; Map ref (NESet Name)
+-&gt; Map ref Rename
+forall k a c b.
+Ord k =&gt;
+SimpleWhenMissing k a c
+-&gt; SimpleWhenMissing k b c
+-&gt; SimpleWhenMatched k a b c
+-&gt; Map k a
+-&gt; Map k b
+-&gt; Map k c
+</span><span class="hs-identifier hs-var">Map.merge</span></span><span>
+</span><span id="line-52"></span><span>          </span><span class="annot"><span class="annottext">SimpleWhenMissing ref (NESet Name) Rename
+forall (f :: * -&gt; *) k x y. Applicative f =&gt; WhenMissing f k x y
+</span><span class="hs-identifier hs-var">Map.dropMissing</span></span><span>
+</span><span id="line-53"></span><span>          </span><span class="annot"><span class="annottext">SimpleWhenMissing ref (NESet Name) Rename
+forall (f :: * -&gt; *) k x y. Applicative f =&gt; WhenMissing f k x y
+</span><span class="hs-identifier hs-var">Map.dropMissing</span></span><span>
+</span><span id="line-54"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ref -&gt; NESet Name -&gt; NESet Name -&gt; Maybe Rename)
+-&gt; SimpleWhenMatched ref (NESet Name) (NESet Name) Rename
+forall (f :: * -&gt; *) k x y z.
+Applicative f =&gt;
+(k -&gt; x -&gt; y -&gt; Maybe z) -&gt; WhenMatched f k x y z
+</span><span class="hs-identifier hs-var">Map.zipWithMaybeMatched</span></span><span> </span><span class="annot"><span class="annottext">ref -&gt; NESet Name -&gt; NESet Name -&gt; Maybe Rename
+</span><a href="#local-6989586621679216461"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BiMultimap ref Name -&gt; Map ref (NESet Name)
+forall a b. BiMultimap a b -&gt; Map a (NESet b)
+</span><span class="hs-identifier hs-var">BiMultimap.domain</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679216462"><span class="hs-identifier hs-var">old</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BiMultimap ref Name -&gt; Map ref (NESet Name)
+forall a b. BiMultimap a b -&gt; Map a (NESet b)
+</span><span class="hs-identifier hs-var">BiMultimap.domain</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679216463"><span class="hs-identifier hs-var">new</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="annot"><a href="Unison.Merge.Rename.html#termNamingsToRename"><span class="hs-identifier hs-type">termNamingsToRename</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NESet</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NESet</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span>
+</span><span id="line-59"></span><span id="termNamingsToRename"><span class="annot"><span class="annottext">termNamingsToRename :: Synhashed Referent -&gt; NESet Name -&gt; NESet Name -&gt; Maybe Rename
+</span><a href="Unison.Merge.Rename.html#termNamingsToRename"><span class="hs-identifier hs-var hs-var">termNamingsToRename</span></a></span></span><span> </span><span id="local-6989586621679216469"><span class="annot"><span class="annottext">Synhashed Referent
+</span><a href="#local-6989586621679216469"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span id="local-6989586621679216470"><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216470"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span id="local-6989586621679216471"><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216471"><span class="hs-identifier hs-var">new</span></a></span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-comment">-- Throw away constructors; we don't really capture their renamings in the same way as types an terms, as the</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-comment">-- synhash of a constructor is just the synhash of its type.</span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Referent -&gt; Bool
+forall r. Referent' r -&gt; Bool
+</span><span class="hs-identifier hs-var">Referent'.isConstructor</span></span><span> </span><span class="annot"><span class="annottext">Synhashed Referent
+</span><a href="#local-6989586621679216469"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">value</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Rename
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NESet Name -&gt; NESet Name -&gt; Maybe Rename
+</span><a href="Unison.Merge.Rename.html#namingsToRename"><span class="hs-identifier hs-var">namingsToRename</span></a></span><span> </span><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216470"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216471"><span class="hs-identifier hs-var">new</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Unison.Merge.Rename.html#namingsToRename"><span class="hs-identifier hs-type">namingsToRename</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NESet</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NESet</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span>
+</span><span id="line-66"></span><span id="namingsToRename"><span class="annot"><span class="annottext">namingsToRename :: NESet Name -&gt; NESet Name -&gt; Maybe Rename
+</span><a href="Unison.Merge.Rename.html#namingsToRename"><span class="hs-identifier hs-var hs-var">namingsToRename</span></a></span></span><span> </span><span id="local-6989586621679216473"><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216473"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span id="local-6989586621679216474"><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216474"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Bool
+forall a. Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">Set.null</span></span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621679216476"><span class="hs-identifier hs-var">adds</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Bool
+forall a. Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">Set.null</span></span><span> </span><span class="annot"><span class="annottext">Set Name
+</span><a href="#local-6989586621679216478"><span class="hs-identifier hs-var">deletes</span></a></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe Rename
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Rename -&gt; Maybe Rename
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">Set Name
+adds :: Set Name
+adds :: Set Name
+</span><a href="Unison.Merge.Rename.html#adds"><span class="hs-identifier hs-var hs-var">adds</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set Name
+deletes :: Set Name
+deletes :: Set Name
+</span><a href="Unison.Merge.Rename.html#deletes"><span class="hs-identifier hs-var hs-var">deletes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set Name
+unchanged :: Set Name
+unchanged :: Set Name
+</span><a href="Unison.Merge.Rename.html#unchanged"><span class="hs-identifier hs-var hs-var">unchanged</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>    </span><span id="local-6989586621679216476"><span class="annot"><span class="annottext">adds :: Set Name
+</span><a href="#local-6989586621679216476"><span class="hs-identifier hs-var hs-var">adds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NESet Name -&gt; NESet Name -&gt; Set Name
+forall a. Ord a =&gt; NESet a -&gt; NESet a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.NonEmpty.difference</span></span><span> </span><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216474"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216473"><span class="hs-identifier hs-var">old</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621679216478"><span class="annot"><span class="annottext">deletes :: Set Name
+</span><a href="#local-6989586621679216478"><span class="hs-identifier hs-var hs-var">deletes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NESet Name -&gt; NESet Name -&gt; Set Name
+forall a. Ord a =&gt; NESet a -&gt; NESet a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.NonEmpty.difference</span></span><span> </span><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216473"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216474"><span class="hs-identifier hs-var">new</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621679216479"><span class="annot"><span class="annottext">unchanged :: Set Name
+</span><a href="#local-6989586621679216479"><span class="hs-identifier hs-var hs-var">unchanged</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NESet Name -&gt; NESet Name -&gt; Set Name
+forall a. Ord a =&gt; NESet a -&gt; NESet a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.NonEmpty.intersection</span></span><span> </span><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216473"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">NESet Name
+</span><a href="#local-6989586621679216474"><span class="hs-identifier hs-var">new</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="annot"><span class="hs-comment">-- | A &quot;simple&quot; rename is one that moves one name to another, where neither the before- nor after-name have any aliases.</span></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">data</span><span> </span><span id="SimpleRenames"><span class="annot"><a href="Unison.Merge.Rename.html#SimpleRenames"><span class="hs-identifier hs-var">SimpleRenames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SimpleRenames"><span class="annot"><a href="Unison.Merge.Rename.html#SimpleRenames"><span class="hs-identifier hs-var">SimpleRenames</span></a></span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="forwards"><span class="annot"><span class="annottext">SimpleRenames -&gt; Map Name Name
+</span><a href="Unison.Merge.Rename.html#forwards"><span class="hs-identifier hs-var hs-var">forwards</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>    </span><span id="backwards"><span class="annot"><span class="annottext">SimpleRenames -&gt; Map Name Name
+</span><a href="Unison.Merge.Rename.html#backwards"><span class="hs-identifier hs-var hs-var">backwards</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="annot"><a href="Unison.Merge.Rename.html#makeSimpleRenames"><span class="hs-identifier hs-type">makeSimpleRenames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefnsF</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#SimpleRenames"><span class="hs-identifier hs-type">SimpleRenames</span></a></span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#SimpleRenames"><span class="hs-identifier hs-type">SimpleRenames</span></a></span><span>
+</span><span id="line-82"></span><span id="makeSimpleRenames"><span class="annot"><span class="annottext">makeSimpleRenames :: DefnsF [] Rename Rename -&gt; Defns SimpleRenames SimpleRenames
+</span><a href="Unison.Merge.Rename.html#makeSimpleRenames"><span class="hs-identifier hs-var hs-var">makeSimpleRenames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><span class="annottext">([Rename] -&gt; SimpleRenames)
+-&gt; ([Rename] -&gt; SimpleRenames)
+-&gt; DefnsF [] Rename Rename
+-&gt; Defns SimpleRenames SimpleRenames
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">[Rename] -&gt; SimpleRenames
+</span><a href="Unison.Merge.Rename.html#makeSimpleRenames1"><span class="hs-identifier hs-var">makeSimpleRenames1</span></a></span><span> </span><span class="annot"><span class="annottext">[Rename] -&gt; SimpleRenames
+</span><a href="Unison.Merge.Rename.html#makeSimpleRenames1"><span class="hs-identifier hs-var">makeSimpleRenames1</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="annot"><a href="Unison.Merge.Rename.html#makeSimpleRenames1"><span class="hs-identifier hs-type">makeSimpleRenames1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#SimpleRenames"><span class="hs-identifier hs-type">SimpleRenames</span></a></span><span>
+</span><span id="line-86"></span><span id="makeSimpleRenames1"><span class="annot"><span class="annottext">makeSimpleRenames1 :: [Rename] -&gt; SimpleRenames
+</span><a href="Unison.Merge.Rename.html#makeSimpleRenames1"><span class="hs-identifier hs-var hs-var">makeSimpleRenames1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><span class="annottext">(SimpleRenames -&gt; Rename -&gt; SimpleRenames)
+-&gt; SimpleRenames -&gt; [Rename] -&gt; SimpleRenames
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">List.foldl'</span></span><span> </span><span class="annot"><span class="annottext">SimpleRenames -&gt; Rename -&gt; SimpleRenames
+</span><a href="#local-6989586621679216488"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Name Name -&gt; Map Name Name -&gt; SimpleRenames
+</span><a href="Unison.Merge.Rename.html#SimpleRenames"><span class="hs-identifier hs-var">SimpleRenames</span></a></span><span> </span><span class="annot"><span class="annottext">Map Name Name
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span> </span><span class="annot"><span class="annottext">Map Name Name
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><a href="#local-6989586621679216488"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#SimpleRenames"><span class="hs-identifier hs-type">SimpleRenames</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#Rename"><span class="hs-identifier hs-type">Rename</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Rename.html#SimpleRenames"><span class="hs-identifier hs-type">SimpleRenames</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679216488"><span class="annot"><span class="annottext">f :: SimpleRenames -&gt; Rename -&gt; SimpleRenames
+</span><a href="#local-6989586621679216488"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679216490"><span class="annot"><span class="annottext">SimpleRenames
+</span><a href="#local-6989586621679216490"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679216491"><span class="annot"><span class="annottext">Rename
+</span><a href="#local-6989586621679216491"><span class="hs-identifier hs-var">rename</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set Name -&gt; Int
+forall a. Set a -&gt; Int
+</span><span class="hs-identifier hs-var">Set.size</span></span><span> </span><span class="annot"><span class="annottext">Rename
+</span><a href="#local-6989586621679216491"><span class="hs-identifier hs-var">rename</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">adds</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Int
+forall a. Set a -&gt; Int
+</span><span class="hs-identifier hs-var">Set.size</span></span><span> </span><span class="annot"><span class="annottext">Rename
+</span><a href="#local-6989586621679216491"><span class="hs-identifier hs-var">rename</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">deletes</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Int
+forall a. Set a -&gt; Int
+</span><span class="hs-identifier hs-var">Set.size</span></span><span> </span><span class="annot"><span class="annottext">Rename
+</span><a href="#local-6989586621679216491"><span class="hs-identifier hs-var">rename</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">unchanged</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-92"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-93"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679216493"><span class="annot"><span class="annottext">old :: Name
+</span><a href="#local-6989586621679216493"><span class="hs-identifier hs-var hs-var">old</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Name
+forall a. Set a -&gt; a
+</span><span class="hs-identifier hs-var">Set.findMin</span></span><span> </span><span class="annot"><span class="annottext">Rename
+</span><a href="#local-6989586621679216491"><span class="hs-identifier hs-var">rename</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">deletes</span><span>
+</span><span id="line-94"></span><span>              </span><span id="local-6989586621679216495"><span class="annot"><span class="annottext">new :: Name
+</span><a href="#local-6989586621679216495"><span class="hs-identifier hs-var hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Name
+forall a. Set a -&gt; a
+</span><span class="hs-identifier hs-var">Set.findMin</span></span><span> </span><span class="annot"><span class="annottext">Rename
+</span><a href="#local-6989586621679216491"><span class="hs-identifier hs-var">rename</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">adds</span><span>
+</span><span id="line-95"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Map Name Name -&gt; Map Name Name -&gt; SimpleRenames
+</span><a href="Unison.Merge.Rename.html#SimpleRenames"><span class="hs-identifier hs-var">SimpleRenames</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; Name -&gt; Map Name Name -&gt; Map Name Name
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.insert</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679216493"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679216495"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleRenames
+</span><a href="#local-6989586621679216490"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">forwards</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; Name -&gt; Map Name Name -&gt; Map Name Name
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.insert</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679216495"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679216493"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">SimpleRenames
+</span><a href="#local-6989586621679216490"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">backwards</span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>        </span><span class="annot"><span class="annottext">(Int, Int, Int)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SimpleRenames
+</span><a href="#local-6989586621679216490"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-97"></span></pre></body></html>

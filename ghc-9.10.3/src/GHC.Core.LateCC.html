@@ -1,0 +1,211 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="annot"><span class="hs-comment">-- | Adds cost-centers after the core pipline has run.</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.html"><span class="hs-identifier">GHC.Core.LateCC</span></a></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Inserting cost centres</span></span><span>
+</span><span id="line-6"></span><span>      </span><span class="annot"><a href="GHC.Core.LateCC.html#addLateCostCenters"><span class="hs-identifier">addLateCostCenters</span></a></span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.html"><span class="hs-identifier">GHC.Core</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html"><span class="hs-identifier">GHC.Core.LateCC.OverloadedCalls</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.TopLevelBinds.html"><span class="hs-identifier">GHC.Core.LateCC.TopLevelBinds</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html"><span class="hs-identifier">GHC.Core.LateCC.Types</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Utils.html"><span class="hs-identifier">GHC.Core.LateCC.Utils</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Seq.html"><span class="hs-identifier">GHC.Core.Seq</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Data.Strict.html"><span class="hs-identifier">GHC.Data.Strict</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Strict</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Utils.html"><span class="hs-identifier">GHC.Core.Utils</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Utils.TcType.html"><span class="hs-identifier">GHC.Tc.Utils.TcType</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Error.html"><span class="hs-identifier">GHC.Utils.Error</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html"><span class="hs-identifier">GHC.Utils.Logger</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.RepType.html"><span class="hs-identifier">GHC.Types.RepType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.RepType.html#mightBeFunTy"><span class="hs-identifier">mightBeFunTy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><span class="hs-comment">-- | Late cost center insertion logic used by the driver</span></span><span>
+</span><span id="line-27"></span><span class="annot"><a href="GHC.Core.LateCC.html#addLateCostCenters"><span class="hs-identifier hs-type">addLateCostCenters</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Logger</span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCConfig"><span class="hs-identifier hs-type">LateCCConfig</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Late cost center configuration</span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreProgram"><span class="hs-identifier hs-type">CoreProgram</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ The program</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#CoreProgram"><span class="hs-identifier hs-type">CoreProgram</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCState"><span class="hs-identifier hs-type">LateCCState</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.Strict.html#Maybe"><span class="hs-identifier hs-type">Strict.Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#SrcSpan"><span class="hs-identifier hs-type">SrcSpan</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span id="addLateCostCenters"><span class="annot"><span class="annottext">addLateCostCenters :: Logger
+-&gt; LateCCConfig
+-&gt; CoreProgram
+-&gt; IO (CoreProgram, LateCCState (Maybe SrcSpan))
+</span><a href="GHC.Core.LateCC.html#addLateCostCenters"><span class="hs-identifier hs-var hs-var">addLateCostCenters</span></a></span></span><span> </span><span id="local-6989586621682782749"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682782749"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#LateCCConfig"><span class="hs-identifier hs-type">LateCCConfig</span></a></span><span class="hs-special">{</span><span id="local-6989586621682782751"><span id="local-6989586621682782752"><span id="local-6989586621682782753"><span class="annot"><span class="annottext">Bool
+LateCCEnv
+LateCCBindSpec
+lateCCConfig_whichBinds :: LateCCBindSpec
+lateCCConfig_overloadedCalls :: Bool
+lateCCConfig_env :: LateCCEnv
+lateCCConfig_env :: LateCCConfig -&gt; LateCCEnv
+lateCCConfig_overloadedCalls :: LateCCConfig -&gt; Bool
+lateCCConfig_whichBinds :: LateCCConfig -&gt; LateCCBindSpec
+</span><a href="#local-6989586621682782751"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621682782757"><span class="annot"><span class="annottext">CoreProgram
+</span><a href="#local-6989586621682782757"><span class="hs-identifier hs-var">core_binds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-comment">-- If top-level late CCs are enabled via either -fprof-late or</span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-comment">-- -fprof-late-overloaded, add them</span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621682782758"><span class="annot"><a href="#local-6989586621682782758"><span class="hs-identifier hs-var">top_level_cc_binds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682782759"><span class="annot"><a href="#local-6989586621682782759"><span class="hs-identifier hs-var">top_level_late_cc_state</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-40"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">LateCCBindSpec
+</span><a href="#local-6989586621682782751"><span class="hs-identifier hs-var">lateCCConfig_whichBinds</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="annottext">LateCCBindSpec
+</span><a href="GHC.Core.LateCC.Types.html#LateCCNone"><span class="hs-identifier hs-var">LateCCNone</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-42"></span><span>          </span><span class="annot"><span class="annottext">(CoreProgram, LateCCState ()) -&gt; IO (CoreProgram, LateCCState ())
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoreProgram
+</span><a href="#local-6989586621682782757"><span class="hs-identifier hs-var">core_binds</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">() -&gt; LateCCState ()
+forall s. s -&gt; LateCCState s
+</span><a href="GHC.Core.LateCC.Types.html#initLateCCState"><span class="hs-identifier hs-var">initLateCCState</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><span class="annottext">LateCCBindSpec
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-44"></span><span>          </span><span class="annot"><span class="annottext">Logger
+-&gt; SDoc
+-&gt; ((CoreProgram, LateCCState ()) -&gt; ())
+-&gt; IO (CoreProgram, LateCCState ())
+-&gt; IO (CoreProgram, LateCCState ())
+forall (m :: * -&gt; *) a.
+MonadIO m =&gt;
+Logger -&gt; SDoc -&gt; (a -&gt; ()) -&gt; m a -&gt; m a
+</span><a href="GHC.Utils.Error.html#withTiming"><span class="hs-identifier hs-var">withTiming</span></a></span><span>
+</span><span id="line-45"></span><span>            </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682782749"><span class="hs-identifier hs-var">logger</span></a></span><span>
+</span><span id="line-46"></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;LateTopLevelCCs&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#brackets"><span class="hs-identifier hs-var">brackets</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Module -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621682782767"><span class="hs-identifier hs-var">this_mod</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>            </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621682782768"><span class="annot"><span class="annottext">CoreProgram
+</span><a href="#local-6989586621682782768"><span class="hs-identifier hs-var">binds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682782769"><span class="annot"><span class="annottext">LateCCState ()
+</span><a href="#local-6989586621682782769"><span class="hs-identifier hs-var">late_cc_state</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CoreProgram -&gt; ()
+</span><a href="GHC.Core.Seq.html#seqBinds"><span class="hs-identifier hs-var">seqBinds</span></a></span><span> </span><span class="annot"><span class="annottext">CoreProgram
+</span><a href="#local-6989586621682782768"><span class="hs-identifier hs-var">binds</span></a></span><span> </span><span class="annot"><span class="annottext">() -&gt; () -&gt; ()
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">LateCCState ()
+</span><a href="#local-6989586621682782769"><span class="hs-identifier hs-var">late_cc_state</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCState () -&gt; () -&gt; ()
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>            </span><span class="annot"><span class="annottext">(IO (CoreProgram, LateCCState ())
+ -&gt; IO (CoreProgram, LateCCState ()))
+-&gt; IO (CoreProgram, LateCCState ())
+-&gt; IO (CoreProgram, LateCCState ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-pragma">{-# SCC</span><span> </span><span class="hs-pragma">lateTopLevelCCs</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-49"></span><span>              </span><span class="annot"><span class="annottext">(CoreProgram, LateCCState ()) -&gt; IO (CoreProgram, LateCCState ())
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">((CoreProgram, LateCCState ()) -&gt; IO (CoreProgram, LateCCState ()))
+-&gt; (CoreProgram, LateCCState ())
+-&gt; IO (CoreProgram, LateCCState ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-50"></span><span>                </span><span class="annot"><span class="annottext">LateCCEnv
+-&gt; LateCCState ()
+-&gt; (CoreBind -&gt; LateCCM () CoreBind)
+-&gt; CoreProgram
+-&gt; (CoreProgram, LateCCState ())
+forall s.
+LateCCEnv
+-&gt; LateCCState s
+-&gt; (CoreBind -&gt; LateCCM s CoreBind)
+-&gt; CoreProgram
+-&gt; (CoreProgram, LateCCState s)
+</span><a href="GHC.Core.LateCC.Utils.html#doLateCostCenters"><span class="hs-identifier hs-var">doLateCostCenters</span></a></span><span>
+</span><span id="line-51"></span><span>                  </span><span class="annot"><span class="annottext">LateCCEnv
+</span><a href="#local-6989586621682782753"><span class="hs-identifier hs-var">lateCCConfig_env</span></a></span><span>
+</span><span id="line-52"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">() -&gt; LateCCState ()
+forall s. s -&gt; LateCCState s
+</span><a href="GHC.Core.LateCC.Types.html#initLateCCState"><span class="hs-identifier hs-var">initLateCCState</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(CoreExpr -&gt; Bool) -&gt; CoreBind -&gt; LateCCM () CoreBind
+forall s. (CoreExpr -&gt; Bool) -&gt; CoreBind -&gt; LateCCM s CoreBind
+</span><a href="GHC.Core.LateCC.TopLevelBinds.html#topLevelBindsCC"><span class="hs-identifier hs-var">topLevelBindsCC</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr -&gt; Bool
+</span><a href="#local-6989586621682782773"><span class="hs-identifier hs-var">top_level_cc_pred</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>                  </span><span class="annot"><span class="annottext">CoreProgram
+</span><a href="#local-6989586621682782757"><span class="hs-identifier hs-var">core_binds</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-comment">-- If overloaded call CCs are enabled via -fprof-late-overloaded-calls, add</span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-comment">-- them</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621682782774"><span class="annot"><a href="#local-6989586621682782774"><span class="hs-identifier hs-var">late_cc_binds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682782775"><span class="annot"><a href="#local-6989586621682782775"><span class="hs-identifier hs-var">late_cc_state</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-59"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621682782752"><span class="hs-identifier hs-type">lateCCConfig_overloadedCalls</span></a></span><span> </span><span class="hs-keyword">then</span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><a href="GHC.Utils.Error.html#withTiming"><span class="hs-identifier hs-type">withTiming</span></a></span><span>
+</span><span id="line-61"></span><span>            </span><span class="annot"><a href="#local-6989586621682782749"><span class="hs-identifier hs-type">logger</span></a></span><span>
+</span><span id="line-62"></span><span>            </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-type">text</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;LateOverloadedCallsCCs&quot;</span></span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-type">&lt;+&gt;</span></a></span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#brackets"><span class="hs-identifier hs-type">brackets</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-type">ppr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682782767"><span class="hs-identifier hs-type">this_mod</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>            </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621682782776"><span class="annot"><span class="annottext">CoreProgram
+</span><a href="#local-6989586621682782776"><span class="hs-identifier hs-var">binds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682782777"><span class="annot"><span class="annottext">LateCCState (Maybe SrcSpan)
+</span><a href="#local-6989586621682782777"><span class="hs-identifier hs-var">late_cc_state</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CoreProgram -&gt; ()
+</span><a href="GHC.Core.Seq.html#seqBinds"><span class="hs-identifier hs-var">seqBinds</span></a></span><span> </span><span class="annot"><span class="annottext">CoreProgram
+</span><a href="#local-6989586621682782776"><span class="hs-identifier hs-var">binds</span></a></span><span> </span><span class="annot"><span class="annottext">() -&gt; () -&gt; ()
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">LateCCState (Maybe SrcSpan)
+</span><a href="#local-6989586621682782777"><span class="hs-identifier hs-var">late_cc_state</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCState (Maybe SrcSpan) -&gt; () -&gt; ()
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>            </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-pragma">{-# SCC</span><span> </span><span class="hs-pragma">lateoverloadedCallsCCs</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-65"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-66"></span><span>                </span><span class="annot"><a href="GHC.Core.LateCC.Utils.html#doLateCostCenters"><span class="hs-identifier hs-type">doLateCostCenters</span></a></span><span>
+</span><span id="line-67"></span><span>                  </span><span class="annot"><a href="#local-6989586621682782753"><span class="hs-identifier hs-type">lateCCConfig_env</span></a></span><span>
+</span><span id="line-68"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682782759"><span class="hs-identifier hs-type">top_level_late_cc_state</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCState_extra"><span class="hs-identifier hs-var">lateCCState_extra</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Data.Strict.html#Nothing"><span class="hs-identifier hs-type">Strict.Nothing</span></a></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>                  </span><span class="annot"><a href="GHC.Core.LateCC.OverloadedCalls.html#overloadedCallsCC"><span class="hs-identifier hs-type">overloadedCallsCC</span></a></span><span>
+</span><span id="line-70"></span><span>                  </span><span class="annot"><a href="#local-6989586621682782758"><span class="hs-identifier hs-type">top_level_cc_binds</span></a></span><span>
+</span><span id="line-71"></span><span>      </span><span class="hs-keyword">else</span><span>
+</span><span id="line-72"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span>
+</span><span id="line-73"></span><span>          </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="#local-6989586621682782758"><span class="hs-identifier hs-type">top_level_cc_binds</span></a></span><span>
+</span><span id="line-74"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682782759"><span class="hs-identifier hs-type">top_level_late_cc_state</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Core.LateCC.Types.html#lateCCState_extra"><span class="hs-identifier hs-var">lateCCState_extra</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Data.Strict.html#Nothing"><span class="hs-identifier hs-type">Strict.Nothing</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-75"></span><span>          </span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682782774"><span class="hs-identifier hs-type">late_cc_binds</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682782775"><span class="hs-identifier hs-type">late_cc_state</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-79"></span><span>    </span><span class="annot"><a href="#local-6989586621682782773"><span class="hs-identifier hs-type">top_level_cc_pred</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621682782773"><span class="annot"><span class="annottext">top_level_cc_pred :: CoreExpr -&gt; Bool
+</span><a href="#local-6989586621682782773"><span class="hs-identifier hs-var hs-var">top_level_cc_pred</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-81"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">LateCCBindSpec
+</span><a href="#local-6989586621682782751"><span class="hs-identifier hs-var">lateCCConfig_whichBinds</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-82"></span><span>          </span><span class="annot"><span class="annottext">LateCCBindSpec
+</span><a href="GHC.Core.LateCC.Types.html#LateCCBinds"><span class="hs-identifier hs-var">LateCCBinds</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682782782"><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682782782"><span class="hs-identifier hs-var">rhs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-83"></span><span>            </span><span class="hs-comment">-- Make sure we record any functions. Even if it's something like `f = g`.</span><span>
+</span><span id="line-84"></span><span>            </span><span class="annot"><span class="annottext">Type -&gt; Bool
+</span><a href="GHC.Types.RepType.html#mightBeFunTy"><span class="hs-identifier hs-var">mightBeFunTy</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; CoreExpr -&gt; Type
+CoreExpr -&gt; Type
+</span><a href="GHC.Core.Utils.html#exprType"><span class="hs-identifier hs-var">exprType</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682782782"><span class="hs-identifier hs-var">rhs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span>
+</span><span id="line-85"></span><span>            </span><span class="hs-comment">-- If the RHS is a CAF doing work also insert a CC.</span><span>
+</span><span id="line-86"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoreExpr -&gt; Bool
+</span><a href="GHC.Core.Utils.html#exprIsWorkFree"><span class="hs-identifier hs-var">exprIsWorkFree</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682782782"><span class="hs-identifier hs-var">rhs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>          </span><span class="annot"><span class="annottext">LateCCBindSpec
+</span><a href="GHC.Core.LateCC.Types.html#LateCCOverloadedBinds"><span class="hs-identifier hs-var">LateCCOverloadedBinds</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-88"></span><span>            </span><span class="annot"><span class="annottext">Type -&gt; Bool
+</span><a href="GHC.Tc.Utils.TcType.html#isOverloadedTy"><span class="hs-identifier hs-var">isOverloadedTy</span></a></span><span> </span><span class="annot"><span class="annottext">(Type -&gt; Bool) -&gt; (CoreExpr -&gt; Type) -&gt; CoreExpr -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; CoreExpr -&gt; Type
+CoreExpr -&gt; Type
+</span><a href="GHC.Core.Utils.html#exprType"><span class="hs-identifier hs-var">exprType</span></a></span><span>
+</span><span id="line-89"></span><span>          </span><span class="annot"><span class="annottext">LateCCBindSpec
+</span><a href="GHC.Core.LateCC.Types.html#LateCCNone"><span class="hs-identifier hs-var">LateCCNone</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-90"></span><span>            </span><span class="hs-comment">-- This is here for completeness, we won't actually use this</span><span>
+</span><span id="line-91"></span><span>            </span><span class="hs-comment">-- predicate in this case since we'll shortcut.</span><span>
+</span><span id="line-92"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; CoreExpr -&gt; Bool
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621682782767"><span class="annot"><span class="annottext">this_mod :: Module
+</span><a href="#local-6989586621682782767"><span class="hs-identifier hs-var hs-var">this_mod</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LateCCEnv -&gt; Module
+</span><a href="GHC.Core.LateCC.Types.html#lateCCEnv_module"><span class="hs-identifier hs-var">lateCCEnv_module</span></a></span><span> </span><span class="annot"><span class="annottext">LateCCEnv
+</span><a href="#local-6989586621682782753"><span class="hs-identifier hs-var">lateCCConfig_env</span></a></span><span>
+</span><span id="line-95"></span></pre></body></html>

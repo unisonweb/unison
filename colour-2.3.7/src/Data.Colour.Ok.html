@@ -1,0 +1,329 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+Copyright (c) 2008, 2009, 2026
+Russell O'Connor, Christoffer Stjernl&#246;f
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+-}</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- | Functions for converting 'Colour' values to and from the Oklab space, and</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- convenience functions for the derived Oklch space.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- See &lt;https://bottosson.github.io/posts/oklab/&gt;.</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Colour.Ok.html"><span class="hs-identifier">Data.Colour.Ok</span></a></span><span>
+</span><span id="line-27"></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Colour.Ok.html#okLab"><span class="hs-identifier">okLab</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Colour.Ok.html#okLabView"><span class="hs-identifier">okLabView</span></a></span><span>
+</span><span id="line-28"></span><span> </span><span class="hs-special">,</span><span class="annot"><a href="Data.Colour.Ok.html#okLCh"><span class="hs-identifier">okLCh</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Colour.Ok.html#okLChView"><span class="hs-identifier">okLChView</span></a></span><span>
+</span><span id="line-29"></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Complex</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Complex</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(:+)</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">magnitude</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">mkPolar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">phase</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Fixed</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mod'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Colour.CIE.html"><span class="hs-identifier">Data.Colour.CIE</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Colour.CIE.Illuminant.html"><span class="hs-identifier">Data.Colour.CIE.Illuminant</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Colour.Matrix.html"><span class="hs-identifier">Data.Colour.Matrix</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- |Returns the Oklab coordinates of a colour, which is a</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- perceptually uniform colour space inspired by CIELAB</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- but which handles blue hues more accurately.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- A white point is not specified because Oklab assumes</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- a standard 'd65' daylight illuminant.</span><span>
+</span><span id="line-45"></span><span id="local-6989586621679062765"><span class="annot"><a href="Data.Colour.Ok.html#okLabView"><span class="hs-identifier hs-type">okLabView</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Floating</span></span><span> </span><span class="annot"><a href="#local-6989586621679062765"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Colour.Internal.html#Colour"><span class="hs-identifier hs-type">Colour</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679062765"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679062765"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679062765"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679062765"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-46"></span><span id="okLabView"><span class="annot"><span class="annottext">okLabView :: forall a. Floating a =&gt; Colour a -&gt; (a, a, a)
+</span><a href="Data.Colour.Ok.html#okLabView"><span class="hs-identifier hs-var hs-var">okLabView</span></a></span></span><span> </span><span id="local-6989586621679062823"><span class="annot"><span class="annottext">Colour a
+</span><a href="#local-6989586621679062823"><span class="hs-identifier hs-var">colour</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062824"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062825"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062826"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679062829"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062829"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679062830"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062830"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679062831"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062831"><span class="hs-identifier hs-var">z</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour a -&gt; (a, a, a)
+forall a. Fractional a =&gt; Colour a -&gt; (a, a, a)
+</span><a href="Data.Colour.CIE.html#cieXYZView"><span class="hs-identifier hs-var">cieXYZView</span></a></span><span> </span><span class="annot"><span class="annottext">Colour a
+</span><a href="#local-6989586621679062823"><span class="hs-identifier hs-var">colour</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621679062836"><span class="annot"><span class="annottext">lms :: [a]
+</span><a href="#local-6989586621679062836"><span class="hs-identifier hs-var hs-var">lms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[a]] -&gt; [a] -&gt; [a]
+forall {b}. Num b =&gt; [[b]] -&gt; [b] -&gt; [b]
+</span><a href="Data.Colour.Matrix.html#mult"><span class="hs-identifier hs-var">mult</span></a></span><span> </span><span class="annot"><span class="annottext">[[a]]
+forall a. Fractional a =&gt; [[a]]
+</span><a href="Data.Colour.Ok.html#okM1"><span class="hs-identifier hs-var">okM1</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062829"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062830"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062831"><span class="hs-identifier hs-var">z</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621679062852"><span class="annot"><span class="annottext">cbrt :: a -&gt; a
+</span><a href="#local-6989586621679062852"><span class="hs-identifier hs-var hs-var">cbrt</span></a></span></span><span> </span><span id="local-6989586621679062853"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062853"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">signum</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062853"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062853"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Floating a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">**</span></span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>  </span><span id="local-6989586621679062862"><span class="annot"><span class="annottext">lms' :: [a]
+</span><a href="#local-6989586621679062862"><span class="hs-identifier hs-var hs-var">lms'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a) -&gt; [a] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall {a}. Floating a =&gt; a -&gt; a
+</span><a href="#local-6989586621679062852"><span class="hs-identifier hs-var">cbrt</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679062836"><span class="hs-identifier hs-var">lms</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">[</span><span id="local-6989586621679062824"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062824"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679062825"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062825"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679062826"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062826"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[a]] -&gt; [a] -&gt; [a]
+forall {b}. Num b =&gt; [[b]] -&gt; [b] -&gt; [b]
+</span><a href="Data.Colour.Matrix.html#mult"><span class="hs-identifier hs-var">mult</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[[a]] -&gt; [[a]]
+forall {a}. Fractional a =&gt; [[a]] -&gt; [[a]]
+</span><a href="Data.Colour.Matrix.html#inverse"><span class="hs-identifier hs-var">inverse</span></a></span><span> </span><span class="annot"><span class="annottext">[[a]]
+forall a. Fractional a =&gt; [[a]]
+</span><a href="Data.Colour.Ok.html#okM2inv"><span class="hs-identifier hs-var">okM2inv</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679062862"><span class="hs-identifier hs-var">lms'</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- |Returns the colour for given Oklab coordinates, which</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- is a perceptually uniform colour space inspired by</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- CIELAB but which handles blue hues more accurately.</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- A white point is not specified because Oklab assumes</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- a standard 'd65' daylight illuminant.</span><span>
+</span><span id="line-60"></span><span id="local-6989586621679062778"><span class="annot"><a href="Data.Colour.Ok.html#okLab"><span class="hs-identifier hs-type">okLab</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Floating</span></span><span> </span><span class="annot"><a href="#local-6989586621679062778"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679062778"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^L* coordinate (lightness)</span></span><span>
+</span><span id="line-61"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679062778"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^a* coordinate</span></span><span>
+</span><span id="line-62"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679062778"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^b* coordinate</span></span><span>
+</span><span id="line-63"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Colour.Internal.html#Colour"><span class="hs-identifier hs-type">Colour</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679062778"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-64"></span><span id="okLab"><span class="annot"><span class="annottext">okLab :: forall a. Floating a =&gt; a -&gt; a -&gt; a -&gt; Colour a
+</span><a href="Data.Colour.Ok.html#okLab"><span class="hs-identifier hs-var hs-var">okLab</span></a></span></span><span> </span><span id="local-6989586621679062873"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062873"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679062874"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062874"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679062875"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062875"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a -&gt; Colour a
+forall a. Fractional a =&gt; a -&gt; a -&gt; a -&gt; Colour a
+</span><a href="Data.Colour.CIE.html#cieXYZ"><span class="hs-identifier hs-var">cieXYZ</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062877"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062878"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062879"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-65"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679062883"><span class="annot"><span class="annottext">lms' :: [a]
+</span><a href="#local-6989586621679062883"><span class="hs-identifier hs-var hs-var">lms'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[a]] -&gt; [a] -&gt; [a]
+forall {b}. Num b =&gt; [[b]] -&gt; [b] -&gt; [b]
+</span><a href="Data.Colour.Matrix.html#mult"><span class="hs-identifier hs-var">mult</span></a></span><span> </span><span class="annot"><span class="annottext">[[a]]
+forall a. Fractional a =&gt; [[a]]
+</span><a href="Data.Colour.Ok.html#okM2inv"><span class="hs-identifier hs-var">okM2inv</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062873"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062874"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062875"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679062888"><span class="annot"><span class="annottext">lms :: [a]
+</span><a href="#local-6989586621679062888"><span class="hs-identifier hs-var hs-var">lms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a) -&gt; [a] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Floating a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">**</span></span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679062883"><span class="hs-identifier hs-var">lms'</span></a></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-special">[</span><span id="local-6989586621679062877"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062877"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679062878"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062878"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679062879"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062879"><span class="hs-identifier hs-var">z</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[a]] -&gt; [a] -&gt; [a]
+forall {b}. Num b =&gt; [[b]] -&gt; [b] -&gt; [b]
+</span><a href="Data.Colour.Matrix.html#mult"><span class="hs-identifier hs-var">mult</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[[a]] -&gt; [[a]]
+forall {a}. Fractional a =&gt; [[a]] -&gt; [[a]]
+</span><a href="Data.Colour.Matrix.html#inverse"><span class="hs-identifier hs-var">inverse</span></a></span><span> </span><span class="annot"><span class="annottext">[[a]]
+forall a. Fractional a =&gt; [[a]]
+</span><a href="Data.Colour.Ok.html#okM1"><span class="hs-identifier hs-var">okM1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679062888"><span class="hs-identifier hs-var">lms</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- |Returns the Oklab LCh coordinates of a colour. The</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- lightness coordinate is the same as in Oklab, while</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- the chroma C and hue h are the (a,b)-coordinates</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- expressed in polar form.</span><span>
+</span><span id="line-74"></span><span id="local-6989586621679062781"><span class="annot"><a href="Data.Colour.Ok.html#okLChView"><span class="hs-identifier hs-type">okLChView</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RealFloat</span></span><span> </span><span class="annot"><a href="#local-6989586621679062781"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Colour.Internal.html#Colour"><span class="hs-identifier hs-type">Colour</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679062781"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679062781"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679062781"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679062781"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-75"></span><span id="okLChView"><span class="annot"><span class="annottext">okLChView :: forall a. RealFloat a =&gt; Colour a -&gt; (a, a, a)
+</span><a href="Data.Colour.Ok.html#okLChView"><span class="hs-identifier hs-var hs-var">okLChView</span></a></span></span><span> </span><span id="local-6989586621679062910"><span class="annot"><span class="annottext">Colour a
+</span><a href="#local-6989586621679062910"><span class="hs-identifier hs-var">colour</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062911"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062912"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062913"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Real a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mod'`</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">360</span></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679062911"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062911"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679062917"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062917"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679062918"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062918"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour a -&gt; (a, a, a)
+forall a. Floating a =&gt; Colour a -&gt; (a, a, a)
+</span><a href="Data.Colour.Ok.html#okLabView"><span class="hs-identifier hs-var">okLabView</span></a></span><span> </span><span class="annot"><span class="annottext">Colour a
+</span><a href="#local-6989586621679062910"><span class="hs-identifier hs-var">colour</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span id="local-6989586621679062919"><span class="annot"><span class="annottext">z :: Complex a
+</span><a href="#local-6989586621679062919"><span class="hs-identifier hs-var hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062917"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Complex a
+forall a. a -&gt; a -&gt; Complex a
+</span><span class="hs-operator hs-var">:+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062918"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-79"></span><span>  </span><span id="local-6989586621679062912"><span class="annot"><span class="annottext">c :: a
+</span><a href="#local-6989586621679062912"><span class="hs-identifier hs-var hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Complex a -&gt; a
+forall a. RealFloat a =&gt; Complex a -&gt; a
+</span><span class="hs-identifier hs-var">magnitude</span></span><span> </span><span class="annot"><span class="annottext">Complex a
+</span><a href="#local-6989586621679062919"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-80"></span><span>  </span><span id="local-6989586621679062913"><span class="annot"><span class="annottext">h :: a
+</span><a href="#local-6989586621679062913"><span class="hs-identifier hs-var hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Complex a -&gt; a
+forall a. RealFloat a =&gt; Complex a -&gt; a
+</span><span class="hs-identifier hs-var">phase</span></span><span> </span><span class="annot"><span class="annottext">Complex a
+</span><a href="#local-6989586621679062919"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">180</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">a
+forall a. Floating a =&gt; a
+</span><span class="hs-identifier hs-var">pi</span></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- |Constructs a colour from a lightness, chroma, and</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- hue given in LCh polar coordinates correspondong to</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- an Oklab coordinate.</span><span>
+</span><span id="line-85"></span><span id="local-6989586621679062950"><span class="annot"><a href="Data.Colour.Ok.html#okLCh"><span class="hs-identifier hs-type">okLCh</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Floating</span></span><span> </span><span class="annot"><a href="#local-6989586621679062950"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679062950"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^L* coordinate (lightness)</span></span><span>
+</span><span id="line-86"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679062950"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^C* coordinate (chroma)</span></span><span>
+</span><span id="line-87"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679062950"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^h* coordinate (hue)</span></span><span>
+</span><span id="line-88"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Colour.Internal.html#Colour"><span class="hs-identifier hs-type">Colour</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679062950"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-89"></span><span id="okLCh"><span class="annot"><span class="annottext">okLCh :: forall a. Floating a =&gt; a -&gt; a -&gt; a -&gt; Colour a
+</span><a href="Data.Colour.Ok.html#okLCh"><span class="hs-identifier hs-var hs-var">okLCh</span></a></span></span><span> </span><span id="local-6989586621679062955"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062955"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679062956"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062956"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679062957"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062957"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a -&gt; Colour a
+forall a. Floating a =&gt; a -&gt; a -&gt; a -&gt; Colour a
+</span><a href="Data.Colour.Ok.html#okLab"><span class="hs-identifier hs-var">okLab</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062955"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062958"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062959"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-90"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679062958"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062958"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:+</span></span><span> </span><span id="local-6989586621679062959"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062959"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Complex a
+forall a. Floating a =&gt; a -&gt; a -&gt; Complex a
+</span><span class="hs-identifier hs-var">mkPolar</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062956"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062957"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">a
+forall a. Floating a =&gt; a
+</span><span class="hs-identifier hs-var">pi</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">180</span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">--------------------------------------------------------------------------</span><span>
+</span><span id="line-94"></span><span class="hs-comment">{- not for export -}</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- |Converts XYZ coordinates to approximate human cone responses.</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- See &lt;https://github.com/color-js/color.js/blob/6b487db289f7c41b78d2933d9cb83bf8c06f3c5e/scripts/oklab_matrix_maker.py&gt;</span><span>
+</span><span id="line-98"></span><span id="local-6989586621679062793"><span class="annot"><a href="Data.Colour.Ok.html#oklms"><span class="hs-identifier hs-type">oklms</span></a></span><span> </span><span class="hs-glyph">::</span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Fractional</span></span><span> </span><span class="annot"><a href="#local-6989586621679062793"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Colour.CIE.Chromaticity.html#Chromaticity"><span class="hs-identifier hs-type">Chromaticity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679062793"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^White point</span></span><span>
+</span><span id="line-99"></span><span>                       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679062793"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span></span><span>
+</span><span id="line-100"></span><span id="oklms"><span class="annot"><span class="annottext">oklms :: forall a. Fractional a =&gt; Chromaticity a -&gt; [[a]]
+</span><a href="Data.Colour.Ok.html#oklms"><span class="hs-identifier hs-var hs-var">oklms</span></a></span></span><span> </span><span id="local-6989586621679062974"><span class="annot"><span class="annottext">Chromaticity a
+</span><a href="#local-6989586621679062974"><span class="hs-identifier hs-var">white_ch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([a] -&gt; a -&gt; [a]) -&gt; [[a]] -&gt; [a] -&gt; [[a]]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; a -&gt; [a]
+forall {f :: * -&gt; *} {b}.
+(Functor f, Fractional b) =&gt;
+f b -&gt; b -&gt; f b
+</span><a href="#local-6989586621679062976"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[[a]]
+</span><a href="#local-6989586621679062977"><span class="hs-identifier hs-var">m0</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679062978"><span class="hs-identifier hs-var">lmsWhite</span></a></span><span>
+</span><span id="line-101"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-102"></span><span>  </span><span id="local-6989586621679062982"><span class="annot"><span class="annottext">white :: Colour a
+</span><a href="#local-6989586621679062982"><span class="hs-identifier hs-var hs-var">white</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Chromaticity a -&gt; a -&gt; Colour a
+forall a. Fractional a =&gt; Chromaticity a -&gt; a -&gt; Colour a
+</span><a href="Data.Colour.CIE.html#chromaColour"><span class="hs-identifier hs-var">chromaColour</span></a></span><span> </span><span class="annot"><span class="annottext">Chromaticity a
+</span><a href="#local-6989586621679062974"><span class="hs-identifier hs-var">white_ch</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1.0</span></span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679062986"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062986"><span class="hs-identifier hs-var">xw</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679062987"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062987"><span class="hs-identifier hs-var">yw</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679062988"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062988"><span class="hs-identifier hs-var">zw</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Colour a -&gt; (a, a, a)
+forall a. Fractional a =&gt; Colour a -&gt; (a, a, a)
+</span><a href="Data.Colour.CIE.html#cieXYZView"><span class="hs-identifier hs-var">cieXYZView</span></a></span><span> </span><span class="annot"><span class="annottext">Colour a
+</span><a href="#local-6989586621679062982"><span class="hs-identifier hs-var">white</span></a></span><span>
+</span><span id="line-104"></span><span>  </span><span id="local-6989586621679062978"><span class="annot"><span class="annottext">lmsWhite :: [a]
+</span><a href="#local-6989586621679062978"><span class="hs-identifier hs-var hs-var">lmsWhite</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[a]] -&gt; [a] -&gt; [a]
+forall {b}. Num b =&gt; [[b]] -&gt; [b] -&gt; [b]
+</span><a href="Data.Colour.Matrix.html#mult"><span class="hs-identifier hs-var">mult</span></a></span><span> </span><span class="annot"><span class="annottext">[[a]]
+</span><a href="#local-6989586621679062977"><span class="hs-identifier hs-var">m0</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062986"><span class="hs-identifier hs-var">xw</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062987"><span class="hs-identifier hs-var">yw</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679062988"><span class="hs-identifier hs-var">zw</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621679062976"><span class="annot"><span class="annottext">f :: f b -&gt; b -&gt; f b
+</span><a href="#local-6989586621679062976"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679062996"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679062996"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679062997"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679062997"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; b -&gt; b
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679062997"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(b -&gt; b) -&gt; f b -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679062996"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-106"></span><span>  </span><span id="local-6989586621679062977"><span class="annot"><span class="annottext">m0 :: [[a]]
+</span><a href="#local-6989586621679062977"><span class="hs-identifier hs-var hs-var">m0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.77849780</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.34399940</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.12249720</span></span><span class="hs-special">]</span><span>
+</span><span id="line-107"></span><span>       </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.03303601</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.93076195</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.03620204</span></span><span class="hs-special">]</span><span>
+</span><span id="line-108"></span><span>       </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.05092917</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.27933344</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.66973739</span></span><span class="hs-special">]</span><span>
+</span><span id="line-109"></span><span>       </span><span class="hs-special">]</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- |The M1 matrix from the Oklab specification. This converts XYZ coordinates</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- to approximate human cone responses.</span><span>
+</span><span id="line-113"></span><span id="local-6989586621679062772"><span class="annot"><a href="Data.Colour.Ok.html#okM1"><span class="hs-identifier hs-type">okM1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fractional</span></span><span> </span><span class="annot"><a href="#local-6989586621679062772"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679062772"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span></span><span>
+</span><span id="line-114"></span><span id="okM1"><span class="annot"><span class="annottext">okM1 :: forall a. Fractional a =&gt; [[a]]
+</span><a href="Data.Colour.Ok.html#okM1"><span class="hs-identifier hs-var hs-var">okM1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Chromaticity a -&gt; [[a]]
+forall a. Fractional a =&gt; Chromaticity a -&gt; [[a]]
+</span><a href="Data.Colour.Ok.html#oklms"><span class="hs-identifier hs-var">oklms</span></a></span><span> </span><span class="annot"><span class="annottext">Chromaticity a
+forall a. Fractional a =&gt; Chromaticity a
+</span><a href="Data.Colour.CIE.Illuminant.html#d65"><span class="hs-identifier hs-var">d65</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- |The inverse M2 matrix from the Oklab specification. This converts</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- perceptually uniform LAB coordinates into</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- non-linearly-transformed (l', m', s') coordinates.</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- See &lt;https://github.com/color-js/color.js/blob/6b487db289f7c41b78d2933d9cb83bf8c06f3c5e/scripts/oklab_matrix_maker.py&gt;</span><span>
+</span><span id="line-120"></span><span id="local-6989586621679063013"><span class="annot"><a href="Data.Colour.Ok.html#okM2inv"><span class="hs-identifier hs-type">okM2inv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fractional</span></span><span> </span><span class="annot"><a href="#local-6989586621679063013"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679063013"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span></span><span>
+</span><span id="line-121"></span><span id="okM2inv"><span class="annot"><span class="annottext">okM2inv :: forall a. Fractional a =&gt; [[a]]
+</span><a href="Data.Colour.Ok.html#okM2inv"><span class="hs-identifier hs-var hs-var">okM2inv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-122"></span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1.0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.3963377774</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.2158037573</span></span><span class="hs-special">]</span><span>
+</span><span id="line-123"></span><span> </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1.0</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.1055613458</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.0638541728</span></span><span class="hs-special">]</span><span>
+</span><span id="line-124"></span><span> </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1.0</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0.0894841775</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1.2914855480</span></span><span class="hs-special">]</span><span>
+</span><span id="line-125"></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-126"></span></pre></body></html>

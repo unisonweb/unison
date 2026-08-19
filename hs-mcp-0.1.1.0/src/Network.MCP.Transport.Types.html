@@ -1,0 +1,806 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveAnyClass #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DerivingStrategies #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html"><span class="hs-identifier">Network.MCP.Transport.Types</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Transport"><span class="hs-identifier">Transport</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Message"><span class="hs-identifier">Message</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Request"><span class="hs-identifier">Request</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier">Response</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Notification"><span class="hs-identifier">Notification</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Network.MCP.Transport.Types.html#ErrorResponse"><span class="hs-identifier">ErrorResponse</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Network.MCP.Transport.Types.html#TransportError"><span class="hs-identifier">TransportError</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier">JSONRPC</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Exception</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson.Types</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- JSON-RPC protocol constant</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">newtype</span><span> </span><span id="JSONRPC"><span class="annot"><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-var">JSONRPC</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="JSONRPC"><span class="annot"><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-var">JSONRPC</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unJSONRPC"><span class="annot"><span class="annottext">JSONRPC -&gt; Text
+</span><a href="Network.MCP.Transport.Types.html#unJSONRPC"><span class="hs-identifier hs-var hs-var">unJSONRPC</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">}</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124311"><span id="local-6989586621679124317"><span id="local-6989586621679124321"><span class="annot"><span class="annottext">Int -&gt; JSONRPC -&gt; ShowS
+[JSONRPC] -&gt; ShowS
+JSONRPC -&gt; String
+(Int -&gt; JSONRPC -&gt; ShowS)
+-&gt; (JSONRPC -&gt; String) -&gt; ([JSONRPC] -&gt; ShowS) -&gt; Show JSONRPC
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; JSONRPC -&gt; ShowS
+showsPrec :: Int -&gt; JSONRPC -&gt; ShowS
+$cshow :: JSONRPC -&gt; String
+show :: JSONRPC -&gt; String
+$cshowList :: [JSONRPC] -&gt; ShowS
+showList :: [JSONRPC] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124326"><span id="local-6989586621679124331"><span class="annot"><span class="annottext">JSONRPC -&gt; JSONRPC -&gt; Bool
+(JSONRPC -&gt; JSONRPC -&gt; Bool)
+-&gt; (JSONRPC -&gt; JSONRPC -&gt; Bool) -&gt; Eq JSONRPC
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: JSONRPC -&gt; JSONRPC -&gt; Bool
+== :: JSONRPC -&gt; JSONRPC -&gt; Bool
+$c/= :: JSONRPC -&gt; JSONRPC -&gt; Bool
+/= :: JSONRPC -&gt; JSONRPC -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124338"><span id="local-6989586621679124340"><span class="annot"><span class="annottext">(forall x. JSONRPC -&gt; Rep JSONRPC x)
+-&gt; (forall x. Rep JSONRPC x -&gt; JSONRPC) -&gt; Generic JSONRPC
+forall x. Rep JSONRPC x -&gt; JSONRPC
+forall x. JSONRPC -&gt; Rep JSONRPC x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. JSONRPC -&gt; Rep JSONRPC x
+from :: forall x. JSONRPC -&gt; Rep JSONRPC x
+$cto :: forall x. Rep JSONRPC x -&gt; JSONRPC
+to :: forall x. Rep JSONRPC x -&gt; JSONRPC
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124347"><span id="local-6989586621679124351"><span id="local-6989586621679124354"><span id="local-6989586621679124357"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-type">JSONRPC</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>  </span><span id="local-6989586621679124362"><span class="annot"><span class="annottext">toJSON :: JSONRPC -&gt; Value
+</span><a href="#local-6989586621679124362"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Value) -&gt; (JSONRPC -&gt; Text) -&gt; JSONRPC -&gt; Value
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">JSONRPC -&gt; Text
+</span><a href="Network.MCP.Transport.Types.html#unJSONRPC"><span class="hs-identifier hs-var">unJSONRPC</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124367"><span id="local-6989586621679124371"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-type">JSONRPC</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621679124385"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser JSONRPC
+</span><a href="#local-6989586621679124385"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Text -&gt; Parser JSONRPC) -&gt; Value -&gt; Parser JSONRPC
+forall a. String -&gt; (Text -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withText</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;JSONRPC&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Text -&gt; Parser JSONRPC) -&gt; Value -&gt; Parser JSONRPC)
+-&gt; (Text -&gt; Parser JSONRPC) -&gt; Value -&gt; Parser JSONRPC
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679124388"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124388"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124388"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;2.0&quot;</span></span><span>
+</span><span id="line-35"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">JSONRPC -&gt; Parser JSONRPC
+forall a. a -&gt; Parser a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(JSONRPC -&gt; Parser JSONRPC) -&gt; JSONRPC -&gt; Parser JSONRPC
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; JSONRPC
+</span><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-var">JSONRPC</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124388"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-36"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String -&gt; Parser JSONRPC
+forall a. String -&gt; Parser a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Parser JSONRPC) -&gt; String -&gt; Parser JSONRPC
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Expected JSONRPC version 2.0, got: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124388"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><span class="hs-comment">-- | JSON-RPC Request</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">data</span><span> </span><span id="Request"><span class="annot"><a href="Network.MCP.Transport.Types.html#Request"><span class="hs-identifier hs-var">Request</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Request"><span class="annot"><a href="Network.MCP.Transport.Types.html#Request"><span class="hs-identifier hs-var">Request</span></a></span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="requestJsonrpc"><span class="annot"><span class="annottext">Request -&gt; JSONRPC
+</span><a href="Network.MCP.Transport.Types.html#requestJsonrpc"><span class="hs-identifier hs-var hs-var">requestJsonrpc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-type">JSONRPC</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span id="requestId"><span class="annot"><span class="annottext">Request -&gt; Value
+</span><a href="Network.MCP.Transport.Types.html#requestId"><span class="hs-identifier hs-var hs-var">requestId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span id="requestMethod"><span class="annot"><span class="annottext">Request -&gt; Text
+</span><a href="Network.MCP.Transport.Types.html#requestMethod"><span class="hs-identifier hs-var hs-var">requestMethod</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span id="requestParams"><span class="annot"><span class="annottext">Request -&gt; Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#requestParams"><span class="hs-identifier hs-var hs-var">requestParams</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124396"><span id="local-6989586621679124405"><span id="local-6989586621679124409"><span class="annot"><span class="annottext">Int -&gt; Request -&gt; ShowS
+[Request] -&gt; ShowS
+Request -&gt; String
+(Int -&gt; Request -&gt; ShowS)
+-&gt; (Request -&gt; String) -&gt; ([Request] -&gt; ShowS) -&gt; Show Request
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Request -&gt; ShowS
+showsPrec :: Int -&gt; Request -&gt; ShowS
+$cshow :: Request -&gt; String
+show :: Request -&gt; String
+$cshowList :: [Request] -&gt; ShowS
+showList :: [Request] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124412"><span id="local-6989586621679124420"><span class="annot"><span class="annottext">Request -&gt; Request -&gt; Bool
+(Request -&gt; Request -&gt; Bool)
+-&gt; (Request -&gt; Request -&gt; Bool) -&gt; Eq Request
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Request -&gt; Request -&gt; Bool
+== :: Request -&gt; Request -&gt; Bool
+$c/= :: Request -&gt; Request -&gt; Bool
+/= :: Request -&gt; Request -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124424"><span id="local-6989586621679124426"><span class="annot"><span class="annottext">(forall x. Request -&gt; Rep Request x)
+-&gt; (forall x. Rep Request x -&gt; Request) -&gt; Generic Request
+forall x. Rep Request x -&gt; Request
+forall x. Request -&gt; Rep Request x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Request -&gt; Rep Request x
+from :: forall x. Request -&gt; Rep Request x
+$cto :: forall x. Rep Request x -&gt; Request
+to :: forall x. Rep Request x -&gt; Request
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124430"><span id="local-6989586621679124434"><span id="local-6989586621679124437"><span id="local-6989586621679124440"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679124459"><span class="annot"><span class="annottext">toJSON :: Request -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679124460"><span id="local-6989586621679124461"><span id="local-6989586621679124462"><span id="local-6989586621679124463"><span class="annot"><span class="annottext">Maybe Value
+Value
+Text
+JSONRPC
+requestJsonrpc :: Request -&gt; JSONRPC
+requestId :: Request -&gt; Value
+requestMethod :: Request -&gt; Text
+requestParams :: Request -&gt; Maybe Value
+requestJsonrpc :: JSONRPC
+requestId :: Value
+requestMethod :: Text
+requestParams :: Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#requestJsonrpc"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;jsonrpc&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; JSONRPC -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">JSONRPC
+</span><a href="#local-6989586621679124460"><span class="hs-identifier hs-var">requestJsonrpc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Value -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124461"><span class="hs-identifier hs-var">requestId</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>        </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;method&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124462"><span class="hs-identifier hs-var">requestMethod</span></a></span><span>
+</span><span id="line-53"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="annottext">[Pair] -&gt; [Pair] -&gt; [Pair]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;params&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Value -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124466"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679124466"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124466"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Value -&gt; [Value]
+forall a. Maybe a -&gt; [a]
+</span><a href="Network.MCP.Transport.Types.html#maybeToList"><span class="hs-identifier hs-var">maybeToList</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124463"><span class="hs-identifier hs-var">requestParams</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124470"><span id="local-6989586621679124474"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679124492"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Request
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Request) -&gt; Value -&gt; Parser Request
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Request&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Request) -&gt; Value -&gt; Parser Request)
+-&gt; (Object -&gt; Parser Request) -&gt; Value -&gt; Parser Request
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679124494"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124494"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679124495"><span class="annot"><span class="annottext">JSONRPC
+</span><a href="#local-6989586621679124495"><span class="hs-identifier hs-var">jsonrpc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124494"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser JSONRPC
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;jsonrpc&quot;</span></span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679124497"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124497"><span class="hs-identifier hs-var">id'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124494"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Value
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679124498"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124498"><span class="hs-identifier hs-var">method</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124494"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;method&quot;</span></span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679124499"><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124499"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124494"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Value)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;params&quot;</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">JSONRPC -&gt; Value -&gt; Text -&gt; Maybe Value -&gt; Request
+</span><a href="Network.MCP.Transport.Types.html#Request"><span class="hs-identifier hs-var">Request</span></a></span><span> </span><span class="annot"><span class="annottext">JSONRPC
+</span><a href="#local-6989586621679124495"><span class="hs-identifier hs-var">jsonrpc</span></a></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124497"><span class="hs-identifier hs-var">id'</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124498"><span class="hs-identifier hs-var">method</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124499"><span class="hs-identifier hs-var">params</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><span class="hs-comment">-- | JSON-RPC Notification (no ID)</span></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">data</span><span> </span><span id="Notification"><span class="annot"><a href="Network.MCP.Transport.Types.html#Notification"><span class="hs-identifier hs-var">Notification</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Notification"><span class="annot"><a href="Network.MCP.Transport.Types.html#Notification"><span class="hs-identifier hs-var">Notification</span></a></span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="notificationJsonrpc"><span class="annot"><span class="annottext">Notification -&gt; JSONRPC
+</span><a href="Network.MCP.Transport.Types.html#notificationJsonrpc"><span class="hs-identifier hs-var hs-var">notificationJsonrpc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-type">JSONRPC</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>    </span><span id="notificationMethod"><span class="annot"><span class="annottext">Notification -&gt; Text
+</span><a href="Network.MCP.Transport.Types.html#notificationMethod"><span class="hs-identifier hs-var hs-var">notificationMethod</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>    </span><span id="notificationParams"><span class="annot"><span class="annottext">Notification -&gt; Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#notificationParams"><span class="hs-identifier hs-var hs-var">notificationParams</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124506"><span id="local-6989586621679124513"><span id="local-6989586621679124517"><span class="annot"><span class="annottext">Int -&gt; Notification -&gt; ShowS
+[Notification] -&gt; ShowS
+Notification -&gt; String
+(Int -&gt; Notification -&gt; ShowS)
+-&gt; (Notification -&gt; String)
+-&gt; ([Notification] -&gt; ShowS)
+-&gt; Show Notification
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Notification -&gt; ShowS
+showsPrec :: Int -&gt; Notification -&gt; ShowS
+$cshow :: Notification -&gt; String
+show :: Notification -&gt; String
+$cshowList :: [Notification] -&gt; ShowS
+showList :: [Notification] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124520"><span id="local-6989586621679124526"><span class="annot"><span class="annottext">Notification -&gt; Notification -&gt; Bool
+(Notification -&gt; Notification -&gt; Bool)
+-&gt; (Notification -&gt; Notification -&gt; Bool) -&gt; Eq Notification
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Notification -&gt; Notification -&gt; Bool
+== :: Notification -&gt; Notification -&gt; Bool
+$c/= :: Notification -&gt; Notification -&gt; Bool
+/= :: Notification -&gt; Notification -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124530"><span id="local-6989586621679124532"><span class="annot"><span class="annottext">(forall x. Notification -&gt; Rep Notification x)
+-&gt; (forall x. Rep Notification x -&gt; Notification)
+-&gt; Generic Notification
+forall x. Rep Notification x -&gt; Notification
+forall x. Notification -&gt; Rep Notification x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Notification -&gt; Rep Notification x
+from :: forall x. Notification -&gt; Rep Notification x
+$cto :: forall x. Rep Notification x -&gt; Notification
+to :: forall x. Rep Notification x -&gt; Notification
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124536"><span id="local-6989586621679124540"><span id="local-6989586621679124543"><span id="local-6989586621679124546"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Notification"><span class="hs-identifier hs-type">Notification</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621679124559"><span class="annot"><span class="annottext">toJSON :: Notification -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Notification"><span class="hs-identifier hs-type">Notification</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679124560"><span id="local-6989586621679124561"><span id="local-6989586621679124562"><span class="annot"><span class="annottext">Maybe Value
+Text
+JSONRPC
+notificationJsonrpc :: Notification -&gt; JSONRPC
+notificationMethod :: Notification -&gt; Text
+notificationParams :: Notification -&gt; Maybe Value
+notificationJsonrpc :: JSONRPC
+notificationMethod :: Text
+notificationParams :: Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#notificationJsonrpc"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-74"></span><span>    </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-75"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;jsonrpc&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; JSONRPC -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">JSONRPC
+</span><a href="#local-6989586621679124560"><span class="hs-identifier hs-var">notificationJsonrpc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>        </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;method&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124561"><span class="hs-identifier hs-var">notificationMethod</span></a></span><span>
+</span><span id="line-77"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-78"></span><span>        </span><span class="annot"><span class="annottext">[Pair] -&gt; [Pair] -&gt; [Pair]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;params&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Value -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124563"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679124563"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124563"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Value -&gt; [Value]
+forall a. Maybe a -&gt; [a]
+</span><a href="Network.MCP.Transport.Types.html#maybeToList"><span class="hs-identifier hs-var">maybeToList</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124562"><span class="hs-identifier hs-var">notificationParams</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124566"><span id="local-6989586621679124570"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Notification"><span class="hs-identifier hs-type">Notification</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>  </span><span id="local-6989586621679124581"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Notification
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser Notification) -&gt; Value -&gt; Parser Notification
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Notification&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Notification) -&gt; Value -&gt; Parser Notification)
+-&gt; (Object -&gt; Parser Notification) -&gt; Value -&gt; Parser Notification
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679124582"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124582"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679124583"><span class="annot"><span class="annottext">JSONRPC
+</span><a href="#local-6989586621679124583"><span class="hs-identifier hs-var">jsonrpc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124582"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser JSONRPC
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;jsonrpc&quot;</span></span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679124584"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124584"><span class="hs-identifier hs-var">method</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124582"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;method&quot;</span></span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621679124585"><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124585"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124582"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Value)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;params&quot;</span></span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">JSONRPC -&gt; Text -&gt; Maybe Value -&gt; Notification
+</span><a href="Network.MCP.Transport.Types.html#Notification"><span class="hs-identifier hs-var">Notification</span></a></span><span> </span><span class="annot"><span class="annottext">JSONRPC
+</span><a href="#local-6989586621679124583"><span class="hs-identifier hs-var">jsonrpc</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124584"><span class="hs-identifier hs-var">method</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124585"><span class="hs-identifier hs-var">params</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="annot"><span class="hs-comment">-- | JSON-RPC Error Response</span></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">data</span><span> </span><span id="ErrorResponse"><span class="annot"><a href="Network.MCP.Transport.Types.html#ErrorResponse"><span class="hs-identifier hs-var">ErrorResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ErrorResponse"><span class="annot"><a href="Network.MCP.Transport.Types.html#ErrorResponse"><span class="hs-identifier hs-var">ErrorResponse</span></a></span></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="errorCode"><span class="annot"><span class="annottext">ErrorResponse -&gt; Int
+</span><a href="Network.MCP.Transport.Types.html#errorCode"><span class="hs-identifier hs-var hs-var">errorCode</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-90"></span><span>    </span><span id="errorMessage"><span class="annot"><span class="annottext">ErrorResponse -&gt; Text
+</span><a href="Network.MCP.Transport.Types.html#errorMessage"><span class="hs-identifier hs-var hs-var">errorMessage</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-91"></span><span>    </span><span id="errorData"><span class="annot"><span class="annottext">ErrorResponse -&gt; Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#errorData"><span class="hs-identifier hs-var hs-var">errorData</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124591"><span id="local-6989586621679124599"><span id="local-6989586621679124603"><span class="annot"><span class="annottext">Int -&gt; ErrorResponse -&gt; ShowS
+[ErrorResponse] -&gt; ShowS
+ErrorResponse -&gt; String
+(Int -&gt; ErrorResponse -&gt; ShowS)
+-&gt; (ErrorResponse -&gt; String)
+-&gt; ([ErrorResponse] -&gt; ShowS)
+-&gt; Show ErrorResponse
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ErrorResponse -&gt; ShowS
+showsPrec :: Int -&gt; ErrorResponse -&gt; ShowS
+$cshow :: ErrorResponse -&gt; String
+show :: ErrorResponse -&gt; String
+$cshowList :: [ErrorResponse] -&gt; ShowS
+showList :: [ErrorResponse] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124606"><span id="local-6989586621679124613"><span class="annot"><span class="annottext">ErrorResponse -&gt; ErrorResponse -&gt; Bool
+(ErrorResponse -&gt; ErrorResponse -&gt; Bool)
+-&gt; (ErrorResponse -&gt; ErrorResponse -&gt; Bool) -&gt; Eq ErrorResponse
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ErrorResponse -&gt; ErrorResponse -&gt; Bool
+== :: ErrorResponse -&gt; ErrorResponse -&gt; Bool
+$c/= :: ErrorResponse -&gt; ErrorResponse -&gt; Bool
+/= :: ErrorResponse -&gt; ErrorResponse -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124617"><span id="local-6989586621679124619"><span class="annot"><span class="annottext">(forall x. ErrorResponse -&gt; Rep ErrorResponse x)
+-&gt; (forall x. Rep ErrorResponse x -&gt; ErrorResponse)
+-&gt; Generic ErrorResponse
+forall x. Rep ErrorResponse x -&gt; ErrorResponse
+forall x. ErrorResponse -&gt; Rep ErrorResponse x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ErrorResponse -&gt; Rep ErrorResponse x
+from :: forall x. ErrorResponse -&gt; Rep ErrorResponse x
+$cto :: forall x. Rep ErrorResponse x -&gt; ErrorResponse
+to :: forall x. Rep ErrorResponse x -&gt; ErrorResponse
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124623"><span id="local-6989586621679124627"><span id="local-6989586621679124630"><span id="local-6989586621679124633"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#ErrorResponse"><span class="hs-identifier hs-type">ErrorResponse</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-96"></span><span>  </span><span id="local-6989586621679124647"><span class="annot"><span class="annottext">toJSON :: ErrorResponse -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#ErrorResponse"><span class="hs-identifier hs-type">ErrorResponse</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679124648"><span id="local-6989586621679124649"><span id="local-6989586621679124650"><span class="annot"><span class="annottext">Int
+Maybe Value
+Text
+errorCode :: ErrorResponse -&gt; Int
+errorMessage :: ErrorResponse -&gt; Text
+errorData :: ErrorResponse -&gt; Maybe Value
+errorCode :: Int
+errorMessage :: Text
+errorData :: Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#errorCode"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-98"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;code&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Int -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124648"><span class="hs-identifier hs-var">errorCode</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-99"></span><span>        </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;message&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124649"><span class="hs-identifier hs-var">errorMessage</span></a></span><span>
+</span><span id="line-100"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="annottext">[Pair] -&gt; [Pair] -&gt; [Pair]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;data&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Value -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124651"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679124651"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124651"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Value -&gt; [Value]
+forall a. Maybe a -&gt; [a]
+</span><a href="Network.MCP.Transport.Types.html#maybeToList"><span class="hs-identifier hs-var">maybeToList</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124650"><span class="hs-identifier hs-var">errorData</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124654"><span id="local-6989586621679124658"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#ErrorResponse"><span class="hs-identifier hs-type">ErrorResponse</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-104"></span><span>  </span><span id="local-6989586621679124670"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ErrorResponse
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ErrorResponse)
+-&gt; Value
+-&gt; Parser ErrorResponse
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ErrorResponse&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser ErrorResponse) -&gt; Value -&gt; Parser ErrorResponse)
+-&gt; (Object -&gt; Parser ErrorResponse)
+-&gt; Value
+-&gt; Parser ErrorResponse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679124671"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124671"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-105"></span><span>    </span><span id="local-6989586621679124672"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124672"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124671"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;code&quot;</span></span><span>
+</span><span id="line-106"></span><span>    </span><span id="local-6989586621679124673"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124673"><span class="hs-identifier hs-var">message</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124671"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;message&quot;</span></span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621679124674"><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124674"><span class="hs-identifier hs-var">errorData</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124671"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Value)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;data&quot;</span></span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Maybe Value -&gt; ErrorResponse
+</span><a href="Network.MCP.Transport.Types.html#ErrorResponse"><span class="hs-identifier hs-var">ErrorResponse</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124672"><span class="hs-identifier hs-var">code</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679124673"><span class="hs-identifier hs-var">message</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124674"><span class="hs-identifier hs-var">errorData</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="annot"><span class="hs-comment">-- | JSON-RPC Response</span></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">data</span><span> </span><span id="Response"><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-var">Response</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Response"><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-var">Response</span></a></span></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="responseJsonrpc"><span class="annot"><span class="annottext">Response -&gt; JSONRPC
+</span><a href="Network.MCP.Transport.Types.html#responseJsonrpc"><span class="hs-identifier hs-var hs-var">responseJsonrpc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-type">JSONRPC</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-113"></span><span>    </span><span id="responseId"><span class="annot"><span class="annottext">Response -&gt; Value
+</span><a href="Network.MCP.Transport.Types.html#responseId"><span class="hs-identifier hs-var hs-var">responseId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span class="hs-special">,</span><span>
+</span><span id="line-114"></span><span>    </span><span id="responseResult"><span class="annot"><span class="annottext">Response -&gt; Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#responseResult"><span class="hs-identifier hs-var hs-var">responseResult</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span class="hs-special">,</span><span>
+</span><span id="line-115"></span><span>    </span><span id="responseError"><span class="annot"><span class="annottext">Response -&gt; Maybe ErrorResponse
+</span><a href="Network.MCP.Transport.Types.html#responseError"><span class="hs-identifier hs-var hs-var">responseError</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#ErrorResponse"><span class="hs-identifier hs-type">ErrorResponse</span></a></span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124681"><span id="local-6989586621679124689"><span id="local-6989586621679124693"><span class="annot"><span class="annottext">Int -&gt; Response -&gt; ShowS
+[Response] -&gt; ShowS
+Response -&gt; String
+(Int -&gt; Response -&gt; ShowS)
+-&gt; (Response -&gt; String) -&gt; ([Response] -&gt; ShowS) -&gt; Show Response
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Response -&gt; ShowS
+showsPrec :: Int -&gt; Response -&gt; ShowS
+$cshow :: Response -&gt; String
+show :: Response -&gt; String
+$cshowList :: [Response] -&gt; ShowS
+showList :: [Response] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124696"><span id="local-6989586621679124703"><span class="annot"><span class="annottext">Response -&gt; Response -&gt; Bool
+(Response -&gt; Response -&gt; Bool)
+-&gt; (Response -&gt; Response -&gt; Bool) -&gt; Eq Response
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Response -&gt; Response -&gt; Bool
+== :: Response -&gt; Response -&gt; Bool
+$c/= :: Response -&gt; Response -&gt; Bool
+/= :: Response -&gt; Response -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124707"><span id="local-6989586621679124709"><span class="annot"><span class="annottext">(forall x. Response -&gt; Rep Response x)
+-&gt; (forall x. Rep Response x -&gt; Response) -&gt; Generic Response
+forall x. Rep Response x -&gt; Response
+forall x. Response -&gt; Rep Response x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Response -&gt; Rep Response x
+from :: forall x. Response -&gt; Rep Response x
+$cto :: forall x. Rep Response x -&gt; Response
+to :: forall x. Rep Response x -&gt; Response
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124713"><span id="local-6989586621679124717"><span id="local-6989586621679124720"><span id="local-6989586621679124723"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>  </span><span id="local-6989586621679124739"><span class="annot"><span class="annottext">toJSON :: Response -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679124740"><span id="local-6989586621679124741"><span id="local-6989586621679124742"><span id="local-6989586621679124743"><span class="annot"><span class="annottext">Maybe Value
+Maybe ErrorResponse
+Value
+JSONRPC
+responseJsonrpc :: Response -&gt; JSONRPC
+responseId :: Response -&gt; Value
+responseResult :: Response -&gt; Maybe Value
+responseError :: Response -&gt; Maybe ErrorResponse
+responseJsonrpc :: JSONRPC
+responseId :: Value
+responseResult :: Maybe Value
+responseError :: Maybe ErrorResponse
+</span><a href="Network.MCP.Transport.Types.html#responseJsonrpc"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-122"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;jsonrpc&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; JSONRPC -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">JSONRPC
+</span><a href="#local-6989586621679124740"><span class="hs-identifier hs-var">responseJsonrpc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-123"></span><span>        </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Value -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124741"><span class="hs-identifier hs-var">responseId</span></a></span><span>
+</span><span id="line-124"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-125"></span><span>        </span><span class="annot"><span class="annottext">[Pair] -&gt; [Pair] -&gt; [Pair]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;result&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Value -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124744"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679124744"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124744"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Value -&gt; [Value]
+forall a. Maybe a -&gt; [a]
+</span><a href="Network.MCP.Transport.Types.html#maybeToList"><span class="hs-identifier hs-var">maybeToList</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124742"><span class="hs-identifier hs-var">responseResult</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-126"></span><span>        </span><span class="annot"><span class="annottext">[Pair] -&gt; [Pair] -&gt; [Pair]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;error&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; ErrorResponse -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">ErrorResponse
+</span><a href="#local-6989586621679124745"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679124745"><span class="annot"><span class="annottext">ErrorResponse
+</span><a href="#local-6989586621679124745"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe ErrorResponse -&gt; [ErrorResponse]
+forall a. Maybe a -&gt; [a]
+</span><a href="Network.MCP.Transport.Types.html#maybeToList"><span class="hs-identifier hs-var">maybeToList</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ErrorResponse
+</span><a href="#local-6989586621679124743"><span class="hs-identifier hs-var">responseError</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124748"><span id="local-6989586621679124752"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-129"></span><span>  </span><span id="local-6989586621679124766"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Response
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Response) -&gt; Value -&gt; Parser Response
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Response&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Response) -&gt; Value -&gt; Parser Response)
+-&gt; (Object -&gt; Parser Response) -&gt; Value -&gt; Parser Response
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679124767"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124767"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-130"></span><span>    </span><span id="local-6989586621679124768"><span class="annot"><span class="annottext">JSONRPC
+</span><a href="#local-6989586621679124768"><span class="hs-identifier hs-var">jsonrpc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124767"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser JSONRPC
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;jsonrpc&quot;</span></span><span>
+</span><span id="line-131"></span><span>    </span><span id="local-6989586621679124769"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124769"><span class="hs-identifier hs-var">id'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124767"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Value
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621679124770"><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124770"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124767"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Value)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;result&quot;</span></span><span>
+</span><span id="line-133"></span><span>    </span><span id="local-6989586621679124771"><span class="annot"><span class="annottext">Maybe ErrorResponse
+</span><a href="#local-6989586621679124771"><span class="hs-identifier hs-var">error'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124767"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe ErrorResponse)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;error&quot;</span></span><span>
+</span><span id="line-134"></span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">JSONRPC -&gt; Value -&gt; Maybe Value -&gt; Maybe ErrorResponse -&gt; Response
+</span><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-var">Response</span></a></span><span> </span><span class="annot"><span class="annottext">JSONRPC
+</span><a href="#local-6989586621679124768"><span class="hs-identifier hs-var">jsonrpc</span></a></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124769"><span class="hs-identifier hs-var">id'</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124770"><span class="hs-identifier hs-var">result</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ErrorResponse
+</span><a href="#local-6989586621679124771"><span class="hs-identifier hs-var">error'</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="annot"><span class="hs-comment">-- | Combined message type for the transport layer</span></span><span>
+</span><span id="line-137"></span><span class="hs-keyword">data</span><span> </span><span id="Message"><span class="annot"><a href="Network.MCP.Transport.Types.html#Message"><span class="hs-identifier hs-var">Message</span></a></span></span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="RequestMessage"><span class="annot"><a href="Network.MCP.Transport.Types.html#RequestMessage"><span class="hs-identifier hs-var">RequestMessage</span></a></span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ResponseMessage"><span class="annot"><a href="Network.MCP.Transport.Types.html#ResponseMessage"><span class="hs-identifier hs-var">ResponseMessage</span></a></span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NotificationMessage"><span class="annot"><a href="Network.MCP.Transport.Types.html#NotificationMessage"><span class="hs-identifier hs-var">NotificationMessage</span></a></span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Notification"><span class="hs-identifier hs-type">Notification</span></a></span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124776"><span id="local-6989586621679124784"><span id="local-6989586621679124788"><span class="annot"><span class="annottext">Int -&gt; Message -&gt; ShowS
+[Message] -&gt; ShowS
+Message -&gt; String
+(Int -&gt; Message -&gt; ShowS)
+-&gt; (Message -&gt; String) -&gt; ([Message] -&gt; ShowS) -&gt; Show Message
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Message -&gt; ShowS
+showsPrec :: Int -&gt; Message -&gt; ShowS
+$cshow :: Message -&gt; String
+show :: Message -&gt; String
+$cshowList :: [Message] -&gt; ShowS
+showList :: [Message] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124791"><span id="local-6989586621679124799"><span class="annot"><span class="annottext">Message -&gt; Message -&gt; Bool
+(Message -&gt; Message -&gt; Bool)
+-&gt; (Message -&gt; Message -&gt; Bool) -&gt; Eq Message
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Message -&gt; Message -&gt; Bool
+== :: Message -&gt; Message -&gt; Bool
+$c/= :: Message -&gt; Message -&gt; Bool
+/= :: Message -&gt; Message -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124804"><span id="local-6989586621679124808"><span id="local-6989586621679124811"><span id="local-6989586621679124814"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Message"><span class="hs-identifier hs-type">Message</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-144"></span><span>  </span><span id="local-6989586621679124819"><span class="annot"><span class="annottext">toJSON :: Message -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.MCP.Transport.Types.html#RequestMessage"><span class="hs-identifier hs-type">RequestMessage</span></a></span><span> </span><span id="local-6989586621679124820"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679124820"><span class="hs-identifier hs-var">req</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Request -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679124820"><span class="hs-identifier hs-var">req</span></a></span><span>
+</span><span id="line-145"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.MCP.Transport.Types.html#ResponseMessage"><span class="hs-identifier hs-type">ResponseMessage</span></a></span><span> </span><span id="local-6989586621679124821"><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621679124821"><span class="hs-identifier hs-var">res</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Response -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621679124821"><span class="hs-identifier hs-var">res</span></a></span><span>
+</span><span id="line-146"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.MCP.Transport.Types.html#NotificationMessage"><span class="hs-identifier hs-type">NotificationMessage</span></a></span><span> </span><span id="local-6989586621679124822"><span class="annot"><span class="annottext">Notification
+</span><a href="#local-6989586621679124822"><span class="hs-identifier hs-var">notif</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Notification -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">Notification
+</span><a href="#local-6989586621679124822"><span class="hs-identifier hs-var">notif</span></a></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679124825"><span id="local-6989586621679124829"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Message"><span class="hs-identifier hs-type">Message</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>  </span><span id="local-6989586621679124849"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Message
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span id="local-6989586621679124850"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124850"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-150"></span><span>    </span><span id="local-6989586621679124851"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124851"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser Object
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124850"><span class="hs-identifier hs-var">val</span></a></span><span>
+</span><span id="line-151"></span><span>    </span><span id="local-6989586621679124852"><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124852"><span class="hs-identifier hs-var">id'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124851"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Value)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Parser</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>    </span><span id="local-6989586621679124853"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679124853"><span class="hs-identifier hs-var">method</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679124851"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;method&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Parser</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679124852"><span class="hs-identifier hs-var">id'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679124853"><span class="hs-identifier hs-var">method</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-154"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Request -&gt; Message
+</span><a href="Network.MCP.Transport.Types.html#RequestMessage"><span class="hs-identifier hs-var">RequestMessage</span></a></span><span> </span><span class="annot"><span class="annottext">(Request -&gt; Message) -&gt; Parser Request -&gt; Parser Message
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser Request
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124850"><span class="hs-identifier hs-var">val</span></a></span><span>
+</span><span id="line-155"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Response -&gt; Message
+</span><a href="Network.MCP.Transport.Types.html#ResponseMessage"><span class="hs-identifier hs-var">ResponseMessage</span></a></span><span> </span><span class="annot"><span class="annottext">(Response -&gt; Message) -&gt; Parser Response -&gt; Parser Message
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser Response
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124850"><span class="hs-identifier hs-var">val</span></a></span><span>
+</span><span id="line-156"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Value
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Notification -&gt; Message
+</span><a href="Network.MCP.Transport.Types.html#NotificationMessage"><span class="hs-identifier hs-var">NotificationMessage</span></a></span><span> </span><span class="annot"><span class="annottext">(Notification -&gt; Message) -&gt; Parser Notification -&gt; Parser Message
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser Notification
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679124850"><span class="hs-identifier hs-var">val</span></a></span><span>
+</span><span id="line-157"></span><span>      </span><span class="annot"><span class="annottext">(Maybe Value, Maybe Text)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Parser Message
+forall a. String -&gt; Parser a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Invalid JSON-RPC message&quot;</span></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="annot"><span class="hs-comment">-- | Transport error</span></span><span>
+</span><span id="line-160"></span><span class="hs-keyword">data</span><span> </span><span id="TransportError"><span class="annot"><a href="Network.MCP.Transport.Types.html#TransportError"><span class="hs-identifier hs-var">TransportError</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TransportError"><span class="annot"><a href="Network.MCP.Transport.Types.html#TransportError"><span class="hs-identifier hs-var">TransportError</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124857"><span id="local-6989586621679124863"><span id="local-6989586621679124867"><span class="annot"><span class="annottext">Int -&gt; TransportError -&gt; ShowS
+[TransportError] -&gt; ShowS
+TransportError -&gt; String
+(Int -&gt; TransportError -&gt; ShowS)
+-&gt; (TransportError -&gt; String)
+-&gt; ([TransportError] -&gt; ShowS)
+-&gt; Show TransportError
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; TransportError -&gt; ShowS
+showsPrec :: Int -&gt; TransportError -&gt; ShowS
+$cshow :: TransportError -&gt; String
+show :: TransportError -&gt; String
+$cshowList :: [TransportError] -&gt; ShowS
+showList :: [TransportError] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124871"><span id="local-6989586621679124876"><span class="annot"><span class="annottext">TransportError -&gt; TransportError -&gt; Bool
+(TransportError -&gt; TransportError -&gt; Bool)
+-&gt; (TransportError -&gt; TransportError -&gt; Bool) -&gt; Eq TransportError
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: TransportError -&gt; TransportError -&gt; Bool
+== :: TransportError -&gt; TransportError -&gt; Bool
+$c/= :: TransportError -&gt; TransportError -&gt; Bool
+/= :: TransportError -&gt; TransportError -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124885"><span id="local-6989586621679124889"><span id="local-6989586621679124892"><span id="local-6989586621679124895"><span class="annot"><span class="annottext">Show TransportError
+Typeable TransportError
+(Typeable TransportError, Show TransportError) =&gt;
+(TransportError -&gt; SomeException)
+-&gt; (SomeException -&gt; Maybe TransportError)
+-&gt; (TransportError -&gt; String)
+-&gt; (TransportError -&gt; Bool)
+-&gt; Exception TransportError
+SomeException -&gt; Maybe TransportError
+TransportError -&gt; Bool
+TransportError -&gt; String
+TransportError -&gt; SomeException
+forall e.
+(Typeable e, Show e) =&gt;
+(e -&gt; SomeException)
+-&gt; (SomeException -&gt; Maybe e)
+-&gt; (e -&gt; String)
+-&gt; (e -&gt; Bool)
+-&gt; Exception e
+$ctoException :: TransportError -&gt; SomeException
+toException :: TransportError -&gt; SomeException
+$cfromException :: SomeException -&gt; Maybe TransportError
+fromException :: SomeException -&gt; Maybe TransportError
+$cdisplayException :: TransportError -&gt; String
+displayException :: TransportError -&gt; String
+$cbacktraceDesired :: TransportError -&gt; Bool
+backtraceDesired :: TransportError -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Exception</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="annot"><span class="hs-comment">-- | Transport interface for all transport implementations</span></span><span>
+</span><span id="line-165"></span><span class="hs-keyword">class</span><span> </span><span id="Transport"><span class="annot"><a href="Network.MCP.Transport.Types.html#Transport"><span class="hs-identifier hs-var">Transport</span></a></span></span><span> </span><span id="local-6989586621679124898"><span class="annot"><a href="#local-6989586621679124898"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-comment">-- | Keep processing messages using the provided handler.</span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-comment">-- Will only return if the transport mechanism signals termination;</span><span>
+</span><span id="line-168"></span><span>  </span><span class="hs-comment">-- e.g. EOF on a socket or similar.</span><span>
+</span><span id="line-169"></span><span>  </span><span id="handleMessages"><span class="annot"><a href="Network.MCP.Transport.Types.html#handleMessages"><span class="hs-identifier hs-type">handleMessages</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679124898"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.MCP.Transport.Types.html#Message"><span class="hs-identifier hs-type">Message</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Message"><span class="hs-identifier hs-type">Message</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- Helper function</span><span>
+</span><span id="line-172"></span><span id="local-6989586621679124276"><span class="annot"><a href="Network.MCP.Transport.Types.html#maybeToList"><span class="hs-identifier hs-type">maybeToList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679124276"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679124276"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-173"></span><span id="maybeToList"><span class="annot"><span class="annottext">maybeToList :: forall a. Maybe a -&gt; [a]
+</span><a href="Network.MCP.Transport.Types.html#maybeToList"><span class="hs-identifier hs-var hs-var">maybeToList</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-174"></span><span class="annot"><a href="Network.MCP.Transport.Types.html#maybeToList"><span class="hs-identifier hs-var">maybeToList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679124900"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679124900"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679124900"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-175"></span></pre></body></html>

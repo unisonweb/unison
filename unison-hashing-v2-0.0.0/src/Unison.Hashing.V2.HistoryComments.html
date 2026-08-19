@@ -1,0 +1,274 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DuplicateRecordFields #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-orphans #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Hashing.V2.HistoryComments.html"><span class="hs-identifier">Unison.Hashing.V2.HistoryComments</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Hashing.V2.HistoryComments.html#hashHistoryComment"><span class="hs-identifier">hashHistoryComment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Hashing.V2.HistoryComments.html#hashHistoryCommentRevision"><span class="hs-identifier">hashHistoryCommentRevision</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Codec.CBOR.Encoding</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CBOR</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Codec.CBOR.Write</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CBOR.Write</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Hash</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CH</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BA</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock.POSIX</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Time</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Hash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hash</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Hash</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hash</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HashTags</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Hashing.ContentAddressable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ContentAddressable</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HistoryComment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HistoryComment</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">HistoryCommentRevision</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.KeyThumbprint</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">KeyThumbprint</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Unison.Hashing.V2.HistoryComments.html#commentHashingVersion"><span class="hs-identifier hs-type">commentHashingVersion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span>
+</span><span id="line-25"></span><span id="commentHashingVersion"><span class="annot"><span class="annottext">commentHashingVersion :: Int32
+</span><a href="Unison.Hashing.V2.HistoryComments.html#commentHashingVersion"><span class="hs-identifier hs-var hs-var">commentHashingVersion</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="annot"><a href="Unison.Hashing.V2.HistoryComments.html#revisionHashingVersion"><span class="hs-identifier hs-type">revisionHashingVersion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span>
+</span><span id="line-28"></span><span id="revisionHashingVersion"><span class="annot"><span class="annottext">revisionHashingVersion :: Int32
+</span><a href="Unison.Hashing.V2.HistoryComments.html#revisionHashingVersion"><span class="hs-identifier hs-var hs-var">revisionHashingVersion</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- Hash a base comment</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679201173"><span class="annot"><span class="hs-identifier hs-type">ContentAddressable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HistoryComment</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">KeyThumbprint</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CausalHash</span></span><span> </span><span class="annot"><a href="#local-6989586621679201173"><span class="hs-identifier hs-type">any</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>  </span><span id="local-6989586621679201278"><span class="annot"><span class="annottext">contentHash :: HistoryComment UTCTime KeyThumbprint CausalHash any -&gt; Hash
+</span><a href="#local-6989586621679201278"><span class="hs-identifier hs-var hs-var hs-var">contentHash</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HistoryComment</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679201281"><span class="annot"><span class="annottext">UTCTime
+createdAt :: UTCTime
+createdAt :: forall createdAt thumbprint causal commentId.
+HistoryComment createdAt thumbprint causal commentId -&gt; createdAt
+</span><a href="#local-6989586621679201281"><span class="hs-identifier hs-var hs-var">createdAt</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679201283"><span class="annot"><span class="annottext">Text
+author :: Text
+author :: forall createdAt thumbprint causal commentId.
+HistoryComment createdAt thumbprint causal commentId -&gt; Text
+</span><a href="#local-6989586621679201283"><span class="hs-identifier hs-var hs-var">author</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679201285"><span class="annot"><span class="annottext">CausalHash
+causal :: CausalHash
+causal :: forall createdAt thumbprint causal commentId.
+HistoryComment createdAt thumbprint causal commentId -&gt; causal
+</span><a href="#local-6989586621679201285"><span class="hs-identifier hs-var hs-var">causal</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679201287"><span class="annot"><span class="annottext">KeyThumbprint
+authorThumbprint :: KeyThumbprint
+authorThumbprint :: forall createdAt thumbprint causal commentId.
+HistoryComment createdAt thumbprint causal commentId -&gt; thumbprint
+</span><a href="#local-6989586621679201287"><span class="hs-identifier hs-var hs-var">authorThumbprint</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="annottext">Context SHA3_512 -&gt; [ByteString] -&gt; Context SHA3_512
+forall a ba.
+(HashAlgorithm a, ByteArrayAccess ba) =&gt;
+Context a -&gt; [ba] -&gt; Context a
+</span><span class="hs-identifier hs-var">CH.hashUpdates</span></span><span>
+</span><span id="line-34"></span><span>      </span><span class="annot"><span class="annottext">Context SHA3_512
+forall a. HashAlgorithm a =&gt; Context a
+</span><span class="hs-identifier hs-var">CH.hashInit</span></span><span>
+</span><span id="line-35"></span><span>      </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679201291"><span class="hs-identifier hs-var">commentBytes</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-36"></span><span>      </span><span class="annot"><span class="annottext">Context SHA3_512
+-&gt; (Context SHA3_512 -&gt; Digest SHA3_512) -&gt; Digest SHA3_512
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall a. HashAlgorithm a =&gt; Context a -&gt; Digest a
+</span><span class="hs-identifier hs-var">CH.hashFinalize</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">CH.SHA3_512</span></span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><span class="annottext">Digest SHA3_512 -&gt; (Digest SHA3_512 -&gt; ByteString) -&gt; ByteString
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Digest SHA3_512 -&gt; ByteString
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">BA.convert</span></span><span>
+</span><span id="line-38"></span><span>      </span><span class="annot"><span class="annottext">ByteString -&gt; (ByteString -&gt; Hash) -&gt; Hash
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Hash
+</span><span class="hs-identifier hs-var">Hash.fromByteString</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>      </span><span class="hs-comment">-- First encode as CBOR to normalize the representation,</span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-comment">-- this ensures each value is unambiguously represented as a separate _field_, and that</span><span>
+</span><span id="line-42"></span><span>      </span><span class="hs-comment">-- we don't get the same hash for something like (title: &quot;ab&quot;, contents: &quot;c&quot;) and (title: &quot;a&quot;, contents &quot;bc&quot;)</span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-comment">-- when they get concatenated together for hashing.</span><span>
+</span><span id="line-44"></span><span>      </span><span class="hs-comment">-- CBOR has a canonical encoding, so this is deterministic, even across different architectures.</span><span>
+</span><span id="line-45"></span><span>      </span><span class="annot"><a href="#local-6989586621679201291"><span class="hs-identifier hs-type">commentBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-46"></span><span>      </span><span id="local-6989586621679201291"><span class="annot"><span class="annottext">commentBytes :: ByteString
+</span><a href="#local-6989586621679201291"><span class="hs-identifier hs-var hs-var">commentBytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-47"></span><span>        </span><span class="annot"><span class="annottext">Encoding -&gt; ByteString
+</span><span class="hs-identifier hs-var">CBOR.Write.toStrictByteString</span></span><span> </span><span class="annot"><span class="annottext">(Encoding -&gt; ByteString) -&gt; Encoding -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-48"></span><span>          </span><span class="annot"><span class="annottext">Integer -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int32 -&gt; Integer
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int32
+</span><a href="Unison.Hashing.V2.HistoryComments.html#commentHashingVersion"><span class="hs-identifier hs-var">commentHashingVersion</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>            </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeBytes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Hash -&gt; ByteString
+</span><span class="hs-identifier hs-var">Hash.toByteString</span></span><span> </span><span class="annot"><span class="annottext">(Hash -&gt; ByteString) -&gt; Hash -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall target source. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">into</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="annot"><span class="annottext">CausalHash
+</span><a href="#local-6989586621679201285"><span class="hs-identifier hs-var">causal</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>            </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeString</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679201283"><span class="hs-identifier hs-var">author</span></a></span><span>
+</span><span id="line-51"></span><span>            </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">KeyThumbprint -&gt; Text
+</span><span class="hs-identifier hs-var">thumbprintToText</span></span><span> </span><span class="annot"><span class="annottext">KeyThumbprint
+</span><a href="#local-6989586621679201287"><span class="hs-identifier hs-var">authorThumbprint</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>            </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">POSIXTime -&gt; Integer
+forall b. Integral b =&gt; POSIXTime -&gt; b
+forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">floor</span></span><span> </span><span class="annot"><span class="annottext">(POSIXTime -&gt; Integer) -&gt; POSIXTime -&gt; Integer
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; POSIXTime
+</span><span class="hs-identifier hs-var">Time.utcTimeToPOSIXSeconds</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679201281"><span class="hs-identifier hs-var">createdAt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- Hash a comment revision</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679201225"><span class="annot"><span class="hs-identifier hs-type">ContentAddressable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HistoryCommentRevision</span></span><span> </span><span class="annot"><a href="#local-6989586621679201225"><span class="hs-identifier hs-type">any</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HistoryCommentHash</span></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679201324"><span class="annot"><span class="annottext">contentHash :: HistoryCommentRevision any UTCTime HistoryCommentHash -&gt; Hash
+</span><span class="hs-identifier hs-var hs-var hs-var">contentHash</span></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HistoryCommentRevision</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679201326"><span class="annot"><span class="annottext">Text
+subject :: Text
+subject :: forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; Text
+</span><a href="#local-6989586621679201326"><span class="hs-identifier hs-var hs-var">subject</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679201328"><span class="annot"><span class="annottext">Text
+content :: Text
+content :: forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; Text
+</span><a href="#local-6989586621679201328"><span class="hs-identifier hs-var hs-var">content</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679201330"><span class="annot"><span class="annottext">UTCTime
+createdAt :: UTCTime
+createdAt :: forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; createdAt
+</span><a href="#local-6989586621679201330"><span class="hs-identifier hs-var hs-var">createdAt</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">comment :: forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; comment
+</span><span class="hs-identifier hs-var">comment</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679201333"><span class="annot"><span class="annottext">HistoryCommentHash
+</span><a href="#local-6989586621679201333"><span class="hs-identifier hs-var">commentHash</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679201334"><span class="annot"><span class="annottext">Bool
+isHidden :: Bool
+isHidden :: forall revisionId createdAt comment.
+HistoryCommentRevision revisionId createdAt comment -&gt; Bool
+</span><a href="#local-6989586621679201334"><span class="hs-identifier hs-var hs-var">isHidden</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><span class="annottext">Context SHA3_512 -&gt; [ByteString] -&gt; Context SHA3_512
+forall a ba.
+(HashAlgorithm a, ByteArrayAccess ba) =&gt;
+Context a -&gt; [ba] -&gt; Context a
+</span><span class="hs-identifier hs-var">CH.hashUpdates</span></span><span>
+</span><span id="line-58"></span><span>      </span><span class="annot"><span class="annottext">Context SHA3_512
+forall a. HashAlgorithm a =&gt; Context a
+</span><span class="hs-identifier hs-var">CH.hashInit</span></span><span>
+</span><span id="line-59"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679201336"><span class="hs-identifier hs-var">commentBytes</span></a></span><span>
+</span><span id="line-60"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-61"></span><span>      </span><span class="annot"><span class="annottext">Context SHA3_512
+-&gt; (Context SHA3_512 -&gt; Digest SHA3_512) -&gt; Digest SHA3_512
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">forall a. HashAlgorithm a =&gt; Context a -&gt; Digest a
+</span><span class="hs-identifier hs-var">CH.hashFinalize</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">CH.SHA3_512</span></span><span>
+</span><span id="line-62"></span><span>      </span><span class="annot"><span class="annottext">Digest SHA3_512 -&gt; (Digest SHA3_512 -&gt; ByteString) -&gt; ByteString
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Digest SHA3_512 -&gt; ByteString
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">BA.convert</span></span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><span class="annottext">ByteString -&gt; (ByteString -&gt; Hash) -&gt; Hash
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Hash
+</span><span class="hs-identifier hs-var">Hash.fromByteString</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>      </span><span class="hs-comment">-- First encode as CBOR to normalize the representation,</span><span>
+</span><span id="line-66"></span><span>      </span><span class="hs-comment">-- this ensures each value is unambiguously represented as a separate _field_, and that</span><span>
+</span><span id="line-67"></span><span>      </span><span class="hs-comment">-- we don't get the same hash for something like (title: &quot;ab&quot;, contents: &quot;c&quot;) and (title: &quot;a&quot;, contents &quot;bc&quot;)</span><span>
+</span><span id="line-68"></span><span>      </span><span class="hs-comment">-- when they get concatenated together for hashing.</span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-comment">-- CBOR has a canonical encoding, so this is deterministic, even across different architectures.</span><span>
+</span><span id="line-70"></span><span>      </span><span class="annot"><a href="#local-6989586621679201336"><span class="hs-identifier hs-type">commentBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-71"></span><span>      </span><span id="local-6989586621679201336"><span class="annot"><span class="annottext">commentBytes :: ByteString
+</span><a href="#local-6989586621679201336"><span class="hs-identifier hs-var hs-var">commentBytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-72"></span><span>        </span><span class="annot"><span class="annottext">Encoding -&gt; ByteString
+</span><span class="hs-identifier hs-var">CBOR.Write.toStrictByteString</span></span><span> </span><span class="annot"><span class="annottext">(Encoding -&gt; ByteString) -&gt; Encoding -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-73"></span><span>          </span><span class="annot"><span class="annottext">Integer -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int32 -&gt; Integer
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int32
+</span><a href="Unison.Hashing.V2.HistoryComments.html#revisionHashingVersion"><span class="hs-identifier hs-var">revisionHashingVersion</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>            </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeBytes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Hash -&gt; ByteString
+</span><span class="hs-identifier hs-var">Hash.toByteString</span></span><span> </span><span class="annot"><span class="annottext">(Hash -&gt; ByteString) -&gt; Hash -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall target source. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">into</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span> </span><span class="annot"><span class="annottext">HistoryCommentHash
+</span><a href="#local-6989586621679201333"><span class="hs-identifier hs-var">commentHash</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>            </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeString</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679201326"><span class="hs-identifier hs-var">subject</span></a></span><span>
+</span><span id="line-76"></span><span>            </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeString</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679201328"><span class="hs-identifier hs-var">content</span></a></span><span>
+</span><span id="line-77"></span><span>            </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeBool</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679201334"><span class="hs-identifier hs-var">isHidden</span></a></span><span>
+</span><span id="line-78"></span><span>            </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Encoding
+</span><span class="hs-identifier hs-var">CBOR.encodeInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">POSIXTime -&gt; Integer
+forall b. Integral b =&gt; POSIXTime -&gt; b
+forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">floor</span></span><span> </span><span class="annot"><span class="annottext">(POSIXTime -&gt; Integer) -&gt; POSIXTime -&gt; Integer
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; POSIXTime
+</span><span class="hs-identifier hs-var">Time.utcTimeToPOSIXSeconds</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679201330"><span class="hs-identifier hs-var">createdAt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span id="local-6989586621679201238"><span class="annot"><a href="Unison.Hashing.V2.HistoryComments.html#hashHistoryComment"><span class="hs-identifier hs-type">hashHistoryComment</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">HistoryComment</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">KeyThumbprint</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CausalHash</span></span><span> </span><span class="annot"><a href="#local-6989586621679201238"><span class="hs-identifier hs-type">any</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">HistoryComment</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">KeyThumbprint</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CausalHash</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HistoryCommentHash</span></span></span><span>
+</span><span id="line-83"></span><span id="hashHistoryComment"><span class="annot"><span class="annottext">hashHistoryComment :: forall any.
+HistoryComment UTCTime KeyThumbprint CausalHash any
+-&gt; HistoryComment
+     UTCTime KeyThumbprint CausalHash HistoryCommentHash
+</span><a href="Unison.Hashing.V2.HistoryComments.html#hashHistoryComment"><span class="hs-identifier hs-var hs-var">hashHistoryComment</span></a></span></span><span> </span><span id="local-6989586621679201338"><span class="annot"><span class="annottext">HistoryComment UTCTime KeyThumbprint CausalHash any
+</span><a href="#local-6989586621679201338"><span class="hs-identifier hs-var">historyComment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679201340"><span class="annot"><span class="annottext">commentHash :: HistoryCommentHash
+</span><a href="#local-6989586621679201340"><span class="hs-identifier hs-var hs-var">commentHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash -&gt; HistoryCommentHash
+</span><span class="hs-identifier hs-var">HistoryCommentHash</span></span><span> </span><span class="annot"><span class="annottext">(Hash -&gt; HistoryCommentHash) -&gt; Hash -&gt; HistoryCommentHash
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">HistoryComment UTCTime KeyThumbprint CausalHash any -&gt; Hash
+forall a. ContentAddressable a =&gt; a -&gt; Hash
+</span><span class="hs-identifier hs-var">contentHash</span></span><span> </span><span class="annot"><span class="annottext">HistoryComment UTCTime KeyThumbprint CausalHash any
+</span><a href="#local-6989586621679201338"><span class="hs-identifier hs-var">historyComment</span></a></span><span>
+</span><span id="line-85"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">HistoryComment UTCTime KeyThumbprint CausalHash any
+</span><a href="#local-6989586621679201338"><span class="hs-identifier hs-var">historyComment</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="hs-identifier hs-var">commentId</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679201340"><span class="hs-identifier hs-type">commentHash</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span id="local-6989586621679201240"><span class="annot"><a href="Unison.Hashing.V2.HistoryComments.html#hashHistoryCommentRevision"><span class="hs-identifier hs-type">hashHistoryCommentRevision</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-88"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">HistoryCommentRevision</span></span><span> </span><span class="annot"><a href="#local-6989586621679201240"><span class="hs-identifier hs-type">any</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HistoryCommentHash</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-89"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">HistoryCommentRevision</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HistoryCommentRevisionHash</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HistoryCommentHash</span></span></span><span>
+</span><span id="line-90"></span><span id="hashHistoryCommentRevision"><span class="annot"><span class="annottext">hashHistoryCommentRevision :: forall any.
+HistoryCommentRevision any UTCTime HistoryCommentHash
+-&gt; HistoryCommentRevision
+     HistoryCommentRevisionHash UTCTime HistoryCommentHash
+</span><a href="Unison.Hashing.V2.HistoryComments.html#hashHistoryCommentRevision"><span class="hs-identifier hs-var hs-var">hashHistoryCommentRevision</span></a></span></span><span> </span><span id="local-6989586621679201343"><span class="annot"><span class="annottext">HistoryCommentRevision any UTCTime HistoryCommentHash
+</span><a href="#local-6989586621679201343"><span class="hs-identifier hs-var">historyCommentRevision</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679201345"><span class="annot"><span class="annottext">commentRevisionHash :: HistoryCommentRevisionHash
+</span><a href="#local-6989586621679201345"><span class="hs-identifier hs-var hs-var">commentRevisionHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash -&gt; HistoryCommentRevisionHash
+</span><span class="hs-identifier hs-var">HistoryCommentRevisionHash</span></span><span> </span><span class="annot"><span class="annottext">(Hash -&gt; HistoryCommentRevisionHash)
+-&gt; Hash -&gt; HistoryCommentRevisionHash
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">HistoryCommentRevision any UTCTime HistoryCommentHash -&gt; Hash
+forall a. ContentAddressable a =&gt; a -&gt; Hash
+</span><span class="hs-identifier hs-var">contentHash</span></span><span> </span><span class="annot"><span class="annottext">HistoryCommentRevision any UTCTime HistoryCommentHash
+</span><a href="#local-6989586621679201343"><span class="hs-identifier hs-var">historyCommentRevision</span></a></span><span>
+</span><span id="line-92"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">HistoryCommentRevision any UTCTime HistoryCommentHash
+</span><a href="#local-6989586621679201343"><span class="hs-identifier hs-var">historyCommentRevision</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="hs-identifier hs-var">revisionId</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679201345"><span class="hs-identifier hs-type">commentRevisionHash</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-93"></span></pre></body></html>

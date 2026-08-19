@@ -1,0 +1,716 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DerivingStrategies #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html"><span class="hs-identifier">GHC.Exts.Stack.Constants</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LINE 7 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">newtype</span><span> </span><span id="ByteOffset"><span class="annot"><a href="GHC.Exts.Stack.Constants.html#ByteOffset"><span class="hs-identifier hs-var">ByteOffset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ByteOffset"><span class="annot"><a href="GHC.Exts.Stack.Constants.html#ByteOffset"><span class="hs-identifier hs-var">ByteOffset</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="offsetInBytes"><span class="annot"><span class="annottext">ByteOffset -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#offsetInBytes"><span class="hs-identifier hs-var hs-var">offsetInBytes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679104937"><span id="local-6989586621679104941"><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; Bool
+(ByteOffset -&gt; ByteOffset -&gt; Bool)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; Bool) -&gt; Eq ByteOffset
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ByteOffset -&gt; ByteOffset -&gt; Bool
+== :: ByteOffset -&gt; ByteOffset -&gt; Bool
+$c/= :: ByteOffset -&gt; ByteOffset -&gt; Bool
+/= :: ByteOffset -&gt; ByteOffset -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679104948"><span id="local-6989586621679104953"><span id="local-6989586621679104957"><span class="annot"><span class="annottext">Int -&gt; ByteOffset -&gt; ShowS
+[ByteOffset] -&gt; ShowS
+ByteOffset -&gt; String
+(Int -&gt; ByteOffset -&gt; ShowS)
+-&gt; (ByteOffset -&gt; String)
+-&gt; ([ByteOffset] -&gt; ShowS)
+-&gt; Show ByteOffset
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ByteOffset -&gt; ShowS
+showsPrec :: Int -&gt; ByteOffset -&gt; ShowS
+$cshow :: ByteOffset -&gt; String
+show :: ByteOffset -&gt; String
+$cshowList :: [ByteOffset] -&gt; ShowS
+showList :: [ByteOffset] -&gt; ShowS
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679104972"><span id="local-6989586621679104976"><span id="local-6989586621679104980"><span id="local-6989586621679104984"><span id="local-6989586621679104988"><span id="local-6989586621679104992"><span id="local-6989586621679104996"><span class="annot"><span class="annottext">Enum ByteOffset
+Real ByteOffset
+(Real ByteOffset, Enum ByteOffset) =&gt;
+(ByteOffset -&gt; ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; (ByteOffset, ByteOffset))
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; (ByteOffset, ByteOffset))
+-&gt; (ByteOffset -&gt; Integer)
+-&gt; Integral ByteOffset
+ByteOffset -&gt; Integer
+ByteOffset -&gt; ByteOffset -&gt; (ByteOffset, ByteOffset)
+ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a.
+(Real a, Enum a) =&gt;
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; Integer)
+-&gt; Integral a
+$cquot :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+quot :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+$crem :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+rem :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+$cdiv :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+div :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+$cmod :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+mod :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+$cquotRem :: ByteOffset -&gt; ByteOffset -&gt; (ByteOffset, ByteOffset)
+quotRem :: ByteOffset -&gt; ByteOffset -&gt; (ByteOffset, ByteOffset)
+$cdivMod :: ByteOffset -&gt; ByteOffset -&gt; (ByteOffset, ByteOffset)
+divMod :: ByteOffset -&gt; ByteOffset -&gt; (ByteOffset, ByteOffset)
+$ctoInteger :: ByteOffset -&gt; Integer
+toInteger :: ByteOffset -&gt; Integer
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#Integral"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Integral</span></a></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679105012"><span class="annot"><span class="annottext">Num ByteOffset
+Ord ByteOffset
+(Num ByteOffset, Ord ByteOffset) =&gt;
+(ByteOffset -&gt; Rational) -&gt; Real ByteOffset
+ByteOffset -&gt; Rational
+forall a. (Num a, Ord a) =&gt; (a -&gt; Rational) -&gt; Real a
+$ctoRational :: ByteOffset -&gt; Rational
+toRational :: ByteOffset -&gt; Rational
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#Real"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Real</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679105018"><span id="local-6989586621679105022"><span id="local-6989586621679105026"><span id="local-6989586621679105030"><span id="local-6989586621679105034"><span id="local-6989586621679105038"><span id="local-6989586621679105042"><span class="annot"><span class="annottext">Integer -&gt; ByteOffset
+ByteOffset -&gt; ByteOffset
+ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+(ByteOffset -&gt; ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset)
+-&gt; (Integer -&gt; ByteOffset)
+-&gt; Num ByteOffset
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+$c+ :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
++ :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+$c- :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+- :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+$c* :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+* :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+$cnegate :: ByteOffset -&gt; ByteOffset
+negate :: ByteOffset -&gt; ByteOffset
+$cabs :: ByteOffset -&gt; ByteOffset
+abs :: ByteOffset -&gt; ByteOffset
+$csignum :: ByteOffset -&gt; ByteOffset
+signum :: ByteOffset -&gt; ByteOffset
+$cfromInteger :: Integer -&gt; ByteOffset
+fromInteger :: Integer -&gt; ByteOffset
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#Num"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></a></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679105051"><span id="local-6989586621679105056"><span id="local-6989586621679105060"><span id="local-6989586621679105064"><span id="local-6989586621679105068"><span id="local-6989586621679105072"><span id="local-6989586621679105076"><span id="local-6989586621679105080"><span class="annot"><span class="annottext">Int -&gt; ByteOffset
+ByteOffset -&gt; Int
+ByteOffset -&gt; [ByteOffset]
+ByteOffset -&gt; ByteOffset
+ByteOffset -&gt; ByteOffset -&gt; [ByteOffset]
+ByteOffset -&gt; ByteOffset -&gt; ByteOffset -&gt; [ByteOffset]
+(ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset)
+-&gt; (Int -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; Int)
+-&gt; (ByteOffset -&gt; [ByteOffset])
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; [ByteOffset])
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; [ByteOffset])
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; ByteOffset -&gt; [ByteOffset])
+-&gt; Enum ByteOffset
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: ByteOffset -&gt; ByteOffset
+succ :: ByteOffset -&gt; ByteOffset
+$cpred :: ByteOffset -&gt; ByteOffset
+pred :: ByteOffset -&gt; ByteOffset
+$ctoEnum :: Int -&gt; ByteOffset
+toEnum :: Int -&gt; ByteOffset
+$cfromEnum :: ByteOffset -&gt; Int
+fromEnum :: ByteOffset -&gt; Int
+$cenumFrom :: ByteOffset -&gt; [ByteOffset]
+enumFrom :: ByteOffset -&gt; [ByteOffset]
+$cenumFromThen :: ByteOffset -&gt; ByteOffset -&gt; [ByteOffset]
+enumFromThen :: ByteOffset -&gt; ByteOffset -&gt; [ByteOffset]
+$cenumFromTo :: ByteOffset -&gt; ByteOffset -&gt; [ByteOffset]
+enumFromTo :: ByteOffset -&gt; ByteOffset -&gt; [ByteOffset]
+$cenumFromThenTo :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset -&gt; [ByteOffset]
+enumFromThenTo :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset -&gt; [ByteOffset]
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Enum.html#Enum"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679105091"><span id="local-6989586621679105096"><span id="local-6989586621679105100"><span id="local-6989586621679105104"><span id="local-6989586621679105108"><span id="local-6989586621679105112"><span id="local-6989586621679105116"><span class="annot"><span class="annottext">Eq ByteOffset
+Eq ByteOffset =&gt;
+(ByteOffset -&gt; ByteOffset -&gt; Ordering)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; Bool)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; Bool)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; Bool)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; Bool)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; ByteOffset)
+-&gt; (ByteOffset -&gt; ByteOffset -&gt; ByteOffset)
+-&gt; Ord ByteOffset
+ByteOffset -&gt; ByteOffset -&gt; Bool
+ByteOffset -&gt; ByteOffset -&gt; Ordering
+ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ByteOffset -&gt; ByteOffset -&gt; Ordering
+compare :: ByteOffset -&gt; ByteOffset -&gt; Ordering
+$c&lt; :: ByteOffset -&gt; ByteOffset -&gt; Bool
+&lt; :: ByteOffset -&gt; ByteOffset -&gt; Bool
+$c&lt;= :: ByteOffset -&gt; ByteOffset -&gt; Bool
+&lt;= :: ByteOffset -&gt; ByteOffset -&gt; Bool
+$c&gt; :: ByteOffset -&gt; ByteOffset -&gt; Bool
+&gt; :: ByteOffset -&gt; ByteOffset -&gt; Bool
+$c&gt;= :: ByteOffset -&gt; ByteOffset -&gt; Bool
+&gt;= :: ByteOffset -&gt; ByteOffset -&gt; Bool
+$cmax :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+max :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+$cmin :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+min :: ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">newtype</span><span> </span><span id="WordOffset"><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-var">WordOffset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="WordOffset"><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-var">WordOffset</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="offsetInWords"><span class="annot"><span class="annottext">WordOffset -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#offsetInWords"><span class="hs-identifier hs-var hs-var">offsetInWords</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679105129"><span id="local-6989586621679105133"><span class="annot"><span class="annottext">WordOffset -&gt; WordOffset -&gt; Bool
+(WordOffset -&gt; WordOffset -&gt; Bool)
+-&gt; (WordOffset -&gt; WordOffset -&gt; Bool) -&gt; Eq WordOffset
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: WordOffset -&gt; WordOffset -&gt; Bool
+== :: WordOffset -&gt; WordOffset -&gt; Bool
+$c/= :: WordOffset -&gt; WordOffset -&gt; Bool
+/= :: WordOffset -&gt; WordOffset -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679105138"><span id="local-6989586621679105142"><span id="local-6989586621679105146"><span class="annot"><span class="annottext">Int -&gt; WordOffset -&gt; ShowS
+[WordOffset] -&gt; ShowS
+WordOffset -&gt; String
+(Int -&gt; WordOffset -&gt; ShowS)
+-&gt; (WordOffset -&gt; String)
+-&gt; ([WordOffset] -&gt; ShowS)
+-&gt; Show WordOffset
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; WordOffset -&gt; ShowS
+showsPrec :: Int -&gt; WordOffset -&gt; ShowS
+$cshow :: WordOffset -&gt; String
+show :: WordOffset -&gt; String
+$cshowList :: [WordOffset] -&gt; ShowS
+showList :: [WordOffset] -&gt; ShowS
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679105157"><span id="local-6989586621679105161"><span id="local-6989586621679105165"><span id="local-6989586621679105169"><span id="local-6989586621679105173"><span id="local-6989586621679105177"><span id="local-6989586621679105181"><span class="annot"><span class="annottext">Enum WordOffset
+Real WordOffset
+(Real WordOffset, Enum WordOffset) =&gt;
+(WordOffset -&gt; WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset -&gt; (WordOffset, WordOffset))
+-&gt; (WordOffset -&gt; WordOffset -&gt; (WordOffset, WordOffset))
+-&gt; (WordOffset -&gt; Integer)
+-&gt; Integral WordOffset
+WordOffset -&gt; Integer
+WordOffset -&gt; WordOffset -&gt; (WordOffset, WordOffset)
+WordOffset -&gt; WordOffset -&gt; WordOffset
+forall a.
+(Real a, Enum a) =&gt;
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; Integer)
+-&gt; Integral a
+$cquot :: WordOffset -&gt; WordOffset -&gt; WordOffset
+quot :: WordOffset -&gt; WordOffset -&gt; WordOffset
+$crem :: WordOffset -&gt; WordOffset -&gt; WordOffset
+rem :: WordOffset -&gt; WordOffset -&gt; WordOffset
+$cdiv :: WordOffset -&gt; WordOffset -&gt; WordOffset
+div :: WordOffset -&gt; WordOffset -&gt; WordOffset
+$cmod :: WordOffset -&gt; WordOffset -&gt; WordOffset
+mod :: WordOffset -&gt; WordOffset -&gt; WordOffset
+$cquotRem :: WordOffset -&gt; WordOffset -&gt; (WordOffset, WordOffset)
+quotRem :: WordOffset -&gt; WordOffset -&gt; (WordOffset, WordOffset)
+$cdivMod :: WordOffset -&gt; WordOffset -&gt; (WordOffset, WordOffset)
+divMod :: WordOffset -&gt; WordOffset -&gt; (WordOffset, WordOffset)
+$ctoInteger :: WordOffset -&gt; Integer
+toInteger :: WordOffset -&gt; Integer
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#Integral"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Integral</span></a></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679105192"><span class="annot"><span class="annottext">Num WordOffset
+Ord WordOffset
+(Num WordOffset, Ord WordOffset) =&gt;
+(WordOffset -&gt; Rational) -&gt; Real WordOffset
+WordOffset -&gt; Rational
+forall a. (Num a, Ord a) =&gt; (a -&gt; Rational) -&gt; Real a
+$ctoRational :: WordOffset -&gt; Rational
+toRational :: WordOffset -&gt; Rational
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#Real"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Real</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679105196"><span id="local-6989586621679105200"><span id="local-6989586621679105204"><span id="local-6989586621679105208"><span id="local-6989586621679105212"><span id="local-6989586621679105216"><span id="local-6989586621679105220"><span class="annot"><span class="annottext">Integer -&gt; WordOffset
+WordOffset -&gt; WordOffset
+WordOffset -&gt; WordOffset -&gt; WordOffset
+(WordOffset -&gt; WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset)
+-&gt; (Integer -&gt; WordOffset)
+-&gt; Num WordOffset
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+$c+ :: WordOffset -&gt; WordOffset -&gt; WordOffset
++ :: WordOffset -&gt; WordOffset -&gt; WordOffset
+$c- :: WordOffset -&gt; WordOffset -&gt; WordOffset
+- :: WordOffset -&gt; WordOffset -&gt; WordOffset
+$c* :: WordOffset -&gt; WordOffset -&gt; WordOffset
+* :: WordOffset -&gt; WordOffset -&gt; WordOffset
+$cnegate :: WordOffset -&gt; WordOffset
+negate :: WordOffset -&gt; WordOffset
+$cabs :: WordOffset -&gt; WordOffset
+abs :: WordOffset -&gt; WordOffset
+$csignum :: WordOffset -&gt; WordOffset
+signum :: WordOffset -&gt; WordOffset
+$cfromInteger :: Integer -&gt; WordOffset
+fromInteger :: Integer -&gt; WordOffset
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#Num"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></a></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679105224"><span id="local-6989586621679105228"><span id="local-6989586621679105232"><span id="local-6989586621679105236"><span id="local-6989586621679105240"><span id="local-6989586621679105244"><span id="local-6989586621679105248"><span id="local-6989586621679105252"><span class="annot"><span class="annottext">Int -&gt; WordOffset
+WordOffset -&gt; Int
+WordOffset -&gt; [WordOffset]
+WordOffset -&gt; WordOffset
+WordOffset -&gt; WordOffset -&gt; [WordOffset]
+WordOffset -&gt; WordOffset -&gt; WordOffset -&gt; [WordOffset]
+(WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset)
+-&gt; (Int -&gt; WordOffset)
+-&gt; (WordOffset -&gt; Int)
+-&gt; (WordOffset -&gt; [WordOffset])
+-&gt; (WordOffset -&gt; WordOffset -&gt; [WordOffset])
+-&gt; (WordOffset -&gt; WordOffset -&gt; [WordOffset])
+-&gt; (WordOffset -&gt; WordOffset -&gt; WordOffset -&gt; [WordOffset])
+-&gt; Enum WordOffset
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: WordOffset -&gt; WordOffset
+succ :: WordOffset -&gt; WordOffset
+$cpred :: WordOffset -&gt; WordOffset
+pred :: WordOffset -&gt; WordOffset
+$ctoEnum :: Int -&gt; WordOffset
+toEnum :: Int -&gt; WordOffset
+$cfromEnum :: WordOffset -&gt; Int
+fromEnum :: WordOffset -&gt; Int
+$cenumFrom :: WordOffset -&gt; [WordOffset]
+enumFrom :: WordOffset -&gt; [WordOffset]
+$cenumFromThen :: WordOffset -&gt; WordOffset -&gt; [WordOffset]
+enumFromThen :: WordOffset -&gt; WordOffset -&gt; [WordOffset]
+$cenumFromTo :: WordOffset -&gt; WordOffset -&gt; [WordOffset]
+enumFromTo :: WordOffset -&gt; WordOffset -&gt; [WordOffset]
+$cenumFromThenTo :: WordOffset -&gt; WordOffset -&gt; WordOffset -&gt; [WordOffset]
+enumFromThenTo :: WordOffset -&gt; WordOffset -&gt; WordOffset -&gt; [WordOffset]
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Enum.html#Enum"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679105258"><span id="local-6989586621679105262"><span id="local-6989586621679105266"><span id="local-6989586621679105270"><span id="local-6989586621679105274"><span id="local-6989586621679105278"><span id="local-6989586621679105282"><span class="annot"><span class="annottext">Eq WordOffset
+Eq WordOffset =&gt;
+(WordOffset -&gt; WordOffset -&gt; Ordering)
+-&gt; (WordOffset -&gt; WordOffset -&gt; Bool)
+-&gt; (WordOffset -&gt; WordOffset -&gt; Bool)
+-&gt; (WordOffset -&gt; WordOffset -&gt; Bool)
+-&gt; (WordOffset -&gt; WordOffset -&gt; Bool)
+-&gt; (WordOffset -&gt; WordOffset -&gt; WordOffset)
+-&gt; (WordOffset -&gt; WordOffset -&gt; WordOffset)
+-&gt; Ord WordOffset
+WordOffset -&gt; WordOffset -&gt; Bool
+WordOffset -&gt; WordOffset -&gt; Ordering
+WordOffset -&gt; WordOffset -&gt; WordOffset
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: WordOffset -&gt; WordOffset -&gt; Ordering
+compare :: WordOffset -&gt; WordOffset -&gt; Ordering
+$c&lt; :: WordOffset -&gt; WordOffset -&gt; Bool
+&lt; :: WordOffset -&gt; WordOffset -&gt; Bool
+$c&lt;= :: WordOffset -&gt; WordOffset -&gt; Bool
+&lt;= :: WordOffset -&gt; WordOffset -&gt; Bool
+$c&gt; :: WordOffset -&gt; WordOffset -&gt; Bool
+&gt; :: WordOffset -&gt; WordOffset -&gt; Bool
+$c&gt;= :: WordOffset -&gt; WordOffset -&gt; Bool
+&gt;= :: WordOffset -&gt; WordOffset -&gt; Bool
+$cmax :: WordOffset -&gt; WordOffset -&gt; WordOffset
+max :: WordOffset -&gt; WordOffset -&gt; WordOffset
+$cmin :: WordOffset -&gt; WordOffset -&gt; WordOffset
+min :: WordOffset -&gt; WordOffset -&gt; WordOffset
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchFrameHandler"><span class="hs-identifier hs-type">offsetStgCatchFrameHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-23"></span><span id="offsetStgCatchFrameHandler"><span class="annot"><span class="annottext">offsetStgCatchFrameHandler :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchFrameHandler"><span class="hs-identifier hs-var hs-var">offsetStgCatchFrameHandler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteOffset -&gt; WordOffset) -&gt; ByteOffset -&gt; WordOffset
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-pragma">{-# LINE 25 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#sizeStgCatchFrame"><span class="hs-identifier hs-type">sizeStgCatchFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-27"></span><span id="sizeStgCatchFrame"><span class="annot"><span class="annottext">sizeStgCatchFrame :: Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgCatchFrame"><span class="hs-identifier hs-var hs-var">sizeStgCatchFrame</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesToWords"><span class="hs-identifier hs-var">bytesToWords</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-pragma">{-# LINE 29 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchSTMFrameCode"><span class="hs-identifier hs-type">offsetStgCatchSTMFrameCode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-31"></span><span id="offsetStgCatchSTMFrameCode"><span class="annot"><span class="annottext">offsetStgCatchSTMFrameCode :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchSTMFrameCode"><span class="hs-identifier hs-var hs-var">offsetStgCatchSTMFrameCode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteOffset -&gt; WordOffset) -&gt; ByteOffset -&gt; WordOffset
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-pragma">{-# LINE 33 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchSTMFrameHandler"><span class="hs-identifier hs-type">offsetStgCatchSTMFrameHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-35"></span><span id="offsetStgCatchSTMFrameHandler"><span class="annot"><span class="annottext">offsetStgCatchSTMFrameHandler :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchSTMFrameHandler"><span class="hs-identifier hs-var hs-var">offsetStgCatchSTMFrameHandler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteOffset -&gt; WordOffset) -&gt; ByteOffset -&gt; WordOffset
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-pragma">{-# LINE 37 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#sizeStgCatchSTMFrame"><span class="hs-identifier hs-type">sizeStgCatchSTMFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-39"></span><span id="sizeStgCatchSTMFrame"><span class="annot"><span class="annottext">sizeStgCatchSTMFrame :: Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgCatchSTMFrame"><span class="hs-identifier hs-var hs-var">sizeStgCatchSTMFrame</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesToWords"><span class="hs-identifier hs-var">bytesToWords</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-pragma">{-# LINE 41 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgUpdateFrameUpdatee"><span class="hs-identifier hs-type">offsetStgUpdateFrameUpdatee</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-43"></span><span id="offsetStgUpdateFrameUpdatee"><span class="annot"><span class="annottext">offsetStgUpdateFrameUpdatee :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgUpdateFrameUpdatee"><span class="hs-identifier hs-var hs-var">offsetStgUpdateFrameUpdatee</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteOffset -&gt; WordOffset) -&gt; ByteOffset -&gt; WordOffset
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span class="hs-pragma">{-# LINE 45 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#sizeStgUpdateFrame"><span class="hs-identifier hs-type">sizeStgUpdateFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-47"></span><span id="sizeStgUpdateFrame"><span class="annot"><span class="annottext">sizeStgUpdateFrame :: Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgUpdateFrame"><span class="hs-identifier hs-var hs-var">sizeStgUpdateFrame</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesToWords"><span class="hs-identifier hs-var">bytesToWords</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span class="hs-pragma">{-# LINE 49 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgAtomicallyFrameCode"><span class="hs-identifier hs-type">offsetStgAtomicallyFrameCode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-51"></span><span id="offsetStgAtomicallyFrameCode"><span class="annot"><span class="annottext">offsetStgAtomicallyFrameCode :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgAtomicallyFrameCode"><span class="hs-identifier hs-var hs-var">offsetStgAtomicallyFrameCode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteOffset -&gt; WordOffset) -&gt; ByteOffset -&gt; WordOffset
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span class="hs-pragma">{-# LINE 53 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgAtomicallyFrameResult"><span class="hs-identifier hs-type">offsetStgAtomicallyFrameResult</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-55"></span><span id="offsetStgAtomicallyFrameResult"><span class="annot"><span class="annottext">offsetStgAtomicallyFrameResult :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgAtomicallyFrameResult"><span class="hs-identifier hs-var hs-var">offsetStgAtomicallyFrameResult</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteOffset -&gt; WordOffset) -&gt; ByteOffset -&gt; WordOffset
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span class="hs-pragma">{-# LINE 57 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#sizeStgAtomicallyFrame"><span class="hs-identifier hs-type">sizeStgAtomicallyFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-59"></span><span id="sizeStgAtomicallyFrame"><span class="annot"><span class="annottext">sizeStgAtomicallyFrame :: Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgAtomicallyFrame"><span class="hs-identifier hs-var hs-var">sizeStgAtomicallyFrame</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesToWords"><span class="hs-identifier hs-var">bytesToWords</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span class="hs-pragma">{-# LINE 61 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchRetryFrameRunningAltCode"><span class="hs-identifier hs-type">offsetStgCatchRetryFrameRunningAltCode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-63"></span><span id="offsetStgCatchRetryFrameRunningAltCode"><span class="annot"><span class="annottext">offsetStgCatchRetryFrameRunningAltCode :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchRetryFrameRunningAltCode"><span class="hs-identifier hs-var hs-var">offsetStgCatchRetryFrameRunningAltCode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteOffset -&gt; WordOffset) -&gt; ByteOffset -&gt; WordOffset
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span class="hs-pragma">{-# LINE 65 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchRetryFrameRunningFirstCode"><span class="hs-identifier hs-type">offsetStgCatchRetryFrameRunningFirstCode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-67"></span><span id="offsetStgCatchRetryFrameRunningFirstCode"><span class="annot"><span class="annottext">offsetStgCatchRetryFrameRunningFirstCode :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchRetryFrameRunningFirstCode"><span class="hs-identifier hs-var hs-var">offsetStgCatchRetryFrameRunningFirstCode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteOffset -&gt; WordOffset) -&gt; ByteOffset -&gt; WordOffset
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span class="hs-pragma">{-# LINE 69 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchRetryFrameAltCode"><span class="hs-identifier hs-type">offsetStgCatchRetryFrameAltCode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-71"></span><span id="offsetStgCatchRetryFrameAltCode"><span class="annot"><span class="annottext">offsetStgCatchRetryFrameAltCode :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgCatchRetryFrameAltCode"><span class="hs-identifier hs-var hs-var">offsetStgCatchRetryFrameAltCode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteOffset -&gt; WordOffset) -&gt; ByteOffset -&gt; WordOffset
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span class="hs-pragma">{-# LINE 73 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#sizeStgCatchRetryFrame"><span class="hs-identifier hs-type">sizeStgCatchRetryFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-75"></span><span id="sizeStgCatchRetryFrame"><span class="annot"><span class="annottext">sizeStgCatchRetryFrame :: Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgCatchRetryFrame"><span class="hs-identifier hs-var hs-var">sizeStgCatchRetryFrame</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesToWords"><span class="hs-identifier hs-var">bytesToWords</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span class="hs-pragma">{-# LINE 77 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgRetFunFrameSize"><span class="hs-identifier hs-type">offsetStgRetFunFrameSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- StgRetFun has no header, but only a pointer to the info table at the beginning.</span><span>
+</span><span id="line-80"></span><span id="offsetStgRetFunFrameSize"><span class="annot"><span class="annottext">offsetStgRetFunFrameSize :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgRetFunFrameSize"><span class="hs-identifier hs-var hs-var">offsetStgRetFunFrameSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span class="hs-pragma">{-# LINE 81 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgRetFunFrameFun"><span class="hs-identifier hs-type">offsetStgRetFunFrameFun</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-83"></span><span id="offsetStgRetFunFrameFun"><span class="annot"><span class="annottext">offsetStgRetFunFrameFun :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgRetFunFrameFun"><span class="hs-identifier hs-var hs-var">offsetStgRetFunFrameFun</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span class="hs-pragma">{-# LINE 84 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgRetFunFramePayload"><span class="hs-identifier hs-type">offsetStgRetFunFramePayload</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-86"></span><span id="offsetStgRetFunFramePayload"><span class="annot"><span class="annottext">offsetStgRetFunFramePayload :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgRetFunFramePayload"><span class="hs-identifier hs-var hs-var">offsetStgRetFunFramePayload</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">24</span></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span class="hs-pragma">{-# LINE 87 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#sizeStgRetFunFrame"><span class="hs-identifier hs-type">sizeStgRetFunFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-89"></span><span id="sizeStgRetFunFrame"><span class="annot"><span class="annottext">sizeStgRetFunFrame :: Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgRetFunFrame"><span class="hs-identifier hs-var hs-var">sizeStgRetFunFrame</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesToWords"><span class="hs-identifier hs-var">bytesToWords</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span class="hs-pragma">{-# LINE 90 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgBCOFrameInstrs"><span class="hs-identifier hs-type">offsetStgBCOFrameInstrs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#ByteOffset"><span class="hs-identifier hs-type">ByteOffset</span></a></span><span>
+</span><span id="line-92"></span><span id="offsetStgBCOFrameInstrs"><span class="annot"><span class="annottext">offsetStgBCOFrameInstrs :: ByteOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgBCOFrameInstrs"><span class="hs-identifier hs-var hs-var">offsetStgBCOFrameInstrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span class="hs-pragma">{-# LINE 93 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgBCOFrameLiterals"><span class="hs-identifier hs-type">offsetStgBCOFrameLiterals</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#ByteOffset"><span class="hs-identifier hs-type">ByteOffset</span></a></span><span>
+</span><span id="line-95"></span><span id="offsetStgBCOFrameLiterals"><span class="annot"><span class="annottext">offsetStgBCOFrameLiterals :: ByteOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgBCOFrameLiterals"><span class="hs-identifier hs-var hs-var">offsetStgBCOFrameLiterals</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span class="hs-pragma">{-# LINE 96 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgBCOFramePtrs"><span class="hs-identifier hs-type">offsetStgBCOFramePtrs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#ByteOffset"><span class="hs-identifier hs-type">ByteOffset</span></a></span><span>
+</span><span id="line-98"></span><span id="offsetStgBCOFramePtrs"><span class="annot"><span class="annottext">offsetStgBCOFramePtrs :: ByteOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgBCOFramePtrs"><span class="hs-identifier hs-var hs-var">offsetStgBCOFramePtrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span class="hs-pragma">{-# LINE 99 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgBCOFrameArity"><span class="hs-identifier hs-type">offsetStgBCOFrameArity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#ByteOffset"><span class="hs-identifier hs-type">ByteOffset</span></a></span><span>
+</span><span id="line-101"></span><span id="offsetStgBCOFrameArity"><span class="annot"><span class="annottext">offsetStgBCOFrameArity :: ByteOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgBCOFrameArity"><span class="hs-identifier hs-var hs-var">offsetStgBCOFrameArity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">24</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span class="hs-pragma">{-# LINE 102 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgBCOFrameSize"><span class="hs-identifier hs-type">offsetStgBCOFrameSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#ByteOffset"><span class="hs-identifier hs-type">ByteOffset</span></a></span><span>
+</span><span id="line-104"></span><span id="offsetStgBCOFrameSize"><span class="annot"><span class="annottext">offsetStgBCOFrameSize :: ByteOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgBCOFrameSize"><span class="hs-identifier hs-var hs-var">offsetStgBCOFrameSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">28</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span class="hs-pragma">{-# LINE 105 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#offsetStgClosurePayload"><span class="hs-identifier hs-type">offsetStgClosurePayload</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-107"></span><span id="offsetStgClosurePayload"><span class="annot"><span class="annottext">offsetStgClosurePayload :: WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#offsetStgClosurePayload"><span class="hs-identifier hs-var hs-var">offsetStgClosurePayload</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var">byteOffsetToWordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteOffset -&gt; WordOffset) -&gt; ByteOffset -&gt; WordOffset
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; ByteOffset -&gt; ByteOffset
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span class="hs-pragma">{-# LINE 109 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#sizeStgClosure"><span class="hs-identifier hs-type">sizeStgClosure</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-111"></span><span id="sizeStgClosure"><span class="annot"><span class="annottext">sizeStgClosure :: Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgClosure"><span class="hs-identifier hs-var hs-var">sizeStgClosure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesToWords"><span class="hs-identifier hs-var">bytesToWords</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span class="hs-pragma">{-# LINE 112 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-type">byteOffsetToWordOffset</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#ByteOffset"><span class="hs-identifier hs-type">ByteOffset</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-type">WordOffset</span></a></span><span>
+</span><span id="line-114"></span><span id="byteOffsetToWordOffset"><span class="annot"><span class="annottext">byteOffsetToWordOffset :: ByteOffset -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#byteOffsetToWordOffset"><span class="hs-identifier hs-var hs-var">byteOffsetToWordOffset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; WordOffset
+</span><a href="GHC.Exts.Stack.Constants.html#WordOffset"><span class="hs-identifier hs-var">WordOffset</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; WordOffset)
+-&gt; (ByteOffset -&gt; Int) -&gt; ByteOffset -&gt; WordOffset
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesToWords"><span class="hs-identifier hs-var">bytesToWords</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; (ByteOffset -&gt; Int) -&gt; ByteOffset -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a. Num a =&gt; Integer -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#fromInteger"><span class="hs-identifier hs-var">fromInteger</span></a></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Int) -&gt; (ByteOffset -&gt; Integer) -&gt; ByteOffset -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">ByteOffset -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#toInteger"><span class="hs-identifier hs-var">toInteger</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#bytesToWords"><span class="hs-identifier hs-type">bytesToWords</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-117"></span><span id="bytesToWords"><span class="annot"><span class="annottext">bytesToWords :: Int -&gt; Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesToWords"><span class="hs-identifier hs-var hs-var">bytesToWords</span></a></span></span><span> </span><span id="local-6989586621679105313"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105313"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105313"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#mod"><span class="hs-operator hs-var">`mod`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesInWord"><span class="hs-identifier hs-var">bytesInWord</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span>
+</span><span id="line-119"></span><span>      </span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#fromIntegral"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679105313"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#div"><span class="hs-operator hs-var">`div`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesInWord"><span class="hs-identifier hs-var">bytesInWord</span></a></span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-keyword">else</span><span>
+</span><span id="line-121"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Err.html#error"><span class="hs-identifier hs-var">error</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unexpected struct alignment!&quot;</span></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="annot"><a href="GHC.Exts.Stack.Constants.html#bytesInWord"><span class="hs-identifier hs-type">bytesInWord</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-124"></span><span id="bytesInWord"><span class="annot"><span class="annottext">bytesInWord :: Int
+</span><a href="GHC.Exts.Stack.Constants.html#bytesInWord"><span class="hs-identifier hs-var hs-var">bytesInWord</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span class="hs-pragma">{-# LINE 125 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="hs-pragma">{-# LINE 127 &quot;libraries/ghc-heap/GHC/Exts/Stack/Constants.hsc&quot; #-}</span><span>
+</span><span id="line-127"></span></pre></body></html>

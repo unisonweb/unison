@@ -1,0 +1,29 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Codec.Compression.Zstd.Base.Types</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Copyright   : (c) 2016-present, Facebook, Inc. All rights reserved.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License     : BSD3</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer  : bryano@fb.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Portability : GHC</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Mid-level bindings to the native zstd compression library.  These</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- bindings provide a little more safety and ease of use than the</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- lowest-level FFI bindings.  Unless you have highly specialized</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- needs, you should use the streaming API instead.</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html"><span class="hs-identifier">Codec.Compression.Zstd.Base.Types</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-17"></span><span>      </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#CDict"><span class="hs-identifier">CDict</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#DDict"><span class="hs-identifier">DDict</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.ForeignPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ForeignPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.FFI.Types.html"><span class="hs-identifier">Codec.Compression.Zstd.FFI.Types</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">FFI</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><span class="hs-comment">-- | A pre-digested compression dictionary.</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">newtype</span><span> </span><span id="CDict"><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#CDict"><span class="hs-identifier hs-var">CDict</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CD"><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#CD"><span class="hs-identifier hs-var">CD</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ForeignPtr</span></span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.FFI.Types.html#CDict"><span class="hs-identifier hs-type">FFI.CDict</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="annot"><span class="hs-comment">-- | A pre-digested decompression dictionary.</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">newtype</span><span> </span><span id="DDict"><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#DDict"><span class="hs-identifier hs-var">DDict</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DD"><span class="annot"><a href="Codec.Compression.Zstd.Base.Types.html#DD"><span class="hs-identifier hs-var">DD</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ForeignPtr</span></span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.FFI.Types.html#DDict"><span class="hs-identifier hs-type">FFI.DDict</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span></pre></body></html>

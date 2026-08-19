@@ -1,0 +1,50 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Module      :  GHC.Internal.TypeLits.Internal</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, 1994-2000</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Portability :  non-portable (GHC extensions)</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- __Do not use this module.__  Use &quot;GHC.TypeLits&quot; instead.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- This module is internal-only and was exposed by accident.  It may be</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- removed without warning in a future version.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- /The API of this module is unstable and is tightly coupled to GHC's internals./</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- If depend on it, make sure to use a tight upper bound, e.g., @base &lt; 4.X@ rather</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- than @base &lt; 5@, because the interface can change rapidly without much warning.</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- The technical reason for this module's existence is that it is needed</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- to prevent module cycles while still allowing these identifiers to be</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- imported in &quot;Data.Type.Ord&quot;.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- @since base-4.16.0.0</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.TypeLits.Internal.html"><span class="hs-identifier">GHC.Internal.TypeLits.Internal</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Symbol"><span class="hs-identifier">Symbol</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.TypeLits.Internal.html#CmpSymbol"><span class="hs-identifier">CmpSymbol</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.TypeLits.Internal.html#CmpChar"><span class="hs-identifier">CmpChar</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Ordering"><span class="hs-identifier">Ordering</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html"><span class="hs-identifier">GHC.Types</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Symbol"><span class="hs-identifier">Symbol</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Char"><span class="hs-identifier">Char</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- | Comparison of type-level symbols, as a function.</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- @since base-4.7.0.0</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><span id="CmpSymbol"><span class="annot"><a href="GHC.Internal.TypeLits.Internal.html#CmpSymbol"><span class="hs-identifier hs-var">CmpSymbol</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679601094"><span class="annot"><a href="#local-6989586621679601094"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Symbol"><span class="hs-identifier hs-type">Symbol</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679601095"><span class="annot"><a href="#local-6989586621679601095"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Symbol"><span class="hs-identifier hs-type">Symbol</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Ordering"><span class="hs-identifier hs-type">Ordering</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- Char-related type families</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- | Comparison of type-level characters.</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- @since base-4.16.0.0</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><span id="CmpChar"><span class="annot"><a href="GHC.Internal.TypeLits.Internal.html#CmpChar"><span class="hs-identifier hs-var">CmpChar</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679601096"><span class="annot"><a href="#local-6989586621679601096"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679601097"><span class="annot"><a href="#local-6989586621679601097"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Ordering"><span class="hs-identifier hs-type">Ordering</span></a></span><span>
+</span><span id="line-50"></span></pre></body></html>

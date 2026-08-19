@@ -1,0 +1,207 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Driver.Errors.html"><span class="hs-identifier">GHC.Driver.Errors</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="GHC.Driver.Errors.html#printOrThrowDiagnostics"><span class="hs-identifier">printOrThrowDiagnostics</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Driver.Errors.html#printMessages"><span class="hs-identifier">printMessages</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Driver.Errors.html#mkDriverPsHeaderMessage"><span class="hs-identifier">mkDriverPsHeaderMessage</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Errors.Types.html"><span class="hs-identifier">GHC.Driver.Errors.Types</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SourceError.html"><span class="hs-identifier">GHC.Types.SourceError</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Error.html"><span class="hs-identifier">GHC.Types.Error</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Error.html"><span class="hs-identifier">GHC.Utils.Error</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#hang"><span class="hs-identifier">hang</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier">ppr</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator">($$)</span></a></span><span class="hs-special">,</span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier">text</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#mkErrStyle"><span class="hs-identifier">mkErrStyle</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#sdocStyle"><span class="hs-identifier">sdocStyle</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#updSDocContext"><span class="hs-identifier">updSDocContext</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html"><span class="hs-identifier">GHC.Utils.Logger</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="annot"><a href="GHC.Driver.Errors.html#printMessages"><span class="hs-identifier hs-type">printMessages</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621682736463"><span class="annot"><a href="#local-6989586621682736463"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="GHC.Types.Error.html#Diagnostic"><span class="hs-identifier hs-type">Diagnostic</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682736463"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Error.html#DiagnosticOpts"><span class="hs-identifier hs-type">DiagnosticOpts</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682736463"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Error.html#DiagOpts"><span class="hs-identifier hs-type">DiagOpts</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Error.html#Messages"><span class="hs-identifier hs-type">Messages</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682736463"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span id="printMessages"><span class="annot"><span class="annottext">printMessages :: forall a.
+Diagnostic a =&gt;
+Logger -&gt; DiagnosticOpts a -&gt; DiagOpts -&gt; Messages a -&gt; IO ()
+</span><a href="GHC.Driver.Errors.html#printMessages"><span class="hs-identifier hs-var hs-var">printMessages</span></a></span></span><span> </span><span id="local-6989586621682736547"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682736547"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682736548"><span class="annot"><span class="annottext">DiagnosticOpts a
+</span><a href="#local-6989586621682736548"><span class="hs-identifier hs-var">msg_opts</span></a></span></span><span> </span><span id="local-6989586621682736549"><span class="annot"><span class="annottext">DiagOpts
+</span><a href="#local-6989586621682736549"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621682736550"><span class="annot"><span class="annottext">Messages a
+</span><a href="#local-6989586621682736550"><span class="hs-identifier hs-var">msgs</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[IO ()] -&gt; IO ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a.
+(Foldable t, Monad m) =&gt;
+t (m a) -&gt; m ()
+</span><span class="hs-identifier hs-var">sequence_</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682736552"><span class="annot"><span class="annottext">style :: PprStyle
+</span><a href="#local-6989586621682736552"><span class="hs-identifier hs-var hs-var">style</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NamePprCtx -&gt; PprStyle
+</span><a href="GHC.Utils.Outputable.html#mkErrStyle"><span class="hs-identifier hs-var">mkErrStyle</span></a></span><span> </span><span class="annot"><span class="annottext">NamePprCtx
+</span><a href="#local-6989586621682736553"><span class="hs-identifier hs-var">name_ppr_ctx</span></a></span><span>
+</span><span id="line-19"></span><span>                    </span><span id="local-6989586621682736554"><span class="annot"><span class="annottext">ctx :: SDocContext
+</span><a href="#local-6989586621682736554"><span class="hs-identifier hs-var hs-var">ctx</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DiagOpts -&gt; SDocContext
+</span><a href="GHC.Utils.Error.html#diag_ppr_ctx"><span class="hs-identifier hs-var">diag_ppr_ctx</span></a></span><span> </span><span class="annot"><span class="annottext">DiagOpts
+</span><a href="#local-6989586621682736549"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#sdocStyle"><span class="hs-identifier hs-var">sdocStyle</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621682736552"><span class="hs-identifier hs-type">style</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-20"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682736556"><span class="hs-identifier hs-var">log_diags_as_json</span></a></span><span>
+</span><span id="line-21"></span><span>                    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Logger -&gt; MessageClass -&gt; MsgEnvelope a -&gt; IO ()
+forall a. ToJson a =&gt; Logger -&gt; MessageClass -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Logger.html#logJsonMsg"><span class="hs-identifier hs-var">logJsonMsg</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682736547"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Severity
+-&gt; ResolvedDiagnosticReason -&gt; Maybe DiagnosticCode -&gt; MessageClass
+</span><a href="GHC.Types.Error.html#MCDiagnostic"><span class="hs-identifier hs-var">MCDiagnostic</span></a></span><span> </span><span class="annot"><span class="annottext">Severity
+</span><a href="#local-6989586621682736559"><span class="hs-identifier hs-var">sev</span></a></span><span> </span><span class="annot"><span class="annottext">ResolvedDiagnosticReason
+</span><a href="#local-6989586621682736560"><span class="hs-identifier hs-var">reason</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Maybe DiagnosticCode
+forall a. Diagnostic a =&gt; a -&gt; Maybe DiagnosticCode
+</span><a href="GHC.Types.Error.html#diagnosticCode"><span class="hs-identifier hs-var">diagnosticCode</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682736562"><span class="hs-identifier hs-var">dia</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">MsgEnvelope a
+</span><a href="#local-6989586621682736563"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-22"></span><span>                    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Logger -&gt; MessageClass -&gt; SrcSpan -&gt; SDoc -&gt; IO ()
+</span><a href="GHC.Utils.Logger.html#logMsg"><span class="hs-identifier hs-var">logMsg</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682736547"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Severity
+-&gt; ResolvedDiagnosticReason -&gt; Maybe DiagnosticCode -&gt; MessageClass
+</span><a href="GHC.Types.Error.html#MCDiagnostic"><span class="hs-identifier hs-var">MCDiagnostic</span></a></span><span> </span><span class="annot"><span class="annottext">Severity
+</span><a href="#local-6989586621682736559"><span class="hs-identifier hs-var">sev</span></a></span><span> </span><span class="annot"><span class="annottext">ResolvedDiagnosticReason
+</span><a href="#local-6989586621682736560"><span class="hs-identifier hs-var">reason</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Maybe DiagnosticCode
+forall a. Diagnostic a =&gt; a -&gt; Maybe DiagnosticCode
+</span><a href="GHC.Types.Error.html#diagnosticCode"><span class="hs-identifier hs-var">diagnosticCode</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682736562"><span class="hs-identifier hs-var">dia</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SrcSpan
+</span><a href="#local-6989586621682736565"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">(SDoc -&gt; IO ()) -&gt; SDoc -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-23"></span><span>                  </span><span class="annot"><span class="annottext">(SDocContext -&gt; SDocContext) -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#updSDocContext"><span class="hs-identifier hs-var">updSDocContext</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">SDocContext
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SDocContext
+</span><a href="#local-6989586621682736554"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; SDoc
+Diagnostic a =&gt; a -&gt; SDoc
+</span><a href="#local-6989586621682736566"><span class="hs-identifier hs-var">messageWithHints</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682736562"><span class="hs-identifier hs-var">dia</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>              </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621682736563"><span class="annot"><span class="annottext">msg :: MsgEnvelope a
+</span><a href="#local-6989586621682736563"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="GHC.Types.Error.html#MsgEnvelope"><span class="hs-identifier hs-type">MsgEnvelope</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">errMsgSpan :: forall e. MsgEnvelope e -&gt; SrcSpan
+</span><a href="GHC.Types.Error.html#errMsgSpan"><span class="hs-identifier hs-var">errMsgSpan</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682736565"><span class="annot"><span class="annottext">SrcSpan
+</span><a href="#local-6989586621682736565"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>                                  </span><span class="annot"><span class="annottext">errMsgDiagnostic :: forall e. MsgEnvelope e -&gt; e
+</span><a href="GHC.Types.Error.html#errMsgDiagnostic"><span class="hs-identifier hs-var">errMsgDiagnostic</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682736562"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682736562"><span class="hs-identifier hs-var">dia</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>                                  </span><span class="annot"><span class="annottext">errMsgSeverity :: forall e. MsgEnvelope e -&gt; Severity
+</span><a href="GHC.Types.Error.html#errMsgSeverity"><span class="hs-identifier hs-var">errMsgSeverity</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682736559"><span class="annot"><span class="annottext">Severity
+</span><a href="#local-6989586621682736559"><span class="hs-identifier hs-var">sev</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>                                  </span><span class="annot"><span class="annottext">errMsgReason :: forall e. MsgEnvelope e -&gt; ResolvedDiagnosticReason
+</span><a href="GHC.Types.Error.html#errMsgReason"><span class="hs-identifier hs-var">errMsgReason</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682736560"><span class="annot"><span class="annottext">ResolvedDiagnosticReason
+</span><a href="#local-6989586621682736560"><span class="hs-identifier hs-var">reason</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>                                  </span><span class="annot"><span class="annottext">errMsgContext :: forall e. MsgEnvelope e -&gt; NamePprCtx
+</span><a href="GHC.Types.Error.html#errMsgContext"><span class="hs-identifier hs-var">errMsgContext</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682736553"><span class="annot"><span class="annottext">NamePprCtx
+</span><a href="#local-6989586621682736553"><span class="hs-identifier hs-var">name_ppr_ctx</span></a></span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-29"></span><span>                  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe DiagOpts -&gt; Bag (MsgEnvelope a) -&gt; [MsgEnvelope a]
+forall e. Maybe DiagOpts -&gt; Bag (MsgEnvelope e) -&gt; [MsgEnvelope e]
+</span><a href="GHC.Utils.Error.html#sortMsgBag"><span class="hs-identifier hs-var">sortMsgBag</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DiagOpts -&gt; Maybe DiagOpts
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">DiagOpts
+</span><a href="#local-6989586621682736549"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Messages a -&gt; Bag (MsgEnvelope a)
+forall e. Messages e -&gt; Bag (MsgEnvelope e)
+</span><a href="GHC.Types.Error.html#getMessages"><span class="hs-identifier hs-var">getMessages</span></a></span><span> </span><span class="annot"><span class="annottext">Messages a
+</span><a href="#local-6989586621682736550"><span class="hs-identifier hs-var">msgs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="#local-6989586621682736566"><span class="hs-identifier hs-type">messageWithHints</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Error.html#Diagnostic"><span class="hs-identifier hs-type">Diagnostic</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682736463"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682736463"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621682736566"><span class="annot"><span class="annottext">messageWithHints :: Diagnostic a =&gt; a -&gt; SDoc
+</span><a href="#local-6989586621682736566"><span class="hs-identifier hs-var hs-var">messageWithHints</span></a></span></span><span> </span><span id="local-6989586621682736587"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682736587"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-33"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682736588"><span class="annot"><span class="annottext">main_msg :: SDoc
+</span><a href="#local-6989586621682736588"><span class="hs-identifier hs-var hs-var">main_msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DecoratedSDoc -&gt; SDoc
+</span><a href="GHC.Utils.Error.html#formatBulleted"><span class="hs-identifier hs-var">formatBulleted</span></a></span><span> </span><span class="annot"><span class="annottext">(DecoratedSDoc -&gt; SDoc) -&gt; DecoratedSDoc -&gt; SDoc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">DiagnosticOpts a -&gt; a -&gt; DecoratedSDoc
+forall a. Diagnostic a =&gt; DiagnosticOpts a -&gt; a -&gt; DecoratedSDoc
+</span><a href="GHC.Types.Error.html#diagnosticMessage"><span class="hs-identifier hs-var">diagnosticMessage</span></a></span><span> </span><span class="annot"><span class="annottext">DiagnosticOpts a
+</span><a href="#local-6989586621682736548"><span class="hs-identifier hs-var">msg_opts</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682736587"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-34"></span><span>          </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">a -&gt; [GhcHint]
+forall a. Diagnostic a =&gt; a -&gt; [GhcHint]
+</span><a href="GHC.Types.Error.html#diagnosticHints"><span class="hs-identifier hs-var">diagnosticHints</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682736587"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-35"></span><span>               </span><span class="hs-special">[</span><span class="hs-special">]</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682736588"><span class="hs-identifier hs-var">main_msg</span></a></span><span>
+</span><span id="line-36"></span><span>               </span><span class="hs-special">[</span><span id="local-6989586621682736592"><span class="annot"><span class="annottext">GhcHint
+</span><a href="#local-6989586621682736592"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682736588"><span class="hs-identifier hs-var">main_msg</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsDoc doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">$$</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#hang"><span class="hs-identifier hs-var">hang</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Suggested fix:&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GhcHint -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">GhcHint
+</span><a href="#local-6989586621682736592"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>               </span><span id="local-6989586621682736593"><span class="annot"><span class="annottext">[GhcHint]
+</span><a href="#local-6989586621682736593"><span class="hs-identifier hs-var">hs</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682736588"><span class="hs-identifier hs-var">main_msg</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsDoc doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">$$</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#hang"><span class="hs-identifier hs-var">hang</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Suggested fixes:&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-38"></span><span>                                       </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DecoratedSDoc -&gt; SDoc
+</span><a href="GHC.Utils.Error.html#formatBulleted"><span class="hs-identifier hs-var">formatBulleted</span></a></span><span>  </span><span class="annot"><span class="annottext">(DecoratedSDoc -&gt; SDoc) -&gt; DecoratedSDoc -&gt; SDoc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; DecoratedSDoc
+</span><a href="GHC.Types.Error.html#mkDecorated"><span class="hs-identifier hs-var">mkDecorated</span></a></span><span> </span><span class="annot"><span class="annottext">([SDoc] -&gt; DecoratedSDoc)
+-&gt; ([GhcHint] -&gt; [SDoc]) -&gt; [GhcHint] -&gt; DecoratedSDoc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(GhcHint -&gt; SDoc) -&gt; [GhcHint] -&gt; [SDoc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">GhcHint -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">([GhcHint] -&gt; DecoratedSDoc) -&gt; [GhcHint] -&gt; DecoratedSDoc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[GhcHint]
+</span><a href="#local-6989586621682736593"><span class="hs-identifier hs-var">hs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>    </span><span id="local-6989586621682736556"><span class="annot"><span class="annottext">log_diags_as_json :: Bool
+</span><a href="#local-6989586621682736556"><span class="hs-identifier hs-var hs-var">log_diags_as_json</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LogFlags -&gt; Bool
+</span><a href="GHC.Utils.Logger.html#log_diagnostics_as_json"><span class="hs-identifier hs-var">log_diagnostics_as_json</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Logger -&gt; LogFlags
+</span><a href="GHC.Utils.Logger.html#logFlags"><span class="hs-identifier hs-var">logFlags</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682736547"><span class="hs-identifier hs-var">logger</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | Given a bag of diagnostics, turn them into an exception if</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- any has 'SevError', or print them out otherwise.</span><span>
+</span><span id="line-43"></span><span class="annot"><a href="GHC.Driver.Errors.html#printOrThrowDiagnostics"><span class="hs-identifier hs-type">printOrThrowDiagnostics</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Driver.Errors.Types.html#GhcMessageOpts"><span class="hs-identifier hs-type">GhcMessageOpts</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Error.html#DiagOpts"><span class="hs-identifier hs-type">DiagOpts</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Error.html#Messages"><span class="hs-identifier hs-type">Messages</span></a></span><span> </span><span class="annot"><a href="GHC.Driver.Errors.Types.html#GhcMessage"><span class="hs-identifier hs-type">GhcMessage</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span id="printOrThrowDiagnostics"><span class="annot"><span class="annottext">printOrThrowDiagnostics :: Logger
+-&gt; GhcMessageOpts -&gt; DiagOpts -&gt; Messages GhcMessage -&gt; IO ()
+</span><a href="GHC.Driver.Errors.html#printOrThrowDiagnostics"><span class="hs-identifier hs-var hs-var">printOrThrowDiagnostics</span></a></span></span><span> </span><span id="local-6989586621682736599"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682736599"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682736600"><span class="annot"><span class="annottext">GhcMessageOpts
+</span><a href="#local-6989586621682736600"><span class="hs-identifier hs-var">print_config</span></a></span></span><span> </span><span id="local-6989586621682736601"><span class="annot"><span class="annottext">DiagOpts
+</span><a href="#local-6989586621682736601"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621682736602"><span class="annot"><span class="annottext">Messages GhcMessage
+</span><a href="#local-6989586621682736602"><span class="hs-identifier hs-var">msgs</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Messages GhcMessage -&gt; Bool
+forall e. Messages e -&gt; Bool
+</span><a href="GHC.Types.Error.html#errorsOrFatalWarningsFound"><span class="hs-identifier hs-var">errorsOrFatalWarningsFound</span></a></span><span> </span><span class="annot"><span class="annottext">Messages GhcMessage
+</span><a href="#local-6989586621682736602"><span class="hs-identifier hs-var">msgs</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Messages GhcMessage -&gt; IO ()
+forall (io :: * -&gt; *) a. MonadIO io =&gt; Messages GhcMessage -&gt; io a
+</span><a href="GHC.Types.SourceError.html#throwErrors"><span class="hs-identifier hs-var">throwErrors</span></a></span><span> </span><span class="annot"><span class="annottext">Messages GhcMessage
+</span><a href="#local-6989586621682736602"><span class="hs-identifier hs-var">msgs</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Logger
+-&gt; DiagnosticOpts GhcMessage
+-&gt; DiagOpts
+-&gt; Messages GhcMessage
+-&gt; IO ()
+forall a.
+Diagnostic a =&gt;
+Logger -&gt; DiagnosticOpts a -&gt; DiagOpts -&gt; Messages a -&gt; IO ()
+</span><a href="GHC.Driver.Errors.html#printMessages"><span class="hs-identifier hs-var">printMessages</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682736599"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">DiagnosticOpts GhcMessage
+GhcMessageOpts
+</span><a href="#local-6989586621682736600"><span class="hs-identifier hs-var">print_config</span></a></span><span> </span><span class="annot"><span class="annottext">DiagOpts
+</span><a href="#local-6989586621682736601"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Messages GhcMessage
+</span><a href="#local-6989586621682736602"><span class="hs-identifier hs-var">msgs</span></a></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | Convert a 'PsError' into a wrapped 'DriverMessage'; use it</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- for dealing with parse errors when the driver is doing dependency analysis.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- Defined here to avoid module loops between GHC.Driver.Error.Types and</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- GHC.Driver.Error.Ppr</span><span>
+</span><span id="line-54"></span><span class="annot"><a href="GHC.Driver.Errors.html#mkDriverPsHeaderMessage"><span class="hs-identifier hs-type">mkDriverPsHeaderMessage</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Error.html#MsgEnvelope"><span class="hs-identifier hs-type">MsgEnvelope</span></a></span><span> </span><span class="annot"><a href="GHC.Parser.Errors.Types.html#PsMessage"><span class="hs-identifier hs-type">PsMessage</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Error.html#MsgEnvelope"><span class="hs-identifier hs-type">MsgEnvelope</span></a></span><span> </span><span class="annot"><a href="GHC.Driver.Errors.Types.html#DriverMessage"><span class="hs-identifier hs-type">DriverMessage</span></a></span><span>
+</span><span id="line-55"></span><span id="mkDriverPsHeaderMessage"><span class="annot"><span class="annottext">mkDriverPsHeaderMessage :: MsgEnvelope PsMessage -&gt; MsgEnvelope DriverMessage
+</span><a href="GHC.Driver.Errors.html#mkDriverPsHeaderMessage"><span class="hs-identifier hs-var hs-var">mkDriverPsHeaderMessage</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(PsMessage -&gt; DriverMessage)
+-&gt; MsgEnvelope PsMessage -&gt; MsgEnvelope DriverMessage
+forall a b. (a -&gt; b) -&gt; MsgEnvelope a -&gt; MsgEnvelope b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">PsMessage -&gt; DriverMessage
+</span><a href="GHC.Driver.Errors.Types.html#DriverPsHeaderMessage"><span class="hs-identifier hs-var">DriverPsHeaderMessage</span></a></span><span>
+</span><span id="line-56"></span></pre></body></html>

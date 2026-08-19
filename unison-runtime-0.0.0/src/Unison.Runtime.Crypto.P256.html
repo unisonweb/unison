@@ -1,0 +1,397 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html"><span class="hs-identifier">Unison.Runtime.Crypto.P256</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#derivePublicKey"><span class="hs-identifier">derivePublicKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#signSha256"><span class="hs-identifier">signSha256</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#verifySha256"><span class="hs-identifier">verifySha256</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Hash</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hash</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Number.Serialize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">i2ospOf_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">os2ip</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.PubKey.ECC.ECDSA</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ECDSA</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.PubKey.ECC.Prim</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ECC</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.PubKey.ECC.Types</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ECC</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#curve"><span class="hs-identifier hs-type">curve</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ECC.Curve</span></span><span>
+</span><span id="line-18"></span><span id="curve"><span class="annot"><span class="annottext">curve :: Curve
+</span><a href="Unison.Runtime.Crypto.P256.html#curve"><span class="hs-identifier hs-var hs-var">curve</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CurveName -&gt; Curve
+</span><span class="hs-identifier hs-var">ECC.getCurveByName</span></span><span> </span><span class="annot"><span class="annottext">CurveName
+</span><span class="hs-identifier hs-var">ECC.SEC_p256r1</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#curveOrder"><span class="hs-identifier hs-type">curveOrder</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-21"></span><span id="curveOrder"><span class="annot"><span class="annottext">curveOrder :: Integer
+</span><a href="Unison.Runtime.Crypto.P256.html#curveOrder"><span class="hs-identifier hs-var hs-var">curveOrder</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CurveCommon -&gt; Integer
+</span><span class="hs-identifier hs-var">ECC.ecc_n</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Curve -&gt; CurveCommon
+</span><span class="hs-identifier hs-var">ECC.common_curve</span></span><span> </span><span class="annot"><span class="annottext">Curve
+</span><a href="Unison.Runtime.Crypto.P256.html#curve"><span class="hs-identifier hs-var">curve</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-type">coordinateBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-24"></span><span id="coordinateBytes"><span class="annot"><span class="annottext">coordinateBytes :: Int
+</span><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-var hs-var">coordinateBytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#uncompressedPrefix"><span class="hs-identifier hs-type">uncompressedPrefix</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-27"></span><span id="uncompressedPrefix"><span class="annot"><span class="annottext">uncompressedPrefix :: Word8
+</span><a href="Unison.Runtime.Crypto.P256.html#uncompressedPrefix"><span class="hs-identifier hs-var hs-var">uncompressedPrefix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x04</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#derivePublicKey"><span class="hs-identifier hs-type">derivePublicKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span>
+</span><span id="line-30"></span><span id="derivePublicKey"><span class="annot"><span class="annottext">derivePublicKey :: ByteString -&gt; Either Text ByteString
+</span><a href="Unison.Runtime.Crypto.P256.html#derivePublicKey"><span class="hs-identifier hs-var hs-var">derivePublicKey</span></a></span></span><span> </span><span id="local-6989586621680700640"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700640"><span class="hs-identifier hs-var">privateKeyBytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-31"></span><span>  </span><span id="local-6989586621680700641"><span class="annot"><span class="annottext">PrivateKey
+</span><a href="#local-6989586621680700641"><span class="hs-identifier hs-var">privateKey</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either Text PrivateKey
+</span><a href="Unison.Runtime.Crypto.P256.html#parsePrivateKey"><span class="hs-identifier hs-var">parsePrivateKey</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700640"><span class="hs-identifier hs-var">privateKeyBytes</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PublicKey -&gt; ByteString
+</span><a href="Unison.Runtime.Crypto.P256.html#encodePublicKey"><span class="hs-identifier hs-var">encodePublicKey</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrivateKey -&gt; PublicKey
+</span><a href="Unison.Runtime.Crypto.P256.html#toPublicKey"><span class="hs-identifier hs-var">toPublicKey</span></a></span><span> </span><span class="annot"><span class="annottext">PrivateKey
+</span><a href="#local-6989586621680700641"><span class="hs-identifier hs-var">privateKey</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#signSha256"><span class="hs-identifier hs-type">signSha256</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span>
+</span><span id="line-35"></span><span id="signSha256"><span class="annot"><span class="annottext">signSha256 :: ByteString -&gt; ByteString -&gt; Either Text ByteString
+</span><a href="Unison.Runtime.Crypto.P256.html#signSha256"><span class="hs-identifier hs-var hs-var">signSha256</span></a></span></span><span> </span><span id="local-6989586621680700645"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700645"><span class="hs-identifier hs-var">privateKeyBytes</span></a></span></span><span> </span><span id="local-6989586621680700646"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700646"><span class="hs-identifier hs-var">message</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621680700647"><span class="annot"><span class="annottext">PrivateKey
+</span><a href="#local-6989586621680700647"><span class="hs-identifier hs-var">privateKey</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either Text PrivateKey
+</span><a href="Unison.Runtime.Crypto.P256.html#parsePrivateKey"><span class="hs-identifier hs-var">parsePrivateKey</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700645"><span class="hs-identifier hs-var">privateKeyBytes</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680700648"><span class="annot"><span class="annottext">digest :: Digest SHA256
+</span><a href="#local-6989586621680700648"><span class="hs-identifier hs-var hs-var">digest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Digest SHA256
+forall ba a.
+(ByteArrayAccess ba, HashAlgorithm a) =&gt;
+ba -&gt; Digest a
+</span><span class="hs-identifier hs-var">Hash.hash</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700646"><span class="hs-identifier hs-var">message</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash.Digest</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash.SHA256</span></span><span>
+</span><span id="line-38"></span><span>      </span><span id="local-6989586621680700650"><span class="annot"><span class="annottext">signature :: Signature
+</span><a href="#local-6989586621680700650"><span class="hs-keyword hs-var hs-var">signature</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-39"></span><span>        </span><span class="annot"><span class="annottext">SHA256
+-&gt; PrivateKey
+-&gt; Digest SHA256
+-&gt; (Integer -&gt; Maybe Signature)
+-&gt; Signature
+forall hashDRG hashDigest a.
+(HashAlgorithm hashDRG, HashAlgorithm hashDigest) =&gt;
+hashDRG
+-&gt; PrivateKey -&gt; Digest hashDigest -&gt; (Integer -&gt; Maybe a) -&gt; a
+</span><span class="hs-identifier hs-var">ECDSA.deterministicNonce</span></span><span> </span><span class="annot"><span class="annottext">SHA256
+</span><span class="hs-identifier hs-var">Hash.SHA256</span></span><span> </span><span class="annot"><span class="annottext">PrivateKey
+</span><a href="#local-6989586621680700647"><span class="hs-identifier hs-var">privateKey</span></a></span><span> </span><span class="annot"><span class="annottext">Digest SHA256
+</span><a href="#local-6989586621680700648"><span class="hs-identifier hs-var">digest</span></a></span><span> </span><span class="annot"><span class="annottext">((Integer -&gt; Maybe Signature) -&gt; Signature)
+-&gt; (Integer -&gt; Maybe Signature) -&gt; Signature
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-40"></span><span>          </span><span class="hs-glyph">\</span><span id="local-6989586621680700653"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700653"><span class="hs-identifier hs-var">nonce</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; PrivateKey -&gt; Digest SHA256 -&gt; Maybe Signature
+forall hash.
+HashAlgorithm hash =&gt;
+Integer -&gt; PrivateKey -&gt; Digest hash -&gt; Maybe Signature
+</span><span class="hs-identifier hs-var">ECDSA.signDigestWith</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700653"><span class="hs-identifier hs-var">nonce</span></a></span><span> </span><span class="annot"><span class="annottext">PrivateKey
+</span><a href="#local-6989586621680700647"><span class="hs-identifier hs-var">privateKey</span></a></span><span> </span><span class="annot"><span class="annottext">Digest SHA256
+</span><a href="#local-6989586621680700648"><span class="hs-identifier hs-var">digest</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="annottext">ByteString -&gt; Either Text ByteString
+forall a. a -&gt; Either Text a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Signature -&gt; ByteString
+</span><a href="Unison.Runtime.Crypto.P256.html#encodeSignature"><span class="hs-identifier hs-var">encodeSignature</span></a></span><span> </span><span class="annot"><span class="annottext">Signature
+</span><a href="#local-6989586621680700650"><span class="hs-keyword hs-var">signature</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#verifySha256"><span class="hs-identifier hs-type">verifySha256</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-44"></span><span id="verifySha256"><span class="annot"><span class="annottext">verifySha256 :: ByteString -&gt; ByteString -&gt; ByteString -&gt; Either Text Bool
+</span><a href="Unison.Runtime.Crypto.P256.html#verifySha256"><span class="hs-identifier hs-var hs-var">verifySha256</span></a></span></span><span> </span><span id="local-6989586621680700656"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700656"><span class="hs-identifier hs-var">publicKeyBytes</span></a></span></span><span> </span><span id="local-6989586621680700657"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700657"><span class="hs-identifier hs-var">message</span></a></span></span><span> </span><span id="local-6989586621680700658"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700658"><span class="hs-identifier hs-var">signatureBytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621680700659"><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621680700659"><span class="hs-identifier hs-var">publicKey</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either Text PublicKey
+</span><a href="Unison.Runtime.Crypto.P256.html#parsePublicKey"><span class="hs-identifier hs-var">parsePublicKey</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700656"><span class="hs-identifier hs-var">publicKeyBytes</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621680700661"><span class="annot"><span class="annottext">Signature
+</span><a href="#local-6989586621680700661"><span class="hs-keyword hs-var">signature</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either Text Signature
+</span><a href="Unison.Runtime.Crypto.P256.html#parseSignature"><span class="hs-identifier hs-var">parseSignature</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700658"><span class="hs-identifier hs-var">signatureBytes</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SHA256 -&gt; PublicKey -&gt; Signature -&gt; ByteString -&gt; Bool
+forall msg hash.
+(ByteArrayAccess msg, HashAlgorithm hash) =&gt;
+hash -&gt; PublicKey -&gt; Signature -&gt; msg -&gt; Bool
+</span><span class="hs-identifier hs-var">ECDSA.verify</span></span><span> </span><span class="annot"><span class="annottext">SHA256
+</span><span class="hs-identifier hs-var">Hash.SHA256</span></span><span> </span><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621680700659"><span class="hs-identifier hs-var">publicKey</span></a></span><span> </span><span class="annot"><span class="annottext">Signature
+</span><a href="#local-6989586621680700661"><span class="hs-keyword hs-var">signature</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700657"><span class="hs-identifier hs-var">message</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#parsePrivateKey"><span class="hs-identifier hs-type">parsePrivateKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ECDSA.PrivateKey</span></span><span>
+</span><span id="line-50"></span><span id="parsePrivateKey"><span class="annot"><span class="annottext">parsePrivateKey :: ByteString -&gt; Either Text PrivateKey
+</span><a href="Unison.Runtime.Crypto.P256.html#parsePrivateKey"><span class="hs-identifier hs-var hs-var">parsePrivateKey</span></a></span></span><span> </span><span id="local-6989586621680700664"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700664"><span class="hs-identifier hs-var">bytes</span></a></span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">BS.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700664"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-var">coordinateBytes</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text PrivateKey
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: private key must be 32 bytes&quot;</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700667"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-54"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text PrivateKey
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: private key scalar must be non-zero&quot;</span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700667"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="Unison.Runtime.Crypto.P256.html#curveOrder"><span class="hs-identifier hs-var">curveOrder</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-56"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text PrivateKey
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: private key scalar is out of range&quot;</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>      </span><span class="annot"><span class="annottext">PrivateKey -&gt; Either Text PrivateKey
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Curve -&gt; Integer -&gt; PrivateKey
+</span><span class="hs-identifier hs-var">ECDSA.PrivateKey</span></span><span> </span><span class="annot"><span class="annottext">Curve
+</span><a href="Unison.Runtime.Crypto.P256.html#curve"><span class="hs-identifier hs-var">curve</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700667"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621680700667"><span class="annot"><span class="annottext">d :: Integer
+</span><a href="#local-6989586621680700667"><span class="hs-identifier hs-var hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Integer
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Integer
+</span><span class="hs-identifier hs-var">os2ip</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700664"><span class="hs-identifier hs-var">bytes</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#parsePublicKey"><span class="hs-identifier hs-type">parsePublicKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ECDSA.PublicKey</span></span><span>
+</span><span id="line-63"></span><span id="parsePublicKey"><span class="annot"><span class="annottext">parsePublicKey :: ByteString -&gt; Either Text PublicKey
+</span><a href="Unison.Runtime.Crypto.P256.html#parsePublicKey"><span class="hs-identifier hs-var hs-var">parsePublicKey</span></a></span></span><span> </span><span id="local-6989586621680700670"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700670"><span class="hs-identifier hs-var">bytes</span></a></span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">BS.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700670"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-var">coordinateBytes</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text PublicKey
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: public key must be 65 bytes in uncompressed SEC1 form&quot;</span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; ByteString -&gt; Word8
+ByteString -&gt; Word8
+</span><span class="hs-identifier hs-var">BS.head</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700670"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="Unison.Runtime.Crypto.P256.html#uncompressedPrefix"><span class="hs-identifier hs-var">uncompressedPrefix</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text PublicKey
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: public key must start with 0x04 (uncompressed SEC1 form)&quot;</span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621680700674"><span class="hs-identifier hs-var">point</span></a></span><span> </span><span class="annot"><span class="annottext">Point -&gt; Point -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><span class="hs-identifier hs-var">ECC.PointO</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-69"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text PublicKey
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: public key point at infinity is invalid&quot;</span></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Curve -&gt; Point -&gt; Bool
+</span><span class="hs-identifier hs-var">ECC.isPointValid</span></span><span> </span><span class="annot"><span class="annottext">Curve
+</span><a href="Unison.Runtime.Crypto.P256.html#curve"><span class="hs-identifier hs-var">curve</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621680700674"><span class="hs-identifier hs-var">point</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-71"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text PublicKey
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: public key point is not on the curve&quot;</span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Curve -&gt; Integer -&gt; Point -&gt; Point
+</span><span class="hs-identifier hs-var">ECC.pointMul</span></span><span> </span><span class="annot"><span class="annottext">Curve
+</span><a href="Unison.Runtime.Crypto.P256.html#curve"><span class="hs-identifier hs-var">curve</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="Unison.Runtime.Crypto.P256.html#curveOrder"><span class="hs-identifier hs-var">curveOrder</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621680700674"><span class="hs-identifier hs-var">point</span></a></span><span> </span><span class="annot"><span class="annottext">Point -&gt; Point -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Point
+</span><span class="hs-identifier hs-var">ECC.PointO</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-73"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text PublicKey
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: public key point is not in the prime-order subgroup&quot;</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-75"></span><span>      </span><span class="annot"><span class="annottext">PublicKey -&gt; Either Text PublicKey
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Curve -&gt; Point -&gt; PublicKey
+</span><span class="hs-identifier hs-var">ECDSA.PublicKey</span></span><span> </span><span class="annot"><span class="annottext">Curve
+</span><a href="Unison.Runtime.Crypto.P256.html#curve"><span class="hs-identifier hs-var">curve</span></a></span><span> </span><span class="annot"><span class="annottext">Point
+</span><a href="#local-6989586621680700674"><span class="hs-identifier hs-var">point</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621680700680"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700680"><span class="hs-identifier hs-var">xBytes</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680700681"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700681"><span class="hs-identifier hs-var">yBytes</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-var">coordinateBytes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasCallStack =&gt; ByteString -&gt; ByteString
+ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">BS.tail</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700670"><span class="hs-identifier hs-var">bytes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>    </span><span id="local-6989586621680700674"><span class="annot"><span class="annottext">point :: Point
+</span><a href="#local-6989586621680700674"><span class="hs-identifier hs-var hs-var">point</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Point
+</span><span class="hs-identifier hs-var">ECC.Point</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Integer
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Integer
+</span><span class="hs-identifier hs-var">os2ip</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700680"><span class="hs-identifier hs-var">xBytes</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Integer
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Integer
+</span><span class="hs-identifier hs-var">os2ip</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700681"><span class="hs-identifier hs-var">yBytes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#parseSignature"><span class="hs-identifier hs-type">parseSignature</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ECDSA.Signature</span></span><span>
+</span><span id="line-81"></span><span id="parseSignature"><span class="annot"><span class="annottext">parseSignature :: ByteString -&gt; Either Text Signature
+</span><a href="Unison.Runtime.Crypto.P256.html#parseSignature"><span class="hs-identifier hs-var hs-var">parseSignature</span></a></span></span><span> </span><span id="local-6989586621680700685"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700685"><span class="hs-identifier hs-var">bytes</span></a></span></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">BS.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700685"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-var">coordinateBytes</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-83"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text Signature
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: signature must be 64 bytes&quot;</span></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700686"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700686"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="Unison.Runtime.Crypto.P256.html#curveOrder"><span class="hs-identifier hs-var">curveOrder</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-85"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text Signature
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: signature r component is out of range&quot;</span></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700688"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700688"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="Unison.Runtime.Crypto.P256.html#curveOrder"><span class="hs-identifier hs-var">curveOrder</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-87"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; Either Text Signature
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;p256: signature s component is out of range&quot;</span></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-89"></span><span>      </span><span class="annot"><span class="annottext">Signature -&gt; Either Text Signature
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Signature
+</span><span class="hs-identifier hs-var">ECDSA.Signature</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700686"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700688"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621680700690"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700690"><span class="hs-identifier hs-var">rBytes</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680700691"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700691"><span class="hs-identifier hs-var">sBytes</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-var">coordinateBytes</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700685"><span class="hs-identifier hs-var">bytes</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621680700686"><span class="annot"><span class="annottext">r :: Integer
+</span><a href="#local-6989586621680700686"><span class="hs-identifier hs-var hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Integer
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Integer
+</span><span class="hs-identifier hs-var">os2ip</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700690"><span class="hs-identifier hs-var">rBytes</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621680700688"><span class="annot"><span class="annottext">s :: Integer
+</span><a href="#local-6989586621680700688"><span class="hs-identifier hs-var hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Integer
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Integer
+</span><span class="hs-identifier hs-var">os2ip</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621680700691"><span class="hs-identifier hs-var">sBytes</span></a></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#toPublicKey"><span class="hs-identifier hs-type">toPublicKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ECDSA.PrivateKey</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ECDSA.PublicKey</span></span><span>
+</span><span id="line-96"></span><span id="toPublicKey"><span class="annot"><span class="annottext">toPublicKey :: PrivateKey -&gt; PublicKey
+</span><a href="Unison.Runtime.Crypto.P256.html#toPublicKey"><span class="hs-identifier hs-var hs-var">toPublicKey</span></a></span></span><span> </span><span id="local-6989586621680700692"><span class="annot"><span class="annottext">PrivateKey
+</span><a href="#local-6989586621680700692"><span class="hs-identifier hs-var">privateKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><span class="annottext">Curve -&gt; Point -&gt; PublicKey
+</span><span class="hs-identifier hs-var">ECDSA.PublicKey</span></span><span> </span><span class="annot"><span class="annottext">Curve
+</span><a href="Unison.Runtime.Crypto.P256.html#curve"><span class="hs-identifier hs-var">curve</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Curve -&gt; Integer -&gt; Point
+</span><span class="hs-identifier hs-var">ECC.pointBaseMul</span></span><span> </span><span class="annot"><span class="annottext">Curve
+</span><a href="Unison.Runtime.Crypto.P256.html#curve"><span class="hs-identifier hs-var">curve</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrivateKey -&gt; Integer
+</span><span class="hs-identifier hs-var">ECDSA.private_d</span></span><span> </span><span class="annot"><span class="annottext">PrivateKey
+</span><a href="#local-6989586621680700692"><span class="hs-identifier hs-var">privateKey</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#encodePublicKey"><span class="hs-identifier hs-type">encodePublicKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ECDSA.PublicKey</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span>
+</span><span id="line-100"></span><span id="encodePublicKey"><span class="annot"><span class="annottext">encodePublicKey :: PublicKey -&gt; ByteString
+</span><a href="Unison.Runtime.Crypto.P256.html#encodePublicKey"><span class="hs-identifier hs-var hs-var">encodePublicKey</span></a></span></span><span> </span><span id="local-6989586621680700695"><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621680700695"><span class="hs-identifier hs-var">publicKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PublicKey -&gt; Point
+</span><span class="hs-identifier hs-var">ECDSA.public_q</span></span><span> </span><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621680700695"><span class="hs-identifier hs-var">publicKey</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">ECC.Point</span></span><span> </span><span id="local-6989586621680700697"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700697"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621680700698"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700698"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-103"></span><span>      </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">BS.concat</span></span><span>
+</span><span id="line-104"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; ByteString
+</span><span class="hs-identifier hs-var">BS.singleton</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="Unison.Runtime.Crypto.P256.html#uncompressedPrefix"><span class="hs-identifier hs-var">uncompressedPrefix</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-105"></span><span>          </span><span class="annot"><span class="annottext">Int -&gt; Integer -&gt; ByteString
+forall ba. ByteArray ba =&gt; Int -&gt; Integer -&gt; ba
+</span><span class="hs-identifier hs-var">i2ospOf_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-var">coordinateBytes</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700697"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-106"></span><span>          </span><span class="annot"><span class="annottext">Int -&gt; Integer -&gt; ByteString
+forall ba. ByteArray ba =&gt; Int -&gt; Integer -&gt; ba
+</span><span class="hs-identifier hs-var">i2ospOf_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-var">coordinateBytes</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680700698"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-107"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><span class="annottext">Point
+</span><span class="hs-identifier hs-var">ECC.PointO</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-109"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; ByteString
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;p256: attempted to encode point at infinity&quot;</span></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="annot"><a href="Unison.Runtime.Crypto.P256.html#encodeSignature"><span class="hs-identifier hs-type">encodeSignature</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ECDSA.Signature</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span>
+</span><span id="line-112"></span><span id="encodeSignature"><span class="annot"><span class="annottext">encodeSignature :: Signature -&gt; ByteString
+</span><a href="Unison.Runtime.Crypto.P256.html#encodeSignature"><span class="hs-identifier hs-var hs-var">encodeSignature</span></a></span></span><span> </span><span id="local-6989586621680700702"><span class="annot"><span class="annottext">Signature
+</span><a href="#local-6989586621680700702"><span class="hs-keyword hs-var">signature</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-113"></span><span>  </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">BS.concat</span></span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Integer -&gt; ByteString
+forall ba. ByteArray ba =&gt; Int -&gt; Integer -&gt; ba
+</span><span class="hs-identifier hs-var">i2ospOf_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-var">coordinateBytes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Signature -&gt; Integer
+</span><span class="hs-identifier hs-var">ECDSA.sign_r</span></span><span> </span><span class="annot"><span class="annottext">Signature
+</span><a href="#local-6989586621680700702"><span class="hs-keyword hs-var">signature</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-115"></span><span>      </span><span class="annot"><span class="annottext">Int -&gt; Integer -&gt; ByteString
+forall ba. ByteArray ba =&gt; Int -&gt; Integer -&gt; ba
+</span><span class="hs-identifier hs-var">i2ospOf_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Crypto.P256.html#coordinateBytes"><span class="hs-identifier hs-var">coordinateBytes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Signature -&gt; Integer
+</span><span class="hs-identifier hs-var">ECDSA.sign_s</span></span><span> </span><span class="annot"><span class="annottext">Signature
+</span><a href="#local-6989586621680700702"><span class="hs-keyword hs-var">signature</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-117"></span></pre></body></html>

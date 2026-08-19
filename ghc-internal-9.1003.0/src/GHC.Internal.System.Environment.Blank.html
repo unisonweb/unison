@@ -1,0 +1,271 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE CApiFFI #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Module      :  GHC.Internal.System.Environment.Blank</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Copyright   :  (c) Habib Alamin 2017</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- A setEnv implementation that allows blank environment variables. Mimics</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- the `System.Posix.Env` module from the @unix@ package, but with support</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- for Windows too.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- The matrix of platforms that:</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--   * support @putenv(&quot;FOO&quot;)@ to unset environment variables,</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--   * support @putenv(&quot;FOO=&quot;)@ to unset environment variables or set them</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--     to blank values,</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--   * support @unsetenv@ to unset environment variables,</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--   * support @setenv@ to set environment variables,</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--   * etc.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- is very complicated. Some platforms don't support unsetting of environment</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- variables at all.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html"><span class="hs-identifier">GHC.Internal.System.Environment.Blank</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-35"></span><span>      </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.System.Environment.html"><span class="hs-identifier">GHC.Internal.System.Environment</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>      </span><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#getEnv"><span class="hs-identifier">getEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#getEnvDefault"><span class="hs-identifier">getEnvDefault</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>      </span><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#setEnv"><span class="hs-identifier">setEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>      </span><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#unsetEnv"><span class="hs-identifier">unsetEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.html"><span class="hs-identifier">GHC.Internal.Data.Functor</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.List.html"><span class="hs-identifier">GHC.Internal.Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Foldable.html#elem"><span class="hs-identifier">elem</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Foldable.html#null"><span class="hs-identifier">null</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.List.html#takeWhile"><span class="hs-identifier">takeWhile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.String.html"><span class="hs-identifier">GHC.Internal.Foreign.C.String</span></a></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-pragma">{-# LINE 52 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.Error.html"><span class="hs-identifier">GHC.Internal.Foreign.C.Error</span></a></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.Types.html"><span class="hs-identifier">GHC.Internal.Foreign.C.Types</span></a></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Real.html"><span class="hs-identifier">GHC.Internal.Real</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Real.html#fromIntegral"><span class="hs-identifier">fromIntegral</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Enum.html"><span class="hs-identifier">GHC.Internal.Enum</span></a></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.System.Posix.Internals.html"><span class="hs-identifier">GHC.Internal.System.Posix.Internals</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-pragma">{-# LINE 58 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.IO.Exception</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.System.IO.Error.html"><span class="hs-identifier">GHC.Internal.System.IO.Error</span></a></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Control.Exception.Base.html"><span class="hs-identifier">GHC.Internal.Control.Exception.Base</span></a></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Maybe.html"><span class="hs-identifier">GHC.Internal.Data.Maybe</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.System.Environment.html"><span class="hs-identifier">GHC.Internal.System.Environment</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><a href="GHC.Internal.System.Environment.html#getArgs"><span class="hs-identifier">getArgs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>      </span><span class="annot"><a href="GHC.Internal.System.Environment.html#getProgName"><span class="hs-identifier">getProgName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><a href="GHC.Internal.System.Environment.ExecutablePath.html#getExecutablePath"><span class="hs-identifier">getExecutablePath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>      </span><span class="annot"><a href="GHC.Internal.System.Environment.html#withArgs"><span class="hs-identifier">withArgs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>      </span><span class="annot"><a href="GHC.Internal.System.Environment.html#withProgName"><span class="hs-identifier">withProgName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>      </span><span class="annot"><a href="GHC.Internal.System.Environment.html#getEnvironment"><span class="hs-identifier">getEnvironment</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-pragma">{-# LINE 73 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">GHC.Internal.System.Environment</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Environment</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-pragma">{-# LINE 75 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- TODO: include windows_cconv.h when it's merged, instead of duplicating</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- this C macro block.</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-pragma">{-# LINE 87 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span id="local-6989586621679679285"><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#throwInvalidArgument"><span class="hs-identifier hs-type">throwInvalidArgument</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679679285"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-91"></span><span id="throwInvalidArgument"><span class="annot"><span class="annottext">throwInvalidArgument :: forall a. String -&gt; IO a
+</span><a href="GHC.Internal.System.Environment.Blank.html#throwInvalidArgument"><span class="hs-identifier hs-var hs-var">throwInvalidArgument</span></a></span></span><span> </span><span id="local-6989586621679679355"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679355"><span class="hs-identifier hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><span class="annottext">IOError -&gt; IO a
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><a href="GHC.Internal.IO.html#throwIO"><span class="hs-identifier hs-var">throwIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IOErrorType -&gt; String -&gt; Maybe Handle -&gt; Maybe String -&gt; IOError
+</span><a href="GHC.Internal.System.IO.Error.html#mkIOError"><span class="hs-identifier hs-var">mkIOError</span></a></span><span> </span><span class="annot"><span class="annottext">IOErrorType
+</span><a href="GHC.Internal.IO.Exception.html#InvalidArgument"><span class="hs-identifier hs-var">InvalidArgument</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679355"><span class="hs-identifier hs-var">from</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Handle
+forall a. Maybe a
+</span><a href="GHC.Internal.Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe String
+forall a. Maybe a
+</span><a href="GHC.Internal.Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="annot"><span class="hs-comment">-- | Similar to 'GHC.Internal.System.Environment.lookupEnv'.</span></span><span>
+</span><span id="line-95"></span><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#getEnv"><span class="hs-identifier hs-type">getEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-pragma">{-# LINE 99 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-99"></span><span id="getEnv"><span class="annot"><span class="annottext">getEnv :: String -&gt; IO (Maybe String)
+</span><a href="GHC.Internal.System.Environment.Blank.html#getEnv"><span class="hs-identifier hs-var hs-var">getEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO (Maybe String)
+</span><a href="GHC.Internal.System.Environment.html#lookupEnv"><span class="hs-identifier hs-var">Environment.lookupEnv</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-pragma">{-# LINE 101 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="annot"><span class="hs-comment">-- | Get an environment value or a default value.</span></span><span>
+</span><span id="line-103"></span><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#getEnvDefault"><span class="hs-identifier hs-type">getEnvDefault</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-104"></span><span>  </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span>    </span><span class="annot"><span class="hs-comment">{- ^ variable name                    -}</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-105"></span><span>  </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span>    </span><span class="annot"><span class="hs-comment">{- ^ fallback value                   -}</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-106"></span><span>  </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="annot"><span class="hs-comment">{- ^ variable value or fallback value -}</span></span><span>
+</span><span id="line-107"></span><span id="getEnvDefault"><span class="annot"><span class="annottext">getEnvDefault :: String -&gt; String -&gt; IO String
+</span><a href="GHC.Internal.System.Environment.Blank.html#getEnvDefault"><span class="hs-identifier hs-var hs-var">getEnvDefault</span></a></span></span><span> </span><span id="local-6989586621679679360"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679360"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679679361"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679361"><span class="hs-identifier hs-var">fallback</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe String -&gt; String
+forall a. a -&gt; Maybe a -&gt; a
+</span><a href="GHC.Internal.Data.Maybe.html#fromMaybe"><span class="hs-identifier hs-var">fromMaybe</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679361"><span class="hs-identifier hs-var">fallback</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe String -&gt; String) -&gt; IO (Maybe String) -&gt; IO String
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; IO (Maybe String)
+</span><a href="GHC.Internal.System.Environment.Blank.html#getEnv"><span class="hs-identifier hs-var">getEnv</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679360"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- | Like 'GHC.Internal.System.Environment.setEnv', but allows blank environment values</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- and mimics the function signature of 'System.Posix.Env.setEnv' from the</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- @unix@ package.</span><span>
+</span><span id="line-112"></span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- Beware that this function must not be executed concurrently</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- with 'getEnv', 'lookupEnv', 'getEnvironment' and such. One thread</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- reading environment variables at the same time with another one modifying them</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- can result in a segfault, see</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- [Setenv is not Thread Safe](https://www.evanjones.ca/setenv-is-not-thread-safe.html)</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- for discussion.</span><span>
+</span><span id="line-119"></span><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#setEnv"><span class="hs-identifier hs-type">setEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="annot"><span class="hs-comment">{- ^ variable name  -}</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-121"></span><span>  </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="annot"><span class="hs-comment">{- ^ variable value -}</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-122"></span><span>  </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>   </span><span class="annot"><span class="hs-comment">{- ^ overwrite      -}</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-123"></span><span>  </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span id="setEnv"><span class="annot"><span class="annottext">setEnv :: String -&gt; String -&gt; Bool -&gt; IO ()
+</span><a href="GHC.Internal.System.Environment.Blank.html#setEnv"><span class="hs-identifier hs-var hs-var">setEnv</span></a></span></span><span> </span><span id="local-6989586621679679364"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679364"><span class="hs-identifier hs-var">key_</span></a></span></span><span> </span><span id="local-6989586621679679365"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679365"><span class="hs-identifier hs-var">value_</span></a></span></span><span> </span><span id="local-6989586621679679366"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679679366"><span class="hs-identifier hs-var">overwrite</span></a></span></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><a href="GHC.Internal.Data.Foldable.html#null"><span class="hs-identifier hs-var">null</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679367"><span class="hs-identifier hs-var">key</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO ()
+forall a. String -&gt; IO a
+</span><a href="GHC.Internal.System.Environment.Blank.html#throwInvalidArgument"><span class="hs-identifier hs-var">throwInvalidArgument</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;setEnv&quot;</span></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'='</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; String -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><a href="GHC.Internal.Data.Foldable.html#elem"><span class="hs-operator hs-var">`elem`</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679367"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO ()
+forall a. String -&gt; IO a
+</span><a href="GHC.Internal.System.Environment.Blank.html#throwInvalidArgument"><span class="hs-identifier hs-var">throwInvalidArgument</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;setEnv&quot;</span></span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="GHC.Internal.Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>      </span><span class="hs-glyph">=</span><span>
+</span><span id="line-128"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679679366"><span class="hs-identifier hs-var">overwrite</span></a></span><span>
+</span><span id="line-129"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; IO ()
+</span><a href="GHC.Internal.System.Environment.Blank.html#setEnv_"><span class="hs-identifier hs-var">setEnv_</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679367"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679369"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-131"></span><span>      </span><span id="local-6989586621679679370"><span class="annot"><a href="#local-6989586621679679370"><span class="hs-identifier hs-var">env_var</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO (Maybe String)
+</span><a href="GHC.Internal.System.Environment.Blank.html#getEnv"><span class="hs-identifier hs-var">getEnv</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679367"><span class="hs-identifier hs-var">key</span></a></span><span>
+</span><span id="line-132"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679679370"><span class="hs-identifier hs-type">env_var</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-133"></span><span>          </span><span class="annot"><a href="GHC.Internal.Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>          </span><span class="annot"><span class="annottext">Maybe String
+</span><a href="GHC.Internal.Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; IO ()
+</span><a href="GHC.Internal.System.Environment.Blank.html#setEnv_"><span class="hs-identifier hs-var">setEnv_</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679367"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679369"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-136"></span><span>    </span><span id="local-6989586621679679367"><span class="annot"><span class="annottext">key :: String
+</span><a href="#local-6989586621679679367"><span class="hs-identifier hs-var hs-var">key</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; String -&gt; String
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><a href="GHC.Internal.List.html#takeWhile"><span class="hs-identifier hs-var">takeWhile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%2F%3D"><span class="hs-operator hs-var">/=</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\NUL'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679364"><span class="hs-identifier hs-var">key_</span></a></span><span>
+</span><span id="line-137"></span><span>    </span><span id="local-6989586621679679369"><span class="annot"><span class="annottext">value :: String
+</span><a href="#local-6989586621679679369"><span class="hs-identifier hs-var hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; String -&gt; String
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><a href="GHC.Internal.List.html#takeWhile"><span class="hs-identifier hs-var">takeWhile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%2F%3D"><span class="hs-operator hs-var">/=</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\NUL'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679365"><span class="hs-identifier hs-var">value_</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#setEnv_"><span class="hs-identifier hs-type">setEnv_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-pragma">{-# LINE 148 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-148"></span><span id="setEnv_"><span class="annot"><span class="annottext">setEnv_ :: String -&gt; String -&gt; IO ()
+</span><a href="GHC.Internal.System.Environment.Blank.html#setEnv_"><span class="hs-identifier hs-var hs-var">setEnv_</span></a></span></span><span> </span><span id="local-6989586621679679374"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679374"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span id="local-6989586621679679375"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679375"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-149"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. String -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><a href="GHC.Internal.System.Posix.Internals.html#withFilePath"><span class="hs-identifier hs-var">withFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679374"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679679377"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679679377"><span class="hs-identifier hs-var">keyP</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-150"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. String -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><a href="GHC.Internal.System.Posix.Internals.html#withFilePath"><span class="hs-identifier hs-var">withFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679375"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679679378"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679679378"><span class="hs-identifier hs-var">valueP</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-151"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO CInt -&gt; IO ()
+forall a. (Eq a, Num a) =&gt; String -&gt; IO a -&gt; IO ()
+</span><a href="GHC.Internal.Foreign.C.Error.html#throwErrnoIfMinus1_"><span class="hs-identifier hs-var">throwErrnoIfMinus1_</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;setenv&quot;</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO ()) -&gt; IO CInt -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-152"></span><span>        </span><span class="annot"><span class="annottext">CString -&gt; CString -&gt; CInt -&gt; IO CInt
+</span><a href="GHC.Internal.System.Environment.Blank.html#c_setenv"><span class="hs-identifier hs-var">c_setenv</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679679377"><span class="hs-identifier hs-var">keyP</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679679378"><span class="hs-identifier hs-var">valueP</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="GHC.Internal.Real.html#fromIntegral"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><a href="GHC.Internal.Enum.html#fromEnum"><span class="hs-identifier hs-var">fromEnum</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#True"><span class="hs-identifier hs-var">True</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;setenv&quot;</span></span><span>
+</span><span id="line-155"></span><span>   </span><span id="c_setenv"><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#c_setenv"><span class="hs-identifier hs-var">c_setenv</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.String.Encoding.html#CString"><span class="hs-identifier hs-type">CString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.String.Encoding.html#CString"><span class="hs-identifier hs-type">CString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.Types.html#CInt"><span class="hs-identifier hs-type">CInt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.Types.html#CInt"><span class="hs-identifier hs-type">CInt</span></a></span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span class="hs-pragma">{-# LINE 157 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- | Like 'GHC.Internal.System.Environment.unsetEnv', but allows for the removal of</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- blank environment variables. May throw an exception if the underlying</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- platform doesn't support unsetting of environment variables.</span><span>
+</span><span id="line-161"></span><span class="hs-comment">--</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- Beware that this function must not be executed concurrently</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- with 'getEnv', 'lookupEnv', 'getEnvironment' and such. One thread</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- reading environment variables at the same time with another one modifying them</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- can result in a segfault, see</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- [Setenv is not Thread Safe](https://www.evanjones.ca/setenv-is-not-thread-safe.html)</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- for discussion.</span><span>
+</span><span id="line-168"></span><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#unsetEnv"><span class="hs-identifier hs-type">unsetEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-pragma">{-# LINE 185 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span id="unsetEnv"><span class="annot"><span class="annottext">unsetEnv :: String -&gt; IO ()
+</span><a href="GHC.Internal.System.Environment.Blank.html#unsetEnv"><span class="hs-pragma hs-var hs-var">{-# LINE 186 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span></a></span></span><span>
+</span><span id="line-186"></span><span class="hs-identifier">unsetEnv</span><span> </span><span class="hs-identifier">name</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">withFilePath</span><span> </span><span class="hs-identifier">name</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-identifier">s</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1_</span><span> </span><span class="hs-string">&quot;unsetenv&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">c_unsetenv</span><span> </span><span class="hs-identifier">s</span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- POSIX.1-2001 compliant unsetenv(3)</span><span>
+</span><span id="line-190"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">capi</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;HsBase.h unsetenv&quot;</span></span><span>
+</span><span id="line-191"></span><span>   </span><span id="c_unsetenv"><span class="annot"><a href="GHC.Internal.System.Environment.Blank.html#c_unsetenv"><span class="hs-identifier hs-var">c_unsetenv</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.String.Encoding.html#CString"><span class="hs-identifier hs-type">CString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.Types.html#CInt"><span class="hs-identifier hs-type">CInt</span></a></span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-pragma">{-# LINE 199 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-199"></span><span>
+</span><span id="line-200"></span><span class="hs-pragma">{-# LINE 216 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/Blank.hsc&quot; #-}</span><span>
+</span><span id="line-216"></span></pre></body></html>

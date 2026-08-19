@@ -1,0 +1,440 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html"><span class="hs-identifier">GHC.Core.Opt.CallerCC.Types</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#NamePattern"><span class="hs-identifier">NamePattern</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-2"></span><span>                                   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#CallerCcFilter"><span class="hs-identifier">CallerCcFilter</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-3"></span><span>                                   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#occNameMatches"><span class="hs-identifier">occNameMatches</span></a></span><span>
+</span><span id="line-4"></span><span>                                   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#parseCallerCcFilter"><span class="hs-identifier">parseCallerCcFilter</span></a></span><span>
+</span><span id="line-5"></span><span>                                   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#parseNamePattern"><span class="hs-identifier">parseNamePattern</span></a></span><span>
+</span><span id="line-6"></span><span>                                   </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Word.html"><span class="hs-identifier">Data.Word</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Maybe.html"><span class="hs-identifier">Data.Maybe</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Applicative.html"><span class="hs-identifier">Control.Applicative</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Either.html"><span class="hs-identifier">Data.Either</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Text.ParserCombinators.ReadP.html"><span class="hs-identifier">Text.ParserCombinators.ReadP</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Outputable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#varName"><span class="hs-identifier">varName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Utils.Binary.html"><span class="hs-identifier">GHC.Utils.Binary</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Char.html"><span class="hs-identifier">Data.Char</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Module.Name.html"><span class="hs-identifier">Language.Haskell.Syntax.Module.Name</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">data</span><span> </span><span id="NamePattern"><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#NamePattern"><span class="hs-identifier hs-var">NamePattern</span></a></span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="PChar"><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#PChar"><span class="hs-identifier hs-var">PChar</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#NamePattern"><span class="hs-identifier hs-type">NamePattern</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="PWildcard"><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#PWildcard"><span class="hs-identifier hs-var">PWildcard</span></a></span></span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#NamePattern"><span class="hs-identifier hs-type">NamePattern</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="PEnd"><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#PEnd"><span class="hs-identifier hs-var">PEnd</span></a></span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#NamePattern"><span class="hs-identifier hs-type">NamePattern</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>  </span><span id="local-6989586621682406751"><span class="annot"><span class="annottext">ppr :: NamePattern -&gt; SDoc
+</span><a href="#local-6989586621682406751"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#PChar"><span class="hs-identifier hs-type">PChar</span></a></span><span> </span><span id="local-6989586621682406753"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406753"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621682406754"><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406754"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; SDoc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406753"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406754"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#PWildcard"><span class="hs-identifier hs-type">PWildcard</span></a></span><span> </span><span id="local-6989586621682406757"><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406757"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; SDoc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'*'</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406757"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PEnd"><span class="hs-identifier hs-var">PEnd</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsOutput doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">Outputable.empty</span></a></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682406761"><span class="annot"><a href="GHC.Utils.Binary.html#Binary"><span class="hs-identifier hs-type">B.Binary</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#NamePattern"><span class="hs-identifier hs-type">NamePattern</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-37"></span><span>  </span><span id="local-6989586621682406790"><span class="annot"><span class="annottext">get :: BinHandle -&gt; IO NamePattern
+</span><a href="#local-6989586621682406790"><span class="hs-identifier hs-var hs-var hs-var">get</span></a></span></span><span> </span><span id="local-6989586621682406792"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406792"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621682406793"><span class="annot"><a href="#local-6989586621682406793"><span class="hs-identifier hs-var">tag</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO Word8
+forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">B.get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406792"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621682406793"><span class="hs-identifier hs-type">tag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-40"></span><span>      </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; NamePattern -&gt; NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PChar"><span class="hs-identifier hs-var">PChar</span></a></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; NamePattern -&gt; NamePattern)
+-&gt; IO Char -&gt; IO (NamePattern -&gt; NamePattern)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO Char
+forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">B.get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406792"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">IO (NamePattern -&gt; NamePattern) -&gt; IO NamePattern -&gt; IO NamePattern
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO NamePattern
+forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">B.get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406792"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-41"></span><span>      </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NamePattern -&gt; NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PWildcard"><span class="hs-identifier hs-var">PWildcard</span></a></span><span> </span><span class="annot"><span class="annottext">(NamePattern -&gt; NamePattern) -&gt; IO NamePattern -&gt; IO NamePattern
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO NamePattern
+forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">B.get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406792"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NamePattern -&gt; IO NamePattern
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PEnd"><span class="hs-identifier hs-var">PEnd</span></a></span><span>
+</span><span id="line-43"></span><span>      </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO NamePattern
+forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Binary(NamePattern): Invalid tag&quot;</span></span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621682406808"><span class="annot"><span class="annottext">put_ :: BinHandle -&gt; NamePattern -&gt; IO ()
+</span><a href="#local-6989586621682406808"><span class="hs-identifier hs-var hs-var hs-var">put_</span></a></span></span><span> </span><span id="local-6989586621682406810"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406810"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#PChar"><span class="hs-identifier hs-type">PChar</span></a></span><span> </span><span id="local-6989586621682406811"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406811"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682406812"><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406812"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">B.put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406810"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Char -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">B.put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406810"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406811"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; NamePattern -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">B.put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406810"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406812"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span id="local-6989586621682406813"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406813"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#PWildcard"><span class="hs-identifier hs-type">PWildcard</span></a></span><span> </span><span id="local-6989586621682406814"><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406814"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">B.put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406813"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; NamePattern -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">B.put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406813"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406814"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span class="annot"><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span id="local-6989586621682406815"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406815"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PEnd"><span class="hs-identifier hs-var">PEnd</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Word8 -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">B.put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406815"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#occNameMatches"><span class="hs-identifier hs-type">occNameMatches</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#NamePattern"><span class="hs-identifier hs-type">NamePattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.Occurrence.html#OccName"><span class="hs-identifier hs-type">OccName</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-49"></span><span id="occNameMatches"><span class="annot"><span class="annottext">occNameMatches :: NamePattern -&gt; OccName -&gt; Bool
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#occNameMatches"><span class="hs-identifier hs-var hs-var">occNameMatches</span></a></span></span><span> </span><span id="local-6989586621682406816"><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406816"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NamePattern -&gt; String -&gt; Bool
+</span><a href="#local-6989586621682406817"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406816"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Bool) -&gt; (OccName -&gt; String) -&gt; OccName -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">OccName -&gt; String
+</span><a href="GHC.Types.Name.Occurrence.html#occNameString"><span class="hs-identifier hs-var">occNameString</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="#local-6989586621682406817"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#NamePattern"><span class="hs-identifier hs-type">NamePattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-52"></span><span>    </span><span id="local-6989586621682406817"><span class="annot"><span class="annottext">go :: NamePattern -&gt; String -&gt; Bool
+</span><a href="#local-6989586621682406817"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PEnd"><span class="hs-identifier hs-var">PEnd</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="#local-6989586621682406817"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#PChar"><span class="hs-identifier hs-type">PChar</span></a></span><span> </span><span id="local-6989586621682406820"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406820"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621682406821"><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406821"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682406822"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406822"><span class="hs-identifier hs-var">d</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621682406823"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682406823"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406822"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406820"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">NamePattern -&gt; String -&gt; Bool
+</span><a href="#local-6989586621682406817"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406821"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682406823"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><a href="#local-6989586621682406817"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#PWildcard"><span class="hs-identifier hs-type">PWildcard</span></a></span><span> </span><span id="local-6989586621682406825"><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406825"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621682406826"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682406826"><span class="hs-identifier hs-var">s</span></a></span></span><span>
+</span><span id="line-56"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NamePattern -&gt; String -&gt; Bool
+</span><a href="#local-6989586621682406817"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406825"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682406826"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">NamePattern -&gt; String -&gt; Bool
+</span><a href="#local-6989586621682406817"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NamePattern -&gt; NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PWildcard"><span class="hs-identifier hs-var">PWildcard</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406825"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; String
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><a href="GHC.Prelude.Basic.html#tail"><span class="hs-identifier hs-var">tail</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682406826"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><a href="#local-6989586621682406817"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">type</span><span> </span><span id="Parser"><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.ReadP</span></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#parseNamePattern"><span class="hs-identifier hs-type">parseNamePattern</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#NamePattern"><span class="hs-identifier hs-type">NamePattern</span></a></span><span>
+</span><span id="line-64"></span><span id="parseNamePattern"><span class="annot"><span class="annottext">parseNamePattern :: Parser NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#parseNamePattern"><span class="hs-identifier hs-var hs-var">parseNamePattern</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser NamePattern
+</span><a href="#local-6989586621682406829"><span class="hs-identifier hs-var">pattern</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621682406829"><span class="annot"><span class="annottext">pattern :: Parser NamePattern
+</span><a href="#local-6989586621682406829"><span class="hs-identifier hs-var hs-var">pattern</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser NamePattern
+</span><a href="#local-6989586621682406837"><span class="hs-identifier hs-var">star</span></a></span><span> </span><span class="annot"><span class="annottext">Parser NamePattern -&gt; Parser NamePattern -&gt; Parser NamePattern
+forall a. ReadP a -&gt; ReadP a -&gt; ReadP a
+</span><span class="hs-operator hs-var">P.&lt;++</span></span><span> </span><span class="annot"><span class="annottext">Parser NamePattern
+</span><a href="#local-6989586621682406839"><span class="hs-identifier hs-var">wildcard</span></a></span><span> </span><span class="annot"><span class="annottext">Parser NamePattern -&gt; Parser NamePattern -&gt; Parser NamePattern
+forall a. ReadP a -&gt; ReadP a -&gt; ReadP a
+</span><span class="hs-operator hs-var">P.&lt;++</span></span><span> </span><span class="annot"><span class="annottext">Parser NamePattern
+</span><a href="#local-6989586621682406840"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Parser NamePattern -&gt; Parser NamePattern -&gt; Parser NamePattern
+forall a. ReadP a -&gt; ReadP a -&gt; ReadP a
+</span><span class="hs-operator hs-var">P.&lt;++</span></span><span> </span><span class="annot"><span class="annottext">Parser NamePattern
+</span><a href="#local-6989586621682406841"><span class="hs-identifier hs-var">end</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span id="local-6989586621682406837"><span class="annot"><span class="annottext">star :: Parser NamePattern
+</span><a href="#local-6989586621682406837"><span class="hs-identifier hs-var hs-var">star</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; NamePattern -&gt; NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PChar"><span class="hs-identifier hs-var">PChar</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'*'</span></span><span> </span><span class="annot"><span class="annottext">(NamePattern -&gt; NamePattern)
+-&gt; ReadP String -&gt; ReadP (NamePattern -&gt; NamePattern)
+forall a b. a -&gt; ReadP b -&gt; ReadP a
+forall (f :: * -&gt; *) a b. Functor f =&gt; a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ReadP String
+</span><span class="hs-identifier hs-var">P.string</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\\*&quot;</span></span><span> </span><span class="annot"><span class="annottext">ReadP (NamePattern -&gt; NamePattern)
+-&gt; Parser NamePattern -&gt; Parser NamePattern
+forall a b. ReadP (a -&gt; b) -&gt; ReadP a -&gt; ReadP b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser NamePattern
+</span><a href="#local-6989586621682406829"><span class="hs-identifier hs-var">pattern</span></a></span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621682406839"><span class="annot"><span class="annottext">wildcard :: Parser NamePattern
+</span><a href="#local-6989586621682406839"><span class="hs-identifier hs-var hs-var">wildcard</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-69"></span><span>      </span><span class="annot"><span class="annottext">ReadP Char -&gt; ReadP ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(ReadP Char -&gt; ReadP ()) -&gt; ReadP Char -&gt; ReadP ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ReadP Char
+</span><span class="hs-identifier hs-var">P.char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'*'</span></span><span>
+</span><span id="line-70"></span><span>      </span><span class="annot"><span class="annottext">NamePattern -&gt; NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PWildcard"><span class="hs-identifier hs-var">PWildcard</span></a></span><span> </span><span class="annot"><span class="annottext">(NamePattern -&gt; NamePattern)
+-&gt; Parser NamePattern -&gt; Parser NamePattern
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser NamePattern
+</span><a href="#local-6989586621682406829"><span class="hs-identifier hs-var">pattern</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span id="local-6989586621682406840"><span class="annot"><span class="annottext">char :: Parser NamePattern
+</span><a href="#local-6989586621682406840"><span class="hs-identifier hs-var hs-var">char</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; NamePattern -&gt; NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PChar"><span class="hs-identifier hs-var">PChar</span></a></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; NamePattern -&gt; NamePattern)
+-&gt; ReadP Char -&gt; ReadP (NamePattern -&gt; NamePattern)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ReadP Char
+</span><span class="hs-identifier hs-var">P.get</span></span><span> </span><span class="annot"><span class="annottext">ReadP (NamePattern -&gt; NamePattern)
+-&gt; Parser NamePattern -&gt; Parser NamePattern
+forall a b. ReadP (a -&gt; b) -&gt; ReadP a -&gt; ReadP b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser NamePattern
+</span><a href="#local-6989586621682406829"><span class="hs-identifier hs-var">pattern</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621682406841"><span class="annot"><span class="annottext">end :: Parser NamePattern
+</span><a href="#local-6989586621682406841"><span class="hs-identifier hs-var hs-var">end</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#PEnd"><span class="hs-identifier hs-var">PEnd</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern -&gt; ReadP () -&gt; Parser NamePattern
+forall a b. a -&gt; ReadP b -&gt; ReadP a
+forall (f :: * -&gt; *) a b. Functor f =&gt; a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;$</span></span><span> </span><span class="annot"><span class="annottext">ReadP ()
+</span><span class="hs-identifier hs-var">P.eof</span></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">data</span><span> </span><span id="CallerCcFilter"><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#CallerCcFilter"><span class="hs-identifier hs-var">CallerCcFilter</span></a></span></span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="CallerCcFilter"><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#CallerCcFilter"><span class="hs-identifier hs-var">CallerCcFilter</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="ccfModuleName"><span class="annot"><span class="annottext">CallerCcFilter -&gt; Maybe ModuleName
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#ccfModuleName"><span class="hs-identifier hs-var hs-var">ccfModuleName</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Module.Name.html#ModuleName"><span class="hs-identifier hs-type">ModuleName</span></a></span><span>
+</span><span id="line-76"></span><span>                     </span><span class="hs-special">,</span><span> </span><span id="ccfFuncName"><span class="annot"><span class="annottext">CallerCcFilter -&gt; NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#ccfFuncName"><span class="hs-identifier hs-var hs-var">ccfFuncName</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#NamePattern"><span class="hs-identifier hs-type">NamePattern</span></a></span><span>
+</span><span id="line-77"></span><span>                     </span><span class="hs-special">}</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#CallerCcFilter"><span class="hs-identifier hs-type">CallerCcFilter</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>  </span><span id="local-6989586621682406861"><span class="annot"><span class="annottext">ppr :: CallerCcFilter -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span id="local-6989586621682406862"><span class="annot"><span class="annottext">CallerCcFilter
+</span><a href="#local-6989586621682406862"><span class="hs-identifier hs-var">ccf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="annottext">SDoc -&gt; (ModuleName -&gt; SDoc) -&gt; Maybe ModuleName -&gt; SDoc
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; SDoc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'*'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ModuleName -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CallerCcFilter -&gt; Maybe ModuleName
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#ccfModuleName"><span class="hs-identifier hs-var">ccfModuleName</span></a></span><span> </span><span class="annot"><span class="annottext">CallerCcFilter
+</span><a href="#local-6989586621682406862"><span class="hs-identifier hs-var">ccf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; SDoc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'.'</span></span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CallerCcFilter -&gt; NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#ccfFuncName"><span class="hs-identifier hs-var">ccfFuncName</span></a></span><span> </span><span class="annot"><span class="annottext">CallerCcFilter
+</span><a href="#local-6989586621682406862"><span class="hs-identifier hs-var">ccf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682406866"><span class="annot"><a href="GHC.Utils.Binary.html#Binary"><span class="hs-identifier hs-type">B.Binary</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#CallerCcFilter"><span class="hs-identifier hs-type">CallerCcFilter</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>  </span><span id="local-6989586621682406877"><span class="annot"><span class="annottext">get :: BinHandle -&gt; IO CallerCcFilter
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var hs-var hs-var">get</span></a></span></span><span> </span><span id="local-6989586621682406878"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406878"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe ModuleName -&gt; NamePattern -&gt; CallerCcFilter
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#CallerCcFilter"><span class="hs-identifier hs-var">CallerCcFilter</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe ModuleName -&gt; NamePattern -&gt; CallerCcFilter)
+-&gt; IO (Maybe ModuleName) -&gt; IO (NamePattern -&gt; CallerCcFilter)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO (Maybe ModuleName)
+forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">B.get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406878"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">IO (NamePattern -&gt; CallerCcFilter)
+-&gt; IO NamePattern -&gt; IO CallerCcFilter
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO NamePattern
+forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">B.get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406878"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-87"></span><span>  </span><span id="local-6989586621682406883"><span class="annot"><span class="annottext">put_ :: BinHandle -&gt; CallerCcFilter -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var hs-var hs-var">put_</span></a></span></span><span> </span><span id="local-6989586621682406884"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406884"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#CallerCcFilter"><span class="hs-identifier hs-type">CallerCcFilter</span></a></span><span> </span><span id="local-6989586621682406885"><span class="annot"><span class="annottext">Maybe ModuleName
+</span><a href="#local-6989586621682406885"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682406886"><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406886"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Maybe ModuleName -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">B.put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406884"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ModuleName
+</span><a href="#local-6989586621682406885"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; NamePattern -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">B.put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682406884"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">NamePattern
+</span><a href="#local-6989586621682406886"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#parseCallerCcFilter"><span class="hs-identifier hs-type">parseCallerCcFilter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#CallerCcFilter"><span class="hs-identifier hs-type">CallerCcFilter</span></a></span><span>
+</span><span id="line-90"></span><span id="parseCallerCcFilter"><span class="annot"><span class="annottext">parseCallerCcFilter :: String -&gt; Either String CallerCcFilter
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#parseCallerCcFilter"><span class="hs-identifier hs-var hs-var">parseCallerCcFilter</span></a></span></span><span> </span><span id="local-6989586621682406887"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682406887"><span class="hs-identifier hs-var">inp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ReadP CallerCcFilter -&gt; ReadS CallerCcFilter
+forall a. ReadP a -&gt; ReadS a
+</span><span class="hs-identifier hs-var">P.readP_to_S</span></span><span> </span><span class="annot"><span class="annottext">ReadP CallerCcFilter
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#parseCallerCcFilter%27"><span class="hs-identifier hs-var">parseCallerCcFilter'</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682406887"><span class="hs-identifier hs-var">inp</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-92"></span><span>      </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621682406890"><span class="annot"><span class="annottext">CallerCcFilter
+</span><a href="#local-6989586621682406890"><span class="hs-identifier hs-var">result</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[(CallerCcFilter, String)]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CallerCcFilter -&gt; Either String CallerCcFilter
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">CallerCcFilter
+</span><a href="#local-6989586621682406890"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-93"></span><span>      </span><span class="annot"><span class="annottext">[(CallerCcFilter, String)]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String CallerCcFilter
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Either String CallerCcFilter)
+-&gt; String -&gt; Either String CallerCcFilter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;parse error on &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682406887"><span class="hs-identifier hs-var">inp</span></a></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#parseCallerCcFilter%27"><span class="hs-identifier hs-type">parseCallerCcFilter'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#CallerCcFilter"><span class="hs-identifier hs-type">CallerCcFilter</span></a></span><span>
+</span><span id="line-96"></span><span id="parseCallerCcFilter%27"><span class="annot"><span class="annottext">parseCallerCcFilter' :: ReadP CallerCcFilter
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#parseCallerCcFilter%27"><span class="hs-identifier hs-var hs-var">parseCallerCcFilter'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><span class="annottext">Maybe ModuleName -&gt; NamePattern -&gt; CallerCcFilter
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#CallerCcFilter"><span class="hs-identifier hs-var">CallerCcFilter</span></a></span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><span class="annottext">(Maybe ModuleName -&gt; NamePattern -&gt; CallerCcFilter)
+-&gt; ReadP (Maybe ModuleName)
+-&gt; ReadP (NamePattern -&gt; CallerCcFilter)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ReadP (Maybe ModuleName)
+</span><a href="#local-6989586621682406891"><span class="hs-identifier hs-var">moduleFilter</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><span class="annottext">ReadP (NamePattern -&gt; CallerCcFilter)
+-&gt; ReadP Char -&gt; ReadP (NamePattern -&gt; CallerCcFilter)
+forall a b. ReadP a -&gt; ReadP b -&gt; ReadP a
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;*</span></span><span>  </span><span class="annot"><span class="annottext">Char -&gt; ReadP Char
+</span><span class="hs-identifier hs-var">P.char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'.'</span></span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><span class="annottext">ReadP (NamePattern -&gt; CallerCcFilter)
+-&gt; Parser NamePattern -&gt; ReadP CallerCcFilter
+forall a b. ReadP (a -&gt; b) -&gt; ReadP a -&gt; ReadP b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser NamePattern
+</span><a href="GHC.Core.Opt.CallerCC.Types.html#parseNamePattern"><span class="hs-identifier hs-var">parseNamePattern</span></a></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><a href="#local-6989586621682406891"><span class="hs-identifier hs-type">moduleFilter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Module.Name.html#ModuleName"><span class="hs-identifier hs-type">ModuleName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621682406891"><span class="annot"><span class="annottext">moduleFilter :: ReadP (Maybe ModuleName)
+</span><a href="#local-6989586621682406891"><span class="hs-identifier hs-var hs-var">moduleFilter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-104"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModuleName -&gt; Maybe ModuleName
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ModuleName -&gt; Maybe ModuleName)
+-&gt; (String -&gt; ModuleName) -&gt; String -&gt; Maybe ModuleName
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ModuleName
+</span><a href="Language.Haskell.Syntax.Module.Name.html#mkModuleName"><span class="hs-identifier hs-var">mkModuleName</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Maybe ModuleName)
+-&gt; ReadP String -&gt; ReadP (Maybe ModuleName)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ReadP String
+</span><a href="#local-6989586621682406894"><span class="hs-identifier hs-var">moduleName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>      </span><span class="annot"><span class="annottext">ReadP (Maybe ModuleName)
+-&gt; ReadP (Maybe ModuleName) -&gt; ReadP (Maybe ModuleName)
+forall a. ReadP a -&gt; ReadP a -&gt; ReadP a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span>
+</span><span id="line-106"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe ModuleName
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe ModuleName -&gt; ReadP Char -&gt; ReadP (Maybe ModuleName)
+forall a b. a -&gt; ReadP b -&gt; ReadP a
+forall (f :: * -&gt; *) a b. Functor f =&gt; a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;$</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ReadP Char
+</span><span class="hs-identifier hs-var">P.char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'*'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><a href="#local-6989586621682406894"><span class="hs-identifier hs-type">moduleName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Opt.CallerCC.Types.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-109"></span><span>    </span><span id="local-6989586621682406894"><span class="annot"><span class="annottext">moduleName :: ReadP String
+</span><a href="#local-6989586621682406894"><span class="hs-identifier hs-var hs-var">moduleName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-110"></span><span>      </span><span id="local-6989586621682406896"><span class="annot"><a href="#local-6989586621682406896"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; ReadP Char
+</span><span class="hs-identifier hs-var">P.satisfy</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isUpper</span></span><span>
+</span><span id="line-111"></span><span>      </span><span id="local-6989586621682406899"><span class="annot"><a href="#local-6989586621682406899"><span class="hs-identifier hs-var">cs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.munch1</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682406901"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406901"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isUpper</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406901"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isLower</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406901"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406901"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682406901"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'_'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>      </span><span id="local-6989586621682406904"><span class="annot"><a href="#local-6989586621682406904"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Applicative.html#optional"><span class="hs-identifier hs-type">optional</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.char</span></span><span> </span><span class="annot"><span class="hs-char">'.'</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-char">'.'</span></span><span class="annot"><span class="hs-glyph">:</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621682406894"><span class="hs-identifier hs-type">moduleName</span></a></span><span>
+</span><span id="line-113"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621682406896"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682406899"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">fromMaybe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><a href="#local-6989586621682406904"><span class="hs-identifier hs-type">rest</span></a></span><span class="hs-special">)</span></pre></body></html>

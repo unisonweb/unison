@@ -1,0 +1,314 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Merge.Diff.html"><span class="hs-identifier">Unison.Merge.Diff</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Merge.Diff.html#diffSynhashedDefns"><span class="hs-identifier">diffSynhashedDefns</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Merge.Diff.html#diffSynhashedDefns1"><span class="hs-identifier">diffSynhashedDefns1</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Merge.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Zip</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Zip</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.DiffOp.html"><span class="hs-identifier">Unison.Merge.DiffOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier">DiffOp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp2"><span class="hs-identifier">DiffOp2</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html"><span class="hs-identifier">Unison.Merge.Synhashed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier">Synhashed</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html"><span class="hs-identifier">Unison.Merge.Synhashed</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Synhashed</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.TwoWay.html"><span class="hs-identifier">Unison.Merge.TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Updated.html"><span class="hs-identifier">Unison.Merge.Updated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#GUpdated"><span class="hs-identifier">GUpdated</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier">Updated</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Updated.html"><span class="hs-identifier">Unison.Merge.Updated</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Updated</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">catMaybes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DefnsF</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DefnsF2</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DefnsF3</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unzipDefns</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">zipDefnsWith</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- | @diffSynhashedDefns defns@, given the output of @synhashDefns@, computes the two two-way diffs (each consisting of</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- the &quot;core&quot; diffs, i.e. adds/delete/updates, alongside the propagated updates, i.e. updates that have the same synhash</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- but different Unison hashes).</span><span>
+</span><span id="line-23"></span><span id="local-6989586621679217361"><span id="local-6989586621679217362"><span class="annot"><a href="Unison.Merge.Diff.html#diffSynhashedDefns"><span class="hs-identifier hs-type">diffSynhashedDefns</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679217361"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679217362"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DefnsF2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217361"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217362"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-comment">-- Core diffs, i.e. adds, deletes, and updates which have different synhashes.</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DefnsF3</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier hs-type">DiffOp</span></a></span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217361"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217362"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-comment">-- Propagated updates, i.e. updates which have the same synhash but different Unison hashes.</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DefnsF</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217361"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217362"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-31"></span><span id="diffSynhashedDefns"><span class="annot"><span class="annottext">diffSynhashedDefns :: forall term typ.
+(Eq term, Eq typ) =&gt;
+TwoWay (Updated (DefnsF2 (Map Name) Synhashed term typ))
+-&gt; (TwoWay (DefnsF3 (Map Name) DiffOp Synhashed term typ),
+    TwoWay (DefnsF (Map Name) (Updated term) (Updated typ)))
+</span><a href="Unison.Merge.Diff.html#diffSynhashedDefns"><span class="hs-identifier hs-var hs-var">diffSynhashedDefns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="annottext">TwoWay
+  (DefnsF3 (Map Name) DiffOp Synhashed term typ,
+   DefnsF (Map Name) (Updated term) (Updated typ))
+-&gt; (TwoWay (DefnsF3 (Map Name) DiffOp Synhashed term typ),
+    TwoWay (DefnsF (Map Name) (Updated term) (Updated typ)))
+forall a b. TwoWay (a, b) -&gt; (TwoWay a, TwoWay b)
+forall (f :: * -&gt; *) a b. Unzip f =&gt; f (a, b) -&gt; (f a, f b)
+</span><span class="hs-identifier hs-var">Zip.unzip</span></span><span> </span><span class="annot"><span class="annottext">(TwoWay
+   (DefnsF3 (Map Name) DiffOp Synhashed term typ,
+    DefnsF (Map Name) (Updated term) (Updated typ))
+ -&gt; (TwoWay (DefnsF3 (Map Name) DiffOp Synhashed term typ),
+     TwoWay (DefnsF (Map Name) (Updated term) (Updated typ))))
+-&gt; (TwoWay (Updated (DefnsF2 (Map Name) Synhashed term typ))
+    -&gt; TwoWay
+         (DefnsF3 (Map Name) DiffOp Synhashed term typ,
+          DefnsF (Map Name) (Updated term) (Updated typ)))
+-&gt; TwoWay (Updated (DefnsF2 (Map Name) Synhashed term typ))
+-&gt; (TwoWay (DefnsF3 (Map Name) DiffOp Synhashed term typ),
+    TwoWay (DefnsF (Map Name) (Updated term) (Updated typ)))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Updated (DefnsF2 (Map Name) Synhashed term typ)
+ -&gt; (DefnsF3 (Map Name) DiffOp Synhashed term typ,
+     DefnsF (Map Name) (Updated term) (Updated typ)))
+-&gt; TwoWay (Updated (DefnsF2 (Map Name) Synhashed term typ))
+-&gt; TwoWay
+     (DefnsF3 (Map Name) DiffOp Synhashed term typ,
+      DefnsF (Map Name) (Updated term) (Updated typ))
+forall a b. (a -&gt; b) -&gt; TwoWay a -&gt; TwoWay b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Updated (DefnsF2 (Map Name) Synhashed term typ)
+-&gt; (DefnsF3 (Map Name) DiffOp Synhashed term typ,
+    DefnsF (Map Name) (Updated term) (Updated typ))
+forall term typ.
+(Eq term, Eq typ) =&gt;
+Updated (DefnsF2 (Map Name) Synhashed term typ)
+-&gt; (DefnsF3 (Map Name) DiffOp Synhashed term typ,
+    DefnsF (Map Name) (Updated term) (Updated typ))
+</span><a href="Unison.Merge.Diff.html#diffSynhashedDefns1"><span class="hs-identifier hs-var">diffSynhashedDefns1</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><span class="hs-comment">-- | Like 'diffSynhashedDefns', but for just one LCA-&gt;Head side.</span></span><span>
+</span><span id="line-35"></span><span id="local-6989586621679217384"><span id="local-6989586621679217385"><span class="annot"><a href="Unison.Merge.Diff.html#diffSynhashedDefns1"><span class="hs-identifier hs-type">diffSynhashedDefns1</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679217384"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679217385"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DefnsF2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217384"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217385"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-comment">-- Core diffs, i.e. adds, deletes, and updates which have different synhashes.</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">DefnsF3</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier hs-type">DiffOp</span></a></span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217384"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217385"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-comment">-- Propagated updates, i.e. updates which have the same synhash but different Unison hashes.</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">DefnsF</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217384"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217385"><span class="hs-identifier hs-type">typ</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-43"></span><span id="diffSynhashedDefns1"><span class="annot"><span class="annottext">diffSynhashedDefns1 :: forall term typ.
+(Eq term, Eq typ) =&gt;
+Updated (DefnsF2 (Map Name) Synhashed term typ)
+-&gt; (DefnsF3 (Map Name) DiffOp Synhashed term typ,
+    DefnsF (Map Name) (Updated term) (Updated typ))
+</span><a href="Unison.Merge.Diff.html#diffSynhashedDefns1"><span class="hs-identifier hs-var hs-var">diffSynhashedDefns1</span></a></span></span><span> </span><span id="local-6989586621679217466"><span class="annot"><span class="annottext">Updated (DefnsF2 (Map Name) Synhashed term typ)
+</span><a href="#local-6989586621679217466"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><span class="annottext">Defns
+  (Map Name (DiffOp (Synhashed term)), Map Name (Updated term))
+  (Map Name (DiffOp (Synhashed typ)), Map Name (Updated typ))
+-&gt; (Defns
+      (Map Name (DiffOp (Synhashed term)))
+      (Map Name (DiffOp (Synhashed typ))),
+    Defns (Map Name (Updated term)) (Map Name (Updated typ)))
+forall tm1 tm2 ty1 ty2.
+Defns (tm1, tm2) (ty1, ty2) -&gt; (Defns tm1 ty1, Defns tm2 ty2)
+</span><span class="hs-identifier hs-var">unzipDefns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Map Name (Synhashed term)
+ -&gt; Map Name (Synhashed term)
+ -&gt; (Map Name (DiffOp (Synhashed term)), Map Name (Updated term)))
+-&gt; (Map Name (Synhashed typ)
+    -&gt; Map Name (Synhashed typ)
+    -&gt; (Map Name (DiffOp (Synhashed typ)), Map Name (Updated typ)))
+-&gt; DefnsF2 (Map Name) Synhashed term typ
+-&gt; DefnsF2 (Map Name) Synhashed term typ
+-&gt; Defns
+     (Map Name (DiffOp (Synhashed term)), Map Name (Updated term))
+     (Map Name (DiffOp (Synhashed typ)), Map Name (Updated typ))
+forall tm1 tm2 tm3 ty1 ty2 ty3.
+(tm1 -&gt; tm2 -&gt; tm3)
+-&gt; (ty1 -&gt; ty2 -&gt; ty3)
+-&gt; Defns tm1 ty1
+-&gt; Defns tm2 ty2
+-&gt; Defns tm3 ty3
+</span><span class="hs-identifier hs-var">zipDefnsWith</span></span><span> </span><span class="annot"><span class="annottext">Map Name (Synhashed term)
+-&gt; Map Name (Synhashed term)
+-&gt; (Map Name (DiffOp (Synhashed term)), Map Name (Updated term))
+forall ref.
+Eq ref =&gt;
+Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref)
+-&gt; (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
+</span><a href="#local-6989586621679217467"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Map Name (Synhashed typ)
+-&gt; Map Name (Synhashed typ)
+-&gt; (Map Name (DiffOp (Synhashed typ)), Map Name (Updated typ))
+forall ref.
+Eq ref =&gt;
+Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref)
+-&gt; (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
+</span><a href="#local-6989586621679217467"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Updated (DefnsF2 (Map Name) Synhashed term typ)
+</span><a href="#local-6989586621679217466"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">old</span><span> </span><span class="annot"><span class="annottext">Updated (DefnsF2 (Map Name) Synhashed term typ)
+</span><a href="#local-6989586621679217466"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">new</span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679217399"><span class="annot"><a href="#local-6989586621679217467"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679217399"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-48"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217399"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-49"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217399"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier hs-type">DiffOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217399"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217399"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621679217467"><span class="annot"><span class="annottext">f :: forall ref.
+Eq ref =&gt;
+Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref)
+-&gt; (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
+</span><a href="#local-6989586621679217467"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679217470"><span class="annot"><span class="annottext">Map Name (Synhashed ref)
+</span><a href="#local-6989586621679217470"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span id="local-6989586621679217471"><span class="annot"><span class="annottext">Map Name (Synhashed ref)
+</span><a href="#local-6989586621679217471"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><span class="annottext">Map Name (DiffOp2 (Synhashed ref))
+-&gt; (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
+forall ref.
+Map Name (DiffOp2 (Synhashed ref))
+-&gt; (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
+</span><a href="Unison.Merge.Diff.html#partitionPropagated"><span class="hs-identifier hs-var">partitionPropagated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref) -&gt; Map Name (DiffOp2 (Synhashed ref))
+forall ref.
+Eq ref =&gt;
+Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref) -&gt; Map Name (DiffOp2 (Synhashed ref))
+</span><a href="Unison.Merge.Diff.html#diffSynhashedDefns2"><span class="hs-identifier hs-var">diffSynhashedDefns2</span></a></span><span> </span><span class="annot"><span class="annottext">Map Name (Synhashed ref)
+</span><a href="#local-6989586621679217470"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Map Name (Synhashed ref)
+</span><a href="#local-6989586621679217471"><span class="hs-identifier hs-var">new</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- Compute the diff by comparing old-and-new values, resulting in either an add, delete, update (propagated or not),</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- or dropping the thing entirely (because old and new have the same hash).</span><span>
+</span><span id="line-56"></span><span class="annot"><a href="Unison.Merge.Diff.html#diffSynhashedDefns2"><span class="hs-identifier hs-type">diffSynhashedDefns2</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679217403"><span class="annot"><a href="#local-6989586621679217403"><span class="hs-identifier hs-type">ref</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679217403"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217403"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217403"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp2"><span class="hs-identifier hs-type">DiffOp2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217403"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span id="diffSynhashedDefns2"><span class="annot"><span class="annottext">diffSynhashedDefns2 :: forall ref.
+Eq ref =&gt;
+Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref) -&gt; Map Name (DiffOp2 (Synhashed ref))
+</span><a href="Unison.Merge.Diff.html#diffSynhashedDefns2"><span class="hs-identifier hs-var hs-var">diffSynhashedDefns2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><span class="annottext">SimpleWhenMissing Name (Synhashed ref) (DiffOp2 (Synhashed ref))
+-&gt; SimpleWhenMissing Name (Synhashed ref) (DiffOp2 (Synhashed ref))
+-&gt; SimpleWhenMatched
+     Name (Synhashed ref) (Synhashed ref) (DiffOp2 (Synhashed ref))
+-&gt; Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref)
+-&gt; Map Name (DiffOp2 (Synhashed ref))
+forall k a c b.
+Ord k =&gt;
+SimpleWhenMissing k a c
+-&gt; SimpleWhenMissing k b c
+-&gt; SimpleWhenMatched k a b c
+-&gt; Map k a
+-&gt; Map k b
+-&gt; Map k c
+</span><span class="hs-identifier hs-var">Map.merge</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Name -&gt; Synhashed ref -&gt; DiffOp2 (Synhashed ref))
+-&gt; SimpleWhenMissing Name (Synhashed ref) (DiffOp2 (Synhashed ref))
+forall (f :: * -&gt; *) k x y.
+Applicative f =&gt;
+(k -&gt; x -&gt; y) -&gt; WhenMissing f k x y
+</span><span class="hs-identifier hs-var">Map.mapMissing</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Name
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Synhashed ref -&gt; DiffOp2 (Synhashed ref)
+forall a. a -&gt; DiffOp2 a
+</span><a href="Unison.Merge.DiffOp.html#DiffOp2%27Delete"><span class="hs-identifier hs-var">DiffOp2'Delete</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Name -&gt; Synhashed ref -&gt; DiffOp2 (Synhashed ref))
+-&gt; SimpleWhenMissing Name (Synhashed ref) (DiffOp2 (Synhashed ref))
+forall (f :: * -&gt; *) k x y.
+Applicative f =&gt;
+(k -&gt; x -&gt; y) -&gt; WhenMissing f k x y
+</span><span class="hs-identifier hs-var">Map.mapMissing</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Name
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Synhashed ref -&gt; DiffOp2 (Synhashed ref)
+forall a. a -&gt; DiffOp2 a
+</span><a href="Unison.Merge.DiffOp.html#DiffOp2%27Add"><span class="hs-identifier hs-var">DiffOp2'Add</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Name
+ -&gt; Synhashed ref
+ -&gt; Synhashed ref
+ -&gt; Maybe (DiffOp2 (Synhashed ref)))
+-&gt; SimpleWhenMatched
+     Name (Synhashed ref) (Synhashed ref) (DiffOp2 (Synhashed ref))
+forall (f :: * -&gt; *) k x y z.
+Applicative f =&gt;
+(k -&gt; x -&gt; y -&gt; Maybe z) -&gt; WhenMatched f k x y z
+</span><span class="hs-identifier hs-var">Map.zipWithMaybeMatched</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Name
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Synhashed ref -&gt; Synhashed ref -&gt; Maybe (DiffOp2 (Synhashed ref))
+</span><a href="#local-6989586621679217495"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><a href="#local-6989586621679217495"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217403"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217403"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp2"><span class="hs-identifier hs-type">DiffOp2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217403"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621679217495"><span class="annot"><span class="annottext">f :: Synhashed ref -&gt; Synhashed ref -&gt; Maybe (DiffOp2 (Synhashed ref))
+</span><a href="#local-6989586621679217495"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679217496"><span class="annot"><span class="annottext">Synhashed ref
+</span><a href="#local-6989586621679217496"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span id="local-6989586621679217497"><span class="annot"><span class="annottext">Synhashed ref
+</span><a href="#local-6989586621679217497"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-70"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679217498"><span class="annot"><span class="annottext">equalSynhashes :: Bool
+</span><a href="#local-6989586621679217498"><span class="hs-identifier hs-var hs-var">equalSynhashes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Synhashed ref
+</span><a href="#local-6989586621679217496"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Synhashed ref -&gt; Synhashed ref -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Synhashed ref
+</span><a href="#local-6989586621679217497"><span class="hs-identifier hs-var">new</span></a></span><span>
+</span><span id="line-71"></span><span>      </span><span class="hs-comment">-- Drop things that haven't changed</span><span>
+</span><span id="line-72"></span><span>      </span><span class="annot"><span class="annottext">Bool -&gt; Maybe () -&gt; Maybe ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679217498"><span class="hs-identifier hs-var">equalSynhashes</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-73"></span><span>        </span><span class="annot"><span class="annottext">Bool -&gt; Maybe ()
+forall (f :: * -&gt; *). Alternative f =&gt; Bool -&gt; f ()
+</span><span class="hs-identifier hs-var">guard</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Synhashed ref -&gt; ref
+forall a. Synhashed a -&gt; a
+</span><a href="Unison.Merge.Synhashed.html#value"><span class="hs-identifier hs-var">Synhashed.value</span></a></span><span> </span><span class="annot"><span class="annottext">Synhashed ref
+</span><a href="#local-6989586621679217496"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">ref -&gt; ref -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Synhashed ref -&gt; ref
+forall a. Synhashed a -&gt; a
+</span><a href="Unison.Merge.Synhashed.html#value"><span class="hs-identifier hs-var">Synhashed.value</span></a></span><span> </span><span class="annot"><span class="annottext">Synhashed ref
+</span><a href="#local-6989586621679217497"><span class="hs-identifier hs-var">new</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>      </span><span class="annot"><span class="annottext">DiffOp2 (Synhashed ref) -&gt; Maybe (DiffOp2 (Synhashed ref))
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Updated (Synhashed ref) -&gt; Bool -&gt; DiffOp2 (Synhashed ref)
+forall a. Updated a -&gt; Bool -&gt; DiffOp2 a
+</span><a href="Unison.Merge.DiffOp.html#DiffOp2%27Update"><span class="hs-identifier hs-var">DiffOp2'Update</span></a></span><span> </span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">Synhashed ref
+old :: Synhashed ref
+old :: Synhashed ref
+</span><a href="#local-6989586621679217496"><span class="hs-identifier hs-var hs-var">old</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Synhashed ref
+new :: Synhashed ref
+new :: Synhashed ref
+</span><a href="#local-6989586621679217497"><span class="hs-identifier hs-var hs-var">new</span></a></span><span class="hs-special">}</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679217498"><span class="hs-identifier hs-var">equalSynhashes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- Partition add/delete/update/propagated-update into add/delete/update + propagated-update</span><span>
+</span><span id="line-77"></span><span id="local-6989586621679217402"><span class="annot"><a href="Unison.Merge.Diff.html#partitionPropagated"><span class="hs-identifier hs-type">partitionPropagated</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp2"><span class="hs-identifier hs-type">DiffOp2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217402"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier hs-type">DiffOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217402"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679217402"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-78"></span><span id="partitionPropagated"><span class="annot"><span class="annottext">partitionPropagated :: forall ref.
+Map Name (DiffOp2 (Synhashed ref))
+-&gt; (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
+</span><a href="Unison.Merge.Diff.html#partitionPropagated"><span class="hs-identifier hs-var hs-var">partitionPropagated</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><span class="annottext">(DiffOp2 (Synhashed ref)
+ -&gt; Either (DiffOp (Synhashed ref)) (Updated ref))
+-&gt; Map Name (DiffOp2 (Synhashed ref))
+-&gt; (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
+forall a b c k. (a -&gt; Either b c) -&gt; Map k a -&gt; (Map k b, Map k c)
+</span><span class="hs-identifier hs-var">Map.mapEither</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp2%27Add"><span class="hs-identifier hs-type">DiffOp2'Add</span></a></span><span> </span><span id="local-6989586621679217507"><span class="annot"><span class="annottext">Synhashed ref
+</span><a href="#local-6989586621679217507"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DiffOp (Synhashed ref)
+-&gt; Either (DiffOp (Synhashed ref)) (Updated ref)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Synhashed ref -&gt; DiffOp (Synhashed ref)
+forall a. a -&gt; DiffOp a
+</span><a href="Unison.Merge.DiffOp.html#DiffOp%27Add"><span class="hs-identifier hs-var">DiffOp'Add</span></a></span><span> </span><span class="annot"><span class="annottext">Synhashed ref
+</span><a href="#local-6989586621679217507"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp2%27Delete"><span class="hs-identifier hs-type">DiffOp2'Delete</span></a></span><span> </span><span id="local-6989586621679217509"><span class="annot"><span class="annottext">Synhashed ref
+</span><a href="#local-6989586621679217509"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DiffOp (Synhashed ref)
+-&gt; Either (DiffOp (Synhashed ref)) (Updated ref)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Synhashed ref -&gt; DiffOp (Synhashed ref)
+forall a. a -&gt; DiffOp a
+</span><a href="Unison.Merge.DiffOp.html#DiffOp%27Delete"><span class="hs-identifier hs-var">DiffOp'Delete</span></a></span><span> </span><span class="annot"><span class="annottext">Synhashed ref
+</span><a href="#local-6989586621679217509"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp2%27Update"><span class="hs-identifier hs-type">DiffOp2'Update</span></a></span><span> </span><span id="local-6989586621679217511"><span class="annot"><span class="annottext">Updated (Synhashed ref)
+</span><a href="#local-6989586621679217511"><span class="hs-identifier hs-var">refs</span></a></span></span><span> </span><span id="local-6989586621679217512"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679217512"><span class="hs-identifier hs-var">propagated</span></a></span></span><span>
+</span><span id="line-83"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679217512"><span class="hs-identifier hs-var">propagated</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Updated ref -&gt; Either (DiffOp (Synhashed ref)) (Updated ref)
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Synhashed ref -&gt; ref) -&gt; Updated (Synhashed ref) -&gt; Updated ref
+forall a b. (a -&gt; b) -&gt; Updated a -&gt; Updated b
+</span><a href="Unison.Merge.Updated.html#map"><span class="hs-identifier hs-var">Updated.map</span></a></span><span> </span><span class="annot"><span class="annottext">Synhashed ref -&gt; ref
+forall a. Synhashed a -&gt; a
+</span><a href="Unison.Merge.Synhashed.html#value"><span class="hs-identifier hs-var">Synhashed.value</span></a></span><span> </span><span class="annot"><span class="annottext">Updated (Synhashed ref)
+</span><a href="#local-6989586621679217511"><span class="hs-identifier hs-var">refs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DiffOp (Synhashed ref)
+-&gt; Either (DiffOp (Synhashed ref)) (Updated ref)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Updated (Synhashed ref) -&gt; DiffOp (Synhashed ref)
+forall a. Updated a -&gt; DiffOp a
+</span><a href="Unison.Merge.DiffOp.html#DiffOp%27Update"><span class="hs-identifier hs-var">DiffOp'Update</span></a></span><span> </span><span class="annot"><span class="annottext">Updated (Synhashed ref)
+</span><a href="#local-6989586621679217511"><span class="hs-identifier hs-var">refs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span></pre></body></html>

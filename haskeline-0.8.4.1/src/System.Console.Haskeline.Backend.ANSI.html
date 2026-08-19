@@ -1,0 +1,631 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html"><span class="hs-identifier">System.Console.Haskeline.Backend.ANSI</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#runANSIDraw"><span class="hs-identifier">runANSIDraw</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Catch</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadCatch</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonadMask</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonadThrow</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Writer</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Writer</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IsString</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSILike.html"><span class="hs-identifier">System.Console.Haskeline.Backend.ANSILike</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.Posix.html"><span class="hs-identifier">System.Console.Haskeline.Backend.Posix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Backend.Posix.html#Handles"><span class="hs-identifier">Handles</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.Posix.html#PosixT"><span class="hs-identifier">PosixT</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.Posix.html#ehOut"><span class="hs-identifier">ehOut</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.Posix.html#posixLayouts"><span class="hs-identifier">posixLayouts</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.Posix.html#posixRunTerm"><span class="hs-identifier">posixRunTerm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Monads.html"><span class="hs-identifier">System.Console.Haskeline.Monads</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html"><span class="hs-identifier">System.Console.Haskeline.Term</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Term.html#CommandMonad"><span class="hs-identifier">CommandMonad</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#EvalTerm"><span class="hs-identifier">EvalTerm</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#Layout"><span class="hs-identifier">Layout</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#RunTerm"><span class="hs-identifier">RunTerm</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#Term"><span class="hs-identifier">Term</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">hFlush</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">hPutStr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Mini string builder monoid</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">newtype</span><span> </span><span id="StringBuilder"><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-var">StringBuilder</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="StringBuilder"><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-var">StringBuilder</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>  </span><span id="local-6989586621679125951"><span class="annot"><span class="annottext">fromString :: String -&gt; StringBuilder
+</span><span class="hs-identifier hs-var hs-var hs-var">fromString</span></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679125957"><span id="local-6989586621679125960"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>  </span><span id="local-6989586621679125963"><span class="annot"><span class="annottext">mempty :: StringBuilder
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="annottext">(String -&gt; String) -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-var">StringBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679125967"><span id="local-6989586621679125970"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span> </span><span id="local-6989586621679125975"><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621679125975"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679125976"><span class="annot"><span class="annottext">&lt;&gt; :: StringBuilder -&gt; StringBuilder -&gt; StringBuilder
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span> </span><span id="local-6989586621679125977"><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621679125977"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><span class="annottext">(String -&gt; String) -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-var">StringBuilder</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621679125975"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; String) -&gt; (String -&gt; String) -&gt; String -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621679125977"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-type">build</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span>
+</span><span id="line-33"></span><span id="build"><span class="annot"><span class="annottext">build :: String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var hs-var">build</span></a></span></span><span> </span><span id="local-6989586621679125979"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679125979"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><span class="annottext">(String -&gt; String) -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-var">StringBuilder</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679125979"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#runBuilder"><span class="hs-identifier hs-type">runBuilder</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-37"></span><span id="runBuilder"><span class="annot"><span class="annottext">runBuilder :: StringBuilder -&gt; String
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#runBuilder"><span class="hs-identifier hs-var hs-var">runBuilder</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span> </span><span id="local-6989586621679125981"><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621679125981"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621679125981"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- The backend</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#actions"><span class="hs-identifier hs-type">actions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSILike.html#Actions"><span class="hs-identifier hs-type">Actions</span></a></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span>
+</span><span id="line-43"></span><span id="actions"><span class="annot"><span class="annottext">actions :: Actions StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#actions"><span class="hs-identifier hs-var hs-var">actions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSILike.html#Actions"><span class="hs-identifier hs-type">Actions</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">bellAudible :: StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#bellAudible"><span class="hs-identifier hs-var">bellAudible</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\a&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="annottext">bellVisual :: StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#bellVisual"><span class="hs-identifier hs-var">bellVisual</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StringBuilder
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>      </span><span class="annot"><span class="annottext">clearAllA :: Int -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#clearAllA"><span class="hs-identifier hs-var">clearAllA</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\ESC[2J\ESC[H&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>      </span><span class="annot"><span class="annottext">clearToLineEnd :: StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#clearToLineEnd"><span class="hs-identifier hs-var">clearToLineEnd</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\ESC[K&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>      </span><span class="annot"><span class="annottext">cr :: StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#cr"><span class="hs-identifier hs-var">cr</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\r&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>      </span><span class="annot"><span class="annottext">leftA :: Int -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#leftA"><span class="hs-identifier hs-var">leftA</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679125990"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679125990"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679125990"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">StringBuilder
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\ESC[&quot;</span></span><span> </span><span class="annot"><span class="annottext">StringBuilder -&gt; StringBuilder -&gt; StringBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679125990"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">StringBuilder -&gt; StringBuilder -&gt; StringBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;D&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>      </span><span class="annot"><span class="annottext">nl :: StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#nl"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\r\n&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><span class="annottext">rightA :: Int -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#rightA"><span class="hs-identifier hs-var">rightA</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679125995"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679125995"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679125995"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">StringBuilder
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\ESC[&quot;</span></span><span> </span><span class="annot"><span class="annottext">StringBuilder -&gt; StringBuilder -&gt; StringBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679125995"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">StringBuilder -&gt; StringBuilder -&gt; StringBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;C&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><span class="annottext">upA :: Int -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#upA"><span class="hs-identifier hs-var">upA</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679125997"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679125997"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679125997"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">StringBuilder
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\ESC[&quot;</span></span><span> </span><span class="annot"><span class="annottext">StringBuilder -&gt; StringBuilder -&gt; StringBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679125997"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">StringBuilder -&gt; StringBuilder -&gt; StringBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;A&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>      </span><span class="annot"><span class="annottext">wrapLine :: StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#wrapLine"><span class="hs-identifier hs-var">wrapLine</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StringBuilder
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>      </span><span class="annot"><span class="annottext">textA :: String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#textA"><span class="hs-identifier hs-var">textA</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#build"><span class="hs-identifier hs-var">build</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">newtype</span><span> </span><span id="Draw"><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#Draw"><span class="hs-identifier hs-var">Draw</span></a></span></span><span> </span><span id="local-6989586621679125712"><span class="annot"><a href="#local-6989586621679125712"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679125713"><span class="annot"><a href="#local-6989586621679125713"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Draw"><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#Draw"><span class="hs-identifier hs-var">Draw</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unDraw"><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. Draw m a -&gt; ANSILike StringBuilder m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#unDraw"><span class="hs-identifier hs-var hs-var">unDraw</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSILike.html#ANSILike"><span class="hs-identifier hs-type">ANSILike</span></a></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679125712"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679125713"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-keyword">deriving</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679126008"><span id="local-6989586621679126013"><span id="local-6989586621679126017"><span id="local-6989586621679126021"><span id="local-6989586621679126025"><span class="annot"><span class="annottext">Functor (Draw m)
+Functor (Draw m) =&gt;
+(forall a. a -&gt; Draw m a)
+-&gt; (forall a b. Draw m (a -&gt; b) -&gt; Draw m a -&gt; Draw m b)
+-&gt; (forall a b c.
+    (a -&gt; b -&gt; c) -&gt; Draw m a -&gt; Draw m b -&gt; Draw m c)
+-&gt; (forall a b. Draw m a -&gt; Draw m b -&gt; Draw m b)
+-&gt; (forall a b. Draw m a -&gt; Draw m b -&gt; Draw m a)
+-&gt; Applicative (Draw m)
+forall a. a -&gt; Draw m a
+forall a b. Draw m a -&gt; Draw m b -&gt; Draw m a
+forall a b. Draw m a -&gt; Draw m b -&gt; Draw m b
+forall a b. Draw m (a -&gt; b) -&gt; Draw m a -&gt; Draw m b
+forall a b c. (a -&gt; b -&gt; c) -&gt; Draw m a -&gt; Draw m b -&gt; Draw m c
+forall (m :: * -&gt; *). Monad m =&gt; Functor (Draw m)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; Draw m a
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Draw m a -&gt; Draw m b -&gt; Draw m a
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Draw m a -&gt; Draw m b -&gt; Draw m b
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Draw m (a -&gt; b) -&gt; Draw m a -&gt; Draw m b
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; b -&gt; c) -&gt; Draw m a -&gt; Draw m b -&gt; Draw m c
+forall (f :: * -&gt; *).
+Functor f =&gt;
+(forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+$cpure :: forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; Draw m a
+pure :: forall a. a -&gt; Draw m a
+$c&lt;*&gt; :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Draw m (a -&gt; b) -&gt; Draw m a -&gt; Draw m b
+&lt;*&gt; :: forall a b. Draw m (a -&gt; b) -&gt; Draw m a -&gt; Draw m b
+$cliftA2 :: forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; b -&gt; c) -&gt; Draw m a -&gt; Draw m b -&gt; Draw m c
+liftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; Draw m a -&gt; Draw m b -&gt; Draw m c
+$c*&gt; :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Draw m a -&gt; Draw m b -&gt; Draw m b
+*&gt; :: forall a b. Draw m a -&gt; Draw m b -&gt; Draw m b
+$c&lt;* :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Draw m a -&gt; Draw m b -&gt; Draw m a
+&lt;* :: forall a b. Draw m a -&gt; Draw m b -&gt; Draw m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>      </span><span id="local-6989586621679126037"><span id="local-6989586621679126042"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Draw m a -&gt; Draw m b)
+-&gt; (forall a b. a -&gt; Draw m b -&gt; Draw m a) -&gt; Functor (Draw m)
+forall a b. a -&gt; Draw m b -&gt; Draw m a
+forall a b. (a -&gt; b) -&gt; Draw m a -&gt; Draw m b
+forall (m :: * -&gt; *) a b. Functor m =&gt; a -&gt; Draw m b -&gt; Draw m a
+forall (m :: * -&gt; *) a b.
+Functor m =&gt;
+(a -&gt; b) -&gt; Draw m a -&gt; Draw m b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall (m :: * -&gt; *) a b.
+Functor m =&gt;
+(a -&gt; b) -&gt; Draw m a -&gt; Draw m b
+fmap :: forall a b. (a -&gt; b) -&gt; Draw m a -&gt; Draw m b
+$c&lt;$ :: forall (m :: * -&gt; *) a b. Functor m =&gt; a -&gt; Draw m b -&gt; Draw m a
+&lt;$ :: forall a b. a -&gt; Draw m b -&gt; Draw m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>      </span><span id="local-6989586621679126051"><span id="local-6989586621679126056"><span id="local-6989586621679126060"><span class="annot"><span class="annottext">Applicative (Draw m)
+Applicative (Draw m) =&gt;
+(forall a b. Draw m a -&gt; (a -&gt; Draw m b) -&gt; Draw m b)
+-&gt; (forall a b. Draw m a -&gt; Draw m b -&gt; Draw m b)
+-&gt; (forall a. a -&gt; Draw m a)
+-&gt; Monad (Draw m)
+forall a. a -&gt; Draw m a
+forall a b. Draw m a -&gt; Draw m b -&gt; Draw m b
+forall a b. Draw m a -&gt; (a -&gt; Draw m b) -&gt; Draw m b
+forall (m :: * -&gt; *). Monad m =&gt; Applicative (Draw m)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; Draw m a
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Draw m a -&gt; Draw m b -&gt; Draw m b
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Draw m a -&gt; (a -&gt; Draw m b) -&gt; Draw m b
+forall (m :: * -&gt; *).
+Applicative m =&gt;
+(forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+$c&gt;&gt;= :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Draw m a -&gt; (a -&gt; Draw m b) -&gt; Draw m b
+&gt;&gt;= :: forall a b. Draw m a -&gt; (a -&gt; Draw m b) -&gt; Draw m b
+$c&gt;&gt; :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Draw m a -&gt; Draw m b -&gt; Draw m b
+&gt;&gt; :: forall a b. Draw m a -&gt; Draw m b -&gt; Draw m b
+$creturn :: forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; Draw m a
+return :: forall a. a -&gt; Draw m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>      </span><span id="local-6989586621679126076"><span class="annot"><span class="annottext">MonadThrow (Draw m)
+MonadThrow (Draw m) =&gt;
+(forall e a.
+ (HasCallStack, Exception e) =&gt;
+ Draw m a -&gt; (e -&gt; Draw m a) -&gt; Draw m a)
+-&gt; MonadCatch (Draw m)
+forall e a.
+(HasCallStack, Exception e) =&gt;
+Draw m a -&gt; (e -&gt; Draw m a) -&gt; Draw m a
+forall (m :: * -&gt; *). MonadCatch m =&gt; MonadThrow (Draw m)
+forall (m :: * -&gt; *) e a.
+(MonadCatch m, HasCallStack, Exception e) =&gt;
+Draw m a -&gt; (e -&gt; Draw m a) -&gt; Draw m a
+forall (m :: * -&gt; *).
+MonadThrow m =&gt;
+(forall e a.
+ (HasCallStack, Exception e) =&gt;
+ m a -&gt; (e -&gt; m a) -&gt; m a)
+-&gt; MonadCatch m
+$ccatch :: forall (m :: * -&gt; *) e a.
+(MonadCatch m, HasCallStack, Exception e) =&gt;
+Draw m a -&gt; (e -&gt; Draw m a) -&gt; Draw m a
+catch :: forall e a.
+(HasCallStack, Exception e) =&gt;
+Draw m a -&gt; (e -&gt; Draw m a) -&gt; Draw m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadCatch</span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>      </span><span id="local-6989586621679126094"><span class="annot"><span class="annottext">Monad (Draw m)
+Monad (Draw m) =&gt; (forall a. IO a -&gt; Draw m a) -&gt; MonadIO (Draw m)
+forall a. IO a -&gt; Draw m a
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall a. IO a -&gt; m a) -&gt; MonadIO m
+forall (m :: * -&gt; *). MonadIO m =&gt; Monad (Draw m)
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; Draw m a
+$cliftIO :: forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; Draw m a
+liftIO :: forall a. IO a -&gt; Draw m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadIO</span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>      </span><span id="local-6989586621679126106"><span class="annot"><a href="System.Console.Haskeline.Monads.html#MonadReader"><span class="hs-identifier hs-type">MonadReader</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSILike.html#Actions"><span class="hs-identifier hs-type">Actions</span></a></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span class="hs-special">)</span></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>      </span><span id="local-6989586621679126117"><span class="annot"><a href="System.Console.Haskeline.Monads.html#MonadReader"><span class="hs-identifier hs-type">MonadReader</span></a></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.Posix.html#Handles"><span class="hs-identifier hs-type">Handles</span></a></span></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>      </span><span id="local-6989586621679126130"><span id="local-6989586621679126141"><span id="local-6989586621679126151"><span class="annot"><span class="annottext">MonadCatch (Draw m)
+MonadCatch (Draw m) =&gt;
+(forall b.
+ HasCallStack =&gt;
+ ((forall a. Draw m a -&gt; Draw m a) -&gt; Draw m b) -&gt; Draw m b)
+-&gt; (forall b.
+    HasCallStack =&gt;
+    ((forall a. Draw m a -&gt; Draw m a) -&gt; Draw m b) -&gt; Draw m b)
+-&gt; (forall a b c.
+    HasCallStack =&gt;
+    Draw m a
+    -&gt; (a -&gt; ExitCase b -&gt; Draw m c)
+    -&gt; (a -&gt; Draw m b)
+    -&gt; Draw m (b, c))
+-&gt; MonadMask (Draw m)
+forall b.
+HasCallStack =&gt;
+((forall a. Draw m a -&gt; Draw m a) -&gt; Draw m b) -&gt; Draw m b
+forall a b c.
+HasCallStack =&gt;
+Draw m a
+-&gt; (a -&gt; ExitCase b -&gt; Draw m c)
+-&gt; (a -&gt; Draw m b)
+-&gt; Draw m (b, c)
+forall (m :: * -&gt; *). MonadMask m =&gt; MonadCatch (Draw m)
+forall (m :: * -&gt; *) b.
+(MonadMask m, HasCallStack) =&gt;
+((forall a. Draw m a -&gt; Draw m a) -&gt; Draw m b) -&gt; Draw m b
+forall (m :: * -&gt; *) a b c.
+(MonadMask m, HasCallStack) =&gt;
+Draw m a
+-&gt; (a -&gt; ExitCase b -&gt; Draw m c)
+-&gt; (a -&gt; Draw m b)
+-&gt; Draw m (b, c)
+forall (m :: * -&gt; *).
+MonadCatch m =&gt;
+(forall b. HasCallStack =&gt; ((forall a. m a -&gt; m a) -&gt; m b) -&gt; m b)
+-&gt; (forall b.
+    HasCallStack =&gt;
+    ((forall a. m a -&gt; m a) -&gt; m b) -&gt; m b)
+-&gt; (forall a b c.
+    HasCallStack =&gt;
+    m a -&gt; (a -&gt; ExitCase b -&gt; m c) -&gt; (a -&gt; m b) -&gt; m (b, c))
+-&gt; MonadMask m
+$cmask :: forall (m :: * -&gt; *) b.
+(MonadMask m, HasCallStack) =&gt;
+((forall a. Draw m a -&gt; Draw m a) -&gt; Draw m b) -&gt; Draw m b
+mask :: forall b.
+HasCallStack =&gt;
+((forall a. Draw m a -&gt; Draw m a) -&gt; Draw m b) -&gt; Draw m b
+$cuninterruptibleMask :: forall (m :: * -&gt; *) b.
+(MonadMask m, HasCallStack) =&gt;
+((forall a. Draw m a -&gt; Draw m a) -&gt; Draw m b) -&gt; Draw m b
+uninterruptibleMask :: forall b.
+HasCallStack =&gt;
+((forall a. Draw m a -&gt; Draw m a) -&gt; Draw m b) -&gt; Draw m b
+$cgeneralBracket :: forall (m :: * -&gt; *) a b c.
+(MonadMask m, HasCallStack) =&gt;
+Draw m a
+-&gt; (a -&gt; ExitCase b -&gt; Draw m c)
+-&gt; (a -&gt; Draw m b)
+-&gt; Draw m (b, c)
+generalBracket :: forall a b c.
+HasCallStack =&gt;
+Draw m a
+-&gt; (a -&gt; ExitCase b -&gt; Draw m c)
+-&gt; (a -&gt; Draw m b)
+-&gt; Draw m (b, c)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">MonadMask</span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>      </span><span id="local-6989586621679126173"><span class="annot"><span class="annottext">Monad (Draw m)
+Monad (Draw m) =&gt;
+(forall e a. (HasCallStack, Exception e) =&gt; e -&gt; Draw m a)
+-&gt; MonadThrow (Draw m)
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; Draw m a
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall e a. (HasCallStack, Exception e) =&gt; e -&gt; m a)
+-&gt; MonadThrow m
+forall (m :: * -&gt; *). MonadThrow m =&gt; Monad (Draw m)
+forall (m :: * -&gt; *) e a.
+(MonadThrow m, HasCallStack, Exception e) =&gt;
+e -&gt; Draw m a
+$cthrowM :: forall (m :: * -&gt; *) e a.
+(MonadThrow m, HasCallStack, Exception e) =&gt;
+e -&gt; Draw m a
+throwM :: forall e a. (HasCallStack, Exception e) =&gt; e -&gt; Draw m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadThrow</span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>      </span><span id="local-6989586621679126190"><span class="annot"><span class="annottext">(forall (m :: * -&gt; *). Monad m =&gt; Monad (Draw m)) =&gt;
+(forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; Draw m a)
+-&gt; MonadTrans Draw
+forall (m :: * -&gt; *). Monad m =&gt; Monad (Draw m)
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; Draw m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *).
+(forall (m :: * -&gt; *). Monad m =&gt; Monad (t m)) =&gt;
+(forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; t m a) -&gt; MonadTrans t
+$clift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; Draw m a
+lift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; Draw m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadTrans</span></span></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#evalDraw"><span class="hs-identifier hs-type">evalDraw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679125844"><span class="annot"><a href="#local-6989586621679125844"><span class="hs-identifier hs-type">m</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Monads.html#MonadReader"><span class="hs-identifier hs-type">MonadReader</span></a></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679125844"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#CommandMonad"><span class="hs-identifier hs-type">CommandMonad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679125844"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#EvalTerm"><span class="hs-identifier hs-type">EvalTerm</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Backend.Posix.html#PosixT"><span class="hs-identifier hs-type">PosixT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679125844"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span id="evalDraw"><span class="annot"><span class="annottext">evalDraw :: forall (m :: * -&gt; *).
+(MonadReader Layout m, CommandMonad m) =&gt;
+EvalTerm (PosixT m)
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#evalDraw"><span class="hs-identifier hs-var hs-var">evalDraw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall a. Draw m a -&gt; PosixT m a)
+-&gt; (forall a. PosixT m a -&gt; Draw m a) -&gt; EvalTerm (PosixT m)
+forall (m :: * -&gt; *) (n :: * -&gt; *).
+(Term n, CommandMonad n) =&gt;
+(forall a. n a -&gt; m a) -&gt; (forall a. m a -&gt; n a) -&gt; EvalTerm m
+</span><a href="System.Console.Haskeline.Term.html#EvalTerm"><span class="hs-identifier hs-var">EvalTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Draw m a -&gt; PosixT m a
+forall a. Draw m a -&gt; PosixT m a
+</span><a href="#local-6989586621679126224"><span class="hs-identifier hs-var">eval</span></a></span><span> </span><span class="annot"><span class="annottext">PosixT m a -&gt; Draw m a
+forall a. PosixT m a -&gt; Draw m a
+</span><a href="#local-6989586621679126225"><span class="hs-identifier hs-var">liftE</span></a></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679126225"><span class="annot"><span class="annottext">liftE :: PosixT m a -&gt; Draw m a
+</span><a href="#local-6989586621679126225"><span class="hs-identifier hs-var hs-var">liftE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ANSILike StringBuilder m a -&gt; Draw m a
+forall (m :: * -&gt; *) a. ANSILike StringBuilder m a -&gt; Draw m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#Draw"><span class="hs-identifier hs-var">Draw</span></a></span><span> </span><span class="annot"><span class="annottext">(ANSILike StringBuilder m a -&gt; Draw m a)
+-&gt; (PosixT m a -&gt; ANSILike StringBuilder m a)
+-&gt; PosixT m a
+-&gt; Draw m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PosixT m a -&gt; ANSILike StringBuilder m a
+forall (m :: * -&gt; *) a c. Monad m =&gt; PosixT m a -&gt; ANSILike c m a
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#liftPosixT"><span class="hs-identifier hs-var">liftPosixT</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679126224"><span class="annot"><span class="annottext">eval :: Draw m a -&gt; PosixT m a
+</span><a href="#local-6989586621679126224"><span class="hs-identifier hs-var hs-var">eval</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Actions StringBuilder -&gt; ANSILike StringBuilder m a -&gt; PosixT m a
+forall (m :: * -&gt; *) c a.
+Monad m =&gt;
+Actions c -&gt; ANSILike c m a -&gt; PosixT m a
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#runANSILike"><span class="hs-identifier hs-var">runANSILike</span></a></span><span> </span><span class="annot"><span class="annottext">Actions StringBuilder
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#actions"><span class="hs-identifier hs-var">actions</span></a></span><span> </span><span class="annot"><span class="annottext">(ANSILike StringBuilder m a -&gt; PosixT m a)
+-&gt; (Draw m a -&gt; ANSILike StringBuilder m a)
+-&gt; Draw m a
+-&gt; PosixT m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Draw m a -&gt; ANSILike StringBuilder m a
+forall (m :: * -&gt; *) a. Draw m a -&gt; ANSILike StringBuilder m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#unDraw"><span class="hs-identifier hs-var">unDraw</span></a></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#runANSIDraw"><span class="hs-identifier hs-type">runANSIDraw</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.Posix.html#Handles"><span class="hs-identifier hs-type">Handles</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MaybeT</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#RunTerm"><span class="hs-identifier hs-type">RunTerm</span></a></span><span>
+</span><span id="line-80"></span><span id="runANSIDraw"><span class="annot"><span class="annottext">runANSIDraw :: Handles -&gt; MaybeT IO RunTerm
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#runANSIDraw"><span class="hs-identifier hs-var hs-var">runANSIDraw</span></a></span></span><span> </span><span id="local-6989586621679126234"><span class="annot"><span class="annottext">Handles
+</span><a href="#local-6989586621679126234"><span class="hs-identifier hs-var">handles</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><span class="annottext">IO RunTerm -&gt; MaybeT IO RunTerm
+forall a. IO a -&gt; MaybeT IO a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO RunTerm -&gt; MaybeT IO RunTerm)
+-&gt; IO RunTerm -&gt; MaybeT IO RunTerm
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><span class="annottext">Handles
+-&gt; [IO (Maybe Layout)]
+-&gt; [(String, Key)]
+-&gt; (forall (m :: * -&gt; *) b. (MonadIO m, MonadMask m) =&gt; m b -&gt; m b)
+-&gt; (forall (m :: * -&gt; *).
+    (MonadMask m, CommandMonad m) =&gt;
+    EvalTerm (PosixT m))
+-&gt; IO RunTerm
+</span><a href="System.Console.Haskeline.Backend.Posix.html#posixRunTerm"><span class="hs-identifier hs-var">posixRunTerm</span></a></span><span>
+</span><span id="line-83"></span><span>      </span><span class="annot"><span class="annottext">Handles
+</span><a href="#local-6989586621679126234"><span class="hs-identifier hs-var">handles</span></a></span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handles -&gt; [IO (Maybe Layout)]
+</span><a href="System.Console.Haskeline.Backend.Posix.html#posixLayouts"><span class="hs-identifier hs-var">posixLayouts</span></a></span><span> </span><span class="annot"><span class="annottext">Handles
+</span><a href="#local-6989586621679126234"><span class="hs-identifier hs-var">handles</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-86"></span><span>      </span><span class="annot"><span class="annottext">m b -&gt; m b
+forall a. a -&gt; a
+forall (m :: * -&gt; *) b. (MonadIO m, MonadMask m) =&gt; m b -&gt; m b
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-87"></span><span>      </span><span class="annot"><span class="annottext">EvalTerm (PosixT m)
+forall (m :: * -&gt; *).
+(MonadMask m, CommandMonad m) =&gt;
+EvalTerm (PosixT m)
+forall (m :: * -&gt; *).
+(MonadReader Layout m, CommandMonad m) =&gt;
+EvalTerm (PosixT m)
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#evalDraw"><span class="hs-identifier hs-var">evalDraw</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span id="local-6989586621679125884"><span id="local-6989586621679125886"><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#runActionT"><span class="hs-identifier hs-type">runActionT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679125884"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Writer.WriterT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSILike.html#TermAction"><span class="hs-identifier hs-type">TermAction</span></a></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSILike.html#ANSILike"><span class="hs-identifier hs-type">ANSILike</span></a></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#StringBuilder"><span class="hs-identifier hs-type">StringBuilder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679125884"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679125886"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#Draw"><span class="hs-identifier hs-type">Draw</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679125884"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679125886"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-90"></span><span id="runActionT"><span class="annot"><span class="annottext">runActionT :: forall (m :: * -&gt; *) a.
+MonadIO m =&gt;
+WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) a
+-&gt; Draw m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#runActionT"><span class="hs-identifier hs-var hs-var">runActionT</span></a></span></span><span> </span><span id="local-6989586621679126256"><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) a
+</span><a href="#local-6989586621679126256"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679126257"><span class="annot"><a href="#local-6989586621679126257"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679126258"><span class="annot"><a href="#local-6989586621679126258"><span class="hs-identifier hs-var">action</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ANSILike StringBuilder m (a, TermAction StringBuilder)
+-&gt; Draw m (a, TermAction StringBuilder)
+forall (m :: * -&gt; *) a. ANSILike StringBuilder m a -&gt; Draw m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#Draw"><span class="hs-identifier hs-var">Draw</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) a
+-&gt; ANSILike StringBuilder m (a, TermAction StringBuilder)
+forall w (m :: * -&gt; *) a. WriterT w m a -&gt; m (a, w)
+</span><span class="hs-identifier hs-var">Writer.runWriterT</span></span><span> </span><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) a
+</span><a href="#local-6989586621679126256"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>  </span><span id="local-6989586621679126260"><span class="annot"><a href="#local-6989586621679126260"><span class="hs-identifier hs-var">toutput</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Monads.html#asks"><span class="hs-identifier hs-type">asks</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679126258"><span class="hs-identifier hs-type">action</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679126262"><span class="annot"><a href="#local-6989586621679126262"><span class="hs-identifier hs-var">ttyh</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Monads.html#asks"><span class="hs-identifier hs-type">asks</span></a></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Backend.Posix.html#ehOut"><span class="hs-identifier hs-type">ehOut</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">hPutStr</span></span><span> </span><span class="annot"><a href="#local-6989586621679126262"><span class="hs-identifier hs-type">ttyh</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#runBuilder"><span class="hs-identifier hs-type">runBuilder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679126260"><span class="hs-identifier hs-type">toutput</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">hFlush</span></span><span> </span><span class="annot"><a href="#local-6989586621679126262"><span class="hs-identifier hs-type">ttyh</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679126257"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679125857"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679125857"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadMask</span></span><span> </span><span class="annot"><a href="#local-6989586621679125857"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Monads.html#MonadReader"><span class="hs-identifier hs-type">MonadReader</span></a></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#Layout"><span class="hs-identifier hs-type">Layout</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679125857"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#Term"><span class="hs-identifier hs-type">Term</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Backend.ANSI.html#Draw"><span class="hs-identifier hs-type">Draw</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679125857"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679126285"><span class="annot"><span class="annottext">drawLineDiff :: LineChars -&gt; LineChars -&gt; Draw m ()
+</span><a href="#local-6989586621679126285"><span class="hs-identifier hs-var hs-var hs-var">drawLineDiff</span></a></span></span><span> </span><span id="local-6989586621679126287"><span class="annot"><span class="annottext">LineChars
+</span><a href="#local-6989586621679126287"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679126288"><span class="annot"><span class="annottext">LineChars
+</span><a href="#local-6989586621679126288"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+-&gt; Draw m ()
+forall (m :: * -&gt; *) a.
+MonadIO m =&gt;
+WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) a
+-&gt; Draw m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#runActionT"><span class="hs-identifier hs-var">runActionT</span></a></span><span> </span><span class="annot"><span class="annottext">(WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+ -&gt; Draw m ())
+-&gt; WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+-&gt; Draw m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">LineChars
+-&gt; LineChars
+-&gt; WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+forall c (m :: * -&gt; *).
+(Monoid c, MonadReader Layout m) =&gt;
+LineChars -&gt; LineChars -&gt; WriterT (TermAction c) (ANSILike c m) ()
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#drawLineDiffT"><span class="hs-identifier hs-var">drawLineDiffT</span></a></span><span> </span><span class="annot"><span class="annottext">LineChars
+</span><a href="#local-6989586621679126287"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">LineChars
+</span><a href="#local-6989586621679126288"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-101"></span><span>  </span><span id="local-6989586621679126293"><span class="annot"><span class="annottext">reposition :: Layout -&gt; LineChars -&gt; Draw m ()
+</span><a href="#local-6989586621679126293"><span class="hs-identifier hs-var hs-var hs-var">reposition</span></a></span></span><span> </span><span id="local-6989586621679126295"><span class="annot"><span class="annottext">Layout
+</span><a href="#local-6989586621679126295"><span class="hs-identifier hs-var">layout</span></a></span></span><span> </span><span id="local-6989586621679126296"><span class="annot"><span class="annottext">LineChars
+</span><a href="#local-6989586621679126296"><span class="hs-identifier hs-var">lc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+-&gt; Draw m ()
+forall (m :: * -&gt; *) a.
+MonadIO m =&gt;
+WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) a
+-&gt; Draw m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#runActionT"><span class="hs-identifier hs-var">runActionT</span></a></span><span> </span><span class="annot"><span class="annottext">(WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+ -&gt; Draw m ())
+-&gt; WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+-&gt; Draw m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Layout
+-&gt; LineChars
+-&gt; WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+forall c (m :: * -&gt; *).
+(Monoid c, MonadReader Layout m) =&gt;
+Layout -&gt; LineChars -&gt; WriterT (TermAction c) (ANSILike c m) ()
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#repositionT"><span class="hs-identifier hs-var">repositionT</span></a></span><span> </span><span class="annot"><span class="annottext">Layout
+</span><a href="#local-6989586621679126295"><span class="hs-identifier hs-var">layout</span></a></span><span> </span><span class="annot"><span class="annottext">LineChars
+</span><a href="#local-6989586621679126296"><span class="hs-identifier hs-var">lc</span></a></span><span>
+</span><span id="line-102"></span><span>  </span><span id="local-6989586621679126301"><span class="annot"><span class="annottext">printLines :: [String] -&gt; Draw m ()
+</span><a href="#local-6989586621679126301"><span class="hs-identifier hs-var hs-var hs-var">printLines</span></a></span></span><span> </span><span id="local-6989586621679126303"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679126303"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+-&gt; Draw m ()
+forall (m :: * -&gt; *) a.
+MonadIO m =&gt;
+WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) a
+-&gt; Draw m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#runActionT"><span class="hs-identifier hs-var">runActionT</span></a></span><span> </span><span class="annot"><span class="annottext">(WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+ -&gt; Draw m ())
+-&gt; WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+-&gt; Draw m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[String]
+-&gt; WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+forall c (m :: * -&gt; *).
+(Monoid c, Monad m) =&gt;
+[String] -&gt; WriterT (TermAction c) (ANSILike c m) ()
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#printLinesT"><span class="hs-identifier hs-var">printLinesT</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679126303"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621679126308"><span class="annot"><span class="annottext">clearLayout :: Draw m ()
+</span><a href="#local-6989586621679126308"><span class="hs-identifier hs-var hs-var hs-var">clearLayout</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+-&gt; Draw m ()
+forall (m :: * -&gt; *) a.
+MonadIO m =&gt;
+WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) a
+-&gt; Draw m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#runActionT"><span class="hs-identifier hs-var">runActionT</span></a></span><span> </span><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+forall c (m :: * -&gt; *).
+(Monoid c, MonadReader Layout m) =&gt;
+WriterT (TermAction c) (ANSILike c m) ()
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#clearLayoutT"><span class="hs-identifier hs-var">clearLayoutT</span></a></span><span>
+</span><span id="line-104"></span><span>  </span><span id="local-6989586621679126314"><span class="annot"><span class="annottext">moveToNextLine :: LineChars -&gt; Draw m ()
+</span><a href="#local-6989586621679126314"><span class="hs-identifier hs-var hs-var hs-var">moveToNextLine</span></a></span></span><span> </span><span class="annot"><span class="annottext">LineChars
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+-&gt; Draw m ()
+forall (m :: * -&gt; *) a.
+MonadIO m =&gt;
+WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) a
+-&gt; Draw m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#runActionT"><span class="hs-identifier hs-var">runActionT</span></a></span><span> </span><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+forall c (m :: * -&gt; *).
+(Monoid c, Monad m) =&gt;
+WriterT (TermAction c) (ANSILike c m) ()
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#moveToNextLineT"><span class="hs-identifier hs-var">moveToNextLineT</span></a></span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621679126319"><span class="annot"><span class="annottext">ringBell :: Bool -&gt; Draw m ()
+</span><a href="#local-6989586621679126319"><span class="hs-identifier hs-var hs-var hs-var">ringBell</span></a></span></span><span> </span><span id="local-6989586621679126321"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679126321"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+-&gt; Draw m ()
+forall (m :: * -&gt; *) a.
+MonadIO m =&gt;
+WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) a
+-&gt; Draw m a
+</span><a href="System.Console.Haskeline.Backend.ANSI.html#runActionT"><span class="hs-identifier hs-var">runActionT</span></a></span><span> </span><span class="annot"><span class="annottext">(WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+ -&gt; Draw m ())
+-&gt; WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+-&gt; Draw m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; WriterT (TermAction StringBuilder) (ANSILike StringBuilder m) ()
+forall (m :: * -&gt; *) c.
+Monad m =&gt;
+Bool -&gt; WriterT (TermAction c) (ANSILike c m) ()
+</span><a href="System.Console.Haskeline.Backend.ANSILike.html#ringBellT"><span class="hs-identifier hs-var">ringBellT</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679126321"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-106"></span></pre></body></html>

@@ -1,0 +1,1593 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679508056"><span id="local-6989586621679508057"><span id="local-6989586621679508058"><span id="local-6989586621679508059"><span id="local-6989586621679508060"><span id="local-6989586621679508061"><span id="local-6989586621679508062"><span id="local-6989586621679508063"><span id="local-6989586621679508064"><span id="local-6989586621679508065"></span></span></span></span></span></span></span></span></span></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html"><span class="hs-identifier">GitHub.Data.Gists</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html"><span class="hs-identifier">GitHub.Data.Definitions</span></a></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html"><span class="hs-identifier">GitHub.Data.Name</span></a></span><span>        </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier">Name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html"><span class="hs-identifier">GitHub.Data.Repos</span></a></span><span>       </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Repos.html#Language"><span class="hs-identifier">Language</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.URL.html"><span class="hs-identifier">GitHub.Data.URL</span></a></span><span>         </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">data</span><span> </span><span id="Gist"><span class="annot"><a href="GitHub.Data.Gists.html#Gist"><span class="hs-identifier hs-var">Gist</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Gist"><span class="annot"><a href="GitHub.Data.Gists.html#Gist"><span class="hs-identifier hs-var">Gist</span></a></span></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="gistUser"><span class="annot"><span class="annottext">Gist -&gt; SimpleUser
+</span><a href="GitHub.Data.Gists.html#gistUser"><span class="hs-identifier hs-var hs-var">gistUser</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistGitPushUrl"><span class="annot"><span class="annottext">Gist -&gt; URL
+</span><a href="GitHub.Data.Gists.html#gistGitPushUrl"><span class="hs-identifier hs-var hs-var">gistGitPushUrl</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistUrl"><span class="annot"><span class="annottext">Gist -&gt; URL
+</span><a href="GitHub.Data.Gists.html#gistUrl"><span class="hs-identifier hs-var hs-var">gistUrl</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistDescription"><span class="annot"><span class="annottext">Gist -&gt; Maybe Text
+</span><a href="GitHub.Data.Gists.html#gistDescription"><span class="hs-identifier hs-var hs-var">gistDescription</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistCreatedAt"><span class="annot"><span class="annottext">Gist -&gt; UTCTime
+</span><a href="GitHub.Data.Gists.html#gistCreatedAt"><span class="hs-identifier hs-var hs-var">gistCreatedAt</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistPublic"><span class="annot"><span class="annottext">Gist -&gt; Bool
+</span><a href="GitHub.Data.Gists.html#gistPublic"><span class="hs-identifier hs-var hs-var">gistPublic</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistComments"><span class="annot"><span class="annottext">Gist -&gt; Int
+</span><a href="GitHub.Data.Gists.html#gistComments"><span class="hs-identifier hs-var hs-var">gistComments</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistUpdatedAt"><span class="annot"><span class="annottext">Gist -&gt; UTCTime
+</span><a href="GitHub.Data.Gists.html#gistUpdatedAt"><span class="hs-identifier hs-var hs-var">gistUpdatedAt</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistHtmlUrl"><span class="annot"><span class="annottext">Gist -&gt; URL
+</span><a href="GitHub.Data.Gists.html#gistHtmlUrl"><span class="hs-identifier hs-var hs-var">gistHtmlUrl</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistId"><span class="annot"><span class="annottext">Gist -&gt; Name Gist
+</span><a href="GitHub.Data.Gists.html#gistId"><span class="hs-identifier hs-var hs-var">gistId</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#Gist"><span class="hs-identifier hs-type">Gist</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistFiles"><span class="annot"><span class="annottext">Gist -&gt; HashMap Text GistFile
+</span><a href="GitHub.Data.Gists.html#gistFiles"><span class="hs-identifier hs-var hs-var">gistFiles</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HashMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#GistFile"><span class="hs-identifier hs-type">GistFile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistGitPullUrl"><span class="annot"><span class="annottext">Gist -&gt; URL
+</span><a href="GitHub.Data.Gists.html#gistGitPullUrl"><span class="hs-identifier hs-var hs-var">gistGitPullUrl</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679508080"><span id="local-6989586621679508106"><span id="local-6989586621679508110"><span class="annot"><span class="annottext">Int -&gt; Gist -&gt; ShowS
+[Gist] -&gt; ShowS
+Gist -&gt; String
+(Int -&gt; Gist -&gt; ShowS)
+-&gt; (Gist -&gt; String) -&gt; ([Gist] -&gt; ShowS) -&gt; Show Gist
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Gist -&gt; ShowS
+showsPrec :: Int -&gt; Gist -&gt; ShowS
+$cshow :: Gist -&gt; String
+show :: Gist -&gt; String
+$cshowList :: [Gist] -&gt; ShowS
+showList :: [Gist] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679508119"><span id="local-6989586621679508146"><span id="local-6989586621679508165"><span id="local-6989586621679508167"><span id="local-6989586621679508169"><span id="local-6989586621679508175"><span id="local-6989586621679508180"><span id="local-6989586621679508183"><span id="local-6989586621679508186"><span id="local-6989586621679508189"><span id="local-6989586621679508192"><span id="local-6989586621679508195"><span id="local-6989586621679508200"><span id="local-6989586621679508205"><span class="annot"><span class="annottext">Typeable Gist
+Typeable Gist =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Gist -&gt; c Gist)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Gist)
+-&gt; (Gist -&gt; Constr)
+-&gt; (Gist -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Gist))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Gist))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Gist -&gt; Gist)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Gist -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Gist -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Gist -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Gist -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist)
+-&gt; Data Gist
+Gist -&gt; Constr
+Gist -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Gist -&gt; Gist
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Gist -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Gist -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Gist -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Gist -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Gist
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Gist -&gt; c Gist
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Gist)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Gist)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Gist -&gt; c Gist
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Gist -&gt; c Gist
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Gist
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Gist
+$ctoConstr :: Gist -&gt; Constr
+toConstr :: Gist -&gt; Constr
+$cdataTypeOf :: Gist -&gt; DataType
+dataTypeOf :: Gist -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Gist)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Gist)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Gist)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Gist)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Gist -&gt; Gist
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Gist -&gt; Gist
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Gist -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Gist -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Gist -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Gist -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Gist -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Gist -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Gist -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Gist -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Gist -&gt; m Gist
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679508219"><span id="local-6989586621679508243"><span class="annot"><span class="annottext">Gist -&gt; Gist -&gt; Bool
+(Gist -&gt; Gist -&gt; Bool) -&gt; (Gist -&gt; Gist -&gt; Bool) -&gt; Eq Gist
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Gist -&gt; Gist -&gt; Bool
+== :: Gist -&gt; Gist -&gt; Bool
+$c/= :: Gist -&gt; Gist -&gt; Bool
+/= :: Gist -&gt; Gist -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679508249"><span id="local-6989586621679508251"><span class="annot"><span class="annottext">(forall x. Gist -&gt; Rep Gist x)
+-&gt; (forall x. Rep Gist x -&gt; Gist) -&gt; Generic Gist
+forall x. Rep Gist x -&gt; Gist
+forall x. Gist -&gt; Rep Gist x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Gist -&gt; Rep Gist x
+from :: forall x. Gist -&gt; Rep Gist x
+$cto :: forall x. Rep Gist x -&gt; Gist
+to :: forall x. Rep Gist x -&gt; Gist
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679508257"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#Gist"><span class="hs-identifier hs-type">Gist</span></a></span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679508320"><span id="local-6989586621679508327"><span id="local-6989586621679508333"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#Gist"><span class="hs-identifier hs-type">Gist</span></a></span></span></span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679508442"><span id="local-6989586621679508446"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#Gist"><span class="hs-identifier hs-type">Gist</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>    </span><span id="local-6989586621679508502"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Gist
+</span><a href="#local-6989586621679508502"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Gist) -&gt; Value -&gt; Parser Gist
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Gist&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Gist) -&gt; Value -&gt; Parser Gist)
+-&gt; (Object -&gt; Parser Gist) -&gt; Value -&gt; Parser Gist
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679508505"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SimpleUser
+-&gt; URL
+-&gt; URL
+-&gt; Maybe Text
+-&gt; UTCTime
+-&gt; Bool
+-&gt; Int
+-&gt; UTCTime
+-&gt; URL
+-&gt; Name Gist
+-&gt; HashMap Text GistFile
+-&gt; URL
+-&gt; Gist
+</span><a href="GitHub.Data.Gists.html#Gist"><span class="hs-identifier hs-var">Gist</span></a></span><span>
+</span><span id="line-31"></span><span>        </span><span class="annot"><span class="annottext">(SimpleUser
+ -&gt; URL
+ -&gt; URL
+ -&gt; Maybe Text
+ -&gt; UTCTime
+ -&gt; Bool
+ -&gt; Int
+ -&gt; UTCTime
+ -&gt; URL
+ -&gt; Name Gist
+ -&gt; HashMap Text GistFile
+ -&gt; URL
+ -&gt; Gist)
+-&gt; Parser SimpleUser
+-&gt; Parser
+     (URL
+      -&gt; URL
+      -&gt; Maybe Text
+      -&gt; UTCTime
+      -&gt; Bool
+      -&gt; Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; Name Gist
+      -&gt; HashMap Text GistFile
+      -&gt; URL
+      -&gt; Gist)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser SimpleUser
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;owner&quot;</span></span><span>
+</span><span id="line-32"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (URL
+   -&gt; URL
+   -&gt; Maybe Text
+   -&gt; UTCTime
+   -&gt; Bool
+   -&gt; Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; Name Gist
+   -&gt; HashMap Text GistFile
+   -&gt; URL
+   -&gt; Gist)
+-&gt; Parser URL
+-&gt; Parser
+     (URL
+      -&gt; Maybe Text
+      -&gt; UTCTime
+      -&gt; Bool
+      -&gt; Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; Name Gist
+      -&gt; HashMap Text GistFile
+      -&gt; URL
+      -&gt; Gist)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;git_push_url&quot;</span></span><span>
+</span><span id="line-33"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (URL
+   -&gt; Maybe Text
+   -&gt; UTCTime
+   -&gt; Bool
+   -&gt; Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; Name Gist
+   -&gt; HashMap Text GistFile
+   -&gt; URL
+   -&gt; Gist)
+-&gt; Parser URL
+-&gt; Parser
+     (Maybe Text
+      -&gt; UTCTime
+      -&gt; Bool
+      -&gt; Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; Name Gist
+      -&gt; HashMap Text GistFile
+      -&gt; URL
+      -&gt; Gist)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-34"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Maybe Text
+   -&gt; UTCTime
+   -&gt; Bool
+   -&gt; Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; Name Gist
+   -&gt; HashMap Text GistFile
+   -&gt; URL
+   -&gt; Gist)
+-&gt; Parser (Maybe Text)
+-&gt; Parser
+     (UTCTime
+      -&gt; Bool
+      -&gt; Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; Name Gist
+      -&gt; HashMap Text GistFile
+      -&gt; URL
+      -&gt; Gist)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;description&quot;</span></span><span>
+</span><span id="line-35"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (UTCTime
+   -&gt; Bool
+   -&gt; Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; Name Gist
+   -&gt; HashMap Text GistFile
+   -&gt; URL
+   -&gt; Gist)
+-&gt; Parser UTCTime
+-&gt; Parser
+     (Bool
+      -&gt; Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; Name Gist
+      -&gt; HashMap Text GistFile
+      -&gt; URL
+      -&gt; Gist)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-36"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Bool
+   -&gt; Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; Name Gist
+   -&gt; HashMap Text GistFile
+   -&gt; URL
+   -&gt; Gist)
+-&gt; Parser Bool
+-&gt; Parser
+     (Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; Name Gist
+      -&gt; HashMap Text GistFile
+      -&gt; URL
+      -&gt; Gist)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Bool
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;public&quot;</span></span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; Name Gist
+   -&gt; HashMap Text GistFile
+   -&gt; URL
+   -&gt; Gist)
+-&gt; Parser Int
+-&gt; Parser
+     (UTCTime
+      -&gt; URL -&gt; Name Gist -&gt; HashMap Text GistFile -&gt; URL -&gt; Gist)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;comments&quot;</span></span><span>
+</span><span id="line-38"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (UTCTime
+   -&gt; URL -&gt; Name Gist -&gt; HashMap Text GistFile -&gt; URL -&gt; Gist)
+-&gt; Parser UTCTime
+-&gt; Parser
+     (URL -&gt; Name Gist -&gt; HashMap Text GistFile -&gt; URL -&gt; Gist)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;updated_at&quot;</span></span><span>
+</span><span id="line-39"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; Name Gist -&gt; HashMap Text GistFile -&gt; URL -&gt; Gist)
+-&gt; Parser URL
+-&gt; Parser (Name Gist -&gt; HashMap Text GistFile -&gt; URL -&gt; Gist)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;html_url&quot;</span></span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><span class="annottext">Parser (Name Gist -&gt; HashMap Text GistFile -&gt; URL -&gt; Gist)
+-&gt; Parser (Name Gist)
+-&gt; Parser (HashMap Text GistFile -&gt; URL -&gt; Gist)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Name Gist)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="annottext">Parser (HashMap Text GistFile -&gt; URL -&gt; Gist)
+-&gt; Parser (HashMap Text GistFile) -&gt; Parser (URL -&gt; Gist)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (HashMap Text GistFile)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;files&quot;</span></span><span>
+</span><span id="line-42"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; Gist) -&gt; Parser URL -&gt; Parser Gist
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508505"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;git_push_url&quot;</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">data</span><span> </span><span id="GistFile"><span class="annot"><a href="GitHub.Data.Gists.html#GistFile"><span class="hs-identifier hs-var">GistFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="GistFile"><span class="annot"><a href="GitHub.Data.Gists.html#GistFile"><span class="hs-identifier hs-var">GistFile</span></a></span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="gistFileType"><span class="annot"><span class="annottext">GistFile -&gt; Text
+</span><a href="GitHub.Data.Gists.html#gistFileType"><span class="hs-identifier hs-var hs-var">gistFileType</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistFileRawUrl"><span class="annot"><span class="annottext">GistFile -&gt; URL
+</span><a href="GitHub.Data.Gists.html#gistFileRawUrl"><span class="hs-identifier hs-var hs-var">gistFileRawUrl</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistFileSize"><span class="annot"><span class="annottext">GistFile -&gt; Int
+</span><a href="GitHub.Data.Gists.html#gistFileSize"><span class="hs-identifier hs-var hs-var">gistFileSize</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistFileLanguage"><span class="annot"><span class="annottext">GistFile -&gt; Maybe Language
+</span><a href="GitHub.Data.Gists.html#gistFileLanguage"><span class="hs-identifier hs-var hs-var">gistFileLanguage</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Language"><span class="hs-identifier hs-type">Language</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistFileFilename"><span class="annot"><span class="annottext">GistFile -&gt; Text
+</span><a href="GitHub.Data.Gists.html#gistFileFilename"><span class="hs-identifier hs-var hs-var">gistFileFilename</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistFileContent"><span class="annot"><span class="annottext">GistFile -&gt; Maybe Text
+</span><a href="GitHub.Data.Gists.html#gistFileContent"><span class="hs-identifier hs-var hs-var">gistFileContent</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679508517"><span id="local-6989586621679508527"><span id="local-6989586621679508530"><span class="annot"><span class="annottext">Int -&gt; GistFile -&gt; ShowS
+[GistFile] -&gt; ShowS
+GistFile -&gt; String
+(Int -&gt; GistFile -&gt; ShowS)
+-&gt; (GistFile -&gt; String) -&gt; ([GistFile] -&gt; ShowS) -&gt; Show GistFile
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; GistFile -&gt; ShowS
+showsPrec :: Int -&gt; GistFile -&gt; ShowS
+$cshow :: GistFile -&gt; String
+show :: GistFile -&gt; String
+$cshowList :: [GistFile] -&gt; ShowS
+showList :: [GistFile] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679508536"><span id="local-6989586621679508546"><span id="local-6989586621679508556"><span id="local-6989586621679508558"><span id="local-6989586621679508560"><span id="local-6989586621679508565"><span id="local-6989586621679508570"><span id="local-6989586621679508573"><span id="local-6989586621679508576"><span id="local-6989586621679508579"><span id="local-6989586621679508582"><span id="local-6989586621679508585"><span id="local-6989586621679508590"><span id="local-6989586621679508595"><span class="annot"><span class="annottext">Typeable GistFile
+Typeable GistFile =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; GistFile -&gt; c GistFile)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GistFile)
+-&gt; (GistFile -&gt; Constr)
+-&gt; (GistFile -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GistFile))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c GistFile))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; GistFile -&gt; GistFile)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistFile -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistFile -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GistFile -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GistFile -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile)
+-&gt; Data GistFile
+GistFile -&gt; Constr
+GistFile -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; GistFile -&gt; GistFile
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GistFile -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GistFile -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistFile -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistFile -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GistFile
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; GistFile -&gt; c GistFile
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GistFile)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c GistFile)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; GistFile -&gt; c GistFile
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; GistFile -&gt; c GistFile
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GistFile
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GistFile
+$ctoConstr :: GistFile -&gt; Constr
+toConstr :: GistFile -&gt; Constr
+$cdataTypeOf :: GistFile -&gt; DataType
+dataTypeOf :: GistFile -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GistFile)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GistFile)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c GistFile)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c GistFile)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; GistFile -&gt; GistFile
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; GistFile -&gt; GistFile
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistFile -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistFile -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistFile -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistFile -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GistFile -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GistFile -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GistFile -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GistFile -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistFile -&gt; m GistFile
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679508601"><span id="local-6989586621679508610"><span class="annot"><span class="annottext">GistFile -&gt; GistFile -&gt; Bool
+(GistFile -&gt; GistFile -&gt; Bool)
+-&gt; (GistFile -&gt; GistFile -&gt; Bool) -&gt; Eq GistFile
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: GistFile -&gt; GistFile -&gt; Bool
+== :: GistFile -&gt; GistFile -&gt; Bool
+$c/= :: GistFile -&gt; GistFile -&gt; Bool
+/= :: GistFile -&gt; GistFile -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679508614"><span id="local-6989586621679508616"><span class="annot"><span class="annottext">(forall x. GistFile -&gt; Rep GistFile x)
+-&gt; (forall x. Rep GistFile x -&gt; GistFile) -&gt; Generic GistFile
+forall x. Rep GistFile x -&gt; GistFile
+forall x. GistFile -&gt; Rep GistFile x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. GistFile -&gt; Rep GistFile x
+from :: forall x. GistFile -&gt; Rep GistFile x
+$cto :: forall x. Rep GistFile x -&gt; GistFile
+to :: forall x. Rep GistFile x -&gt; GistFile
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679508619"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#GistFile"><span class="hs-identifier hs-type">GistFile</span></a></span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679508649"><span id="local-6989586621679508655"><span id="local-6989586621679508661"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#GistFile"><span class="hs-identifier hs-type">GistFile</span></a></span></span></span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679508712"><span id="local-6989586621679508715"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#GistFile"><span class="hs-identifier hs-type">GistFile</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679508736"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser GistFile
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser GistFile) -&gt; Value -&gt; Parser GistFile
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;GistFile&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser GistFile) -&gt; Value -&gt; Parser GistFile)
+-&gt; (Object -&gt; Parser GistFile) -&gt; Value -&gt; Parser GistFile
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679508737"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508737"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+-&gt; URL -&gt; Int -&gt; Maybe Language -&gt; Text -&gt; Maybe Text -&gt; GistFile
+</span><a href="GitHub.Data.Gists.html#GistFile"><span class="hs-identifier hs-var">GistFile</span></a></span><span>
+</span><span id="line-59"></span><span>        </span><span class="annot"><span class="annottext">(Text
+ -&gt; URL -&gt; Int -&gt; Maybe Language -&gt; Text -&gt; Maybe Text -&gt; GistFile)
+-&gt; Parser Text
+-&gt; Parser
+     (URL -&gt; Int -&gt; Maybe Language -&gt; Text -&gt; Maybe Text -&gt; GistFile)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508737"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;type&quot;</span></span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (URL -&gt; Int -&gt; Maybe Language -&gt; Text -&gt; Maybe Text -&gt; GistFile)
+-&gt; Parser URL
+-&gt; Parser (Int -&gt; Maybe Language -&gt; Text -&gt; Maybe Text -&gt; GistFile)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508737"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;raw_url&quot;</span></span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; Maybe Language -&gt; Text -&gt; Maybe Text -&gt; GistFile)
+-&gt; Parser Int
+-&gt; Parser (Maybe Language -&gt; Text -&gt; Maybe Text -&gt; GistFile)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508737"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;size&quot;</span></span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><span class="annottext">Parser (Maybe Language -&gt; Text -&gt; Maybe Text -&gt; GistFile)
+-&gt; Parser (Maybe Language)
+-&gt; Parser (Text -&gt; Maybe Text -&gt; GistFile)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508737"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Language)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;language&quot;</span></span><span>
+</span><span id="line-63"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; Maybe Text -&gt; GistFile)
+-&gt; Parser Text -&gt; Parser (Maybe Text -&gt; GistFile)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508737"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;filename&quot;</span></span><span>
+</span><span id="line-64"></span><span>        </span><span class="annot"><span class="annottext">Parser (Maybe Text -&gt; GistFile)
+-&gt; Parser (Maybe Text) -&gt; Parser GistFile
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679508737"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;content&quot;</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">data</span><span> </span><span id="GistComment"><span class="annot"><a href="GitHub.Data.Gists.html#GistComment"><span class="hs-identifier hs-var">GistComment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="GistComment"><span class="annot"><a href="GitHub.Data.Gists.html#GistComment"><span class="hs-identifier hs-var">GistComment</span></a></span></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="gistCommentUser"><span class="annot"><span class="annottext">GistComment -&gt; SimpleUser
+</span><a href="GitHub.Data.Gists.html#gistCommentUser"><span class="hs-identifier hs-var hs-var">gistCommentUser</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistCommentUrl"><span class="annot"><span class="annottext">GistComment -&gt; URL
+</span><a href="GitHub.Data.Gists.html#gistCommentUrl"><span class="hs-identifier hs-var hs-var">gistCommentUrl</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistCommentCreatedAt"><span class="annot"><span class="annottext">GistComment -&gt; UTCTime
+</span><a href="GitHub.Data.Gists.html#gistCommentCreatedAt"><span class="hs-identifier hs-var hs-var">gistCommentCreatedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistCommentBody"><span class="annot"><span class="annottext">GistComment -&gt; Text
+</span><a href="GitHub.Data.Gists.html#gistCommentBody"><span class="hs-identifier hs-var hs-var">gistCommentBody</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistCommentUpdatedAt"><span class="annot"><span class="annottext">GistComment -&gt; UTCTime
+</span><a href="GitHub.Data.Gists.html#gistCommentUpdatedAt"><span class="hs-identifier hs-var hs-var">gistCommentUpdatedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="gistCommentId"><span class="annot"><span class="annottext">GistComment -&gt; Id GistComment
+</span><a href="GitHub.Data.Gists.html#gistCommentId"><span class="hs-identifier hs-var hs-var">gistCommentId</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#GistComment"><span class="hs-identifier hs-type">GistComment</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679508746"><span id="local-6989586621679508756"><span id="local-6989586621679508760"><span class="annot"><span class="annottext">Int -&gt; GistComment -&gt; ShowS
+[GistComment] -&gt; ShowS
+GistComment -&gt; String
+(Int -&gt; GistComment -&gt; ShowS)
+-&gt; (GistComment -&gt; String)
+-&gt; ([GistComment] -&gt; ShowS)
+-&gt; Show GistComment
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; GistComment -&gt; ShowS
+showsPrec :: Int -&gt; GistComment -&gt; ShowS
+$cshow :: GistComment -&gt; String
+show :: GistComment -&gt; String
+$cshowList :: [GistComment] -&gt; ShowS
+showList :: [GistComment] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679508765"><span id="local-6989586621679508775"><span id="local-6989586621679508784"><span id="local-6989586621679508786"><span id="local-6989586621679508788"><span id="local-6989586621679508794"><span id="local-6989586621679508799"><span id="local-6989586621679508802"><span id="local-6989586621679508805"><span id="local-6989586621679508808"><span id="local-6989586621679508811"><span id="local-6989586621679508814"><span id="local-6989586621679508819"><span id="local-6989586621679508824"><span class="annot"><span class="annottext">Typeable GistComment
+Typeable GistComment =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; GistComment -&gt; c GistComment)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GistComment)
+-&gt; (GistComment -&gt; Constr)
+-&gt; (GistComment -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GistComment))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c GistComment))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; GistComment -&gt; GistComment)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistComment -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistComment -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GistComment -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GistComment -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment)
+-&gt; Data GistComment
+GistComment -&gt; Constr
+GistComment -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; GistComment -&gt; GistComment
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GistComment -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GistComment -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistComment -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistComment -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GistComment
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; GistComment -&gt; c GistComment
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GistComment)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c GistComment)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; GistComment -&gt; c GistComment
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; GistComment -&gt; c GistComment
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GistComment
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GistComment
+$ctoConstr :: GistComment -&gt; Constr
+toConstr :: GistComment -&gt; Constr
+$cdataTypeOf :: GistComment -&gt; DataType
+dataTypeOf :: GistComment -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GistComment)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GistComment)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c GistComment)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c GistComment)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; GistComment -&gt; GistComment
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; GistComment -&gt; GistComment
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistComment -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistComment -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistComment -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GistComment -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GistComment -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GistComment -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GistComment -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GistComment -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GistComment -&gt; m GistComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679508829"><span id="local-6989586621679508838"><span class="annot"><span class="annottext">GistComment -&gt; GistComment -&gt; Bool
+(GistComment -&gt; GistComment -&gt; Bool)
+-&gt; (GistComment -&gt; GistComment -&gt; Bool) -&gt; Eq GistComment
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: GistComment -&gt; GistComment -&gt; Bool
+== :: GistComment -&gt; GistComment -&gt; Bool
+$c/= :: GistComment -&gt; GistComment -&gt; Bool
+/= :: GistComment -&gt; GistComment -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679508844"><span id="local-6989586621679508857"><span id="local-6989586621679508865"><span id="local-6989586621679508869"><span id="local-6989586621679508872"><span id="local-6989586621679508875"><span id="local-6989586621679508878"><span class="annot"><span class="annottext">Eq GistComment
+Eq GistComment =&gt;
+(GistComment -&gt; GistComment -&gt; Ordering)
+-&gt; (GistComment -&gt; GistComment -&gt; Bool)
+-&gt; (GistComment -&gt; GistComment -&gt; Bool)
+-&gt; (GistComment -&gt; GistComment -&gt; Bool)
+-&gt; (GistComment -&gt; GistComment -&gt; Bool)
+-&gt; (GistComment -&gt; GistComment -&gt; GistComment)
+-&gt; (GistComment -&gt; GistComment -&gt; GistComment)
+-&gt; Ord GistComment
+GistComment -&gt; GistComment -&gt; Bool
+GistComment -&gt; GistComment -&gt; Ordering
+GistComment -&gt; GistComment -&gt; GistComment
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: GistComment -&gt; GistComment -&gt; Ordering
+compare :: GistComment -&gt; GistComment -&gt; Ordering
+$c&lt; :: GistComment -&gt; GistComment -&gt; Bool
+&lt; :: GistComment -&gt; GistComment -&gt; Bool
+$c&lt;= :: GistComment -&gt; GistComment -&gt; Bool
+&lt;= :: GistComment -&gt; GistComment -&gt; Bool
+$c&gt; :: GistComment -&gt; GistComment -&gt; Bool
+&gt; :: GistComment -&gt; GistComment -&gt; Bool
+$c&gt;= :: GistComment -&gt; GistComment -&gt; Bool
+&gt;= :: GistComment -&gt; GistComment -&gt; Bool
+$cmax :: GistComment -&gt; GistComment -&gt; GistComment
+max :: GistComment -&gt; GistComment -&gt; GistComment
+$cmin :: GistComment -&gt; GistComment -&gt; GistComment
+min :: GistComment -&gt; GistComment -&gt; GistComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679508886"><span id="local-6989586621679508888"><span class="annot"><span class="annottext">(forall x. GistComment -&gt; Rep GistComment x)
+-&gt; (forall x. Rep GistComment x -&gt; GistComment)
+-&gt; Generic GistComment
+forall x. Rep GistComment x -&gt; GistComment
+forall x. GistComment -&gt; Rep GistComment x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. GistComment -&gt; Rep GistComment x
+from :: forall x. GistComment -&gt; Rep GistComment x
+$cto :: forall x. Rep GistComment x -&gt; GistComment
+to :: forall x. Rep GistComment x -&gt; GistComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679508891"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#GistComment"><span class="hs-identifier hs-type">GistComment</span></a></span></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679508921"><span id="local-6989586621679508928"><span id="local-6989586621679508934"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#GistComment"><span class="hs-identifier hs-type">GistComment</span></a></span></span></span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679508983"><span id="local-6989586621679508987"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#GistComment"><span class="hs-identifier hs-type">GistComment</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679509008"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser GistComment
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser GistComment) -&gt; Value -&gt; Parser GistComment
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;GistComment&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser GistComment) -&gt; Value -&gt; Parser GistComment)
+-&gt; (Object -&gt; Parser GistComment) -&gt; Value -&gt; Parser GistComment
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679509009"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679509009"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SimpleUser
+-&gt; URL
+-&gt; UTCTime
+-&gt; Text
+-&gt; UTCTime
+-&gt; Id GistComment
+-&gt; GistComment
+</span><a href="GitHub.Data.Gists.html#GistComment"><span class="hs-identifier hs-var">GistComment</span></a></span><span>
+</span><span id="line-81"></span><span>        </span><span class="annot"><span class="annottext">(SimpleUser
+ -&gt; URL
+ -&gt; UTCTime
+ -&gt; Text
+ -&gt; UTCTime
+ -&gt; Id GistComment
+ -&gt; GistComment)
+-&gt; Parser SimpleUser
+-&gt; Parser
+     (URL
+      -&gt; UTCTime -&gt; Text -&gt; UTCTime -&gt; Id GistComment -&gt; GistComment)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679509009"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser SimpleUser
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;user&quot;</span></span><span>
+</span><span id="line-82"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (URL
+   -&gt; UTCTime -&gt; Text -&gt; UTCTime -&gt; Id GistComment -&gt; GistComment)
+-&gt; Parser URL
+-&gt; Parser
+     (UTCTime -&gt; Text -&gt; UTCTime -&gt; Id GistComment -&gt; GistComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679509009"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-83"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (UTCTime -&gt; Text -&gt; UTCTime -&gt; Id GistComment -&gt; GistComment)
+-&gt; Parser UTCTime
+-&gt; Parser (Text -&gt; UTCTime -&gt; Id GistComment -&gt; GistComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679509009"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-84"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; UTCTime -&gt; Id GistComment -&gt; GistComment)
+-&gt; Parser Text -&gt; Parser (UTCTime -&gt; Id GistComment -&gt; GistComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679509009"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;body&quot;</span></span><span>
+</span><span id="line-85"></span><span>        </span><span class="annot"><span class="annottext">Parser (UTCTime -&gt; Id GistComment -&gt; GistComment)
+-&gt; Parser UTCTime -&gt; Parser (Id GistComment -&gt; GistComment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679509009"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;updated_at&quot;</span></span><span>
+</span><span id="line-86"></span><span>        </span><span class="annot"><span class="annottext">Parser (Id GistComment -&gt; GistComment)
+-&gt; Parser (Id GistComment) -&gt; Parser GistComment
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679509009"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id GistComment)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">data</span><span> </span><span id="NewGist"><span class="annot"><a href="GitHub.Data.Gists.html#NewGist"><span class="hs-identifier hs-var">NewGist</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NewGist"><span class="annot"><a href="GitHub.Data.Gists.html#NewGist"><span class="hs-identifier hs-var">NewGist</span></a></span></span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="newGistDescription"><span class="annot"><span class="annottext">NewGist -&gt; Maybe Text
+</span><a href="GitHub.Data.Gists.html#newGistDescription"><span class="hs-identifier hs-var hs-var">newGistDescription</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newGistFiles"><span class="annot"><span class="annottext">NewGist -&gt; HashMap Text NewGistFile
+</span><a href="GitHub.Data.Gists.html#newGistFiles"><span class="hs-identifier hs-var hs-var">newGistFiles</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HashMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#NewGistFile"><span class="hs-identifier hs-type">NewGistFile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newGistPublic"><span class="annot"><span class="annottext">NewGist -&gt; Maybe Bool
+</span><a href="GitHub.Data.Gists.html#newGistPublic"><span class="hs-identifier hs-var hs-var">newGistPublic</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679509015"><span id="local-6989586621679509024"><span id="local-6989586621679509028"><span class="annot"><span class="annottext">Int -&gt; NewGist -&gt; ShowS
+[NewGist] -&gt; ShowS
+NewGist -&gt; String
+(Int -&gt; NewGist -&gt; ShowS)
+-&gt; (NewGist -&gt; String) -&gt; ([NewGist] -&gt; ShowS) -&gt; Show NewGist
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NewGist -&gt; ShowS
+showsPrec :: Int -&gt; NewGist -&gt; ShowS
+$cshow :: NewGist -&gt; String
+show :: NewGist -&gt; String
+$cshowList :: [NewGist] -&gt; ShowS
+showList :: [NewGist] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679509034"><span id="local-6989586621679509044"><span id="local-6989586621679509054"><span id="local-6989586621679509056"><span id="local-6989586621679509058"><span id="local-6989586621679509064"><span id="local-6989586621679509069"><span id="local-6989586621679509072"><span id="local-6989586621679509075"><span id="local-6989586621679509078"><span id="local-6989586621679509081"><span id="local-6989586621679509084"><span id="local-6989586621679509089"><span id="local-6989586621679509094"><span class="annot"><span class="annottext">Typeable NewGist
+Typeable NewGist =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; NewGist -&gt; c NewGist)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewGist)
+-&gt; (NewGist -&gt; Constr)
+-&gt; (NewGist -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewGist))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewGist))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; NewGist -&gt; NewGist)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGist -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGist -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewGist -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewGist -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist)
+-&gt; Data NewGist
+NewGist -&gt; Constr
+NewGist -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; NewGist -&gt; NewGist
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewGist -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewGist -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGist -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGist -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewGist
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewGist -&gt; c NewGist
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewGist)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewGist)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewGist -&gt; c NewGist
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewGist -&gt; c NewGist
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewGist
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewGist
+$ctoConstr :: NewGist -&gt; Constr
+toConstr :: NewGist -&gt; Constr
+$cdataTypeOf :: NewGist -&gt; DataType
+dataTypeOf :: NewGist -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewGist)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewGist)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewGist)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewGist)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewGist -&gt; NewGist
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewGist -&gt; NewGist
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGist -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGist -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGist -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGist -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewGist -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewGist -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewGist -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewGist -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGist -&gt; m NewGist
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679509100"><span id="local-6989586621679509108"><span class="annot"><span class="annottext">NewGist -&gt; NewGist -&gt; Bool
+(NewGist -&gt; NewGist -&gt; Bool)
+-&gt; (NewGist -&gt; NewGist -&gt; Bool) -&gt; Eq NewGist
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NewGist -&gt; NewGist -&gt; Bool
+== :: NewGist -&gt; NewGist -&gt; Bool
+$c/= :: NewGist -&gt; NewGist -&gt; Bool
+/= :: NewGist -&gt; NewGist -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679509113"><span id="local-6989586621679509115"><span class="annot"><span class="annottext">(forall x. NewGist -&gt; Rep NewGist x)
+-&gt; (forall x. Rep NewGist x -&gt; NewGist) -&gt; Generic NewGist
+forall x. Rep NewGist x -&gt; NewGist
+forall x. NewGist -&gt; Rep NewGist x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. NewGist -&gt; Rep NewGist x
+from :: forall x. NewGist -&gt; Rep NewGist x
+$cto :: forall x. Rep NewGist x -&gt; NewGist
+to :: forall x. Rep NewGist x -&gt; NewGist
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679509118"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#NewGist"><span class="hs-identifier hs-type">NewGist</span></a></span></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679509141"><span id="local-6989586621679509148"><span id="local-6989586621679509154"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#NewGist"><span class="hs-identifier hs-type">NewGist</span></a></span></span></span></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679509193"><span id="local-6989586621679509197"><span id="local-6989586621679509200"><span id="local-6989586621679509203"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#NewGist"><span class="hs-identifier hs-type">NewGist</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>    </span><span id="local-6989586621679509228"><span class="annot"><span class="annottext">toJSON :: NewGist -&gt; Value
+</span><a href="#local-6989586621679509228"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#NewGist"><span class="hs-identifier hs-type">NewGist</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">newGistDescription :: NewGist -&gt; Maybe Text
+</span><a href="GitHub.Data.Gists.html#newGistDescription"><span class="hs-identifier hs-var">newGistDescription</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679509230"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679509230"><span class="hs-identifier hs-var">description</span></a></span></span><span>
+</span><span id="line-99"></span><span>                   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">newGistFiles :: NewGist -&gt; HashMap Text NewGistFile
+</span><a href="GitHub.Data.Gists.html#newGistFiles"><span class="hs-identifier hs-var">newGistFiles</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679509231"><span class="annot"><span class="annottext">HashMap Text NewGistFile
+</span><a href="#local-6989586621679509231"><span class="hs-identifier hs-var">files</span></a></span></span><span>
+</span><span id="line-100"></span><span>                   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">newGistPublic :: NewGist -&gt; Maybe Bool
+</span><a href="GitHub.Data.Gists.html#newGistPublic"><span class="hs-identifier hs-var">newGistPublic</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679509232"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621679509232"><span class="hs-identifier hs-var">public</span></a></span></span><span>
+</span><span id="line-101"></span><span>                   </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Pair -&gt; Bool) -&gt; [Pair] -&gt; [Pair]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">Pair -&gt; Bool
+forall {a}. (a, Value) -&gt; Bool
+</span><a href="#local-6989586621679509234"><span class="hs-identifier hs-var">notNull</span></a></span><span>
+</span><span id="line-102"></span><span>                   </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;description&quot;</span></span><span>      </span><span class="annot"><span class="annottext">Key -&gt; Maybe Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679509230"><span class="hs-identifier hs-var">description</span></a></span><span>
+</span><span id="line-103"></span><span>                   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;files&quot;</span></span><span>            </span><span class="annot"><span class="annottext">Key -&gt; HashMap Text NewGistFile -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">HashMap Text NewGistFile
+</span><a href="#local-6989586621679509231"><span class="hs-identifier hs-var">files</span></a></span><span>
+</span><span id="line-104"></span><span>                   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;public&quot;</span></span><span>           </span><span class="annot"><span class="annottext">Key -&gt; Maybe Bool -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621679509232"><span class="hs-identifier hs-var">public</span></a></span><span>
+</span><span id="line-105"></span><span>                   </span><span class="hs-special">]</span><span>
+</span><span id="line-106"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>        </span><span id="local-6989586621679509234"><span class="annot"><span class="annottext">notNull :: (a, Value) -&gt; Bool
+</span><a href="#local-6989586621679509234"><span class="hs-identifier hs-var hs-var">notNull</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier hs-var">Null</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-108"></span><span>        </span><span class="annot"><a href="#local-6989586621679509234"><span class="hs-identifier hs-var">notNull</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-keyword">data</span><span> </span><span id="NewGistFile"><span class="annot"><a href="GitHub.Data.Gists.html#NewGistFile"><span class="hs-identifier hs-var">NewGistFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NewGistFile"><span class="annot"><a href="GitHub.Data.Gists.html#NewGistFile"><span class="hs-identifier hs-var">NewGistFile</span></a></span></span><span>
+</span><span id="line-111"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="newGistFileContent"><span class="annot"><span class="annottext">NewGistFile -&gt; Text
+</span><a href="GitHub.Data.Gists.html#newGistFileContent"><span class="hs-identifier hs-var hs-var">newGistFileContent</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-112"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679509240"><span id="local-6989586621679509244"><span id="local-6989586621679509247"><span class="annot"><span class="annottext">Int -&gt; NewGistFile -&gt; ShowS
+[NewGistFile] -&gt; ShowS
+NewGistFile -&gt; String
+(Int -&gt; NewGistFile -&gt; ShowS)
+-&gt; (NewGistFile -&gt; String)
+-&gt; ([NewGistFile] -&gt; ShowS)
+-&gt; Show NewGistFile
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NewGistFile -&gt; ShowS
+showsPrec :: Int -&gt; NewGistFile -&gt; ShowS
+$cshow :: NewGistFile -&gt; String
+show :: NewGistFile -&gt; String
+$cshowList :: [NewGistFile] -&gt; ShowS
+showList :: [NewGistFile] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679509252"><span id="local-6989586621679509255"><span id="local-6989586621679509258"><span id="local-6989586621679509260"><span id="local-6989586621679509262"><span id="local-6989586621679509267"><span id="local-6989586621679509272"><span id="local-6989586621679509275"><span id="local-6989586621679509278"><span id="local-6989586621679509281"><span id="local-6989586621679509284"><span id="local-6989586621679509287"><span id="local-6989586621679509292"><span id="local-6989586621679509297"><span class="annot"><span class="annottext">Typeable NewGistFile
+Typeable NewGistFile =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; NewGistFile -&gt; c NewGistFile)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewGistFile)
+-&gt; (NewGistFile -&gt; Constr)
+-&gt; (NewGistFile -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewGistFile))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c NewGistFile))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; NewGistFile -&gt; NewGistFile)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGistFile -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGistFile -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewGistFile -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewGistFile -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile)
+-&gt; Data NewGistFile
+NewGistFile -&gt; Constr
+NewGistFile -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; NewGistFile -&gt; NewGistFile
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewGistFile -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewGistFile -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGistFile -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGistFile -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewGistFile
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewGistFile -&gt; c NewGistFile
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewGistFile)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewGistFile)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewGistFile -&gt; c NewGistFile
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewGistFile -&gt; c NewGistFile
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewGistFile
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewGistFile
+$ctoConstr :: NewGistFile -&gt; Constr
+toConstr :: NewGistFile -&gt; Constr
+$cdataTypeOf :: NewGistFile -&gt; DataType
+dataTypeOf :: NewGistFile -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewGistFile)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewGistFile)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewGistFile)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewGistFile)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewGistFile -&gt; NewGistFile
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewGistFile -&gt; NewGistFile
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGistFile -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGistFile -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGistFile -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewGistFile -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewGistFile -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewGistFile -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewGistFile -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewGistFile -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewGistFile -&gt; m NewGistFile
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679509302"><span id="local-6989586621679509305"><span class="annot"><span class="annottext">NewGistFile -&gt; NewGistFile -&gt; Bool
+(NewGistFile -&gt; NewGistFile -&gt; Bool)
+-&gt; (NewGistFile -&gt; NewGistFile -&gt; Bool) -&gt; Eq NewGistFile
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NewGistFile -&gt; NewGistFile -&gt; Bool
+== :: NewGistFile -&gt; NewGistFile -&gt; Bool
+$c/= :: NewGistFile -&gt; NewGistFile -&gt; Bool
+/= :: NewGistFile -&gt; NewGistFile -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679509308"><span id="local-6989586621679509310"><span class="annot"><span class="annottext">(forall x. NewGistFile -&gt; Rep NewGistFile x)
+-&gt; (forall x. Rep NewGistFile x -&gt; NewGistFile)
+-&gt; Generic NewGistFile
+forall x. Rep NewGistFile x -&gt; NewGistFile
+forall x. NewGistFile -&gt; Rep NewGistFile x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. NewGistFile -&gt; Rep NewGistFile x
+from :: forall x. NewGistFile -&gt; Rep NewGistFile x
+$cto :: forall x. Rep NewGistFile x -&gt; NewGistFile
+to :: forall x. Rep NewGistFile x -&gt; NewGistFile
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679509313"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#NewGistFile"><span class="hs-identifier hs-type">NewGistFile</span></a></span></span><span>
+</span><span id="line-115"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679509323"><span id="local-6989586621679509329"><span id="local-6989586621679509335"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#NewGistFile"><span class="hs-identifier hs-type">NewGistFile</span></a></span></span></span></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679509347"><span id="local-6989586621679509350"><span id="local-6989586621679509353"><span id="local-6989586621679509356"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Gists.html#NewGistFile"><span class="hs-identifier hs-type">NewGistFile</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621679509363"><span class="annot"><span class="annottext">toJSON :: NewGistFile -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Gists.html#NewGistFile"><span class="hs-identifier hs-type">NewGistFile</span></a></span><span> </span><span id="local-6989586621679509364"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679509364"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;content&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679509364"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-119"></span></pre></body></html>

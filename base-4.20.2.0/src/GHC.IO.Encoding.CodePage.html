@@ -1,0 +1,22 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+
+#if ! defined(mingw32_HOST_OS)
+</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.IO.Encoding.CodePage.html"><span class="hs-identifier">GHC.IO.Encoding.CodePage</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- See W1 of Note [Tracking dependencies on primitives] in GHC.Internal.Base</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- for build ordering</span><span class="hs-cpp">
+
+#else
+</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.IO.Encoding.CodePage</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">codePageEncoding</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mkCodePageEncoding</span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-identifier">localeEncoding</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">mkLocaleEncoding</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">CodePage</span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-identifier">getCurrentCodePage</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.IO.Encoding.CodePage</span><span class="hs-cpp">
+
+#endif
+</span></pre></body></html>

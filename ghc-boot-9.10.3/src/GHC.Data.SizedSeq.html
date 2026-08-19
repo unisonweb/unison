@@ -1,0 +1,181 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE StandaloneDeriving, DeriveGeneric, CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html"><span class="hs-identifier">GHC.Data.SizedSeq</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier">SizedSeq</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#emptySS"><span class="hs-identifier">emptySS</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#addToSS"><span class="hs-identifier">addToSS</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#addListToSS"><span class="hs-identifier">addListToSS</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#ssElts"><span class="hs-identifier">ssElts</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#sizeSS"><span class="hs-identifier">sizeSS</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span> </span><span class="hs-comment">-- See note [Why do we import Prelude here?]</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html"><span class="hs-identifier">Control.DeepSeq</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.html"><span class="hs-identifier">Data.Binary</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span class="hs-cpp">
+
+#if ! MIN_VERSION_base(4,20,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.List</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">foldl'</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">data</span><span> </span><span id="SizedSeq"><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-var">SizedSeq</span></a></span></span><span> </span><span id="local-6989586621679078811"><span class="annot"><a href="#local-6989586621679078811"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SizedSeq"><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-var">SizedSeq</span></a></span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679078811"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679078911"><span id="local-6989586621679078913"><span class="annot"><span class="annottext">(forall x. SizedSeq a -&gt; Rep (SizedSeq a) x)
+-&gt; (forall x. Rep (SizedSeq a) x -&gt; SizedSeq a)
+-&gt; Generic (SizedSeq a)
+forall x. Rep (SizedSeq a) x -&gt; SizedSeq a
+forall x. SizedSeq a -&gt; Rep (SizedSeq a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (SizedSeq a) x -&gt; SizedSeq a
+forall a x. SizedSeq a -&gt; Rep (SizedSeq a) x
+$cfrom :: forall a x. SizedSeq a -&gt; Rep (SizedSeq a) x
+from :: forall x. SizedSeq a -&gt; Rep (SizedSeq a) x
+$cto :: forall a x. Rep (SizedSeq a) x -&gt; SizedSeq a
+to :: forall x. Rep (SizedSeq a) x -&gt; SizedSeq a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679078920"><span id="local-6989586621679078928"><span id="local-6989586621679078932"><span class="annot"><span class="annottext">Int -&gt; SizedSeq a -&gt; ShowS
+[SizedSeq a] -&gt; ShowS
+SizedSeq a -&gt; String
+(Int -&gt; SizedSeq a -&gt; ShowS)
+-&gt; (SizedSeq a -&gt; String)
+-&gt; ([SizedSeq a] -&gt; ShowS)
+-&gt; Show (SizedSeq a)
+forall a. Show a =&gt; Int -&gt; SizedSeq a -&gt; ShowS
+forall a. Show a =&gt; [SizedSeq a] -&gt; ShowS
+forall a. Show a =&gt; SizedSeq a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; SizedSeq a -&gt; ShowS
+showsPrec :: Int -&gt; SizedSeq a -&gt; ShowS
+$cshow :: forall a. Show a =&gt; SizedSeq a -&gt; String
+show :: SizedSeq a -&gt; String
+$cshowList :: forall a. Show a =&gt; [SizedSeq a] -&gt; ShowS
+showList :: [SizedSeq a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679078938"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>  </span><span id="local-6989586621679078944"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; SizedSeq a -&gt; SizedSeq b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679078945"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679078945"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span id="local-6989586621679078946"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679078946"><span class="hs-identifier hs-var">sz</span></a></span></span><span> </span><span id="local-6989586621679078947"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679078947"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; [b] -&gt; SizedSeq b
+forall a. Word -&gt; [a] -&gt; SizedSeq a
+</span><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-var">SizedSeq</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679078946"><span class="hs-identifier hs-var">sz</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; [a] -&gt; [b]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679078945"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679078947"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679078949"><span id="local-6989586621679078955"><span id="local-6989586621679078960"><span id="local-6989586621679078966"><span id="local-6989586621679078969"><span id="local-6989586621679078972"><span id="local-6989586621679078975"><span id="local-6989586621679078978"><span id="local-6989586621679078981"><span id="local-6989586621679078984"><span id="local-6989586621679078987"><span id="local-6989586621679078990"><span id="local-6989586621679078995"><span id="local-6989586621679079000"><span id="local-6989586621679079005"><span id="local-6989586621679079010"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>  </span><span id="local-6989586621679079017"><span class="annot"><span class="annottext">foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; SizedSeq a -&gt; b
+</span><a href="#local-6989586621679079017"><span class="hs-identifier hs-var hs-var hs-var">foldr</span></a></span></span><span> </span><span id="local-6989586621679079019"><span class="annot"><span class="annottext">a -&gt; b -&gt; b
+</span><a href="#local-6989586621679079019"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679079020"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679079020"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679079021"><span class="annot"><span class="annottext">SizedSeq a
+</span><a href="#local-6989586621679079021"><span class="hs-identifier hs-var">ss</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; b
+</span><a href="#local-6989586621679079019"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679079020"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SizedSeq a -&gt; [a]
+forall a. SizedSeq a -&gt; [a]
+</span><a href="GHC.Data.SizedSeq.html#ssElts"><span class="hs-identifier hs-var">ssElts</span></a></span><span> </span><span class="annot"><span class="annottext">SizedSeq a
+</span><a href="#local-6989586621679079021"><span class="hs-identifier hs-var">ss</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679079028"><span id="local-6989586621679079034"><span id="local-6989586621679079039"><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>  </span><span id="local-6989586621679079051"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; SizedSeq a -&gt; f (SizedSeq b)
+</span><a href="#local-6989586621679079051"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679079053"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679079053"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span id="local-6989586621679079054"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679079054"><span class="hs-identifier hs-var">sz</span></a></span></span><span> </span><span id="local-6989586621679079055"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079055"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; [b] -&gt; SizedSeq b
+forall a. Word -&gt; [a] -&gt; SizedSeq a
+</span><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-var">SizedSeq</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679079054"><span class="hs-identifier hs-var">sz</span></a></span><span> </span><span class="annot"><span class="annottext">([b] -&gt; SizedSeq b) -&gt; ([b] -&gt; [b]) -&gt; [b] -&gt; SizedSeq b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[b] -&gt; [b]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">([b] -&gt; SizedSeq b) -&gt; f [b] -&gt; f (SizedSeq b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; [a] -&gt; f [b]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679079053"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; [a]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079055"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679078885"><span id="local-6989586621679079061"><span id="local-6989586621679079068"><span id="local-6989586621679079074"><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078885"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078885"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679078889"><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078889"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078889"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679079107"><span class="annot"><span class="annottext">rnf :: SizedSeq a -&gt; ()
+</span><a href="#local-6989586621679079107"><span class="hs-identifier hs-var hs-var hs-var">rnf</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679079109"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079109"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079109"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span id="local-6989586621679078891"><span class="annot"><a href="GHC.Data.SizedSeq.html#emptySS"><span class="hs-identifier hs-type">emptySS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078891"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-38"></span><span id="emptySS"><span class="annot"><span class="annottext">emptySS :: forall a. SizedSeq a
+</span><a href="GHC.Data.SizedSeq.html#emptySS"><span class="hs-identifier hs-var hs-var">emptySS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; [a] -&gt; SizedSeq a
+forall a. Word -&gt; [a] -&gt; SizedSeq a
+</span><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-var">SizedSeq</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span id="local-6989586621679078894"><span class="annot"><a href="GHC.Data.SizedSeq.html#addToSS"><span class="hs-identifier hs-type">addToSS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078894"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679078894"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078894"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-41"></span><span id="addToSS"><span class="annot"><span class="annottext">addToSS :: forall a. SizedSeq a -&gt; a -&gt; SizedSeq a
+</span><a href="GHC.Data.SizedSeq.html#addToSS"><span class="hs-identifier hs-var hs-var">addToSS</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span id="local-6989586621679079113"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679079113"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679079114"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079114"><span class="hs-identifier hs-var">r_xs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679079115"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679079115"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; [a] -&gt; SizedSeq a
+forall a. Word -&gt; [a] -&gt; SizedSeq a
+</span><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-var">SizedSeq</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679079113"><span class="hs-identifier hs-var">n</span></a></span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679079115"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079114"><span class="hs-identifier hs-var">r_xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- NB, important this is eta-expand so that foldl' is inlined.</span><span>
+</span><span id="line-44"></span><span id="local-6989586621679078897"><span class="annot"><a href="GHC.Data.SizedSeq.html#addListToSS"><span class="hs-identifier hs-type">addListToSS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078897"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679078897"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078897"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-45"></span><span id="addListToSS"><span class="annot"><span class="annottext">addListToSS :: forall a. SizedSeq a -&gt; [a] -&gt; SizedSeq a
+</span><a href="GHC.Data.SizedSeq.html#addListToSS"><span class="hs-identifier hs-var hs-var">addListToSS</span></a></span></span><span> </span><span id="local-6989586621679079118"><span class="annot"><span class="annottext">SizedSeq a
+</span><a href="#local-6989586621679079118"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679079119"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079119"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(SizedSeq a -&gt; a -&gt; SizedSeq a) -&gt; SizedSeq a -&gt; [a] -&gt; SizedSeq a
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">SizedSeq a -&gt; a -&gt; SizedSeq a
+forall a. SizedSeq a -&gt; a -&gt; SizedSeq a
+</span><a href="GHC.Data.SizedSeq.html#addToSS"><span class="hs-identifier hs-var">addToSS</span></a></span><span> </span><span class="annot"><span class="annottext">SizedSeq a
+</span><a href="#local-6989586621679079118"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079119"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span id="local-6989586621679079121"><span class="annot"><a href="GHC.Data.SizedSeq.html#ssElts"><span class="hs-identifier hs-type">ssElts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679079121"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679079121"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-48"></span><span id="ssElts"><span class="annot"><span class="annottext">ssElts :: forall a. SizedSeq a -&gt; [a]
+</span><a href="GHC.Data.SizedSeq.html#ssElts"><span class="hs-identifier hs-var hs-var">ssElts</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679079122"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079122"><span class="hs-identifier hs-var">r_xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679079122"><span class="hs-identifier hs-var">r_xs</span></a></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span id="local-6989586621679078902"><span class="annot"><a href="GHC.Data.SizedSeq.html#sizeSS"><span class="hs-identifier hs-type">sizeSS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078902"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span></span><span>
+</span><span id="line-51"></span><span id="sizeSS"><span class="annot"><span class="annottext">sizeSS :: forall a. SizedSeq a -&gt; Word
+</span><a href="GHC.Data.SizedSeq.html#sizeSS"><span class="hs-identifier hs-var hs-var">sizeSS</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span id="local-6989586621679079123"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679079123"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679079123"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-52"></span></pre></body></html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  Foreign.Marshal.Array</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The FFI task force 2001</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  ffi@haskell.org</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Marshalling support: routines allocating, storing, and retrieving Haskell</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- lists that are represented as arrays in the foreign language</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Foreign.Marshal.Array.html"><span class="hs-identifier">Foreign.Marshal.Array</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-comment">-- *  Marshalling arrays</span></span><span>
+</span><span id="line-19"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Allocation</span></span><span>
+</span><span id="line-20"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#mallocArray"><span class="hs-identifier">mallocArray</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#mallocArray0"><span class="hs-identifier">mallocArray0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#allocaArray"><span class="hs-identifier">allocaArray</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#allocaArray0"><span class="hs-identifier">allocaArray0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#reallocArray"><span class="hs-identifier">reallocArray</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#reallocArray0"><span class="hs-identifier">reallocArray0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#callocArray"><span class="hs-identifier">callocArray</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#callocArray0"><span class="hs-identifier">callocArray0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Marshalling</span></span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#peekArray"><span class="hs-identifier">peekArray</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#peekArray0"><span class="hs-identifier">peekArray0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#pokeArray"><span class="hs-identifier">pokeArray</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#pokeArray0"><span class="hs-identifier">pokeArray0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Combined allocation and marshalling</span></span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#newArray"><span class="hs-identifier">newArray</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#newArray0"><span class="hs-identifier">newArray0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#withArray"><span class="hs-identifier">withArray</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#withArray0"><span class="hs-identifier">withArray0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#withArrayLen"><span class="hs-identifier">withArrayLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#withArrayLen0"><span class="hs-identifier">withArrayLen0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Copying</span></span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><span class="hs-comment">-- |  (argument order: destination, source)</span></span><span>
+</span><span id="line-42"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#copyArray"><span class="hs-identifier">copyArray</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#moveArray"><span class="hs-identifier">moveArray</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Finding the length</span></span><span>
+</span><span id="line-45"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#lengthArray0"><span class="hs-identifier">lengthArray0</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Indexing</span></span><span>
+</span><span id="line-47"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html#advancePtr"><span class="hs-identifier">advancePtr</span></a></span><span>
+</span><span id="line-48"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Array.html"><span class="hs-identifier">GHC.Internal.Foreign.Marshal.Array</span></a></span></pre></body></html>

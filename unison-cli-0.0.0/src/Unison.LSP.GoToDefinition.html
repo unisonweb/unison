@@ -1,0 +1,605 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | goToDeclaration, goToDefinition, and goToImplementation are equivalent except for the input/return wrappers</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.LSP.GoToDefinition.html"><span class="hs-identifier">Unison.LSP.GoToDefinition</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.LSP.GoToDefinition.html#goToDefinitionHandler"><span class="hs-identifier">goToDefinitionHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.LSP.GoToDefinition.html#goToDeclarationHandler"><span class="hs-identifier">goToDeclarationHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.LSP.GoToDefinition.html#goToImplementationHandler"><span class="hs-identifier">goToImplementationHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">List</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntervalMap.Lazy</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Lens</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Message</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Msg</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.FileAnalysis.html"><span class="hs-identifier">Unison.LSP.FileAnalysis</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">FileAnalysis</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html"><span class="hs-identifier">Unison.LSP.Types</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="annot"><span class="hs-comment">-- | Go to Definition handler</span></span><span>
+</span><span id="line-19"></span><span id="local-6989586621681566827"><span class="annot"><a href="Unison.LSP.GoToDefinition.html#goToDefinitionHandler"><span class="hs-identifier hs-type">goToDefinitionHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Msg.TRequestMessage</span></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_TextDocumentDefinition</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.TResponseError</span></span><span> </span><span class="annot"><a href="#local-6989586621681566827"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.MessageResult</span></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_TextDocumentDefinition</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-20"></span><span id="goToDefinitionHandler"><span class="annot"><span class="annottext">goToDefinitionHandler :: forall {f :: MessageDirection} (m :: Method f 'Request).
+TRequestMessage 'Method_TextDocumentDefinition
+-&gt; (Either
+      (TResponseError m) (MessageResult 'Method_TextDocumentDefinition)
+    -&gt; Lsp ())
+-&gt; Lsp ()
+</span><a href="Unison.LSP.GoToDefinition.html#goToDefinitionHandler"><span class="hs-identifier hs-var hs-var">goToDefinitionHandler</span></a></span></span><span> </span><span id="local-6989586621681566970"><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDefinition
+</span><a href="#local-6989586621681566970"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621681566971"><span class="annot"><span class="annottext">Either
+  (TResponseError m) (MessageResult 'Method_TextDocumentDefinition)
+-&gt; Lsp ()
+</span><a href="#local-6989586621681566971"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><span class="annottext">Either
+  (TResponseError m) (Definition |? ([DefinitionLink] |? Null))
+-&gt; Lsp ()
+Either
+  (TResponseError m) (MessageResult 'Method_TextDocumentDefinition)
+-&gt; Lsp ()
+</span><a href="#local-6989586621681566971"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(Either
+   (TResponseError m) (Definition |? ([DefinitionLink] |? Null))
+ -&gt; Lsp ())
+-&gt; (Maybe [DefinitionLink]
+    -&gt; Either
+         (TResponseError m) (Definition |? ([DefinitionLink] |? Null)))
+-&gt; Maybe [DefinitionLink]
+-&gt; Lsp ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Definition |? ([DefinitionLink] |? Null))
+-&gt; Either
+     (TResponseError m) (Definition |? ([DefinitionLink] |? Null))
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">((Definition |? ([DefinitionLink] |? Null))
+ -&gt; Either
+      (TResponseError m) (Definition |? ([DefinitionLink] |? Null)))
+-&gt; (Maybe [DefinitionLink]
+    -&gt; Definition |? ([DefinitionLink] |? Null))
+-&gt; Maybe [DefinitionLink]
+-&gt; Either
+     (TResponseError m) (Definition |? ([DefinitionLink] |? Null))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Definition |? ([DefinitionLink] |? Null))
+-&gt; ([DefinitionLink] -&gt; Definition |? ([DefinitionLink] |? Null))
+-&gt; Maybe [DefinitionLink]
+-&gt; Definition |? ([DefinitionLink] |? Null)
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([DefinitionLink] |? Null)
+-&gt; Definition |? ([DefinitionLink] |? Null)
+forall a b. b -&gt; a |? b
+</span><span class="hs-identifier hs-var">InR</span></span><span> </span><span class="annot"><span class="annottext">(([DefinitionLink] |? Null)
+ -&gt; Definition |? ([DefinitionLink] |? Null))
+-&gt; ([DefinitionLink] -&gt; [DefinitionLink] |? Null)
+-&gt; [DefinitionLink]
+-&gt; Definition |? ([DefinitionLink] |? Null)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[DefinitionLink] -&gt; [DefinitionLink] |? Null
+forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">InL</span></span><span> </span><span class="annot"><span class="annottext">([DefinitionLink] -&gt; Definition |? ([DefinitionLink] |? Null))
+-&gt; [DefinitionLink] -&gt; Definition |? ([DefinitionLink] |? Null)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([DefinitionLink] |? Null)
+-&gt; Definition |? ([DefinitionLink] |? Null)
+forall a b. b -&gt; a |? b
+</span><span class="hs-identifier hs-var">InR</span></span><span> </span><span class="annot"><span class="annottext">(([DefinitionLink] |? Null)
+ -&gt; Definition |? ([DefinitionLink] |? Null))
+-&gt; ([DefinitionLink] -&gt; [DefinitionLink] |? Null)
+-&gt; [DefinitionLink]
+-&gt; Definition |? ([DefinitionLink] |? Null)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[DefinitionLink] -&gt; [DefinitionLink] |? Null
+forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">InL</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe [DefinitionLink] -&gt; Lsp ())
+-&gt; Lsp (Maybe [DefinitionLink]) -&gt; Lsp ()
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">MaybeT Lsp [DefinitionLink] -&gt; Lsp (Maybe [DefinitionLink])
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><span class="hs-identifier hs-var">runMaybeT</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681566978"><span class="annot"><span class="annottext">pos :: Position
+</span><a href="#local-6989586621681566978"><span class="hs-identifier hs-var hs-var hs-var">pos</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDefinition
+</span><a href="#local-6989586621681566970"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDefinition
+-&gt; Getting
+     Position (TRequestMessage 'Method_TextDocumentDefinition) Position
+-&gt; Position
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">(DefinitionParams -&gt; Const Position DefinitionParams)
+-&gt; TRequestMessage 'Method_TextDocumentDefinition
+-&gt; Const Position (TRequestMessage 'Method_TextDocumentDefinition)
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage 'Method_TextDocumentDefinition) DefinitionParams
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">((DefinitionParams -&gt; Const Position DefinitionParams)
+ -&gt; TRequestMessage 'Method_TextDocumentDefinition
+ -&gt; Const Position (TRequestMessage 'Method_TextDocumentDefinition))
+-&gt; ((Position -&gt; Const Position Position)
+    -&gt; DefinitionParams -&gt; Const Position DefinitionParams)
+-&gt; Getting
+     Position (TRequestMessage 'Method_TextDocumentDefinition) Position
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Position -&gt; Const Position Position)
+-&gt; DefinitionParams -&gt; Const Position DefinitionParams
+forall s a. HasPosition s a =&gt; Lens' s a
+Lens' DefinitionParams Position
+</span><span class="hs-identifier hs-var">position</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>    </span><span id="local-6989586621681566982"><span class="annot"><a href="#local-6989586621681566982"><span class="hs-identifier hs-var">targetRange</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Uri -&gt; Position -&gt; MaybeT Lsp Range
+</span><a href="Unison.LSP.GoToDefinition.html#locationInfo"><span class="hs-identifier hs-var">locationInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDefinition
+</span><a href="#local-6989586621681566970"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDefinition
+-&gt; Getting Uri (TRequestMessage 'Method_TextDocumentDefinition) Uri
+-&gt; Uri
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">(DefinitionParams -&gt; Const Uri DefinitionParams)
+-&gt; TRequestMessage 'Method_TextDocumentDefinition
+-&gt; Const Uri (TRequestMessage 'Method_TextDocumentDefinition)
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage 'Method_TextDocumentDefinition) DefinitionParams
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">((DefinitionParams -&gt; Const Uri DefinitionParams)
+ -&gt; TRequestMessage 'Method_TextDocumentDefinition
+ -&gt; Const Uri (TRequestMessage 'Method_TextDocumentDefinition))
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; DefinitionParams -&gt; Const Uri DefinitionParams)
+-&gt; Getting Uri (TRequestMessage 'Method_TextDocumentDefinition) Uri
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; DefinitionParams -&gt; Const Uri DefinitionParams
+forall s a. HasTextDocument s a =&gt; Lens' s a
+Lens' DefinitionParams TextDocumentIdentifier
+</span><span class="hs-identifier hs-var">textDocument</span></span><span> </span><span class="annot"><span class="annottext">((TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+ -&gt; DefinitionParams -&gt; Const Uri DefinitionParams)
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; (Uri -&gt; Const Uri Uri)
+-&gt; DefinitionParams
+-&gt; Const Uri DefinitionParams
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Uri -&gt; Const Uri Uri)
+-&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier
+forall s a. HasUri s a =&gt; Lens' s a
+Lens' TextDocumentIdentifier Uri
+</span><span class="hs-identifier hs-var">uri</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621681566978"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681566986"><span class="annot"><a href="#local-6989586621681566986"><span class="hs-identifier hs-var hs-var">originLoc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-comment">-- Just use default</span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681566987"><span class="annot"><a href="#local-6989586621681566987"><span class="hs-identifier hs-var hs-var">targetUri</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDefinition
+</span><a href="#local-6989586621681566970"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDefinition
+-&gt; Getting Uri (TRequestMessage 'Method_TextDocumentDefinition) Uri
+-&gt; Uri
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">(DefinitionParams -&gt; Const Uri DefinitionParams)
+-&gt; TRequestMessage 'Method_TextDocumentDefinition
+-&gt; Const Uri (TRequestMessage 'Method_TextDocumentDefinition)
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage 'Method_TextDocumentDefinition) DefinitionParams
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">((DefinitionParams -&gt; Const Uri DefinitionParams)
+ -&gt; TRequestMessage 'Method_TextDocumentDefinition
+ -&gt; Const Uri (TRequestMessage 'Method_TextDocumentDefinition))
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; DefinitionParams -&gt; Const Uri DefinitionParams)
+-&gt; Getting Uri (TRequestMessage 'Method_TextDocumentDefinition) Uri
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; DefinitionParams -&gt; Const Uri DefinitionParams
+forall s a. HasTextDocument s a =&gt; Lens' s a
+Lens' DefinitionParams TextDocumentIdentifier
+</span><span class="hs-identifier hs-var">textDocument</span></span><span> </span><span class="annot"><span class="annottext">((TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+ -&gt; DefinitionParams -&gt; Const Uri DefinitionParams)
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; (Uri -&gt; Const Uri Uri)
+-&gt; DefinitionParams
+-&gt; Const Uri DefinitionParams
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Uri -&gt; Const Uri Uri)
+-&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier
+forall s a. HasUri s a =&gt; Lens' s a
+Lens' TextDocumentIdentifier Uri
+</span><span class="hs-identifier hs-var">uri</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-27"></span><span>      </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">DefinitionLink</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LocationLink</span></span><span> </span><span class="annot"><a href="#local-6989586621681566986"><span class="hs-identifier hs-type">originLoc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681566987"><span class="hs-identifier hs-type">targetUri</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681566982"><span class="hs-identifier hs-type">targetRange</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681566982"><span class="hs-identifier hs-type">targetRange</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><span class="hs-comment">-- | Go to Declaration handler</span></span><span>
+</span><span id="line-30"></span><span id="local-6989586621681566887"><span class="annot"><a href="Unison.LSP.GoToDefinition.html#goToDeclarationHandler"><span class="hs-identifier hs-type">goToDeclarationHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Msg.TRequestMessage</span></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_TextDocumentDeclaration</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.TResponseError</span></span><span> </span><span class="annot"><a href="#local-6989586621681566887"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.MessageResult</span></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_TextDocumentDeclaration</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-31"></span><span id="goToDeclarationHandler"><span class="annot"><span class="annottext">goToDeclarationHandler :: forall {f :: MessageDirection} (m :: Method f 'Request).
+TRequestMessage 'Method_TextDocumentDeclaration
+-&gt; (Either
+      (TResponseError m) (MessageResult 'Method_TextDocumentDeclaration)
+    -&gt; Lsp ())
+-&gt; Lsp ()
+</span><a href="Unison.LSP.GoToDefinition.html#goToDeclarationHandler"><span class="hs-identifier hs-var hs-var">goToDeclarationHandler</span></a></span></span><span> </span><span id="local-6989586621681567017"><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDeclaration
+</span><a href="#local-6989586621681567017"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621681567018"><span class="annot"><span class="annottext">Either
+  (TResponseError m) (MessageResult 'Method_TextDocumentDeclaration)
+-&gt; Lsp ()
+</span><a href="#local-6989586621681567018"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="annottext">Either
+  (TResponseError m) (Declaration |? ([DeclarationLink] |? Null))
+-&gt; Lsp ()
+Either
+  (TResponseError m) (MessageResult 'Method_TextDocumentDeclaration)
+-&gt; Lsp ()
+</span><a href="#local-6989586621681567018"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(Either
+   (TResponseError m) (Declaration |? ([DeclarationLink] |? Null))
+ -&gt; Lsp ())
+-&gt; (Maybe [DeclarationLink]
+    -&gt; Either
+         (TResponseError m) (Declaration |? ([DeclarationLink] |? Null)))
+-&gt; Maybe [DeclarationLink]
+-&gt; Lsp ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Declaration |? ([DeclarationLink] |? Null))
+-&gt; Either
+     (TResponseError m) (Declaration |? ([DeclarationLink] |? Null))
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">((Declaration |? ([DeclarationLink] |? Null))
+ -&gt; Either
+      (TResponseError m) (Declaration |? ([DeclarationLink] |? Null)))
+-&gt; (Maybe [DeclarationLink]
+    -&gt; Declaration |? ([DeclarationLink] |? Null))
+-&gt; Maybe [DeclarationLink]
+-&gt; Either
+     (TResponseError m) (Declaration |? ([DeclarationLink] |? Null))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Declaration |? ([DeclarationLink] |? Null))
+-&gt; ([DeclarationLink]
+    -&gt; Declaration |? ([DeclarationLink] |? Null))
+-&gt; Maybe [DeclarationLink]
+-&gt; Declaration |? ([DeclarationLink] |? Null)
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([DeclarationLink] |? Null)
+-&gt; Declaration |? ([DeclarationLink] |? Null)
+forall a b. b -&gt; a |? b
+</span><span class="hs-identifier hs-var">InR</span></span><span> </span><span class="annot"><span class="annottext">(([DeclarationLink] |? Null)
+ -&gt; Declaration |? ([DeclarationLink] |? Null))
+-&gt; ([DeclarationLink] -&gt; [DeclarationLink] |? Null)
+-&gt; [DeclarationLink]
+-&gt; Declaration |? ([DeclarationLink] |? Null)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[DeclarationLink] -&gt; [DeclarationLink] |? Null
+forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">InL</span></span><span> </span><span class="annot"><span class="annottext">([DeclarationLink] -&gt; Declaration |? ([DeclarationLink] |? Null))
+-&gt; [DeclarationLink] -&gt; Declaration |? ([DeclarationLink] |? Null)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([DeclarationLink] |? Null)
+-&gt; Declaration |? ([DeclarationLink] |? Null)
+forall a b. b -&gt; a |? b
+</span><span class="hs-identifier hs-var">InR</span></span><span> </span><span class="annot"><span class="annottext">(([DeclarationLink] |? Null)
+ -&gt; Declaration |? ([DeclarationLink] |? Null))
+-&gt; ([DeclarationLink] -&gt; [DeclarationLink] |? Null)
+-&gt; [DeclarationLink]
+-&gt; Declaration |? ([DeclarationLink] |? Null)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[DeclarationLink] -&gt; [DeclarationLink] |? Null
+forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">InL</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe [DeclarationLink] -&gt; Lsp ())
+-&gt; Lsp (Maybe [DeclarationLink]) -&gt; Lsp ()
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">MaybeT Lsp [DeclarationLink] -&gt; Lsp (Maybe [DeclarationLink])
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><span class="hs-identifier hs-var">runMaybeT</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681567019"><span class="annot"><span class="annottext">pos :: Position
+</span><a href="#local-6989586621681567019"><span class="hs-identifier hs-var hs-var hs-var">pos</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDeclaration
+</span><a href="#local-6989586621681567017"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDeclaration
+-&gt; Getting
+     Position (TRequestMessage 'Method_TextDocumentDeclaration) Position
+-&gt; Position
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">(DeclarationParams -&gt; Const Position DeclarationParams)
+-&gt; TRequestMessage 'Method_TextDocumentDeclaration
+-&gt; Const Position (TRequestMessage 'Method_TextDocumentDeclaration)
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage 'Method_TextDocumentDeclaration) DeclarationParams
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">((DeclarationParams -&gt; Const Position DeclarationParams)
+ -&gt; TRequestMessage 'Method_TextDocumentDeclaration
+ -&gt; Const
+      Position (TRequestMessage 'Method_TextDocumentDeclaration))
+-&gt; ((Position -&gt; Const Position Position)
+    -&gt; DeclarationParams -&gt; Const Position DeclarationParams)
+-&gt; Getting
+     Position (TRequestMessage 'Method_TextDocumentDeclaration) Position
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Position -&gt; Const Position Position)
+-&gt; DeclarationParams -&gt; Const Position DeclarationParams
+forall s a. HasPosition s a =&gt; Lens' s a
+Lens' DeclarationParams Position
+</span><span class="hs-identifier hs-var">position</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>    </span><span id="local-6989586621681567020"><span class="annot"><a href="#local-6989586621681567020"><span class="hs-identifier hs-var">targetRange</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Uri -&gt; Position -&gt; MaybeT Lsp Range
+</span><a href="Unison.LSP.GoToDefinition.html#locationInfo"><span class="hs-identifier hs-var">locationInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDeclaration
+</span><a href="#local-6989586621681567017"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDeclaration
+-&gt; Getting
+     Uri (TRequestMessage 'Method_TextDocumentDeclaration) Uri
+-&gt; Uri
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">(DeclarationParams -&gt; Const Uri DeclarationParams)
+-&gt; TRequestMessage 'Method_TextDocumentDeclaration
+-&gt; Const Uri (TRequestMessage 'Method_TextDocumentDeclaration)
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage 'Method_TextDocumentDeclaration) DeclarationParams
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">((DeclarationParams -&gt; Const Uri DeclarationParams)
+ -&gt; TRequestMessage 'Method_TextDocumentDeclaration
+ -&gt; Const Uri (TRequestMessage 'Method_TextDocumentDeclaration))
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; DeclarationParams -&gt; Const Uri DeclarationParams)
+-&gt; Getting
+     Uri (TRequestMessage 'Method_TextDocumentDeclaration) Uri
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; DeclarationParams -&gt; Const Uri DeclarationParams
+forall s a. HasTextDocument s a =&gt; Lens' s a
+Lens' DeclarationParams TextDocumentIdentifier
+</span><span class="hs-identifier hs-var">textDocument</span></span><span> </span><span class="annot"><span class="annottext">((TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+ -&gt; DeclarationParams -&gt; Const Uri DeclarationParams)
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; (Uri -&gt; Const Uri Uri)
+-&gt; DeclarationParams
+-&gt; Const Uri DeclarationParams
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Uri -&gt; Const Uri Uri)
+-&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier
+forall s a. HasUri s a =&gt; Lens' s a
+Lens' TextDocumentIdentifier Uri
+</span><span class="hs-identifier hs-var">uri</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621681567019"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681567021"><span class="annot"><a href="#local-6989586621681567021"><span class="hs-identifier hs-var hs-var">originLoc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-comment">-- Just use default</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681567022"><span class="annot"><a href="#local-6989586621681567022"><span class="hs-identifier hs-var hs-var">targetUri</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDeclaration
+</span><a href="#local-6989586621681567017"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentDeclaration
+-&gt; Getting
+     Uri (TRequestMessage 'Method_TextDocumentDeclaration) Uri
+-&gt; Uri
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">(DeclarationParams -&gt; Const Uri DeclarationParams)
+-&gt; TRequestMessage 'Method_TextDocumentDeclaration
+-&gt; Const Uri (TRequestMessage 'Method_TextDocumentDeclaration)
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage 'Method_TextDocumentDeclaration) DeclarationParams
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">((DeclarationParams -&gt; Const Uri DeclarationParams)
+ -&gt; TRequestMessage 'Method_TextDocumentDeclaration
+ -&gt; Const Uri (TRequestMessage 'Method_TextDocumentDeclaration))
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; DeclarationParams -&gt; Const Uri DeclarationParams)
+-&gt; Getting
+     Uri (TRequestMessage 'Method_TextDocumentDeclaration) Uri
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; DeclarationParams -&gt; Const Uri DeclarationParams
+forall s a. HasTextDocument s a =&gt; Lens' s a
+Lens' DeclarationParams TextDocumentIdentifier
+</span><span class="hs-identifier hs-var">textDocument</span></span><span> </span><span class="annot"><span class="annottext">((TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+ -&gt; DeclarationParams -&gt; Const Uri DeclarationParams)
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; (Uri -&gt; Const Uri Uri)
+-&gt; DeclarationParams
+-&gt; Const Uri DeclarationParams
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Uri -&gt; Const Uri Uri)
+-&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier
+forall s a. HasUri s a =&gt; Lens' s a
+Lens' TextDocumentIdentifier Uri
+</span><span class="hs-identifier hs-var">uri</span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-38"></span><span>      </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">DeclarationLink</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LocationLink</span></span><span> </span><span class="annot"><a href="#local-6989586621681567021"><span class="hs-identifier hs-type">originLoc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567022"><span class="hs-identifier hs-type">targetUri</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567020"><span class="hs-identifier hs-type">targetRange</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567020"><span class="hs-identifier hs-type">targetRange</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span id="local-6989586621681566896"><span class="annot"><a href="Unison.LSP.GoToDefinition.html#goToImplementationHandler"><span class="hs-identifier hs-type">goToImplementationHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Msg.TRequestMessage</span></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_TextDocumentImplementation</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.TResponseError</span></span><span> </span><span class="annot"><a href="#local-6989586621681566896"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.MessageResult</span></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_TextDocumentImplementation</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-41"></span><span id="goToImplementationHandler"><span class="annot"><span class="annottext">goToImplementationHandler :: forall {f :: MessageDirection} (m :: Method f 'Request).
+TRequestMessage 'Method_TextDocumentImplementation
+-&gt; (Either
+      (TResponseError m)
+      (MessageResult 'Method_TextDocumentImplementation)
+    -&gt; Lsp ())
+-&gt; Lsp ()
+</span><a href="Unison.LSP.GoToDefinition.html#goToImplementationHandler"><span class="hs-identifier hs-var hs-var">goToImplementationHandler</span></a></span></span><span> </span><span id="local-6989586621681567051"><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentImplementation
+</span><a href="#local-6989586621681567051"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621681567052"><span class="annot"><span class="annottext">Either
+  (TResponseError m)
+  (MessageResult 'Method_TextDocumentImplementation)
+-&gt; Lsp ()
+</span><a href="#local-6989586621681567052"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><span class="annottext">Either
+  (TResponseError m) (Definition |? ([DefinitionLink] |? Null))
+-&gt; Lsp ()
+Either
+  (TResponseError m)
+  (MessageResult 'Method_TextDocumentImplementation)
+-&gt; Lsp ()
+</span><a href="#local-6989586621681567052"><span class="hs-identifier hs-var">respond</span></a></span><span> </span><span class="annot"><span class="annottext">(Either
+   (TResponseError m) (Definition |? ([DefinitionLink] |? Null))
+ -&gt; Lsp ())
+-&gt; (Maybe [DefinitionLink]
+    -&gt; Either
+         (TResponseError m) (Definition |? ([DefinitionLink] |? Null)))
+-&gt; Maybe [DefinitionLink]
+-&gt; Lsp ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Definition |? ([DefinitionLink] |? Null))
+-&gt; Either
+     (TResponseError m) (Definition |? ([DefinitionLink] |? Null))
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">((Definition |? ([DefinitionLink] |? Null))
+ -&gt; Either
+      (TResponseError m) (Definition |? ([DefinitionLink] |? Null)))
+-&gt; (Maybe [DefinitionLink]
+    -&gt; Definition |? ([DefinitionLink] |? Null))
+-&gt; Maybe [DefinitionLink]
+-&gt; Either
+     (TResponseError m) (Definition |? ([DefinitionLink] |? Null))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Definition |? ([DefinitionLink] |? Null))
+-&gt; ([DefinitionLink] -&gt; Definition |? ([DefinitionLink] |? Null))
+-&gt; Maybe [DefinitionLink]
+-&gt; Definition |? ([DefinitionLink] |? Null)
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([DefinitionLink] |? Null)
+-&gt; Definition |? ([DefinitionLink] |? Null)
+forall a b. b -&gt; a |? b
+</span><span class="hs-identifier hs-var">InR</span></span><span> </span><span class="annot"><span class="annottext">(([DefinitionLink] |? Null)
+ -&gt; Definition |? ([DefinitionLink] |? Null))
+-&gt; ([DefinitionLink] -&gt; [DefinitionLink] |? Null)
+-&gt; [DefinitionLink]
+-&gt; Definition |? ([DefinitionLink] |? Null)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[DefinitionLink] -&gt; [DefinitionLink] |? Null
+forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">InL</span></span><span> </span><span class="annot"><span class="annottext">([DefinitionLink] -&gt; Definition |? ([DefinitionLink] |? Null))
+-&gt; [DefinitionLink] -&gt; Definition |? ([DefinitionLink] |? Null)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([DefinitionLink] |? Null)
+-&gt; Definition |? ([DefinitionLink] |? Null)
+forall a b. b -&gt; a |? b
+</span><span class="hs-identifier hs-var">InR</span></span><span> </span><span class="annot"><span class="annottext">(([DefinitionLink] |? Null)
+ -&gt; Definition |? ([DefinitionLink] |? Null))
+-&gt; ([DefinitionLink] -&gt; [DefinitionLink] |? Null)
+-&gt; [DefinitionLink]
+-&gt; Definition |? ([DefinitionLink] |? Null)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[DefinitionLink] -&gt; [DefinitionLink] |? Null
+forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">InL</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe [DefinitionLink] -&gt; Lsp ())
+-&gt; Lsp (Maybe [DefinitionLink]) -&gt; Lsp ()
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">MaybeT Lsp [DefinitionLink] -&gt; Lsp (Maybe [DefinitionLink])
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><span class="hs-identifier hs-var">runMaybeT</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681567053"><span class="annot"><span class="annottext">pos :: Position
+</span><a href="#local-6989586621681567053"><span class="hs-identifier hs-var hs-var hs-var">pos</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentImplementation
+</span><a href="#local-6989586621681567051"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentImplementation
+-&gt; Getting
+     Position
+     (TRequestMessage 'Method_TextDocumentImplementation)
+     Position
+-&gt; Position
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">(ImplementationParams -&gt; Const Position ImplementationParams)
+-&gt; TRequestMessage 'Method_TextDocumentImplementation
+-&gt; Const
+     Position (TRequestMessage 'Method_TextDocumentImplementation)
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage 'Method_TextDocumentImplementation)
+  ImplementationParams
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">((ImplementationParams -&gt; Const Position ImplementationParams)
+ -&gt; TRequestMessage 'Method_TextDocumentImplementation
+ -&gt; Const
+      Position (TRequestMessage 'Method_TextDocumentImplementation))
+-&gt; ((Position -&gt; Const Position Position)
+    -&gt; ImplementationParams -&gt; Const Position ImplementationParams)
+-&gt; Getting
+     Position
+     (TRequestMessage 'Method_TextDocumentImplementation)
+     Position
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Position -&gt; Const Position Position)
+-&gt; ImplementationParams -&gt; Const Position ImplementationParams
+forall s a. HasPosition s a =&gt; Lens' s a
+Lens' ImplementationParams Position
+</span><span class="hs-identifier hs-var">position</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>    </span><span id="local-6989586621681567054"><span class="annot"><a href="#local-6989586621681567054"><span class="hs-identifier hs-var">targetRange</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Uri -&gt; Position -&gt; MaybeT Lsp Range
+</span><a href="Unison.LSP.GoToDefinition.html#locationInfo"><span class="hs-identifier hs-var">locationInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentImplementation
+</span><a href="#local-6989586621681567051"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentImplementation
+-&gt; Getting
+     Uri (TRequestMessage 'Method_TextDocumentImplementation) Uri
+-&gt; Uri
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">(ImplementationParams -&gt; Const Uri ImplementationParams)
+-&gt; TRequestMessage 'Method_TextDocumentImplementation
+-&gt; Const Uri (TRequestMessage 'Method_TextDocumentImplementation)
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage 'Method_TextDocumentImplementation)
+  ImplementationParams
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">((ImplementationParams -&gt; Const Uri ImplementationParams)
+ -&gt; TRequestMessage 'Method_TextDocumentImplementation
+ -&gt; Const Uri (TRequestMessage 'Method_TextDocumentImplementation))
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; ImplementationParams -&gt; Const Uri ImplementationParams)
+-&gt; Getting
+     Uri (TRequestMessage 'Method_TextDocumentImplementation) Uri
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; ImplementationParams -&gt; Const Uri ImplementationParams
+forall s a. HasTextDocument s a =&gt; Lens' s a
+Lens' ImplementationParams TextDocumentIdentifier
+</span><span class="hs-identifier hs-var">textDocument</span></span><span> </span><span class="annot"><span class="annottext">((TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+ -&gt; ImplementationParams -&gt; Const Uri ImplementationParams)
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; (Uri -&gt; Const Uri Uri)
+-&gt; ImplementationParams
+-&gt; Const Uri ImplementationParams
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Uri -&gt; Const Uri Uri)
+-&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier
+forall s a. HasUri s a =&gt; Lens' s a
+Lens' TextDocumentIdentifier Uri
+</span><span class="hs-identifier hs-var">uri</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621681567053"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681567055"><span class="annot"><a href="#local-6989586621681567055"><span class="hs-identifier hs-var hs-var">originLoc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-comment">-- Just use default</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681567056"><span class="annot"><a href="#local-6989586621681567056"><span class="hs-identifier hs-var hs-var">targetUri</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentImplementation
+</span><a href="#local-6989586621681567051"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">TRequestMessage 'Method_TextDocumentImplementation
+-&gt; Getting
+     Uri (TRequestMessage 'Method_TextDocumentImplementation) Uri
+-&gt; Uri
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">(ImplementationParams -&gt; Const Uri ImplementationParams)
+-&gt; TRequestMessage 'Method_TextDocumentImplementation
+-&gt; Const Uri (TRequestMessage 'Method_TextDocumentImplementation)
+forall s a. HasParams s a =&gt; Lens' s a
+Lens'
+  (TRequestMessage 'Method_TextDocumentImplementation)
+  ImplementationParams
+</span><span class="hs-identifier hs-var">params</span></span><span> </span><span class="annot"><span class="annottext">((ImplementationParams -&gt; Const Uri ImplementationParams)
+ -&gt; TRequestMessage 'Method_TextDocumentImplementation
+ -&gt; Const Uri (TRequestMessage 'Method_TextDocumentImplementation))
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; ImplementationParams -&gt; Const Uri ImplementationParams)
+-&gt; Getting
+     Uri (TRequestMessage 'Method_TextDocumentImplementation) Uri
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; ImplementationParams -&gt; Const Uri ImplementationParams
+forall s a. HasTextDocument s a =&gt; Lens' s a
+Lens' ImplementationParams TextDocumentIdentifier
+</span><span class="hs-identifier hs-var">textDocument</span></span><span> </span><span class="annot"><span class="annottext">((TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+ -&gt; ImplementationParams -&gt; Const Uri ImplementationParams)
+-&gt; ((Uri -&gt; Const Uri Uri)
+    -&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier)
+-&gt; (Uri -&gt; Const Uri Uri)
+-&gt; ImplementationParams
+-&gt; Const Uri ImplementationParams
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Uri -&gt; Const Uri Uri)
+-&gt; TextDocumentIdentifier -&gt; Const Uri TextDocumentIdentifier
+forall s a. HasUri s a =&gt; Lens' s a
+Lens' TextDocumentIdentifier Uri
+</span><span class="hs-identifier hs-var">uri</span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-48"></span><span>      </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">DefinitionLink</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LocationLink</span></span><span> </span><span class="annot"><a href="#local-6989586621681567055"><span class="hs-identifier hs-type">originLoc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567056"><span class="hs-identifier hs-type">targetUri</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567054"><span class="hs-identifier hs-type">targetRange</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567054"><span class="hs-identifier hs-type">targetRange</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Unison.LSP.GoToDefinition.html#locationInfo"><span class="hs-identifier hs-type">locationInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Uri</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Position</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MaybeT</span></span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Range</span></span><span>
+</span><span id="line-51"></span><span id="locationInfo"><span class="annot"><span class="annottext">locationInfo :: Uri -&gt; Position -&gt; MaybeT Lsp Range
+</span><a href="Unison.LSP.GoToDefinition.html#locationInfo"><span class="hs-identifier hs-var hs-var">locationInfo</span></a></span></span><span> </span><span id="local-6989586621681567057"><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621681567057"><span class="hs-identifier hs-var">uri</span></a></span></span><span> </span><span id="local-6989586621681567058"><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621681567058"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><a href="Unison.LSP.Types.html#FileAnalysis"><span class="hs-identifier hs-type">FileAnalysis</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681567060"><span class="annot"><a href="#local-6989586621681567060"><span class="hs-identifier hs-var hs-var">localBindingInfo</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Uri -&gt; MaybeT Lsp FileAnalysis
+forall (m :: * -&gt; *). Lspish m =&gt; Uri -&gt; MaybeT m FileAnalysis
+</span><a href="Unison.LSP.FileAnalysis.html#getFileAnalysis"><span class="hs-identifier hs-var">FileAnalysis.getFileAnalysis</span></a></span><span> </span><span class="annot"><span class="annottext">Uri
+</span><a href="#local-6989586621681567057"><span class="hs-identifier hs-var">uri</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621681567063"><span class="annot"><a href="#local-6989586621681567063"><span class="hs-identifier hs-var">_interval</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681567064"><span class="annot"><a href="#local-6989586621681567064"><span class="hs-identifier hs-var">_typ</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681567065"><span class="annot"><a href="#local-6989586621681567065"><span class="hs-identifier hs-var">range</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621681567066"><span class="hs-identifier hs-type">hoistMaybe</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.lookupMin</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.intersecting</span></span><span> </span><span class="annot"><a href="#local-6989586621681567060"><span class="hs-identifier hs-type">localBindingInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IM.ClosedInterval</span></span><span> </span><span class="annot"><a href="#local-6989586621681567058"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681567058"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621681567065"><span class="hs-identifier hs-type">range</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621681566907"><span class="annot"><a href="#local-6989586621681567066"><span class="hs-identifier hs-type">hoistMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621681566907"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MaybeT</span></span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681566907"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621681567066"><span class="annot"><span class="annottext">hoistMaybe :: forall a. Maybe a -&gt; MaybeT Lsp a
+</span><a href="#local-6989586621681567066"><span class="hs-identifier hs-var hs-var">hoistMaybe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Lsp (Maybe a) -&gt; MaybeT Lsp a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><span class="hs-identifier hs-var">MaybeT</span></span><span> </span><span class="annot"><span class="annottext">(Lsp (Maybe a) -&gt; MaybeT Lsp a)
+-&gt; (Maybe a -&gt; Lsp (Maybe a)) -&gt; Maybe a -&gt; MaybeT Lsp a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; Lsp (Maybe a)
+forall a. a -&gt; Lsp a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-58"></span></pre></body></html>

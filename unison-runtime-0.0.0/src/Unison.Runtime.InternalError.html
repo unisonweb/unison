@@ -1,0 +1,47 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | This module is distinct from &quot;Unison.Runtime.Exception&quot; because that depends on &quot;Unison.Runtime.Stack&quot;, which would</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--   cause an import cycle.</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.InternalError.html"><span class="hs-identifier">Unison.Runtime.InternalError</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.InternalError.html#CompileExn"><span class="hs-identifier">CompileExn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.InternalError.html#CE"><span class="hs-identifier">CE</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Runtime.InternalError.html#internalBug"><span class="hs-identifier">internalBug</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">throw</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Stack</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CallStack</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">callStack</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">data</span><span> </span><span id="CompileExn"><span class="annot"><a href="Unison.Runtime.InternalError.html#CompileExn"><span class="hs-identifier hs-var">CompileExn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CE"><span class="annot"><a href="Unison.Runtime.InternalError.html#CE"><span class="hs-identifier hs-var">CE</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CallStack</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680703803"><span id="local-6989586621680703814"><span id="local-6989586621680703818"><span class="annot"><span class="annottext">Int -&gt; CompileExn -&gt; ShowS
+[CompileExn] -&gt; ShowS
+CompileExn -&gt; String
+(Int -&gt; CompileExn -&gt; ShowS)
+-&gt; (CompileExn -&gt; String)
+-&gt; ([CompileExn] -&gt; ShowS)
+-&gt; Show CompileExn
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; CompileExn -&gt; ShowS
+showsPrec :: Int -&gt; CompileExn -&gt; ShowS
+$cshow :: CompileExn -&gt; String
+show :: CompileExn -&gt; String
+$cshowList :: [CompileExn] -&gt; ShowS
+showList :: [CompileExn] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680703829"><span id="local-6989586621680703833"><span id="local-6989586621680703836"><span id="local-6989586621680703839"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Unison.Runtime.InternalError.html#CompileExn"><span class="hs-identifier hs-type">CompileExn</span></a></span></span></span></span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span id="local-6989586621680703790"><span class="annot"><a href="Unison.Runtime.InternalError.html#internalBug"><span class="hs-identifier hs-type">internalBug</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680703790"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-21"></span><span id="internalBug"><span class="annot"><span class="annottext">internalBug :: forall a. HasCallStack =&gt; [Word] -&gt; String -&gt; a
+</span><a href="Unison.Runtime.InternalError.html#internalBug"><span class="hs-identifier hs-var hs-var">internalBug</span></a></span></span><span> </span><span id="local-6989586621680703848"><span class="annot"><span class="annottext">[Word]
+</span><a href="#local-6989586621680703848"><span class="hs-identifier hs-var">issues</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CompileExn -&gt; a
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">(CompileExn -&gt; a) -&gt; (String -&gt; CompileExn) -&gt; String -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CallStack -&gt; [Word] -&gt; String -&gt; CompileExn
+</span><a href="Unison.Runtime.InternalError.html#CE"><span class="hs-identifier hs-var">CE</span></a></span><span> </span><span class="annot"><span class="annottext">CallStack
+HasCallStack =&gt; CallStack
+</span><span class="hs-identifier hs-var">callStack</span></span><span> </span><span class="annot"><span class="annottext">[Word]
+</span><a href="#local-6989586621680703848"><span class="hs-identifier hs-var">issues</span></a></span><span>
+</span><span id="line-22"></span></pre></body></html>

@@ -1,0 +1,3 @@
+This package contains the Standard Haskell "Prelude" and its support libraries,
+and a large collection of useful libraries ranging from data
+structures to parsing combinators and debugging utilities.

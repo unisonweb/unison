@@ -1,0 +1,470 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html"><span class="hs-identifier">Unison.LSP.Util.IntersectionMap</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Intersection map</span></span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#intersectionsFromList"><span class="hs-identifier">intersectionsFromList</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#intersectionsSingleton"><span class="hs-identifier">intersectionsSingleton</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionRange"><span class="hs-identifier">IntersectionRange</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier">IntersectionMap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#smallestIntersection"><span class="hs-identifier">smallestIntersection</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Keyed intersection map</span></span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier">KeyedIntersectionMap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#keyedFromList"><span class="hs-identifier">keyedFromList</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#keyedSingleton"><span class="hs-identifier">keyedSingleton</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#keyedSmallestIntersection"><span class="hs-identifier">keyedSmallestIntersection</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LSP</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">safeHead</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><span class="hs-comment">-- | An intersection map where intersections are partitioned by a key.</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">newtype</span><span> </span><span id="KeyedIntersectionMap"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-var">KeyedIntersectionMap</span></a></span></span><span> </span><span id="local-6989586621681562029"><span class="annot"><a href="#local-6989586621681562029"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621681562030"><span class="annot"><a href="#local-6989586621681562030"><span class="hs-identifier hs-type">pos</span></a></span></span><span> </span><span id="local-6989586621681562031"><span class="annot"><a href="#local-6989586621681562031"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="KeyedIntersectionMap"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-var">KeyedIntersectionMap</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="#local-6989586621681562029"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-type">IntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562030"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562031"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681562141"><span id="local-6989586621681562148"><span id="local-6989586621681562152"><span class="annot"><span class="annottext">Int -&gt; KeyedIntersectionMap k pos a -&gt; ShowS
+[KeyedIntersectionMap k pos a] -&gt; ShowS
+KeyedIntersectionMap k pos a -&gt; String
+(Int -&gt; KeyedIntersectionMap k pos a -&gt; ShowS)
+-&gt; (KeyedIntersectionMap k pos a -&gt; String)
+-&gt; ([KeyedIntersectionMap k pos a] -&gt; ShowS)
+-&gt; Show (KeyedIntersectionMap k pos a)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall k pos a.
+(Show k, Show pos, Show a) =&gt;
+Int -&gt; KeyedIntersectionMap k pos a -&gt; ShowS
+forall k pos a.
+(Show k, Show pos, Show a) =&gt;
+[KeyedIntersectionMap k pos a] -&gt; ShowS
+forall k pos a.
+(Show k, Show pos, Show a) =&gt;
+KeyedIntersectionMap k pos a -&gt; String
+$cshowsPrec :: forall k pos a.
+(Show k, Show pos, Show a) =&gt;
+Int -&gt; KeyedIntersectionMap k pos a -&gt; ShowS
+showsPrec :: Int -&gt; KeyedIntersectionMap k pos a -&gt; ShowS
+$cshow :: forall k pos a.
+(Show k, Show pos, Show a) =&gt;
+KeyedIntersectionMap k pos a -&gt; String
+show :: KeyedIntersectionMap k pos a -&gt; String
+$cshowList :: forall k pos a.
+(Show k, Show pos, Show a) =&gt;
+[KeyedIntersectionMap k pos a] -&gt; ShowS
+showList :: [KeyedIntersectionMap k pos a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681562161"><span id="local-6989586621681562166"><span class="annot"><span class="annottext">KeyedIntersectionMap k pos a
+-&gt; KeyedIntersectionMap k pos a -&gt; Bool
+(KeyedIntersectionMap k pos a
+ -&gt; KeyedIntersectionMap k pos a -&gt; Bool)
+-&gt; (KeyedIntersectionMap k pos a
+    -&gt; KeyedIntersectionMap k pos a -&gt; Bool)
+-&gt; Eq (KeyedIntersectionMap k pos a)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall k pos a.
+(Eq k, Eq pos, Eq a) =&gt;
+KeyedIntersectionMap k pos a
+-&gt; KeyedIntersectionMap k pos a -&gt; Bool
+$c== :: forall k pos a.
+(Eq k, Eq pos, Eq a) =&gt;
+KeyedIntersectionMap k pos a
+-&gt; KeyedIntersectionMap k pos a -&gt; Bool
+== :: KeyedIntersectionMap k pos a
+-&gt; KeyedIntersectionMap k pos a -&gt; Bool
+$c/= :: forall k pos a.
+(Eq k, Eq pos, Eq a) =&gt;
+KeyedIntersectionMap k pos a
+-&gt; KeyedIntersectionMap k pos a -&gt; Bool
+/= :: KeyedIntersectionMap k pos a
+-&gt; KeyedIntersectionMap k pos a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681562024"><span id="local-6989586621681562025"><span id="local-6989586621681562026"><span id="local-6989586621681562175"><span id="local-6989586621681562179"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562024"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562025"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-type">KeyedIntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562024"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562025"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562026"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-type">KeyedIntersectionMap</span></a></span><span> </span><span id="local-6989586621681562187"><span class="annot"><span class="annottext">Map k (IntersectionMap pos a)
+</span><a href="#local-6989586621681562187"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621681562188"><span class="annot"><span class="annottext">&lt;&gt; :: KeyedIntersectionMap k pos a
+-&gt; KeyedIntersectionMap k pos a -&gt; KeyedIntersectionMap k pos a
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-type">KeyedIntersectionMap</span></a></span><span> </span><span id="local-6989586621681562189"><span class="annot"><span class="annottext">Map k (IntersectionMap pos a)
+</span><a href="#local-6989586621681562189"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map k (IntersectionMap pos a) -&gt; KeyedIntersectionMap k pos a
+forall k pos a.
+Map k (IntersectionMap pos a) -&gt; KeyedIntersectionMap k pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-var">KeyedIntersectionMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(IntersectionMap pos a
+ -&gt; IntersectionMap pos a -&gt; IntersectionMap pos a)
+-&gt; Map k (IntersectionMap pos a)
+-&gt; Map k (IntersectionMap pos a)
+-&gt; Map k (IntersectionMap pos a)
+forall k a. Ord k =&gt; (a -&gt; a -&gt; a) -&gt; Map k a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.unionWith</span></span><span> </span><span class="annot"><span class="annottext">IntersectionMap pos a
+-&gt; IntersectionMap pos a -&gt; IntersectionMap pos a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span> </span><span class="annot"><span class="annottext">Map k (IntersectionMap pos a)
+</span><a href="#local-6989586621681562187"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Map k (IntersectionMap pos a)
+</span><a href="#local-6989586621681562189"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681562038"><span id="local-6989586621681562039"><span id="local-6989586621681562040"><span id="local-6989586621681562197"><span id="local-6989586621681562201"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562038"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562039"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-type">KeyedIntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562038"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562039"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562040"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>  </span><span id="local-6989586621681562204"><span class="annot"><span class="annottext">mempty :: KeyedIntersectionMap k pos a
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map k (IntersectionMap pos a) -&gt; KeyedIntersectionMap k pos a
+forall k pos a.
+Map k (IntersectionMap pos a) -&gt; KeyedIntersectionMap k pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-var">KeyedIntersectionMap</span></a></span><span> </span><span class="annot"><span class="annottext">Map k (IntersectionMap pos a)
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span id="local-6989586621681562043"><span id="local-6989586621681562044"><span id="local-6989586621681562046"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#keyedFromList"><span class="hs-identifier hs-type">keyedFromList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562043"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionRange"><span class="hs-identifier hs-type">IntersectionRange</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562044"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562043"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562044"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562044"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562046"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-type">KeyedIntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562043"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562044"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562046"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-34"></span><span id="keyedFromList"><span class="annot"><span class="annottext">keyedFromList :: forall k pos a.
+(Ord k, IntersectionRange pos) =&gt;
+[(k, ((pos, pos), a))] -&gt; KeyedIntersectionMap k pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#keyedFromList"><span class="hs-identifier hs-var hs-var">keyedFromList</span></a></span></span><span> </span><span id="local-6989586621681562214"><span class="annot"><span class="annottext">[(k, ((pos, pos), a))]
+</span><a href="#local-6989586621681562214"><span class="hs-identifier hs-var">elems</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="annottext">Map k (IntersectionMap pos a) -&gt; KeyedIntersectionMap k pos a
+forall k pos a.
+Map k (IntersectionMap pos a) -&gt; KeyedIntersectionMap k pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-var">KeyedIntersectionMap</span></a></span><span> </span><span class="annot"><span class="annottext">(Map k (IntersectionMap pos a) -&gt; KeyedIntersectionMap k pos a)
+-&gt; Map k (IntersectionMap pos a) -&gt; KeyedIntersectionMap k pos a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><span class="annottext">[(k, ((pos, pos), a))]
+</span><a href="#local-6989586621681562214"><span class="hs-identifier hs-var">elems</span></a></span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><span class="annottext">[(k, ((pos, pos), a))]
+-&gt; ([(k, ((pos, pos), a))] -&gt; [(k, IntersectionMap pos a)])
+-&gt; [(k, IntersectionMap pos a)]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">((k, ((pos, pos), a)) -&gt; (k, IntersectionMap pos a))
+-&gt; [(k, ((pos, pos), a))] -&gt; [(k, IntersectionMap pos a)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681562216"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681562216"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681562217"><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562217"><span class="hs-identifier hs-var">range</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681562218"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681562218"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681562216"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(pos, pos) -&gt; a -&gt; IntersectionMap pos a
+forall pos a. (pos, pos) -&gt; a -&gt; IntersectionMap pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#intersectionsSingleton"><span class="hs-identifier hs-var">intersectionsSingleton</span></a></span><span> </span><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562217"><span class="hs-identifier hs-var">range</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681562218"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>      </span><span class="annot"><span class="annottext">[(k, IntersectionMap pos a)]
+-&gt; ([(k, IntersectionMap pos a)] -&gt; Map k (IntersectionMap pos a))
+-&gt; Map k (IntersectionMap pos a)
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(IntersectionMap pos a
+ -&gt; IntersectionMap pos a -&gt; IntersectionMap pos a)
+-&gt; [(k, IntersectionMap pos a)] -&gt; Map k (IntersectionMap pos a)
+forall k a. Ord k =&gt; (a -&gt; a -&gt; a) -&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromListWith</span></span><span> </span><span class="annot"><span class="annottext">IntersectionMap pos a
+-&gt; IntersectionMap pos a -&gt; IntersectionMap pos a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span id="local-6989586621681562065"><span id="local-6989586621681562066"><span id="local-6989586621681562067"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#keyedSingleton"><span class="hs-identifier hs-type">keyedSingleton</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562065"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionRange"><span class="hs-identifier hs-type">IntersectionRange</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562066"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681562065"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562066"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562066"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681562067"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-type">KeyedIntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562065"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562066"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562067"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-41"></span><span id="keyedSingleton"><span class="annot"><span class="annottext">keyedSingleton :: forall k pos a.
+(Ord k, IntersectionRange pos) =&gt;
+k -&gt; (pos, pos) -&gt; a -&gt; KeyedIntersectionMap k pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#keyedSingleton"><span class="hs-identifier hs-var hs-var">keyedSingleton</span></a></span></span><span> </span><span id="local-6989586621681562224"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681562224"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621681562225"><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562225"><span class="hs-identifier hs-var">range</span></a></span></span><span> </span><span id="local-6989586621681562226"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681562226"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(k, ((pos, pos), a))] -&gt; KeyedIntersectionMap k pos a
+forall k pos a.
+(Ord k, IntersectionRange pos) =&gt;
+[(k, ((pos, pos), a))] -&gt; KeyedIntersectionMap k pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#keyedFromList"><span class="hs-identifier hs-var">keyedFromList</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681562224"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562225"><span class="hs-identifier hs-var">range</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681562226"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | NOTE: Assumes that ranges only NEST and never overlap, which is an invariant that should</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- be maintained by the ABT annotations.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- Returns the value associated with the tightest span which intersects with the given position.</span><span>
+</span><span id="line-47"></span><span id="local-6989586621681562071"><span id="local-6989586621681562072"><span id="local-6989586621681562073"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#keyedSmallestIntersection"><span class="hs-identifier hs-type">keyedSmallestIntersection</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562071"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionRange"><span class="hs-identifier hs-type">IntersectionRange</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562072"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681562071"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681562072"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-type">KeyedIntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562071"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562072"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562073"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562072"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562072"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562073"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-48"></span><span id="keyedSmallestIntersection"><span class="annot"><span class="annottext">keyedSmallestIntersection :: forall k pos a.
+(Ord k, IntersectionRange pos) =&gt;
+k -&gt; pos -&gt; KeyedIntersectionMap k pos a -&gt; Maybe ((pos, pos), a)
+</span><a href="Unison.LSP.Util.IntersectionMap.html#keyedSmallestIntersection"><span class="hs-identifier hs-var hs-var">keyedSmallestIntersection</span></a></span></span><span> </span><span id="local-6989586621681562233"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681562233"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621681562234"><span class="annot"><span class="annottext">pos
+</span><a href="#local-6989586621681562234"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#KeyedIntersectionMap"><span class="hs-identifier hs-type">KeyedIntersectionMap</span></a></span><span> </span><span id="local-6989586621681562235"><span class="annot"><span class="annottext">Map k (IntersectionMap pos a)
+</span><a href="#local-6989586621681562235"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621681562236"><span class="annot"><a href="#local-6989586621681562236"><span class="hs-identifier hs-var">intersections</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">k -&gt; Map k (IntersectionMap pos a) -&gt; Maybe (IntersectionMap pos a)
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681562233"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Map k (IntersectionMap pos a)
+</span><a href="#local-6989586621681562235"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#smallestIntersection"><span class="hs-identifier hs-type">smallestIntersection</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562234"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562236"><span class="hs-identifier hs-type">intersections</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">newtype</span><span> </span><span id="IntersectionMap"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-var">IntersectionMap</span></a></span></span><span> </span><span id="local-6989586621681562096"><span class="annot"><a href="#local-6989586621681562096"><span class="hs-identifier hs-type">pos</span></a></span></span><span> </span><span id="local-6989586621681562097"><span class="annot"><a href="#local-6989586621681562097"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IntersectionMap"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-var">IntersectionMap</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562096"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562096"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621681562097"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681562242"><span id="local-6989586621681562247"><span id="local-6989586621681562250"><span class="annot"><span class="annottext">Int -&gt; IntersectionMap pos a -&gt; ShowS
+[IntersectionMap pos a] -&gt; ShowS
+IntersectionMap pos a -&gt; String
+(Int -&gt; IntersectionMap pos a -&gt; ShowS)
+-&gt; (IntersectionMap pos a -&gt; String)
+-&gt; ([IntersectionMap pos a] -&gt; ShowS)
+-&gt; Show (IntersectionMap pos a)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall pos a.
+(Show pos, Show a) =&gt;
+Int -&gt; IntersectionMap pos a -&gt; ShowS
+forall pos a.
+(Show pos, Show a) =&gt;
+[IntersectionMap pos a] -&gt; ShowS
+forall pos a. (Show pos, Show a) =&gt; IntersectionMap pos a -&gt; String
+$cshowsPrec :: forall pos a.
+(Show pos, Show a) =&gt;
+Int -&gt; IntersectionMap pos a -&gt; ShowS
+showsPrec :: Int -&gt; IntersectionMap pos a -&gt; ShowS
+$cshow :: forall pos a. (Show pos, Show a) =&gt; IntersectionMap pos a -&gt; String
+show :: IntersectionMap pos a -&gt; String
+$cshowList :: forall pos a.
+(Show pos, Show a) =&gt;
+[IntersectionMap pos a] -&gt; ShowS
+showList :: [IntersectionMap pos a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681562256"><span id="local-6989586621681562260"><span class="annot"><span class="annottext">IntersectionMap pos a -&gt; IntersectionMap pos a -&gt; Bool
+(IntersectionMap pos a -&gt; IntersectionMap pos a -&gt; Bool)
+-&gt; (IntersectionMap pos a -&gt; IntersectionMap pos a -&gt; Bool)
+-&gt; Eq (IntersectionMap pos a)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall pos a.
+(Eq pos, Eq a) =&gt;
+IntersectionMap pos a -&gt; IntersectionMap pos a -&gt; Bool
+$c== :: forall pos a.
+(Eq pos, Eq a) =&gt;
+IntersectionMap pos a -&gt; IntersectionMap pos a -&gt; Bool
+== :: IntersectionMap pos a -&gt; IntersectionMap pos a -&gt; Bool
+$c/= :: forall pos a.
+(Eq pos, Eq a) =&gt;
+IntersectionMap pos a -&gt; IntersectionMap pos a -&gt; Bool
+/= :: IntersectionMap pos a -&gt; IntersectionMap pos a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681562027"><span id="local-6989586621681562028"><span id="local-6989586621681562266"><span id="local-6989586621681562269"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562027"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-type">IntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562027"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562028"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-type">IntersectionMap</span></a></span><span> </span><span id="local-6989586621681562277"><span class="annot"><span class="annottext">Map (pos, pos) a
+</span><a href="#local-6989586621681562277"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621681562278"><span class="annot"><span class="annottext">&lt;&gt; :: IntersectionMap pos a
+-&gt; IntersectionMap pos a -&gt; IntersectionMap pos a
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-type">IntersectionMap</span></a></span><span> </span><span id="local-6989586621681562279"><span class="annot"><span class="annottext">Map (pos, pos) a
+</span><a href="#local-6989586621681562279"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map (pos, pos) a -&gt; IntersectionMap pos a
+forall pos a. Map (pos, pos) a -&gt; IntersectionMap pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-var">IntersectionMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map (pos, pos) a
+</span><a href="#local-6989586621681562277"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Map (pos, pos) a -&gt; Map (pos, pos) a -&gt; Map (pos, pos) a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Map (pos, pos) a
+</span><a href="#local-6989586621681562279"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681562100"><span id="local-6989586621681562101"><span id="local-6989586621681562285"><span id="local-6989586621681562289"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562100"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-type">IntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562100"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562101"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621681562294"><span class="annot"><span class="annottext">mempty :: IntersectionMap pos a
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map (pos, pos) a -&gt; IntersectionMap pos a
+forall pos a. Map (pos, pos) a -&gt; IntersectionMap pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-var">IntersectionMap</span></a></span><span> </span><span class="annot"><span class="annottext">Map (pos, pos) a
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><span class="hs-comment">-- | Class for types that can be used as ranges for intersection maps.</span></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562050"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="IntersectionRange"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionRange"><span class="hs-identifier hs-var">IntersectionRange</span></a></span></span><span> </span><span id="local-6989586621681562050"><span class="annot"><a href="#local-6989586621681562050"><span class="hs-identifier hs-type">pos</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="intersects"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#intersects"><span class="hs-identifier hs-type">intersects</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621681562050"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562050"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562050"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-comment">-- Returns true if the first bound is tighter than the second.</span><span>
+</span><span id="line-66"></span><span>  </span><span id="isTighterThan"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#isTighterThan"><span class="hs-identifier hs-type">isTighterThan</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562050"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562050"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562050"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562050"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionRange"><span class="hs-identifier hs-type">IntersectionRange</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LSP.Position</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>  </span><span id="local-6989586621681562316"><span class="annot"><span class="annottext">intersects :: Position -&gt; (Position, Position) -&gt; Bool
+</span><a href="Unison.LSP.Util.IntersectionMap.html#intersects"><span class="hs-identifier hs-var hs-var hs-var">intersects</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LSP.Position</span></span><span> </span><span id="local-6989586621681562318"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562318"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621681562319"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562319"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LSP.Position</span></span><span> </span><span id="local-6989586621681562320"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562320"><span class="hs-identifier hs-var">lStart</span></a></span></span><span> </span><span id="local-6989586621681562321"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562321"><span class="hs-identifier hs-var">cStart</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LSP.Position</span></span><span> </span><span id="local-6989586621681562322"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562322"><span class="hs-identifier hs-var">lEnd</span></a></span></span><span> </span><span id="local-6989586621681562323"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562323"><span class="hs-identifier hs-var">cEnd</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562318"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562320"><span class="hs-identifier hs-var">lStart</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562318"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562322"><span class="hs-identifier hs-var">lEnd</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>      </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="hs-keyword">if</span><span>
+</span><span id="line-72"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562318"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562320"><span class="hs-identifier hs-var">lStart</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562318"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562322"><span class="hs-identifier hs-var">lEnd</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562319"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562321"><span class="hs-identifier hs-var">cStart</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562319"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562323"><span class="hs-identifier hs-var">cEnd</span></a></span><span>
+</span><span id="line-73"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562318"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562320"><span class="hs-identifier hs-var">lStart</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562319"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562321"><span class="hs-identifier hs-var">cStart</span></a></span><span>
+</span><span id="line-74"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562318"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562322"><span class="hs-identifier hs-var">lEnd</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562319"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562323"><span class="hs-identifier hs-var">cEnd</span></a></span><span>
+</span><span id="line-75"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LSP.Position</span></span><span> </span><span id="local-6989586621681562332"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562332"><span class="hs-identifier hs-var">lStartA</span></a></span></span><span> </span><span id="local-6989586621681562333"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562333"><span class="hs-identifier hs-var">cStartA</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LSP.Position</span></span><span> </span><span id="local-6989586621681562334"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562334"><span class="hs-identifier hs-var">lEndA</span></a></span></span><span> </span><span id="local-6989586621681562335"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562335"><span class="hs-identifier hs-var">cEndA</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span id="local-6989586621681562336"><span class="annot"><span class="annottext">isTighterThan :: (Position, Position) -&gt; (Position, Position) -&gt; Bool
+</span><a href="Unison.LSP.Util.IntersectionMap.html#isTighterThan"><span class="hs-operator hs-var hs-var hs-var">`isTighterThan`</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LSP.Position</span></span><span> </span><span id="local-6989586621681562337"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562337"><span class="hs-identifier hs-var">lStartB</span></a></span></span><span> </span><span id="local-6989586621681562338"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562338"><span class="hs-identifier hs-var">cStartB</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LSP.Position</span></span><span> </span><span id="local-6989586621681562339"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562339"><span class="hs-identifier hs-var">lEndB</span></a></span></span><span> </span><span id="local-6989586621681562340"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562340"><span class="hs-identifier hs-var">cEndB</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562332"><span class="hs-identifier hs-var">lStartA</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562337"><span class="hs-identifier hs-var">lStartB</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562334"><span class="hs-identifier hs-var">lEndA</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562339"><span class="hs-identifier hs-var">lEndB</span></a></span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562333"><span class="hs-identifier hs-var">cStartA</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562338"><span class="hs-identifier hs-var">cStartB</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562335"><span class="hs-identifier hs-var">cEndA</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562340"><span class="hs-identifier hs-var">cEndB</span></a></span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562332"><span class="hs-identifier hs-var">lStartA</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562337"><span class="hs-identifier hs-var">lStartB</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562334"><span class="hs-identifier hs-var">lEndA</span></a></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562339"><span class="hs-identifier hs-var">lEndB</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | Construct an intersection map from a list of ranges and values.</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- Duplicates are dropped.</span><span>
+</span><span id="line-84"></span><span id="local-6989586621681562107"><span id="local-6989586621681562108"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#intersectionsFromList"><span class="hs-identifier hs-type">intersectionsFromList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621681562107"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562107"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562107"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562108"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-type">IntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562107"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562108"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-85"></span><span id="intersectionsFromList"><span class="annot"><span class="annottext">intersectionsFromList :: forall pos a. Ord pos =&gt; [((pos, pos), a)] -&gt; IntersectionMap pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#intersectionsFromList"><span class="hs-identifier hs-var hs-var">intersectionsFromList</span></a></span></span><span> </span><span id="local-6989586621681562343"><span class="annot"><span class="annottext">[((pos, pos), a)]
+</span><a href="#local-6989586621681562343"><span class="hs-identifier hs-var">elems</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><span class="annottext">Map (pos, pos) a -&gt; IntersectionMap pos a
+forall pos a. Map (pos, pos) a -&gt; IntersectionMap pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-var">IntersectionMap</span></a></span><span> </span><span class="annot"><span class="annottext">(Map (pos, pos) a -&gt; IntersectionMap pos a)
+-&gt; Map (pos, pos) a -&gt; IntersectionMap pos a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[((pos, pos), a)] -&gt; Map (pos, pos) a
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span> </span><span class="annot"><span class="annottext">[((pos, pos), a)]
+</span><a href="#local-6989586621681562343"><span class="hs-identifier hs-var">elems</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span id="local-6989586621681562061"><span id="local-6989586621681562062"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#intersectionsSingleton"><span class="hs-identifier hs-type">intersectionsSingleton</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562061"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562061"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681562062"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-type">IntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562061"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562062"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-89"></span><span id="intersectionsSingleton"><span class="annot"><span class="annottext">intersectionsSingleton :: forall pos a. (pos, pos) -&gt; a -&gt; IntersectionMap pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#intersectionsSingleton"><span class="hs-identifier hs-var hs-var">intersectionsSingleton</span></a></span></span><span> </span><span id="local-6989586621681562345"><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562345"><span class="hs-identifier hs-var">range</span></a></span></span><span> </span><span id="local-6989586621681562346"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681562346"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map (pos, pos) a -&gt; IntersectionMap pos a
+forall pos a. Map (pos, pos) a -&gt; IntersectionMap pos a
+</span><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-var">IntersectionMap</span></a></span><span> </span><span class="annot"><span class="annottext">(Map (pos, pos) a -&gt; IntersectionMap pos a)
+-&gt; Map (pos, pos) a -&gt; IntersectionMap pos a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(pos, pos) -&gt; a -&gt; Map (pos, pos) a
+forall k a. k -&gt; a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.singleton</span></span><span> </span><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562345"><span class="hs-identifier hs-var">range</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681562346"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- | NOTE: Assumes that ranges only NEST and never overlap, which is an invariant that should</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- be maintained by the ABT annotations.</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- Returns the value associated with the tightest span which intersects with the given position.</span><span>
+</span><span id="line-95"></span><span class="hs-comment">--</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- &gt;&gt;&gt; smallestIntersection (LSP.Position 5 1) (intersectionsFromList [((LSP.Position 1 1, LSP.Position 3 1), &quot;a&quot;), ((LSP.Position 2 1, LSP.Position 8 1), &quot;b&quot;), ((LSP.Position 4 1, LSP.Position 6 1), &quot;c&quot;)])</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- Just ((Position {_line = 4, _character = 1},Position {_line = 6, _character = 1}),&quot;c&quot;)</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- &gt;&gt;&gt; smallestIntersection (LSP.Position 5 3) (intersectionsFromList [((LSP.Position 1 1, LSP.Position 3 1), &quot;a&quot;), ((LSP.Position 4 2, LSP.Position 6 5), &quot;b&quot;), ((LSP.Position 4 1, LSP.Position 6 6), &quot;c&quot;), ((LSP.Position 7 1, LSP.Position 9 1), &quot;d&quot;)])</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- Just ((Position {_line = 4, _character = 2},Position {_line = 6, _character = 5}),&quot;b&quot;)</span><span>
+</span><span id="line-100"></span><span id="local-6989586621681562079"><span id="local-6989586621681562080"><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#smallestIntersection"><span class="hs-identifier hs-type">smallestIntersection</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionRange"><span class="hs-identifier hs-type">IntersectionRange</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562079"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681562079"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-type">IntersectionMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562079"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681562080"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681562079"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562079"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681562080"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-101"></span><span id="smallestIntersection"><span class="annot"><span class="annottext">smallestIntersection :: forall pos a.
+IntersectionRange pos =&gt;
+pos -&gt; IntersectionMap pos a -&gt; Maybe ((pos, pos), a)
+</span><a href="Unison.LSP.Util.IntersectionMap.html#smallestIntersection"><span class="hs-identifier hs-var hs-var">smallestIntersection</span></a></span></span><span> </span><span id="local-6989586621681562353"><span class="annot"><span class="annottext">pos
+</span><a href="#local-6989586621681562353"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.LSP.Util.IntersectionMap.html#IntersectionMap"><span class="hs-identifier hs-type">IntersectionMap</span></a></span><span> </span><span id="local-6989586621681562354"><span class="annot"><span class="annottext">Map (pos, pos) a
+</span><a href="#local-6989586621681562354"><span class="hs-identifier hs-var">bounds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><span class="annottext">Map (pos, pos) a
+</span><a href="#local-6989586621681562354"><span class="hs-identifier hs-var">bounds</span></a></span><span>
+</span><span id="line-103"></span><span>    </span><span class="annot"><span class="annottext">Map (pos, pos) a
+-&gt; (Map (pos, pos) a -&gt; Map (pos, pos) a) -&gt; Map (pos, pos) a
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">((pos, pos) -&gt; a -&gt; Bool) -&gt; Map (pos, pos) a -&gt; Map (pos, pos) a
+forall k a. (k -&gt; a -&gt; Bool) -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.filterWithKey</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681562356"><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562356"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">pos
+</span><a href="#local-6989586621681562353"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">pos -&gt; (pos, pos) -&gt; Bool
+forall pos. IntersectionRange pos =&gt; pos -&gt; (pos, pos) -&gt; Bool
+</span><a href="Unison.LSP.Util.IntersectionMap.html#intersects"><span class="hs-operator hs-var">`intersects`</span></a></span><span> </span><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562356"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><span class="annottext">Map (pos, pos) a
+-&gt; (Map (pos, pos) a -&gt; [((pos, pos), a)]) -&gt; [((pos, pos), a)]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Map (pos, pos) a -&gt; [((pos, pos), a)]
+forall k a. Map k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">Map.toList</span></span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><span class="annottext">[((pos, pos), a)]
+-&gt; ([((pos, pos), a)] -&gt; [((pos, pos), a)]) -&gt; [((pos, pos), a)]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(((pos, pos), a) -&gt; ((pos, pos), a) -&gt; Ordering)
+-&gt; [((pos, pos), a)] -&gt; [((pos, pos), a)]
+forall a. (a -&gt; a -&gt; Ordering) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">List.sortBy</span></span><span> </span><span class="annot"><span class="annottext">((pos, pos), a) -&gt; ((pos, pos), a) -&gt; Ordering
+forall {pos} {b} {b}.
+IntersectionRange pos =&gt;
+((pos, pos), b) -&gt; ((pos, pos), b) -&gt; Ordering
+</span><a href="#local-6989586621681562359"><span class="hs-identifier hs-var">cmp</span></a></span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><span class="annottext">[((pos, pos), a)]
+-&gt; ([((pos, pos), a)] -&gt; Maybe ((pos, pos), a))
+-&gt; Maybe ((pos, pos), a)
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">[((pos, pos), a)] -&gt; Maybe ((pos, pos), a)
+forall (f :: * -&gt; *) a. Foldable f =&gt; f a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">safeHead</span></span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621681562359"><span class="annot"><span class="annottext">cmp :: ((pos, pos), b) -&gt; ((pos, pos), b) -&gt; Ordering
+</span><a href="#local-6989586621681562359"><span class="hs-identifier hs-var hs-var">cmp</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681562367"><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562367"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681562368"><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562368"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-109"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562367"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">(pos, pos) -&gt; (pos, pos) -&gt; Bool
+forall pos.
+IntersectionRange pos =&gt;
+(pos, pos) -&gt; (pos, pos) -&gt; Bool
+</span><a href="Unison.LSP.Util.IntersectionMap.html#isTighterThan"><span class="hs-operator hs-var">`isTighterThan`</span></a></span><span> </span><span class="annot"><span class="annottext">(pos, pos)
+</span><a href="#local-6989586621681562368"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-110"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-111"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-112"></span></pre></body></html>

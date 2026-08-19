@@ -1,0 +1,105 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.FindIndexR.html"><span class="hs-identifier">Bench.Vector.Algo.FindIndexR</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR"><span class="hs-identifier">findIndexR</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR_naive"><span class="hs-identifier">findIndexR_naive</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR_manual"><span class="hs-identifier">findIndexR_manual</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Unboxed</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Vector</span></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Generic</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="annot"><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR"><span class="hs-identifier hs-type">findIndexR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR"><span class="hs-pragma hs-type">findIndexR</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-9"></span><span id="findIndexR"><span class="annot"><span class="annottext">findIndexR :: (Double -&gt; Bool, Vector Double) -&gt; Maybe Int
+</span><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR"><span class="hs-identifier hs-var hs-var">findIndexR</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Double -&gt; Bool) -&gt; Vector Double -&gt; Maybe Int)
+-&gt; (Double -&gt; Bool, Vector Double) -&gt; Maybe Int
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">(Double -&gt; Bool) -&gt; Vector Double -&gt; Maybe Int
+forall (v :: * -&gt; *) a.
+Vector v a =&gt;
+(a -&gt; Bool) -&gt; v a -&gt; Maybe Int
+</span><span class="hs-identifier hs-var">V.findIndexR</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="annot"><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR_naive"><span class="hs-identifier hs-type">findIndexR_naive</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR_naive"><span class="hs-pragma hs-type">findIndexR_naive</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-13"></span><span id="findIndexR_naive"><span class="annot"><span class="annottext">findIndexR_naive :: (Double -&gt; Bool, Vector Double) -&gt; Maybe Int
+</span><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR_naive"><span class="hs-identifier hs-var hs-var">findIndexR_naive</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071400"><span class="annot"><span class="annottext">Double -&gt; Bool
+</span><a href="#local-6989586621679071400"><span class="hs-identifier hs-var">pred</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071401"><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679071401"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Maybe Int -&gt; Maybe Int
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Double -&gt; Int
+forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679071401"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Maybe Int) -&gt; Maybe Int -&gt; Maybe Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Double -&gt; Maybe Int)
+-&gt; Maybe Int -&gt; Vector Double -&gt; Maybe Int
+forall (v :: * -&gt; *) b a.
+Vector v b =&gt;
+(a -&gt; b -&gt; a) -&gt; a -&gt; v b -&gt; a
+</span><span class="hs-identifier hs-var">V.foldl</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679071404"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679071404"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679071405"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071405"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Bool
+</span><a href="#local-6989586621679071400"><span class="hs-identifier hs-var">pred</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679071405"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-15"></span><span>                        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-16"></span><span>                        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Maybe Int -&gt; Maybe Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679071404"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679071401"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="annot"><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR_manual"><span class="hs-identifier hs-type">findIndexR_manual</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-19"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR_manual"><span class="hs-pragma hs-type">findIndexR_manual</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-20"></span><span id="findIndexR_manual"><span class="annot"><span class="annottext">findIndexR_manual :: (Double -&gt; Bool, Vector Double) -&gt; Maybe Int
+</span><a href="Bench.Vector.Algo.FindIndexR.html#findIndexR_manual"><span class="hs-identifier hs-var hs-var">findIndexR_manual</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071408"><span class="annot"><span class="annottext">Double -&gt; Bool
+</span><a href="#local-6989586621679071408"><span class="hs-identifier hs-var">pred</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071409"><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679071409"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+</span><a href="#local-6989586621679071410"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Maybe Int) -&gt; Int -&gt; Maybe Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Vector Double -&gt; Int
+forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679071409"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-21"></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679071410"><span class="annot"><span class="annottext">go :: Int -&gt; Maybe Int
+</span><a href="#local-6989586621679071410"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679071417"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071417"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071417"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>                     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-22"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Bool
+</span><a href="#local-6989586621679071408"><span class="hs-identifier hs-var">pred</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Double -&gt; Int -&gt; Double
+forall (v :: * -&gt; *) a. Vector v a =&gt; v a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">V.unsafeIndex</span></span><span> </span><span class="annot"><span class="annottext">Vector Double
+</span><a href="#local-6989586621679071409"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071417"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071417"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-23"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+</span><a href="#local-6989586621679071410"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Maybe Int) -&gt; Int -&gt; Maybe Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071417"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span></pre></body></html>

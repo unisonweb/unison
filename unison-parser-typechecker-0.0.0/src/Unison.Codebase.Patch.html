@@ -1,0 +1,73 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Codebase.Patch.html"><span class="hs-identifier">Unison.Codebase.Patch</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Patch.html#Patch"><span class="hs-identifier">Patch</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.TermEdit.html"><span class="hs-identifier">Unison.Codebase.TermEdit</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.TermEdit.html#TermEdit"><span class="hs-identifier">TermEdit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.TypeEdit.html"><span class="hs-identifier">Unison.Codebase.TypeEdit</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.TypeEdit.html#TypeEdit"><span class="hs-identifier">TypeEdit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Relation</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Relation</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">head</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">read</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">subtract</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">data</span><span> </span><span id="Patch"><span class="annot"><a href="Unison.Codebase.Patch.html#Patch"><span class="hs-identifier hs-var">Patch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Patch"><span class="annot"><a href="Unison.Codebase.Patch.html#Patch"><span class="hs-identifier hs-var">Patch</span></a></span></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="_termEdits"><span class="annot"><span class="annottext">Patch -&gt; Relation Reference TermEdit
+</span><a href="Unison.Codebase.Patch.html#_termEdits"><span class="hs-identifier hs-var hs-var">_termEdits</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Relation</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="Unison.Codebase.TermEdit.html#TermEdit"><span class="hs-identifier hs-type">TermEdit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span id="_typeEdits"><span class="annot"><span class="annottext">Patch -&gt; Relation Reference TypeEdit
+</span><a href="Unison.Codebase.Patch.html#_typeEdits"><span class="hs-identifier hs-var hs-var">_typeEdits</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Relation</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="Unison.Codebase.TypeEdit.html#TypeEdit"><span class="hs-identifier hs-type">TypeEdit</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680620643"><span id="local-6989586621680620651"><span class="annot"><span class="annottext">Patch -&gt; Patch -&gt; Bool
+(Patch -&gt; Patch -&gt; Bool) -&gt; (Patch -&gt; Patch -&gt; Bool) -&gt; Eq Patch
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Patch -&gt; Patch -&gt; Bool
+== :: Patch -&gt; Patch -&gt; Bool
+$c/= :: Patch -&gt; Patch -&gt; Bool
+/= :: Patch -&gt; Patch -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680620665"><span id="local-6989586621680620673"><span id="local-6989586621680620680"><span id="local-6989586621680620684"><span id="local-6989586621680620687"><span id="local-6989586621680620690"><span id="local-6989586621680620693"><span class="annot"><span class="annottext">Eq Patch
+Eq Patch =&gt;
+(Patch -&gt; Patch -&gt; Ordering)
+-&gt; (Patch -&gt; Patch -&gt; Bool)
+-&gt; (Patch -&gt; Patch -&gt; Bool)
+-&gt; (Patch -&gt; Patch -&gt; Bool)
+-&gt; (Patch -&gt; Patch -&gt; Bool)
+-&gt; (Patch -&gt; Patch -&gt; Patch)
+-&gt; (Patch -&gt; Patch -&gt; Patch)
+-&gt; Ord Patch
+Patch -&gt; Patch -&gt; Bool
+Patch -&gt; Patch -&gt; Ordering
+Patch -&gt; Patch -&gt; Patch
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Patch -&gt; Patch -&gt; Ordering
+compare :: Patch -&gt; Patch -&gt; Ordering
+$c&lt; :: Patch -&gt; Patch -&gt; Bool
+&lt; :: Patch -&gt; Patch -&gt; Bool
+$c&lt;= :: Patch -&gt; Patch -&gt; Bool
+&lt;= :: Patch -&gt; Patch -&gt; Bool
+$c&gt; :: Patch -&gt; Patch -&gt; Bool
+&gt; :: Patch -&gt; Patch -&gt; Bool
+$c&gt;= :: Patch -&gt; Patch -&gt; Bool
+&gt;= :: Patch -&gt; Patch -&gt; Bool
+$cmax :: Patch -&gt; Patch -&gt; Patch
+max :: Patch -&gt; Patch -&gt; Patch
+$cmin :: Patch -&gt; Patch -&gt; Patch
+min :: Patch -&gt; Patch -&gt; Patch
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680620710"><span id="local-6989586621680620720"><span id="local-6989586621680620724"><span class="annot"><span class="annottext">Int -&gt; Patch -&gt; ShowS
+[Patch] -&gt; ShowS
+Patch -&gt; String
+(Int -&gt; Patch -&gt; ShowS)
+-&gt; (Patch -&gt; String) -&gt; ([Patch] -&gt; ShowS) -&gt; Show Patch
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Patch -&gt; ShowS
+showsPrec :: Int -&gt; Patch -&gt; ShowS
+$cshow :: Patch -&gt; String
+show :: Patch -&gt; String
+$cshowList :: [Patch] -&gt; ShowS
+showList :: [Patch] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span></pre></body></html>

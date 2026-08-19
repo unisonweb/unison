@@ -1,0 +1,496 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | Provides an interface for 'ReaderT' rather than 'InputT'.</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- @since 0.8.4.0</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html"><span class="hs-identifier">System.Console.Haskeline.ReaderT</span></a></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * ReaderT</span></span><span>
+</span><span id="line-6"></span><span>      </span><span class="annot"><span class="hs-comment">-- $reader</span></span><span>
+</span><span id="line-7"></span><span>      </span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#toReaderT"><span class="hs-identifier">toReaderT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>      </span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#fromReaderT"><span class="hs-identifier">fromReaderT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>      </span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#InputTEnv"><span class="hs-identifier">InputTEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>      </span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#mapInputTEnv"><span class="hs-identifier">mapInputTEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Reader</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ReaderT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ReaderT</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">runReaderT</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IORef</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Command.KillRing.html"><span class="hs-identifier">System.Console.Haskeline.Command.KillRing</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Command.KillRing.html#KillRing"><span class="hs-identifier">KillRing</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Haskeline.History.html"><span class="hs-identifier">System.Console.Haskeline.History</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.History.html#History"><span class="hs-identifier">History</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Haskeline.InputT.html"><span class="hs-identifier">System.Console.Haskeline.InputT</span></a></span><span class="hs-special">(</span><span>
+</span><span id="line-18"></span><span>                         </span><span class="annot"><a href="System.Console.Haskeline.InputT.html#InputT"><span class="hs-identifier">InputT</span></a></span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.InputT.html#InputT"><span class="hs-identifier">InputT</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>                         </span><span class="annot"><a href="System.Console.Haskeline.InputT.html#Settings"><span class="hs-identifier">Settings</span></a></span><span class="hs-special">(</span><span>
+</span><span id="line-20"></span><span>                            </span><span class="annot"><a href="System.Console.Haskeline.InputT.html#Settings"><span class="hs-identifier">Settings</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>                            </span><span class="annot"><a href="System.Console.Haskeline.InputT.html#autoAddHistory"><span class="hs-identifier">autoAddHistory</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>                            </span><span class="annot"><a href="System.Console.Haskeline.InputT.html#complete"><span class="hs-identifier">complete</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>                            </span><span class="annot"><a href="System.Console.Haskeline.InputT.html#historyFile"><span class="hs-identifier">historyFile</span></a></span><span>
+</span><span id="line-24"></span><span>                            </span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>                         </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Prefs.html"><span class="hs-identifier">System.Console.Haskeline.Prefs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Prefs.html#Prefs"><span class="hs-identifier">Prefs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html"><span class="hs-identifier">System.Console.Haskeline.Term</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.Term.html#RunTerm"><span class="hs-identifier">RunTerm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- $reader</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- These functions expose the 'InputT' type in terms of ordinary 'ReaderT'.</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- This allows for easier integration with applications that do not use a</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- concrete monad transformer stack, or do not want to commit to having</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- 'InputT' in the stack.</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | The abstract environment used by 'InputT', for 'ReaderT'</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- usage.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- @since 0.8.4.0</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">data</span><span> </span><span id="InputTEnv"><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#InputTEnv"><span class="hs-identifier hs-var">InputTEnv</span></a></span></span><span> </span><span id="local-6989586621679127280"><span class="annot"><a href="#local-6989586621679127280"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MkInputTEnv"><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#MkInputTEnv"><span class="hs-identifier hs-var">MkInputTEnv</span></a></span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="runTerm"><span class="annot"><span class="annottext">forall (m :: * -&gt; *). InputTEnv m -&gt; RunTerm
+</span><a href="System.Console.Haskeline.ReaderT.html#runTerm"><span class="hs-identifier hs-var hs-var">runTerm</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Term.html#RunTerm"><span class="hs-identifier hs-type">RunTerm</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>      </span><span id="history"><span class="annot"><span class="annottext">forall (m :: * -&gt; *). InputTEnv m -&gt; IORef History
+</span><a href="System.Console.Haskeline.ReaderT.html#history"><span class="hs-identifier hs-var hs-var">history</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="System.Console.Haskeline.History.html#History"><span class="hs-identifier hs-type">History</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>      </span><span id="killRing"><span class="annot"><span class="annottext">forall (m :: * -&gt; *). InputTEnv m -&gt; IORef KillRing
+</span><a href="System.Console.Haskeline.ReaderT.html#killRing"><span class="hs-identifier hs-var hs-var">killRing</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="System.Console.Haskeline.Command.KillRing.html#KillRing"><span class="hs-identifier hs-type">KillRing</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>      </span><span id="prefs"><span class="annot"><span class="annottext">forall (m :: * -&gt; *). InputTEnv m -&gt; Prefs
+</span><a href="System.Console.Haskeline.ReaderT.html#prefs"><span class="hs-identifier hs-var hs-var">prefs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Haskeline.Prefs.html#Prefs"><span class="hs-identifier hs-type">Prefs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>      </span><span id="settings"><span class="annot"><span class="annottext">forall (m :: * -&gt; *). InputTEnv m -&gt; Settings m
+</span><a href="System.Console.Haskeline.ReaderT.html#settings"><span class="hs-identifier hs-var hs-var">settings</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Haskeline.InputT.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127280"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | Maps the environment.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- @since 0.8.4.0</span><span>
+</span><span id="line-52"></span><span id="local-6989586621679127293"><span id="local-6989586621679127295"><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#mapInputTEnv"><span class="hs-identifier hs-type">mapInputTEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679127294"><span class="annot"><a href="#local-6989586621679127294"><span class="hs-identifier hs-type">x</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679127293"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127294"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679127295"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127294"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#InputTEnv"><span class="hs-identifier hs-type">InputTEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127293"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#InputTEnv"><span class="hs-identifier hs-type">InputTEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127295"><span class="hs-identifier hs-type">n</span></a></span></span></span><span>
+</span><span id="line-53"></span><span id="mapInputTEnv"><span class="annot"><span class="annottext">mapInputTEnv :: forall (m :: * -&gt; *) (n :: * -&gt; *).
+(forall x. m x -&gt; n x) -&gt; InputTEnv m -&gt; InputTEnv n
+</span><a href="System.Console.Haskeline.ReaderT.html#mapInputTEnv"><span class="hs-identifier hs-var hs-var">mapInputTEnv</span></a></span></span><span> </span><span id="local-6989586621679127354"><span class="annot"><span class="annottext">forall x. m x -&gt; n x
+</span><a href="#local-6989586621679127354"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#MkInputTEnv"><span class="hs-identifier hs-type">MkInputTEnv</span></a></span><span> </span><span id="local-6989586621679127355"><span class="annot"><span class="annottext">RunTerm
+</span><a href="#local-6989586621679127355"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679127356"><span class="annot"><span class="annottext">IORef History
+</span><a href="#local-6989586621679127356"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679127357"><span class="annot"><span class="annottext">IORef KillRing
+</span><a href="#local-6989586621679127357"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679127358"><span class="annot"><span class="annottext">Prefs
+</span><a href="#local-6989586621679127358"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679127359"><span class="annot"><span class="annottext">Settings m
+</span><a href="#local-6989586621679127359"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#MkInputTEnv"><span class="hs-identifier hs-type">MkInputTEnv</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">runTerm :: RunTerm
+</span><a href="System.Console.Haskeline.ReaderT.html#runTerm"><span class="hs-identifier hs-var">runTerm</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RunTerm
+</span><a href="#local-6989586621679127355"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>          </span><span class="annot"><span class="annottext">history :: IORef History
+</span><a href="System.Console.Haskeline.ReaderT.html#history"><span class="hs-identifier hs-var">history</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IORef History
+</span><a href="#local-6989586621679127356"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>          </span><span class="annot"><span class="annottext">killRing :: IORef KillRing
+</span><a href="System.Console.Haskeline.ReaderT.html#killRing"><span class="hs-identifier hs-var">killRing</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IORef KillRing
+</span><a href="#local-6989586621679127357"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>          </span><span class="annot"><span class="annottext">prefs :: Prefs
+</span><a href="System.Console.Haskeline.ReaderT.html#prefs"><span class="hs-identifier hs-var">prefs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Prefs
+</span><a href="#local-6989586621679127358"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>          </span><span class="annot"><span class="annottext">settings :: Settings n
+</span><a href="System.Console.Haskeline.ReaderT.html#settings"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Settings n
+</span><a href="#local-6989586621679127360"><span class="hs-identifier hs-var">settings'</span></a></span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>        </span><span id="local-6989586621679127360"><span class="annot"><span class="annottext">settings' :: Settings n
+</span><a href="#local-6989586621679127360"><span class="hs-identifier hs-var hs-var">settings'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="System.Console.Haskeline.InputT.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span>
+</span><span id="line-63"></span><span>            </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">complete :: CompletionFunc n
+</span><a href="System.Console.Haskeline.InputT.html#complete"><span class="hs-identifier hs-var">complete</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (FilePath, [Completion]) -&gt; n (FilePath, [Completion])
+forall x. m x -&gt; n x
+</span><a href="#local-6989586621679127354"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(m (FilePath, [Completion]) -&gt; n (FilePath, [Completion]))
+-&gt; ((FilePath, FilePath) -&gt; m (FilePath, [Completion]))
+-&gt; CompletionFunc n
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Settings m -&gt; (FilePath, FilePath) -&gt; m (FilePath, [Completion])
+forall (m :: * -&gt; *). Settings m -&gt; CompletionFunc m
+</span><a href="System.Console.Haskeline.InputT.html#complete"><span class="hs-identifier hs-var">complete</span></a></span><span> </span><span class="annot"><span class="annottext">Settings m
+</span><a href="#local-6989586621679127359"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>              </span><span class="annot"><span class="annottext">historyFile :: Maybe FilePath
+</span><a href="System.Console.Haskeline.InputT.html#historyFile"><span class="hs-identifier hs-var">historyFile</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Settings m -&gt; Maybe FilePath
+forall (m :: * -&gt; *). Settings m -&gt; Maybe FilePath
+</span><a href="System.Console.Haskeline.InputT.html#historyFile"><span class="hs-identifier hs-var">historyFile</span></a></span><span> </span><span class="annot"><span class="annottext">Settings m
+</span><a href="#local-6989586621679127359"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>              </span><span class="annot"><span class="annottext">autoAddHistory :: Bool
+</span><a href="System.Console.Haskeline.InputT.html#autoAddHistory"><span class="hs-identifier hs-var">autoAddHistory</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Settings m -&gt; Bool
+forall (m :: * -&gt; *). Settings m -&gt; Bool
+</span><a href="System.Console.Haskeline.InputT.html#autoAddHistory"><span class="hs-identifier hs-var">autoAddHistory</span></a></span><span> </span><span class="annot"><span class="annottext">Settings m
+</span><a href="#local-6989586621679127359"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-66"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Maps an 'InputT' to a 'ReaderT'. Useful for lifting 'InputT' functions</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- into some other reader-like monad.</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- __Examples:__</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- import System.Console.Haskeline qualified as H</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- runApp :: ReaderT (InputTEnv IO) IO ()</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- runApp = do</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--   input &lt;- toReaderT (H.getInputLine &quot;Enter your name: &quot;)</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--   ...</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-81"></span><span class="hs-comment">--</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- -- MTL-style polymorphism</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- class MonadHaskeline m where</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--   getInputLine :: String -&gt; m (Maybe String)</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- -- AppT is the core type over ReaderT.</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- instance MonadHaskeline (AppT m) where</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--   getInputLine = lift . toReaderT . H.getInputLine</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- runApp :: (MonadHaskeline m) =&gt; m ()</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- runApp = do</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--   input &lt;- getInputLine &quot;Enter your name: &quot;</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--   ...</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- @since 0.8.4.0</span><span>
+</span><span id="line-98"></span><span id="local-6989586621679127307"><span id="local-6989586621679127308"><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#toReaderT"><span class="hs-identifier hs-type">toReaderT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Console.Haskeline.InputT.html#InputT"><span class="hs-identifier hs-type">InputT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127308"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReaderT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#InputTEnv"><span class="hs-identifier hs-type">InputTEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127307"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679127307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127308"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-99"></span><span id="toReaderT"><span class="annot"><span class="annottext">toReaderT :: forall (m :: * -&gt; *) a. InputT m a -&gt; ReaderT (InputTEnv m) m a
+</span><a href="System.Console.Haskeline.ReaderT.html#toReaderT"><span class="hs-identifier hs-var hs-var">toReaderT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.InputT.html#InputT"><span class="hs-identifier hs-type">InputT</span></a></span><span> </span><span id="local-6989586621679127362"><span class="annot"><span class="annottext">ReaderT
+  RunTerm
+  (ReaderT
+     (IORef History)
+     (ReaderT
+        (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+  a
+</span><a href="#local-6989586621679127362"><span class="hs-identifier hs-var">rdr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(InputTEnv m -&gt; m a) -&gt; ReaderT (InputTEnv m) m a
+forall r (m :: * -&gt; *) a. (r -&gt; m a) -&gt; ReaderT r m a
+</span><span class="hs-identifier hs-var">ReaderT</span></span><span> </span><span class="annot"><span class="annottext">((InputTEnv m -&gt; m a) -&gt; ReaderT (InputTEnv m) m a)
+-&gt; (InputTEnv m -&gt; m a) -&gt; ReaderT (InputTEnv m) m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679127363"><span class="annot"><span class="annottext">InputTEnv m
+</span><a href="#local-6989586621679127363"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><span class="annottext">Settings m -&gt; ReaderT (Settings m) m a -&gt; m a
+forall env (m :: * -&gt; *) a. env -&gt; ReaderT env m a -&gt; m a
+</span><a href="System.Console.Haskeline.ReaderT.html#usingReaderT"><span class="hs-identifier hs-var">usingReaderT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InputTEnv m -&gt; Settings m
+forall (m :: * -&gt; *). InputTEnv m -&gt; Settings m
+</span><a href="System.Console.Haskeline.ReaderT.html#settings"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="annot"><span class="annottext">InputTEnv m
+</span><a href="#local-6989586621679127363"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="annottext">(ReaderT (Settings m) m a -&gt; m a)
+-&gt; (ReaderT
+      RunTerm
+      (ReaderT
+         (IORef History)
+         (ReaderT
+            (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+      a
+    -&gt; ReaderT (Settings m) m a)
+-&gt; ReaderT
+     RunTerm
+     (ReaderT
+        (IORef History)
+        (ReaderT
+           (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+     a
+-&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Prefs
+-&gt; ReaderT Prefs (ReaderT (Settings m) m) a
+-&gt; ReaderT (Settings m) m a
+forall env (m :: * -&gt; *) a. env -&gt; ReaderT env m a -&gt; m a
+</span><a href="System.Console.Haskeline.ReaderT.html#usingReaderT"><span class="hs-identifier hs-var">usingReaderT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InputTEnv m -&gt; Prefs
+forall (m :: * -&gt; *). InputTEnv m -&gt; Prefs
+</span><a href="System.Console.Haskeline.ReaderT.html#prefs"><span class="hs-identifier hs-var">prefs</span></a></span><span> </span><span class="annot"><span class="annottext">InputTEnv m
+</span><a href="#local-6989586621679127363"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>        </span><span class="annot"><span class="annottext">(ReaderT Prefs (ReaderT (Settings m) m) a
+ -&gt; ReaderT (Settings m) m a)
+-&gt; (ReaderT
+      RunTerm
+      (ReaderT
+         (IORef History)
+         (ReaderT
+            (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+      a
+    -&gt; ReaderT Prefs (ReaderT (Settings m) m) a)
+-&gt; ReaderT
+     RunTerm
+     (ReaderT
+        (IORef History)
+        (ReaderT
+           (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+     a
+-&gt; ReaderT (Settings m) m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IORef KillRing
+-&gt; ReaderT
+     (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a
+-&gt; ReaderT Prefs (ReaderT (Settings m) m) a
+forall env (m :: * -&gt; *) a. env -&gt; ReaderT env m a -&gt; m a
+</span><a href="System.Console.Haskeline.ReaderT.html#usingReaderT"><span class="hs-identifier hs-var">usingReaderT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InputTEnv m -&gt; IORef KillRing
+forall (m :: * -&gt; *). InputTEnv m -&gt; IORef KillRing
+</span><a href="System.Console.Haskeline.ReaderT.html#killRing"><span class="hs-identifier hs-var">killRing</span></a></span><span> </span><span class="annot"><span class="annottext">InputTEnv m
+</span><a href="#local-6989586621679127363"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>        </span><span class="annot"><span class="annottext">(ReaderT
+   (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a
+ -&gt; ReaderT Prefs (ReaderT (Settings m) m) a)
+-&gt; (ReaderT
+      RunTerm
+      (ReaderT
+         (IORef History)
+         (ReaderT
+            (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+      a
+    -&gt; ReaderT
+         (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a)
+-&gt; ReaderT
+     RunTerm
+     (ReaderT
+        (IORef History)
+        (ReaderT
+           (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+     a
+-&gt; ReaderT Prefs (ReaderT (Settings m) m) a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IORef History
+-&gt; ReaderT
+     (IORef History)
+     (ReaderT (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)))
+     a
+-&gt; ReaderT
+     (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a
+forall env (m :: * -&gt; *) a. env -&gt; ReaderT env m a -&gt; m a
+</span><a href="System.Console.Haskeline.ReaderT.html#usingReaderT"><span class="hs-identifier hs-var">usingReaderT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InputTEnv m -&gt; IORef History
+forall (m :: * -&gt; *). InputTEnv m -&gt; IORef History
+</span><a href="System.Console.Haskeline.ReaderT.html#history"><span class="hs-identifier hs-var">history</span></a></span><span> </span><span class="annot"><span class="annottext">InputTEnv m
+</span><a href="#local-6989586621679127363"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="annottext">(ReaderT
+   (IORef History)
+   (ReaderT (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)))
+   a
+ -&gt; ReaderT
+      (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a)
+-&gt; (ReaderT
+      RunTerm
+      (ReaderT
+         (IORef History)
+         (ReaderT
+            (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+      a
+    -&gt; ReaderT
+         (IORef History)
+         (ReaderT (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)))
+         a)
+-&gt; ReaderT
+     RunTerm
+     (ReaderT
+        (IORef History)
+        (ReaderT
+           (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+     a
+-&gt; ReaderT
+     (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">RunTerm
+-&gt; ReaderT
+     RunTerm
+     (ReaderT
+        (IORef History)
+        (ReaderT
+           (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+     a
+-&gt; ReaderT
+     (IORef History)
+     (ReaderT (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)))
+     a
+forall env (m :: * -&gt; *) a. env -&gt; ReaderT env m a -&gt; m a
+</span><a href="System.Console.Haskeline.ReaderT.html#usingReaderT"><span class="hs-identifier hs-var">usingReaderT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InputTEnv m -&gt; RunTerm
+forall (m :: * -&gt; *). InputTEnv m -&gt; RunTerm
+</span><a href="System.Console.Haskeline.ReaderT.html#runTerm"><span class="hs-identifier hs-var">runTerm</span></a></span><span> </span><span class="annot"><span class="annottext">InputTEnv m
+</span><a href="#local-6989586621679127363"><span class="hs-identifier hs-var">st</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>        </span><span class="annot"><span class="annottext">(ReaderT
+   RunTerm
+   (ReaderT
+      (IORef History)
+      (ReaderT
+         (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+   a
+ -&gt; m a)
+-&gt; ReaderT
+     RunTerm
+     (ReaderT
+        (IORef History)
+        (ReaderT
+           (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+     a
+-&gt; m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  RunTerm
+  (ReaderT
+     (IORef History)
+     (ReaderT
+        (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+  a
+</span><a href="#local-6989586621679127362"><span class="hs-identifier hs-var">rdr</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- | Maps a 'ReaderT' to an 'InputT'. Allows defining an application in terms</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- of 'ReaderT'.</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- __Examples:__</span><span>
+</span><span id="line-111"></span><span class="hs-comment">--</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- import System.Console.Haskeline qualified as H</span><span>
+</span><span id="line-114"></span><span class="hs-comment">--</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- -- Could be generalized to MonadReader, effects libraries.</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- runApp :: ReaderT (InputTEnv IO) IO ()</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- main :: IO ()</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- main = H.runInputT H.defaultSettings $ fromReaderT runApp</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- @since 0.8.4.0</span><span>
+</span><span id="line-123"></span><span id="local-6989586621679127323"><span id="local-6989586621679127324"><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#fromReaderT"><span class="hs-identifier hs-type">fromReaderT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReaderT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#InputTEnv"><span class="hs-identifier hs-type">InputTEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127323"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679127323"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127324"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Console.Haskeline.InputT.html#InputT"><span class="hs-identifier hs-type">InputT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127323"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127324"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-124"></span><span id="fromReaderT"><span class="annot"><span class="annottext">fromReaderT :: forall (m :: * -&gt; *) a. ReaderT (InputTEnv m) m a -&gt; InputT m a
+</span><a href="System.Console.Haskeline.ReaderT.html#fromReaderT"><span class="hs-identifier hs-var hs-var">fromReaderT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ReaderT</span></span><span> </span><span id="local-6989586621679127365"><span class="annot"><span class="annottext">InputTEnv m -&gt; m a
+</span><a href="#local-6989586621679127365"><span class="hs-identifier hs-var">onEnv</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ReaderT
+  RunTerm
+  (ReaderT
+     (IORef History)
+     (ReaderT
+        (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+  a
+-&gt; InputT m a
+forall (m :: * -&gt; *) a.
+ReaderT
+  RunTerm
+  (ReaderT
+     (IORef History)
+     (ReaderT
+        (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+  a
+-&gt; InputT m a
+</span><a href="System.Console.Haskeline.InputT.html#InputT"><span class="hs-identifier hs-var">InputT</span></a></span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   RunTerm
+   (ReaderT
+      (IORef History)
+      (ReaderT
+         (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+   a
+ -&gt; InputT m a)
+-&gt; ReaderT
+     RunTerm
+     (ReaderT
+        (IORef History)
+        (ReaderT
+           (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+     a
+-&gt; InputT m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(RunTerm
+ -&gt; ReaderT
+      (IORef History)
+      (ReaderT (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)))
+      a)
+-&gt; ReaderT
+     RunTerm
+     (ReaderT
+        (IORef History)
+        (ReaderT
+           (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+     a
+forall r (m :: * -&gt; *) a. (r -&gt; m a) -&gt; ReaderT r m a
+</span><span class="hs-identifier hs-var">ReaderT</span></span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="annottext">((RunTerm
+  -&gt; ReaderT
+       (IORef History)
+       (ReaderT (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)))
+       a)
+ -&gt; ReaderT
+      RunTerm
+      (ReaderT
+         (IORef History)
+         (ReaderT
+            (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+      a)
+-&gt; (RunTerm
+    -&gt; ReaderT
+         (IORef History)
+         (ReaderT (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)))
+         a)
+-&gt; ReaderT
+     RunTerm
+     (ReaderT
+        (IORef History)
+        (ReaderT
+           (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m))))
+     a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679127366"><span class="annot"><span class="annottext">RunTerm
+</span><a href="#local-6989586621679127366"><span class="hs-identifier hs-var">runTerm'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(IORef History
+ -&gt; ReaderT
+      (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a)
+-&gt; ReaderT
+     (IORef History)
+     (ReaderT (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)))
+     a
+forall r (m :: * -&gt; *) a. (r -&gt; m a) -&gt; ReaderT r m a
+</span><span class="hs-identifier hs-var">ReaderT</span></span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="annottext">((IORef History
+  -&gt; ReaderT
+       (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a)
+ -&gt; ReaderT
+      (IORef History)
+      (ReaderT (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)))
+      a)
+-&gt; (IORef History
+    -&gt; ReaderT
+         (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a)
+-&gt; ReaderT
+     (IORef History)
+     (ReaderT (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)))
+     a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679127367"><span class="annot"><span class="annottext">IORef History
+</span><a href="#local-6989586621679127367"><span class="hs-identifier hs-var">history'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(IORef KillRing -&gt; ReaderT Prefs (ReaderT (Settings m) m) a)
+-&gt; ReaderT
+     (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a
+forall r (m :: * -&gt; *) a. (r -&gt; m a) -&gt; ReaderT r m a
+</span><span class="hs-identifier hs-var">ReaderT</span></span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><span class="annottext">((IORef KillRing -&gt; ReaderT Prefs (ReaderT (Settings m) m) a)
+ -&gt; ReaderT
+      (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a)
+-&gt; (IORef KillRing -&gt; ReaderT Prefs (ReaderT (Settings m) m) a)
+-&gt; ReaderT
+     (IORef KillRing) (ReaderT Prefs (ReaderT (Settings m) m)) a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679127368"><span class="annot"><span class="annottext">IORef KillRing
+</span><a href="#local-6989586621679127368"><span class="hs-identifier hs-var">killRing'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Prefs -&gt; ReaderT (Settings m) m a)
+-&gt; ReaderT Prefs (ReaderT (Settings m) m) a
+forall r (m :: * -&gt; *) a. (r -&gt; m a) -&gt; ReaderT r m a
+</span><span class="hs-identifier hs-var">ReaderT</span></span><span>
+</span><span id="line-128"></span><span>    </span><span class="annot"><span class="annottext">((Prefs -&gt; ReaderT (Settings m) m a)
+ -&gt; ReaderT Prefs (ReaderT (Settings m) m) a)
+-&gt; (Prefs -&gt; ReaderT (Settings m) m a)
+-&gt; ReaderT Prefs (ReaderT (Settings m) m) a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679127369"><span class="annot"><span class="annottext">Prefs
+</span><a href="#local-6989586621679127369"><span class="hs-identifier hs-var">prefs'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Settings m -&gt; m a) -&gt; ReaderT (Settings m) m a
+forall r (m :: * -&gt; *) a. (r -&gt; m a) -&gt; ReaderT r m a
+</span><span class="hs-identifier hs-var">ReaderT</span></span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><span class="annottext">((Settings m -&gt; m a) -&gt; ReaderT (Settings m) m a)
+-&gt; (Settings m -&gt; m a) -&gt; ReaderT (Settings m) m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679127370"><span class="annot"><span class="annottext">Settings m
+</span><a href="#local-6989586621679127370"><span class="hs-identifier hs-var">settings'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-130"></span><span>        </span><span class="annot"><span class="annottext">InputTEnv m -&gt; m a
+</span><a href="#local-6989586621679127365"><span class="hs-identifier hs-var">onEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RunTerm
+-&gt; IORef History
+-&gt; IORef KillRing
+-&gt; Prefs
+-&gt; Settings m
+-&gt; InputTEnv m
+forall (m :: * -&gt; *).
+RunTerm
+-&gt; IORef History
+-&gt; IORef KillRing
+-&gt; Prefs
+-&gt; Settings m
+-&gt; InputTEnv m
+</span><a href="System.Console.Haskeline.ReaderT.html#MkInputTEnv"><span class="hs-identifier hs-var">MkInputTEnv</span></a></span><span> </span><span class="annot"><span class="annottext">RunTerm
+</span><a href="#local-6989586621679127366"><span class="hs-identifier hs-var">runTerm'</span></a></span><span> </span><span class="annot"><span class="annottext">IORef History
+</span><a href="#local-6989586621679127367"><span class="hs-identifier hs-var">history'</span></a></span><span> </span><span class="annot"><span class="annottext">IORef KillRing
+</span><a href="#local-6989586621679127368"><span class="hs-identifier hs-var">killRing'</span></a></span><span> </span><span class="annot"><span class="annottext">Prefs
+</span><a href="#local-6989586621679127369"><span class="hs-identifier hs-var">prefs'</span></a></span><span> </span><span class="annot"><span class="annottext">Settings m
+</span><a href="#local-6989586621679127370"><span class="hs-identifier hs-var">settings'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span id="local-6989586621679127320"><span id="local-6989586621679127321"><span id="local-6989586621679127322"><span class="annot"><a href="System.Console.Haskeline.ReaderT.html#usingReaderT"><span class="hs-identifier hs-type">usingReaderT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679127320"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReaderT</span></span><span> </span><span class="annot"><a href="#local-6989586621679127320"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127321"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127322"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679127321"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679127322"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-133"></span><span id="usingReaderT"><span class="annot"><span class="annottext">usingReaderT :: forall env (m :: * -&gt; *) a. env -&gt; ReaderT env m a -&gt; m a
+</span><a href="System.Console.Haskeline.ReaderT.html#usingReaderT"><span class="hs-identifier hs-var hs-var">usingReaderT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ReaderT env m a -&gt; env -&gt; m a) -&gt; env -&gt; ReaderT env m a -&gt; m a
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">ReaderT env m a -&gt; env -&gt; m a
+forall r (m :: * -&gt; *) a. ReaderT r m a -&gt; r -&gt; m a
+</span><span class="hs-identifier hs-var">runReaderT</span></span><span>
+</span><span id="line-134"></span></pre></body></html>

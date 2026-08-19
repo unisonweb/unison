@@ -1,0 +1,2 @@
+This package provides a cross-platform implementation of system semaphores
+that abstracts over the `unix` and `Win32` libraries.

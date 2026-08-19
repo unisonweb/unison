@@ -1,0 +1,390 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Engage a record into the Record layer.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- The record is compressed, added some integrity field, then encrypted.</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Starting with TLS v1.3, only the &quot;null&quot; compression method is negotiated in</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- the handshake, so the compression step will be a no-op.  Integrity and</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- encryption are performed using an AEAD cipher only.</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.TLS.Record.Encrypt.html"><span class="hs-identifier">Network.TLS.Record.Encrypt</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#encryptRecord"><span class="hs-identifier">encryptRecord</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State.Strict</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Cipher.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AuthTag</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">convert</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">xor</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Cipher.html"><span class="hs-identifier">Network.TLS.Cipher</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Imports.html"><span class="hs-identifier">Network.TLS.Imports</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Packet.html"><span class="hs-identifier">Network.TLS.Packet</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html"><span class="hs-identifier">Network.TLS.Record.State</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html"><span class="hs-identifier">Network.TLS.Record.Types</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Wire.html"><span class="hs-identifier">Network.TLS.Wire</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- when Tx Encrypted is set, we pass the data through encryptContent, otherwise</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- we just return the compress payload directly as the ciphered one</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#encryptRecord"><span class="hs-identifier hs-type">encryptRecord</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html#Plaintext"><span class="hs-identifier hs-type">Plaintext</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordM"><span class="hs-identifier hs-type">RecordM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Record.Types.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html#Ciphertext"><span class="hs-identifier hs-type">Ciphertext</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span id="encryptRecord"><span class="annot"><span class="annottext">encryptRecord :: Record Plaintext -&gt; RecordM (Record Ciphertext)
+</span><a href="Network.TLS.Record.Encrypt.html#encryptRecord"><span class="hs-identifier hs-var hs-var">encryptRecord</span></a></span></span><span> </span><span id="local-6989586621679244192"><span class="annot"><span class="annottext">record :: Record Plaintext
+</span><a href="#local-6989586621679244192"><span class="hs-identifier hs-var">record</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Record.Types.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span id="local-6989586621679244194"><span class="annot"><span class="annottext">ProtocolType
+</span><a href="#local-6989586621679244194"><span class="hs-identifier hs-var">ct</span></a></span></span><span> </span><span id="local-6989586621679244195"><span class="annot"><span class="annottext">Version
+</span><a href="#local-6989586621679244195"><span class="hs-identifier hs-var">ver</span></a></span></span><span> </span><span id="local-6989586621679244196"><span class="annot"><span class="annottext">Fragment Plaintext
+</span><a href="#local-6989586621679244196"><span class="hs-identifier hs-var">fragment</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-31"></span><span>    </span><span id="local-6989586621679244197"><span class="annot"><a href="#local-6989586621679244197"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RecordM RecordState
+forall s (m :: * -&gt; *). MonadState s m =&gt; m s
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#stCipher"><span class="hs-identifier hs-var">stCipher</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244197"><span class="hs-identifier hs-type">st</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-33"></span><span>        </span><span class="annot"><span class="annottext">Maybe Cipher
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RecordM (Record Ciphertext)
+</span><a href="#local-6989586621679244200"><span class="hs-identifier hs-var">noEncryption</span></a></span><span>
+</span><span id="line-34"></span><span>        </span><span class="annot"><span class="annottext">Maybe Cipher
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-35"></span><span>            </span><span id="local-6989586621679244201"><span class="annot"><a href="#local-6989586621679244201"><span class="hs-identifier hs-var">recOpts</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RecordM RecordOptions
+</span><a href="Network.TLS.Record.State.html#getRecordOptions"><span class="hs-identifier hs-var">getRecordOptions</span></a></span><span>
+</span><span id="line-36"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#recordTLS13"><span class="hs-identifier hs-var">recordTLS13</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244201"><span class="hs-identifier hs-type">recOpts</span></a></span><span>
+</span><span id="line-37"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="annot"><a href="#local-6989586621679244204"><span class="hs-identifier hs-type">encryptContent13</span></a></span><span>
+</span><span id="line-38"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html#onRecordFragment"><span class="hs-identifier hs-type">onRecordFragment</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244192"><span class="hs-identifier hs-type">record</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html#fragmentCipher"><span class="hs-identifier hs-type">fragmentCipher</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#encryptContent"><span class="hs-identifier hs-type">encryptContent</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span> </span><span class="annot"><a href="#local-6989586621679244192"><span class="hs-identifier hs-type">record</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679244200"><span class="annot"><span class="annottext">noEncryption :: RecordM (Record Ciphertext)
+</span><a href="#local-6989586621679244200"><span class="hs-identifier hs-var hs-var">noEncryption</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Record Plaintext
+-&gt; (Fragment Plaintext -&gt; RecordM (Fragment Ciphertext))
+-&gt; RecordM (Record Ciphertext)
+forall a b.
+Record a
+-&gt; (Fragment a -&gt; RecordM (Fragment b)) -&gt; RecordM (Record b)
+</span><a href="Network.TLS.Record.Types.html#onRecordFragment"><span class="hs-identifier hs-var">onRecordFragment</span></a></span><span> </span><span class="annot"><span class="annottext">Record Plaintext
+</span><a href="#local-6989586621679244192"><span class="hs-identifier hs-var">record</span></a></span><span> </span><span class="annot"><span class="annottext">((Fragment Plaintext -&gt; RecordM (Fragment Ciphertext))
+ -&gt; RecordM (Record Ciphertext))
+-&gt; (Fragment Plaintext -&gt; RecordM (Fragment Ciphertext))
+-&gt; RecordM (Record Ciphertext)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; RecordM ByteString)
+-&gt; Fragment Plaintext -&gt; RecordM (Fragment Ciphertext)
+</span><a href="Network.TLS.Record.Types.html#fragmentCipher"><span class="hs-identifier hs-var">fragmentCipher</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; RecordM ByteString
+forall a. a -&gt; RecordM a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-41"></span><span>    </span><span id="local-6989586621679244204"><span class="annot"><span class="annottext">encryptContent13 :: RecordM (Record Ciphertext)
+</span><a href="#local-6989586621679244204"><span class="hs-identifier hs-var hs-var">encryptContent13</span></a></span></span><span>
+</span><span id="line-42"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ProtocolType
+</span><a href="#local-6989586621679244194"><span class="hs-identifier hs-var">ct</span></a></span><span> </span><span class="annot"><span class="annottext">ProtocolType -&gt; ProtocolType -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ProtocolType
+</span><a href="Network.TLS.Struct.html#ProtocolType_ChangeCipherSpec"><span class="hs-identifier hs-var">ProtocolType_ChangeCipherSpec</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RecordM (Record Ciphertext)
+</span><a href="#local-6989586621679244200"><span class="hs-identifier hs-var">noEncryption</span></a></span><span>
+</span><span id="line-43"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-44"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679244212"><span class="annot"><span class="annottext">bytes :: ByteString
+</span><a href="#local-6989586621679244212"><span class="hs-identifier hs-var hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Fragment Plaintext -&gt; ByteString
+forall a. Fragment a -&gt; ByteString
+</span><a href="Network.TLS.Record.Types.html#fragmentGetBytes"><span class="hs-identifier hs-var">fragmentGetBytes</span></a></span><span> </span><span class="annot"><span class="annottext">Fragment Plaintext
+</span><a href="#local-6989586621679244196"><span class="hs-identifier hs-var">fragment</span></a></span><span>
+</span><span id="line-45"></span><span>                </span><span id="local-6989586621679244214"><span class="annot"><span class="annottext">fragment' :: Fragment Plaintext
+</span><a href="#local-6989586621679244214"><span class="hs-identifier hs-var hs-var">fragment'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Fragment Plaintext
+</span><a href="Network.TLS.Record.Types.html#fragmentPlaintext"><span class="hs-identifier hs-var">fragmentPlaintext</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Fragment Plaintext)
+-&gt; ByteString -&gt; Fragment Plaintext
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ProtocolType -&gt; ByteString -&gt; ByteString
+</span><a href="Network.TLS.Record.Encrypt.html#innerPlaintext"><span class="hs-identifier hs-var">innerPlaintext</span></a></span><span> </span><span class="annot"><span class="annottext">ProtocolType
+</span><a href="#local-6989586621679244194"><span class="hs-identifier hs-var">ct</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244212"><span class="hs-identifier hs-var">bytes</span></a></span><span>
+</span><span id="line-46"></span><span>                </span><span id="local-6989586621679244217"><span class="annot"><span class="annottext">record' :: Record Plaintext
+</span><a href="#local-6989586621679244217"><span class="hs-identifier hs-var hs-var">record'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProtocolType -&gt; Version -&gt; Fragment Plaintext -&gt; Record Plaintext
+forall a. ProtocolType -&gt; Version -&gt; Fragment a -&gt; Record a
+</span><a href="Network.TLS.Record.Types.html#Record"><span class="hs-identifier hs-var">Record</span></a></span><span> </span><span class="annot"><span class="annottext">ProtocolType
+</span><a href="Network.TLS.Struct.html#ProtocolType_AppData"><span class="hs-identifier hs-var">ProtocolType_AppData</span></a></span><span> </span><span class="annot"><span class="annottext">Version
+</span><a href="#local-6989586621679244195"><span class="hs-identifier hs-var">ver</span></a></span><span> </span><span class="annot"><span class="annottext">Fragment Plaintext
+</span><a href="#local-6989586621679244214"><span class="hs-identifier hs-var">fragment'</span></a></span><span>
+</span><span id="line-47"></span><span>            </span><span class="annot"><span class="annottext">Record Plaintext
+-&gt; (Fragment Plaintext -&gt; RecordM (Fragment Ciphertext))
+-&gt; RecordM (Record Ciphertext)
+forall a b.
+Record a
+-&gt; (Fragment a -&gt; RecordM (Fragment b)) -&gt; RecordM (Record b)
+</span><a href="Network.TLS.Record.Types.html#onRecordFragment"><span class="hs-identifier hs-var">onRecordFragment</span></a></span><span> </span><span class="annot"><span class="annottext">Record Plaintext
+</span><a href="#local-6989586621679244217"><span class="hs-identifier hs-var">record'</span></a></span><span> </span><span class="annot"><span class="annottext">((Fragment Plaintext -&gt; RecordM (Fragment Ciphertext))
+ -&gt; RecordM (Record Ciphertext))
+-&gt; (Fragment Plaintext -&gt; RecordM (Fragment Ciphertext))
+-&gt; RecordM (Record Ciphertext)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; RecordM ByteString)
+-&gt; Fragment Plaintext -&gt; RecordM (Fragment Ciphertext)
+</span><a href="Network.TLS.Record.Types.html#fragmentCipher"><span class="hs-identifier hs-var">fragmentCipher</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Record Plaintext -&gt; ByteString -&gt; RecordM ByteString
+</span><a href="Network.TLS.Record.Encrypt.html#encryptContent"><span class="hs-identifier hs-var">encryptContent</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">Record Plaintext
+</span><a href="#local-6989586621679244217"><span class="hs-identifier hs-var">record'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#innerPlaintext"><span class="hs-identifier hs-type">innerPlaintext</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Struct.html#ProtocolType"><span class="hs-identifier hs-type">ProtocolType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-50"></span><span id="innerPlaintext"><span class="annot"><span class="annottext">innerPlaintext :: ProtocolType -&gt; ByteString -&gt; ByteString
+</span><a href="Network.TLS.Record.Encrypt.html#innerPlaintext"><span class="hs-identifier hs-var hs-var">innerPlaintext</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Struct.html#ProtocolType"><span class="hs-identifier hs-type">ProtocolType</span></a></span><span> </span><span id="local-6989586621679244220"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679244220"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679244221"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244221"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Put -&gt; ByteString
+</span><span class="hs-identifier hs-var">runPut</span></span><span> </span><span class="annot"><span class="annottext">(Put -&gt; ByteString) -&gt; Put -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="annottext">ByteString -&gt; Put
+</span><a href="Network.TLS.Wire.html#putBytes"><span class="hs-identifier hs-var">putBytes</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244221"><span class="hs-identifier hs-var">bytes</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="annottext">Putter Word8
+</span><span class="hs-identifier hs-var">putWord8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679244220"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-comment">-- non zero!</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-comment">-- fixme: zeros padding</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#encryptContent"><span class="hs-identifier hs-type">encryptContent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html#Plaintext"><span class="hs-identifier hs-type">Plaintext</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordM"><span class="hs-identifier hs-type">RecordM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-56"></span><span id="encryptContent"><span class="annot"><span class="annottext">encryptContent :: Bool -&gt; Record Plaintext -&gt; ByteString -&gt; RecordM ByteString
+</span><a href="Network.TLS.Record.Encrypt.html#encryptContent"><span class="hs-identifier hs-var hs-var">encryptContent</span></a></span></span><span> </span><span id="local-6989586621679244225"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679244225"><span class="hs-identifier hs-var">tls13</span></a></span></span><span> </span><span id="local-6989586621679244226"><span class="annot"><span class="annottext">Record Plaintext
+</span><a href="#local-6989586621679244226"><span class="hs-identifier hs-var">record</span></a></span></span><span> </span><span id="local-6989586621679244227"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244227"><span class="hs-identifier hs-var">content</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621679244228"><span class="annot"><a href="#local-6989586621679244228"><span class="hs-identifier hs-var">cst</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RecordM CryptState
+</span><a href="Network.TLS.Record.Encrypt.html#getCryptState"><span class="hs-identifier hs-var">getCryptState</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679244230"><span class="annot"><a href="#local-6989586621679244230"><span class="hs-identifier hs-var">bulk</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#getBulk"><span class="hs-identifier hs-type">getBulk</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#cstKey"><span class="hs-identifier hs-var">cstKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244228"><span class="hs-identifier hs-type">cst</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><a href="Network.TLS.Cipher.html#BulkStateBlock"><span class="hs-identifier hs-type">BulkStateBlock</span></a></span><span> </span><span id="local-6989586621679244234"><span class="annot"><span class="annottext">BulkBlock
+</span><a href="#local-6989586621679244234"><span class="hs-identifier hs-var">encryptF</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-61"></span><span>            </span><span id="local-6989586621679244235"><span class="annot"><a href="#local-6989586621679244235"><span class="hs-identifier hs-var">digest</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Header -&gt; ByteString -&gt; RecordM ByteString
+</span><a href="Network.TLS.Record.State.html#makeDigest"><span class="hs-identifier hs-var">makeDigest</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Record Plaintext -&gt; Header
+forall a. Record a -&gt; Header
+</span><a href="Network.TLS.Record.Types.html#recordToHeader"><span class="hs-identifier hs-var">recordToHeader</span></a></span><span> </span><span class="annot"><span class="annottext">Record Plaintext
+</span><a href="#local-6989586621679244226"><span class="hs-identifier hs-var">record</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244227"><span class="hs-identifier hs-var">content</span></a></span><span>
+</span><span id="line-62"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679244238"><span class="annot"><a href="#local-6989586621679244238"><span class="hs-identifier hs-var hs-var">content'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.concat</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244227"><span class="hs-identifier hs-var">content</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244235"><span class="hs-identifier hs-var">digest</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span>            </span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#encryptBlock"><span class="hs-identifier hs-type">encryptBlock</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244234"><span class="hs-identifier hs-type">encryptF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244238"><span class="hs-identifier hs-type">content'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244230"><span class="hs-identifier hs-type">bulk</span></a></span><span>
+</span><span id="line-64"></span><span>        </span><span class="annot"><a href="Network.TLS.Cipher.html#BulkStateStream"><span class="hs-identifier hs-type">BulkStateStream</span></a></span><span> </span><span id="local-6989586621679244242"><span class="annot"><span class="annottext">BulkStream
+</span><a href="#local-6989586621679244242"><span class="hs-identifier hs-var">encryptF</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-65"></span><span>            </span><span id="local-6989586621679244243"><span class="annot"><a href="#local-6989586621679244243"><span class="hs-identifier hs-var">digest</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Header -&gt; ByteString -&gt; RecordM ByteString
+</span><a href="Network.TLS.Record.State.html#makeDigest"><span class="hs-identifier hs-var">makeDigest</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Record Plaintext -&gt; Header
+forall a. Record a -&gt; Header
+</span><a href="Network.TLS.Record.Types.html#recordToHeader"><span class="hs-identifier hs-var">recordToHeader</span></a></span><span> </span><span class="annot"><span class="annottext">Record Plaintext
+</span><a href="#local-6989586621679244226"><span class="hs-identifier hs-var">record</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244227"><span class="hs-identifier hs-var">content</span></a></span><span>
+</span><span id="line-66"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679244244"><span class="annot"><a href="#local-6989586621679244244"><span class="hs-identifier hs-var hs-var">content'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.concat</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244227"><span class="hs-identifier hs-var">content</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244243"><span class="hs-identifier hs-var">digest</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-67"></span><span>            </span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#encryptStream"><span class="hs-identifier hs-type">encryptStream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244242"><span class="hs-identifier hs-type">encryptF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244244"><span class="hs-identifier hs-type">content'</span></a></span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><a href="Network.TLS.Cipher.html#BulkStateAEAD"><span class="hs-identifier hs-type">BulkStateAEAD</span></a></span><span> </span><span id="local-6989586621679244247"><span class="annot"><span class="annottext">BulkAEAD
+</span><a href="#local-6989586621679244247"><span class="hs-identifier hs-var">encryptF</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-69"></span><span>            </span><span class="annot"><span class="annottext">Bool
+-&gt; Bulk
+-&gt; BulkAEAD
+-&gt; ByteString
+-&gt; Record Plaintext
+-&gt; RecordM ByteString
+</span><a href="Network.TLS.Record.Encrypt.html#encryptAead"><span class="hs-identifier hs-var">encryptAead</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679244225"><span class="hs-identifier hs-var">tls13</span></a></span><span> </span><span class="annot"><span class="annottext">Bulk
+</span><a href="#local-6989586621679244230"><span class="hs-identifier hs-var">bulk</span></a></span><span> </span><span class="annot"><span class="annottext">BulkAEAD
+</span><a href="#local-6989586621679244247"><span class="hs-identifier hs-var">encryptF</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244227"><span class="hs-identifier hs-var">content</span></a></span><span> </span><span class="annot"><span class="annottext">Record Plaintext
+</span><a href="#local-6989586621679244226"><span class="hs-identifier hs-var">record</span></a></span><span>
+</span><span id="line-70"></span><span>        </span><span class="annot"><span class="annottext">BulkState
+</span><a href="Network.TLS.Cipher.html#BulkStateUninitialized"><span class="hs-identifier hs-var">BulkStateUninitialized</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-71"></span><span>            </span><span class="annot"><span class="annottext">ByteString -&gt; RecordM ByteString
+forall a. a -&gt; RecordM a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244227"><span class="hs-identifier hs-var">content</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#encryptBlock"><span class="hs-identifier hs-type">encryptBlock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#BulkBlock"><span class="hs-identifier hs-type">BulkBlock</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Bulk"><span class="hs-identifier hs-type">Bulk</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordM"><span class="hs-identifier hs-type">RecordM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-74"></span><span id="encryptBlock"><span class="annot"><span class="annottext">encryptBlock :: BulkBlock -&gt; ByteString -&gt; Bulk -&gt; RecordM ByteString
+</span><a href="Network.TLS.Record.Encrypt.html#encryptBlock"><span class="hs-identifier hs-var hs-var">encryptBlock</span></a></span></span><span> </span><span id="local-6989586621679244250"><span class="annot"><span class="annottext">BulkBlock
+</span><a href="#local-6989586621679244250"><span class="hs-identifier hs-var">encryptF</span></a></span></span><span> </span><span id="local-6989586621679244251"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244251"><span class="hs-identifier hs-var">content</span></a></span></span><span> </span><span id="local-6989586621679244252"><span class="annot"><span class="annottext">Bulk
+</span><a href="#local-6989586621679244252"><span class="hs-identifier hs-var">bulk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679244253"><span class="annot"><a href="#local-6989586621679244253"><span class="hs-identifier hs-var">cst</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RecordM CryptState
+</span><a href="Network.TLS.Record.Encrypt.html#getCryptState"><span class="hs-identifier hs-var">getCryptState</span></a></span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679244258"><span class="annot"><a href="#local-6989586621679244258"><span class="hs-identifier hs-var hs-var">blockSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bulk -&gt; Int
+</span><a href="Network.TLS.Types.Cipher.html#bulkBlockSize"><span class="hs-identifier hs-var">bulkBlockSize</span></a></span><span> </span><span class="annot"><span class="annottext">Bulk
+</span><a href="#local-6989586621679244252"><span class="hs-identifier hs-var">bulk</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679244260"><span class="annot"><a href="#local-6989586621679244260"><span class="hs-identifier hs-var hs-var">msg_len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244251"><span class="hs-identifier hs-var">content</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679244270"><span class="annot"><a href="#local-6989586621679244270"><span class="hs-identifier hs-var hs-var">padding</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-79"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244258"><span class="hs-identifier hs-var">blockSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-80"></span><span>                </span><span class="hs-keyword">then</span><span>
+</span><span id="line-81"></span><span>                    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679244274"><span class="annot"><span class="annottext">padbyte :: Int
+</span><a href="#local-6989586621679244274"><span class="hs-identifier hs-var hs-var">padbyte</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244258"><span class="hs-identifier hs-var">blockSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244260"><span class="hs-identifier hs-var">msg_len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mod`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244258"><span class="hs-identifier hs-var">blockSize</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>                     </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679244279"><span class="annot"><span class="annottext">padbyte' :: Int
+</span><a href="#local-6989586621679244279"><span class="hs-identifier hs-var hs-var">padbyte'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244274"><span class="hs-identifier hs-var">padbyte</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244258"><span class="hs-identifier hs-var">blockSize</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244274"><span class="hs-identifier hs-var">padbyte</span></a></span><span>
+</span><span id="line-83"></span><span>                         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8 -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244279"><span class="hs-identifier hs-var">padbyte'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244279"><span class="hs-identifier hs-var">padbyte'</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">B.empty</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679244282"><span class="annot"><a href="#local-6989586621679244282"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679244283"><span class="annot"><a href="#local-6989586621679244283"><span class="hs-identifier hs-var">_iv'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679244250"><span class="hs-identifier hs-type">encryptF</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Record.State.html#cstIV"><span class="hs-identifier hs-var">cstIV</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244253"><span class="hs-identifier hs-type">cst</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.concat</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679244251"><span class="hs-identifier hs-type">content</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679244270"><span class="hs-identifier hs-type">padding</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.concat</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Record.State.html#cstIV"><span class="hs-identifier hs-var">cstIV</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244253"><span class="hs-identifier hs-type">cst</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679244282"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#encryptStream"><span class="hs-identifier hs-type">encryptStream</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#BulkStream"><span class="hs-identifier hs-type">BulkStream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordM"><span class="hs-identifier hs-type">RecordM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-91"></span><span id="encryptStream"><span class="annot"><span class="annottext">encryptStream :: BulkStream -&gt; ByteString -&gt; RecordM ByteString
+</span><a href="Network.TLS.Record.Encrypt.html#encryptStream"><span class="hs-identifier hs-var hs-var">encryptStream</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Types.Cipher.html#BulkStream"><span class="hs-identifier hs-type">BulkStream</span></a></span><span> </span><span id="local-6989586621679244286"><span class="annot"><span class="annottext">ByteString -&gt; (ByteString, BulkStream)
+</span><a href="#local-6989586621679244286"><span class="hs-identifier hs-var">encryptF</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679244287"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244287"><span class="hs-identifier hs-var">content</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679244288"><span class="annot"><a href="#local-6989586621679244288"><span class="hs-identifier hs-var">cst</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RecordM CryptState
+</span><a href="Network.TLS.Record.Encrypt.html#getCryptState"><span class="hs-identifier hs-var">getCryptState</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span id="local-6989586621679244289"><span class="annot"><a href="#local-6989586621679244289"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679244290"><span class="annot"><a href="#local-6989586621679244290"><span class="hs-identifier hs-var">newBulkStream</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679244286"><span class="hs-identifier hs-type">encryptF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244287"><span class="hs-identifier hs-type">content</span></a></span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">modify</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679244292"><span class="annot"><span class="annottext">RecordState
+</span><a href="#local-6989586621679244292"><span class="hs-identifier hs-var">tstate</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RecordState
+</span><a href="#local-6989586621679244292"><span class="hs-identifier hs-var">tstate</span></a></span><span class="hs-special">{</span><span class="annot"><a href="Network.TLS.Record.State.html#stCryptState"><span class="hs-identifier hs-var">stCryptState</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679244288"><span class="hs-identifier hs-type">cst</span></a></span><span class="hs-special">{</span><span class="annot"><a href="Network.TLS.Record.State.html#cstKey"><span class="hs-identifier hs-var">cstKey</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Cipher.html#BulkStateStream"><span class="hs-identifier hs-type">BulkStateStream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244290"><span class="hs-identifier hs-type">newBulkStream</span></a></span><span class="hs-special">}</span><span class="hs-special">}</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679244289"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#encryptAead"><span class="hs-identifier hs-type">encryptAead</span></a></span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Bulk"><span class="hs-identifier hs-type">Bulk</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#BulkAEAD"><span class="hs-identifier hs-type">BulkAEAD</span></a></span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html#Record"><span class="hs-identifier hs-type">Record</span></a></span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html#Plaintext"><span class="hs-identifier hs-type">Plaintext</span></a></span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordM"><span class="hs-identifier hs-type">RecordM</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-104"></span><span id="encryptAead"><span class="annot"><span class="annottext">encryptAead :: Bool
+-&gt; Bulk
+-&gt; BulkAEAD
+-&gt; ByteString
+-&gt; Record Plaintext
+-&gt; RecordM ByteString
+</span><a href="Network.TLS.Record.Encrypt.html#encryptAead"><span class="hs-identifier hs-var hs-var">encryptAead</span></a></span></span><span> </span><span id="local-6989586621679244294"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679244294"><span class="hs-identifier hs-var">tls13</span></a></span></span><span> </span><span id="local-6989586621679244295"><span class="annot"><span class="annottext">Bulk
+</span><a href="#local-6989586621679244295"><span class="hs-identifier hs-var">bulk</span></a></span></span><span> </span><span id="local-6989586621679244296"><span class="annot"><span class="annottext">BulkAEAD
+</span><a href="#local-6989586621679244296"><span class="hs-identifier hs-var">encryptF</span></a></span></span><span> </span><span id="local-6989586621679244297"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244297"><span class="hs-identifier hs-var">content</span></a></span></span><span> </span><span id="local-6989586621679244298"><span class="annot"><span class="annottext">Record Plaintext
+</span><a href="#local-6989586621679244298"><span class="hs-identifier hs-var">record</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679244299"><span class="annot"><span class="annottext">authTagLen :: Int
+</span><a href="#local-6989586621679244299"><span class="hs-identifier hs-var hs-var hs-var">authTagLen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bulk -&gt; Int
+</span><a href="Network.TLS.Types.Cipher.html#bulkAuthTagLen"><span class="hs-identifier hs-var">bulkAuthTagLen</span></a></span><span> </span><span class="annot"><span class="annottext">Bulk
+</span><a href="#local-6989586621679244295"><span class="hs-identifier hs-var">bulk</span></a></span><span>
+</span><span id="line-106"></span><span>        </span><span id="local-6989586621679244301"><span class="annot"><span class="annottext">nonceExpLen :: Int
+</span><a href="#local-6989586621679244301"><span class="hs-identifier hs-var hs-var hs-var">nonceExpLen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bulk -&gt; Int
+</span><a href="Network.TLS.Types.Cipher.html#bulkExplicitIV"><span class="hs-identifier hs-var">bulkExplicitIV</span></a></span><span> </span><span class="annot"><span class="annottext">Bulk
+</span><a href="#local-6989586621679244295"><span class="hs-identifier hs-var">bulk</span></a></span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621679244303"><span class="annot"><a href="#local-6989586621679244303"><span class="hs-identifier hs-var">cst</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RecordM CryptState
+</span><a href="Network.TLS.Record.Encrypt.html#getCryptState"><span class="hs-identifier hs-var">getCryptState</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679244304"><span class="annot"><a href="#local-6989586621679244304"><span class="hs-identifier hs-var">encodedSeq</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Network.TLS.Wire.html#encodeWord64"><span class="hs-identifier hs-type">encodeWord64</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#getMacSequence"><span class="hs-identifier hs-type">getMacSequence</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679244308"><span class="annot"><a href="#local-6989586621679244308"><span class="hs-identifier hs-var hs-var">iv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CryptState -&gt; ByteString
+</span><a href="Network.TLS.Record.State.html#cstIV"><span class="hs-identifier hs-var">cstIV</span></a></span><span> </span><span class="annot"><span class="annottext">CryptState
+</span><a href="#local-6989586621679244303"><span class="hs-identifier hs-var">cst</span></a></span><span>
+</span><span id="line-111"></span><span>        </span><span id="local-6989586621679244309"><span class="annot"><a href="#local-6989586621679244309"><span class="hs-identifier hs-var hs-var">ivlen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244308"><span class="hs-identifier hs-var">iv</span></a></span><span>
+</span><span id="line-112"></span><span>        </span><span class="annot"><a href="Network.TLS.Struct.html#Header"><span class="hs-identifier hs-type">Header</span></a></span><span> </span><span id="local-6989586621679244311"><span class="annot"><a href="#local-6989586621679244311"><span class="hs-identifier hs-var">typ</span></a></span></span><span> </span><span id="local-6989586621679244312"><span class="annot"><a href="#local-6989586621679244312"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679244313"><span class="annot"><a href="#local-6989586621679244313"><span class="hs-identifier hs-var">plainLen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Record.Types.html#recordToHeader"><span class="hs-identifier hs-type">recordToHeader</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244298"><span class="hs-identifier hs-type">record</span></a></span><span>
+</span><span id="line-113"></span><span>        </span><span id="local-6989586621679244318"><span class="annot"><a href="#local-6989586621679244318"><span class="hs-identifier hs-var hs-var">hdrLen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679244294"><span class="hs-identifier hs-var">tls13</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679244313"><span class="hs-identifier hs-var">plainLen</span></a></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Word16 -&gt; Word16
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word16
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244299"><span class="hs-identifier hs-var">authTagLen</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679244313"><span class="hs-identifier hs-var">plainLen</span></a></span><span>
+</span><span id="line-114"></span><span>        </span><span id="local-6989586621679244320"><span class="annot"><a href="#local-6989586621679244320"><span class="hs-identifier hs-var hs-var">hdr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProtocolType -&gt; Version -&gt; Word16 -&gt; Header
+</span><a href="Network.TLS.Struct.html#Header"><span class="hs-identifier hs-var">Header</span></a></span><span> </span><span class="annot"><span class="annottext">ProtocolType
+</span><a href="#local-6989586621679244311"><span class="hs-identifier hs-var">typ</span></a></span><span> </span><span class="annot"><span class="annottext">Version
+</span><a href="#local-6989586621679244312"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679244318"><span class="hs-identifier hs-var">hdrLen</span></a></span><span>
+</span><span id="line-115"></span><span>        </span><span id="local-6989586621679244321"><span class="annot"><a href="#local-6989586621679244321"><span class="hs-identifier hs-var hs-var">ad</span></a></span></span><span>
+</span><span id="line-116"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679244294"><span class="hs-identifier hs-var">tls13</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Header -&gt; ByteString
+</span><a href="Network.TLS.Packet.html#encodeHeader"><span class="hs-identifier hs-var">encodeHeader</span></a></span><span> </span><span class="annot"><span class="annottext">Header
+</span><a href="#local-6989586621679244320"><span class="hs-identifier hs-var">hdr</span></a></span><span>
+</span><span id="line-117"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.concat</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244304"><span class="hs-identifier hs-var">encodedSeq</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Header -&gt; ByteString
+</span><a href="Network.TLS.Packet.html#encodeHeader"><span class="hs-identifier hs-var">encodeHeader</span></a></span><span> </span><span class="annot"><span class="annottext">Header
+</span><a href="#local-6989586621679244320"><span class="hs-identifier hs-var">hdr</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-118"></span><span>        </span><span id="local-6989586621679244326"><span class="annot"><a href="#local-6989586621679244326"><span class="hs-identifier hs-var hs-var">sqnc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8 -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244309"><span class="hs-identifier hs-var">ivlen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+</span><span class="hs-operator hs-var">`B.append`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244304"><span class="hs-identifier hs-var">encodedSeq</span></a></span><span>
+</span><span id="line-119"></span><span>        </span><span id="local-6989586621679244335"><span class="annot"><a href="#local-6989586621679244335"><span class="hs-identifier hs-var hs-var">nonce</span></a></span></span><span>
+</span><span id="line-120"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244301"><span class="hs-identifier hs-var">nonceExpLen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a b c.
+(ByteArrayAccess a, ByteArrayAccess b, ByteArray c) =&gt;
+a -&gt; b -&gt; c
+</span><span class="hs-identifier hs-var">B.xor</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244308"><span class="hs-identifier hs-var">iv</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244326"><span class="hs-identifier hs-var">sqnc</span></a></span><span>
+</span><span id="line-121"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.concat</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244308"><span class="hs-identifier hs-var">iv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244304"><span class="hs-identifier hs-var">encodedSeq</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-122"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679244336"><span class="annot"><a href="#local-6989586621679244336"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AuthTag</span></span><span> </span><span id="local-6989586621679244338"><span class="annot"><a href="#local-6989586621679244338"><span class="hs-identifier hs-var">authtag</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679244296"><span class="hs-identifier hs-type">encryptF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244335"><span class="hs-identifier hs-type">nonce</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244297"><span class="hs-identifier hs-type">content</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244321"><span class="hs-identifier hs-type">ad</span></a></span><span>
+</span><span id="line-123"></span><span>        </span><span id="local-6989586621679244346"><span class="annot"><a href="#local-6989586621679244346"><span class="hs-identifier hs-var hs-var">econtent</span></a></span></span><span>
+</span><span id="line-124"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679244301"><span class="hs-identifier hs-var">nonceExpLen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244336"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+</span><span class="hs-operator hs-var">`B.append`</span></span><span> </span><span class="annot"><span class="annottext">Bytes -&gt; ByteString
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">B.convert</span></span><span> </span><span class="annot"><span class="annottext">Bytes
+</span><a href="#local-6989586621679244338"><span class="hs-identifier hs-var">authtag</span></a></span><span>
+</span><span id="line-125"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.concat</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244304"><span class="hs-identifier hs-var">encodedSeq</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679244336"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bytes -&gt; ByteString
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">B.convert</span></span><span> </span><span class="annot"><span class="annottext">Bytes
+</span><a href="#local-6989586621679244338"><span class="hs-identifier hs-var">authtag</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">modify</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#incrRecordState"><span class="hs-identifier hs-type">incrRecordState</span></a></span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679244346"><span class="hs-identifier hs-type">econtent</span></a></span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="annot"><a href="Network.TLS.Record.Encrypt.html#getCryptState"><span class="hs-identifier hs-type">getCryptState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordM"><span class="hs-identifier hs-type">RecordM</span></a></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptState"><span class="hs-identifier hs-type">CryptState</span></a></span><span>
+</span><span id="line-130"></span><span id="getCryptState"><span class="annot"><span class="annottext">getCryptState :: RecordM CryptState
+</span><a href="Network.TLS.Record.Encrypt.html#getCryptState"><span class="hs-identifier hs-var hs-var">getCryptState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RecordState -&gt; CryptState
+</span><a href="Network.TLS.Record.State.html#stCryptState"><span class="hs-identifier hs-var">stCryptState</span></a></span><span> </span><span class="annot"><span class="annottext">(RecordState -&gt; CryptState)
+-&gt; RecordM RecordState -&gt; RecordM CryptState
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">RecordM RecordState
+forall s (m :: * -&gt; *). MonadState s m =&gt; m s
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-131"></span></pre></body></html>

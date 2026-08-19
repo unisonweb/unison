@@ -1,0 +1,57 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.OsString.Internal.Exception.html"><span class="hs-identifier">System.OsString.Internal.Exception</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Exception.html"><span class="hs-identifier">Control.Exception</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">catch</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fromException</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">toException</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Exception</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">SomeAsyncException</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="annot"><span class="hs-comment">-- | Like 'try', but rethrows async exceptions.</span></span><span>
+</span><span id="line-6"></span><span id="local-6989586621679075080"><span id="local-6989586621679075082"><span class="annot"><a href="System.OsString.Internal.Exception.html#trySafe"><span class="hs-identifier hs-type">trySafe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="#local-6989586621679075080"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679075082"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679075080"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679075082"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-7"></span><span id="trySafe"><span class="annot"><span class="annottext">trySafe :: forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><a href="System.OsString.Internal.Exception.html#trySafe"><span class="hs-identifier hs-var hs-var">trySafe</span></a></span></span><span> </span><span id="local-6989586621679075111"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679075111"><span class="hs-identifier hs-var">ioA</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Either e a) -&gt; (e -&gt; IO (Either e a)) -&gt; IO (Either e a)
+forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">catch</span></span><span> </span><span class="annot"><span class="annottext">IO (Either e a)
+forall {a}. IO (Either a a)
+</span><a href="#local-6989586621679075112"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">e -&gt; IO (Either e a)
+forall {a} {b}. Exception a =&gt; a -&gt; IO (Either a b)
+</span><a href="#local-6989586621679075113"><span class="hs-identifier hs-var">eHandler</span></a></span><span>
+</span><span id="line-8"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>  </span><span id="local-6989586621679075112"><span class="annot"><span class="annottext">action :: IO (Either a a)
+</span><a href="#local-6989586621679075112"><span class="hs-identifier hs-var hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-10"></span><span>    </span><span id="local-6989586621679075117"><span class="annot"><a href="#local-6989586621679075117"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679075111"><span class="hs-identifier hs-var">ioA</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><a href="#local-6989586621679075117"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>  </span><span id="local-6989586621679075113"><span class="annot"><span class="annottext">eHandler :: a -&gt; IO (Either a b)
+</span><a href="#local-6989586621679075113"><span class="hs-identifier hs-var hs-var">eHandler</span></a></span></span><span> </span><span id="local-6989586621679075130"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679075130"><span class="hs-identifier hs-var">e</span></a></span></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+forall e. Exception e =&gt; e -&gt; Bool
+</span><a href="System.OsString.Internal.Exception.html#isAsyncException"><span class="hs-identifier hs-var">isAsyncException</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679075130"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; IO (Either a b)
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679075130"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Either a b -&gt; IO (Either a b)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Either a b
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679075130"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span id="local-6989586621679075096"><span class="annot"><a href="System.OsString.Internal.Exception.html#isAsyncException"><span class="hs-identifier hs-type">isAsyncException</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="#local-6989586621679075096"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679075096"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-17"></span><span id="isAsyncException"><span class="annot"><span class="annottext">isAsyncException :: forall e. Exception e =&gt; e -&gt; Bool
+</span><a href="System.OsString.Internal.Exception.html#isAsyncException"><span class="hs-identifier hs-var hs-var">isAsyncException</span></a></span></span><span> </span><span id="local-6989586621679075136"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679075136"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Maybe SomeAsyncException
+forall e. Exception e =&gt; SomeException -&gt; Maybe e
+</span><span class="hs-identifier hs-var">fromException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">e -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">toException</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679075136"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-19"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">SomeAsyncException</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-20"></span><span>        </span><span class="annot"><span class="annottext">Maybe SomeAsyncException
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-21"></span></pre></body></html>

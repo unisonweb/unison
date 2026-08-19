@@ -1,0 +1,66 @@
+-*-change-log-*-
+
+0.1.6.3 Ross Paterson <R.Paterson@city.ac.uk> Dec 2025
+	* Patches for MicroHS
+
+0.1.6.2 Ross Paterson <R.Paterson@city.ac.uk> Jul 2025
+	* Change http links in docs to https
+
+0.1.6.1 Ross Paterson <R.Paterson@city.ac.uk> May 2025
+	* Added NFData instances
+
+0.1.5.0 Ross Paterson <R.Paterson@city.ac.uk> Jan 2022
+	* Added foldlWithPos, foldrWithPos, foldlWithContext, foldrWithContext (James Cranch)
+	* Fixed bug in traverseWithContext
+	* Made split and search stricter
+
+0.1.4.2 Ross Paterson <R.Paterson@city.ac.uk> Dec 2018
+	* Fixed bug in search
+
+0.1.4.1 Ross Paterson <R.Paterson@city.ac.uk> Mar 2018
+	* Disabled Generic instances for GHC <= 7.6
+
+0.1.4.0 Ross Paterson <R.Paterson@city.ac.uk> Mar 2018
+	* Added Generic instances
+
+0.1.3.1 Ross Paterson <R.Paterson@city.ac.uk> Dec 2017
+	* Fixed Data.IntervalMap.FingerTree.bounds
+
+0.1.3.0 Ross Paterson <R.Paterson@city.ac.uk> Nov 2017
+	* Fixed Show instance for IntervalMap
+	* Added bounds, leastView and splitAfter to IntervalMap
+
+0.1.2.1 Ross Paterson <R.Paterson@city.ac.uk> Oct 2017
+	* Fix for GHC <= 7.8
+
+0.1.2.0 Ross Paterson <R.Paterson@city.ac.uk> Oct 2017
+	* Removed constraint on the type of null
+	* Added versions of fmap and traverse passing the measures of both sides
+	* Added new search function, a symmetrical generalization of split
+	* Added Eq, Ord and Show instances for IntervalMap and PriorityQueue
+	* Made low and high into separate functions
+	* Updated for Monoid, Foldable, Traversable in Prelude
+	* Made compatible with Semigroup/Monoid proposal
+
+0.1.1.0 Ross Paterson <R.Paterson@city.ac.uk> Jun 2015
+	* Added Safe for GHC >= 7.2
+	* Added AutoDeriveTypeable for GHC >= 7.10
+
+0.1.0.2 Ross Paterson <ross@soi.city.ac.uk> Mar 2015
+	* Cabal file updates
+
+0.1.0.1 Ross Paterson <ross@soi.city.ac.uk> Feb 2015
+	* fix warnings
+
+0.1.0.0 Ross Paterson <ross@soi.city.ac.uk> Jun 2013
+	* Added Monoid instance for IntervalMap
+	* Removed unnecessary Measured v a constraints on Eq, Ord, and Show instances
+
+0.0.1.1 Ross Paterson <ross@soi.city.ac.uk> Sep 2012
+	* Cabal file updates
+
+0.0.1.0 Ross Paterson <ross@soi.city.ac.uk> Jul 2009
+	* Added Data.IntervalMap.FingerTree and Data.PriorityQueue.FingerTree
+
+0.0 Ross Paterson <ross@soi.city.ac.uk> May 2007
+	* Initial revision

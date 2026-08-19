@@ -1,0 +1,67 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.Socket.STM.html"><span class="hs-identifier">Network.Socket.STM</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.Socket.Types.html"><span class="hs-identifier">Network.Socket.Types</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Posix.Types</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="annot"><span class="hs-comment">-- | STM action to wait until the socket is ready for reading.</span></span><span>
+</span><span id="line-9"></span><span class="annot"><a href="Network.Socket.STM.html#waitReadSocketSTM"><span class="hs-identifier hs-type">waitReadSocketSTM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Types.html#Socket"><span class="hs-identifier hs-type">Socket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span id="waitReadSocketSTM"><span class="annot"><span class="annottext">waitReadSocketSTM :: Socket -&gt; IO (STM ())
+</span><a href="Network.Socket.STM.html#waitReadSocketSTM"><span class="hs-identifier hs-var hs-var">waitReadSocketSTM</span></a></span></span><span> </span><span id="local-6989586621679090380"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679090380"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(STM (), IO ()) -&gt; STM ()
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">((STM (), IO ()) -&gt; STM ()) -&gt; IO (STM (), IO ()) -&gt; IO (STM ())
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Socket -&gt; IO (STM (), IO ())
+</span><a href="Network.Socket.STM.html#waitAndCancelReadSocketSTM"><span class="hs-identifier hs-var">waitAndCancelReadSocketSTM</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679090380"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- | STM action to wait until the socket is ready for reading and STM</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--   action to cancel the waiting.</span><span>
+</span><span id="line-14"></span><span class="annot"><a href="Network.Socket.STM.html#waitAndCancelReadSocketSTM"><span class="hs-identifier hs-type">waitAndCancelReadSocketSTM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Types.html#Socket"><span class="hs-identifier hs-type">Socket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span id="waitAndCancelReadSocketSTM"><span class="annot"><span class="annottext">waitAndCancelReadSocketSTM :: Socket -&gt; IO (STM (), IO ())
+</span><a href="Network.Socket.STM.html#waitAndCancelReadSocketSTM"><span class="hs-identifier hs-var hs-var">waitAndCancelReadSocketSTM</span></a></span></span><span> </span><span id="local-6989586621679090384"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679090384"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Socket -&gt; (CInt -&gt; IO (STM (), IO ())) -&gt; IO (STM (), IO ())
+forall r. Socket -&gt; (CInt -&gt; IO r) -&gt; IO r
+</span><a href="Network.Socket.Types.html#withFdSocket"><span class="hs-identifier hs-var">withFdSocket</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679090384"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">((CInt -&gt; IO (STM (), IO ())) -&gt; IO (STM (), IO ()))
+-&gt; (CInt -&gt; IO (STM (), IO ())) -&gt; IO (STM (), IO ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Fd -&gt; IO (STM (), IO ())
+</span><span class="hs-identifier hs-var">threadWaitReadSTM</span></span><span> </span><span class="annot"><span class="annottext">(Fd -&gt; IO (STM (), IO ()))
+-&gt; (CInt -&gt; Fd) -&gt; CInt -&gt; IO (STM (), IO ())
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Fd
+</span><span class="hs-identifier hs-var">Fd</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="annot"><span class="hs-comment">-- | STM action to wait until the socket is ready for writing.</span></span><span>
+</span><span id="line-18"></span><span class="annot"><a href="Network.Socket.STM.html#waitWriteSocketSTM"><span class="hs-identifier hs-type">waitWriteSocketSTM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Types.html#Socket"><span class="hs-identifier hs-type">Socket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span id="waitWriteSocketSTM"><span class="annot"><span class="annottext">waitWriteSocketSTM :: Socket -&gt; IO (STM ())
+</span><a href="Network.Socket.STM.html#waitWriteSocketSTM"><span class="hs-identifier hs-var hs-var">waitWriteSocketSTM</span></a></span></span><span> </span><span id="local-6989586621679090390"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679090390"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(STM (), IO ()) -&gt; STM ()
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">((STM (), IO ()) -&gt; STM ()) -&gt; IO (STM (), IO ()) -&gt; IO (STM ())
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Socket -&gt; IO (STM (), IO ())
+</span><a href="Network.Socket.STM.html#waitAndCancelWriteSocketSTM"><span class="hs-identifier hs-var">waitAndCancelWriteSocketSTM</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679090390"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- | STM action to wait until the socket is ready for writing and STM</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--   action to cancel the waiting.</span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Network.Socket.STM.html#waitAndCancelWriteSocketSTM"><span class="hs-identifier hs-type">waitAndCancelWriteSocketSTM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Types.html#Socket"><span class="hs-identifier hs-type">Socket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span id="waitAndCancelWriteSocketSTM"><span class="annot"><span class="annottext">waitAndCancelWriteSocketSTM :: Socket -&gt; IO (STM (), IO ())
+</span><a href="Network.Socket.STM.html#waitAndCancelWriteSocketSTM"><span class="hs-identifier hs-var hs-var">waitAndCancelWriteSocketSTM</span></a></span></span><span> </span><span id="local-6989586621679090392"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679090392"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Socket -&gt; (CInt -&gt; IO (STM (), IO ())) -&gt; IO (STM (), IO ())
+forall r. Socket -&gt; (CInt -&gt; IO r) -&gt; IO r
+</span><a href="Network.Socket.Types.html#withFdSocket"><span class="hs-identifier hs-var">withFdSocket</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679090392"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">((CInt -&gt; IO (STM (), IO ())) -&gt; IO (STM (), IO ()))
+-&gt; (CInt -&gt; IO (STM (), IO ())) -&gt; IO (STM (), IO ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Fd -&gt; IO (STM (), IO ())
+</span><span class="hs-identifier hs-var">threadWaitWriteSTM</span></span><span> </span><span class="annot"><span class="annottext">(Fd -&gt; IO (STM (), IO ()))
+-&gt; (CInt -&gt; Fd) -&gt; CInt -&gt; IO (STM (), IO ())
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Fd
+</span><span class="hs-identifier hs-var">Fd</span></span><span>
+</span><span id="line-25"></span></pre></body></html>

@@ -1,0 +1,558 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html"><span class="hs-identifier">Unison.Runtime.Canonicalizer</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier">Canonicalizer</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#canonicalize"><span class="hs-identifier">canonicalize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#categorize"><span class="hs-identifier">categorize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#unsafeCategorize"><span class="hs-identifier">unsafeCategorize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicity"><span class="hs-identifier">Canonicity</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier">CanonMap</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#empty"><span class="hs-identifier">empty</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#lookup"><span class="hs-identifier">lookup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#insert"><span class="hs-identifier">insert</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#unsafeLookup"><span class="hs-identifier">unsafeLookup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#findWithDefault"><span class="hs-identifier">findWithDefault</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#fromListByIndex"><span class="hs-identifier">fromListByIndex</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#fromList"><span class="hs-identifier">fromList</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#emptyCM"><span class="hs-identifier">emptyCM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">evaluate</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.HashMap.Lazy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HashMap</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.HashMap.Lazy</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HM</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Lazy</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Mem.StableName</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">lookup</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- A canonicalizer is a structure for mapping values to versions</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- that are unique in memory. This is accomplished via two</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- mappings. One maps stable names to a canonical value, which is</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- fast if we've seen the exact in-memory value before. A second</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- is just a normal hash map, which will canonicalize values by</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- hash code/equality, which allows us to add to the fast lookup.</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">data</span><span> </span><span id="Canonicalizer"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-var">Canonicalizer</span></a></span></span><span> </span><span id="local-6989586621680700177"><span class="annot"><a href="#local-6989586621680700177"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Canon"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canon"><span class="hs-identifier hs-var">Canon</span></a></span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="stableMap"><span class="annot"><span class="annottext">forall a. Canonicalizer a -&gt; HashMap (StableName a) a
+</span><a href="Unison.Runtime.Canonicalizer.html#stableMap"><span class="hs-identifier hs-var hs-var">stableMap</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HashMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">StableName</span></span><span> </span><span class="annot"><a href="#local-6989586621680700177"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680700177"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span id="_slowMap"><span class="annot"><span class="annottext">forall a. Canonicalizer a -&gt; Map a a
+</span><a href="Unison.Runtime.Canonicalizer.html#_slowMap"><span class="hs-identifier hs-var hs-var">_slowMap</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M.Map</span></span><span> </span><span class="annot"><a href="#local-6989586621680700177"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700177"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span id="local-6989586621680700184"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700184"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-39"></span><span id="empty"><span class="annot"><span class="annottext">empty :: forall a. Canonicalizer a
+</span><a href="Unison.Runtime.Canonicalizer.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap (StableName a) a -&gt; Map a a -&gt; Canonicalizer a
+forall a. HashMap (StableName a) a -&gt; Map a a -&gt; Canonicalizer a
+</span><a href="Unison.Runtime.Canonicalizer.html#Canon"><span class="hs-identifier hs-var">Canon</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap (StableName a) a
+forall k v. HashMap k v
+</span><span class="hs-identifier hs-var">HM.empty</span></span><span> </span><span class="annot"><span class="annottext">Map a a
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- Result for categorizing a value with regard to a Canonicalizer</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">data</span><span> </span><span id="Canonicity"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicity"><span class="hs-identifier hs-var">Canonicity</span></a></span></span><span> </span><span id="local-6989586621680700205"><span class="annot"><a href="#local-6989586621680700205"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">-- the provided value is the known canonical one</span><span>
+</span><span id="line-44"></span><span>    </span><span id="Canonical"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonical"><span class="hs-identifier hs-var">Canonical</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- the provided value is equivalent to this canonical one; updated</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-comment">-- canonicalizer</span><span>
+</span><span id="line-47"></span><span>    </span><span id="Equivalent"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Equivalent"><span class="hs-identifier hs-var">Equivalent</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621680700205"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700205"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- the provided value was not previously known, and added to the</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-comment">-- canonicalizer</span><span>
+</span><span id="line-50"></span><span>    </span><span id="Novel"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Novel"><span class="hs-identifier hs-var">Novel</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700205"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span id="local-6989586621680700190"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#categorize0"><span class="hs-identifier hs-type">categorize0</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700190"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700190"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><a href="#local-6989586621680700190"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">StableName</span></span><span> </span><span class="annot"><a href="#local-6989586621680700190"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicity"><span class="hs-identifier hs-type">Canonicity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700190"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-58"></span><span id="categorize0"><span class="annot"><span class="annottext">categorize0 :: forall a.
+Ord a =&gt;
+Canonicalizer a -&gt; a -&gt; StableName a -&gt; IO (Canonicity a)
+</span><a href="Unison.Runtime.Canonicalizer.html#categorize0"><span class="hs-identifier hs-var hs-var">categorize0</span></a></span></span><span> </span><span id="local-6989586621680700345"><span class="annot"><span class="annottext">cn :: Canonicalizer a
+</span><a href="#local-6989586621680700345"><span class="hs-identifier hs-var">cn</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canon"><span class="hs-identifier hs-type">Canon</span></a></span><span> </span><span id="local-6989586621680700346"><span class="annot"><span class="annottext">HashMap (StableName a) a
+</span><a href="#local-6989586621680700346"><span class="hs-identifier hs-var">fast</span></a></span></span><span> </span><span id="local-6989586621680700347"><span class="annot"><span class="annottext">Map a a
+</span><a href="#local-6989586621680700347"><span class="hs-identifier hs-var">slow</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680700348"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700348"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621680700349"><span class="annot"><span class="annottext">StableName a
+</span><a href="#local-6989586621680700349"><span class="hs-identifier hs-var">xname</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621680700350"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700350"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StableName a -&gt; HashMap (StableName a) a -&gt; Maybe a
+forall k v. (Eq k, Hashable k) =&gt; k -&gt; HashMap k v -&gt; Maybe v
+</span><span class="hs-identifier hs-var">HM.lookup</span></span><span> </span><span class="annot"><span class="annottext">StableName a
+</span><a href="#local-6989586621680700349"><span class="hs-identifier hs-var">xname</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap (StableName a) a
+</span><a href="#local-6989586621680700346"><span class="hs-identifier hs-var">fast</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-60"></span><span>      </span><span id="local-6989586621680700352"><span class="annot"><span class="annottext">StableName a
+</span><a href="#local-6989586621680700352"><span class="hs-identifier hs-var">yname</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">a -&gt; IO (StableName a)
+forall a. a -&gt; IO (StableName a)
+</span><span class="hs-identifier hs-var">makeStableName</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700350"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-61"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">StableName a
+</span><a href="#local-6989586621680700349"><span class="hs-identifier hs-var">xname</span></a></span><span> </span><span class="annot"><span class="annottext">StableName a -&gt; StableName a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">StableName a
+</span><a href="#local-6989586621680700352"><span class="hs-identifier hs-var">yname</span></a></span><span>
+</span><span id="line-62"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Canonicity a -&gt; IO (Canonicity a)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Canonicity a
+forall a. Canonicity a
+</span><a href="Unison.Runtime.Canonicalizer.html#Canonical"><span class="hs-identifier hs-var">Canonical</span></a></span><span>
+</span><span id="line-63"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Canonicity a -&gt; IO (Canonicity a)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Canonicalizer a -&gt; Canonicity a
+forall a. a -&gt; Canonicalizer a -&gt; Canonicity a
+</span><a href="Unison.Runtime.Canonicalizer.html#Equivalent"><span class="hs-identifier hs-var">Equivalent</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700350"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700345"><span class="hs-identifier hs-var">cn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680700354"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700354"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">a -&gt; Map a a -&gt; Maybe a
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">M.lookup</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700348"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Map a a
+</span><a href="#local-6989586621680700347"><span class="hs-identifier hs-var">slow</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-65"></span><span>      </span><span id="local-6989586621680700356"><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700356"><span class="hs-identifier hs-var">cn</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Canonicalizer a -&gt; IO (Canonicalizer a)
+forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700345"><span class="hs-identifier hs-var">cn</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#stableMap"><span class="hs-identifier hs-var">stableMap</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HM.insert</span></span><span> </span><span class="annot"><a href="#local-6989586621680700349"><span class="hs-identifier hs-type">xname</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700354"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700346"><span class="hs-identifier hs-type">fast</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-66"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Canonicalizer a -&gt; Canonicity a
+forall a. a -&gt; Canonicalizer a -&gt; Canonicity a
+</span><a href="Unison.Runtime.Canonicalizer.html#Equivalent"><span class="hs-identifier hs-var">Equivalent</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700354"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700356"><span class="hs-identifier hs-var">cn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-68"></span><span>      </span><span id="local-6989586621680700358"><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700358"><span class="hs-identifier hs-var">cn</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Canonicalizer a -&gt; IO (Canonicalizer a)
+forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HashMap (StableName a) a -&gt; Map a a -&gt; Canonicalizer a
+forall a. HashMap (StableName a) a -&gt; Map a a -&gt; Canonicalizer a
+</span><a href="Unison.Runtime.Canonicalizer.html#Canon"><span class="hs-identifier hs-var">Canon</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StableName a
+-&gt; a -&gt; HashMap (StableName a) a -&gt; HashMap (StableName a) a
+forall k v.
+(Eq k, Hashable k) =&gt;
+k -&gt; v -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.insert</span></span><span> </span><span class="annot"><span class="annottext">StableName a
+</span><a href="#local-6989586621680700349"><span class="hs-identifier hs-var">xname</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700348"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap (StableName a) a
+</span><a href="#local-6989586621680700346"><span class="hs-identifier hs-var">fast</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; Map a a -&gt; Map a a
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.insert</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700348"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700348"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Map a a
+</span><a href="#local-6989586621680700347"><span class="hs-identifier hs-var">slow</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Canonicalizer a -&gt; Canonicity a
+forall a. Canonicalizer a -&gt; Canonicity a
+</span><a href="Unison.Runtime.Canonicalizer.html#Novel"><span class="hs-identifier hs-var">Novel</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700358"><span class="hs-identifier hs-var">cn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#categorize0"><span class="hs-pragma hs-type">categorize0</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- Incorporates a value into a canonicalizer, giving a canonical</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- value, and also indicating whether the value has been seen before,</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- either up to in-memory or Eq equality.</span><span>
+</span><span id="line-75"></span><span id="local-6989586621680700215"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#categorize"><span class="hs-identifier hs-type">categorize</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700215"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700215"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><a href="#local-6989586621680700215"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicity"><span class="hs-identifier hs-type">Canonicity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700215"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-80"></span><span id="categorize"><span class="annot"><span class="annottext">categorize :: forall a. Ord a =&gt; Canonicalizer a -&gt; a -&gt; IO (Canonicity a)
+</span><a href="Unison.Runtime.Canonicalizer.html#categorize"><span class="hs-identifier hs-var hs-var">categorize</span></a></span></span><span> </span><span id="local-6989586621680700363"><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700363"><span class="hs-identifier hs-var">cn</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621680700364"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700364"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; IO (StableName a)
+forall a. a -&gt; IO (StableName a)
+</span><span class="hs-identifier hs-var">makeStableName</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700364"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">IO (StableName a)
+-&gt; (StableName a -&gt; IO (Canonicity a)) -&gt; IO (Canonicity a)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a -&gt; a -&gt; StableName a -&gt; IO (Canonicity a)
+forall a.
+Ord a =&gt;
+Canonicalizer a -&gt; a -&gt; StableName a -&gt; IO (Canonicity a)
+</span><a href="Unison.Runtime.Canonicalizer.html#categorize0"><span class="hs-identifier hs-var">categorize0</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700363"><span class="hs-identifier hs-var">cn</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700364"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-81"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#categorize"><span class="hs-pragma hs-type">categorize</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span id="local-6989586621680700217"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#unsafeCategorize"><span class="hs-identifier hs-type">unsafeCategorize</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700217"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700217"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700217"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicity"><span class="hs-identifier hs-type">Canonicity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700217"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-85"></span><span id="unsafeCategorize"><span class="annot"><span class="annottext">unsafeCategorize :: forall a. Ord a =&gt; Canonicalizer a -&gt; a -&gt; Canonicity a
+</span><a href="Unison.Runtime.Canonicalizer.html#unsafeCategorize"><span class="hs-identifier hs-var hs-var">unsafeCategorize</span></a></span></span><span> </span><span id="local-6989586621680700367"><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700367"><span class="hs-identifier hs-var">cn</span></a></span></span><span> </span><span id="local-6989586621680700368"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700368"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Canonicity a) -&gt; Canonicity a
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (Canonicity a) -&gt; Canonicity a)
+-&gt; IO (Canonicity a) -&gt; Canonicity a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a -&gt; a -&gt; IO (Canonicity a)
+forall a. Ord a =&gt; Canonicalizer a -&gt; a -&gt; IO (Canonicity a)
+</span><a href="Unison.Runtime.Canonicalizer.html#categorize"><span class="hs-identifier hs-var">categorize</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700367"><span class="hs-identifier hs-var">cn</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700368"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- Produces a canonical value and an updated canonicalizer under</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- the assumption that the given stable name is the one for the</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- given value.</span><span>
+</span><span id="line-90"></span><span id="local-6989586621680700224"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#canonicalize0"><span class="hs-identifier hs-type">canonicalize0</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700224"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700224"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><a href="#local-6989586621680700224"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">StableName</span></span><span> </span><span class="annot"><a href="#local-6989586621680700224"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680700224"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700224"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-96"></span><span id="canonicalize0"><span class="annot"><span class="annottext">canonicalize0 :: forall a.
+Ord a =&gt;
+Canonicalizer a -&gt; a -&gt; StableName a -&gt; IO (a, Canonicalizer a)
+</span><a href="Unison.Runtime.Canonicalizer.html#canonicalize0"><span class="hs-identifier hs-var hs-var">canonicalize0</span></a></span></span><span> </span><span id="local-6989586621680700383"><span class="annot"><span class="annottext">cn :: Canonicalizer a
+</span><a href="#local-6989586621680700383"><span class="hs-identifier hs-var">cn</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canon"><span class="hs-identifier hs-type">Canon</span></a></span><span> </span><span id="local-6989586621680700384"><span class="annot"><span class="annottext">HashMap (StableName a) a
+</span><a href="#local-6989586621680700384"><span class="hs-identifier hs-var">fast</span></a></span></span><span> </span><span id="local-6989586621680700385"><span class="annot"><span class="annottext">Map a a
+</span><a href="#local-6989586621680700385"><span class="hs-identifier hs-var">slow</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680700386"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700386"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621680700387"><span class="annot"><span class="annottext">StableName a
+</span><a href="#local-6989586621680700387"><span class="hs-identifier hs-var">name</span></a></span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680700388"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700388"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StableName a -&gt; HashMap (StableName a) a -&gt; Maybe a
+forall k v. (Eq k, Hashable k) =&gt; k -&gt; HashMap k v -&gt; Maybe v
+</span><span class="hs-identifier hs-var">HM.lookup</span></span><span> </span><span class="annot"><span class="annottext">StableName a
+</span><a href="#local-6989586621680700387"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap (StableName a) a
+</span><a href="#local-6989586621680700384"><span class="hs-identifier hs-var">fast</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, Canonicalizer a) -&gt; IO (a, Canonicalizer a)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700388"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700383"><span class="hs-identifier hs-var">cn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680700389"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700389"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">a -&gt; Map a a -&gt; Maybe a
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">M.lookup</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700386"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Map a a
+</span><a href="#local-6989586621680700385"><span class="hs-identifier hs-var">slow</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-99"></span><span>      </span><span id="local-6989586621680700390"><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700390"><span class="hs-identifier hs-var">cn</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Canonicalizer a -&gt; IO (Canonicalizer a)
+forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700383"><span class="hs-identifier hs-var">cn</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#stableMap"><span class="hs-identifier hs-var">stableMap</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HM.insert</span></span><span> </span><span class="annot"><a href="#local-6989586621680700387"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700389"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700384"><span class="hs-identifier hs-type">fast</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-100"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700389"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700390"><span class="hs-identifier hs-var">cn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-102"></span><span>      </span><span id="local-6989586621680700391"><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700391"><span class="hs-identifier hs-var">cn</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Canonicalizer a -&gt; IO (Canonicalizer a)
+forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HashMap (StableName a) a -&gt; Map a a -&gt; Canonicalizer a
+forall a. HashMap (StableName a) a -&gt; Map a a -&gt; Canonicalizer a
+</span><a href="Unison.Runtime.Canonicalizer.html#Canon"><span class="hs-identifier hs-var">Canon</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StableName a
+-&gt; a -&gt; HashMap (StableName a) a -&gt; HashMap (StableName a) a
+forall k v.
+(Eq k, Hashable k) =&gt;
+k -&gt; v -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.insert</span></span><span> </span><span class="annot"><span class="annottext">StableName a
+</span><a href="#local-6989586621680700387"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700386"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap (StableName a) a
+</span><a href="#local-6989586621680700384"><span class="hs-identifier hs-var">fast</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; Map a a -&gt; Map a a
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.insert</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700386"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700386"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Map a a
+</span><a href="#local-6989586621680700385"><span class="hs-identifier hs-var">slow</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700386"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700391"><span class="hs-identifier hs-var">cn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#canonicalize0"><span class="hs-pragma hs-type">canonicalize0</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- Canonicalizes a value, giving an updated canonicalizer.</span><span>
+</span><span id="line-107"></span><span class="hs-comment">--</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- Note: uses `unsafePerformIO`. This should be fine, because we</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- are only using stable names to canonicalize values in memory,</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- always replacing values with other values that are identical</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- according to the `Eq` instance.</span><span>
+</span><span id="line-112"></span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- The API exposed only allows such canonicalization and building</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- opaque `Canonicalizer` values, so there should be no opportunity</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- for doing anything actually unsafe.</span><span>
+</span><span id="line-116"></span><span id="local-6989586621680700226"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#canonicalize"><span class="hs-identifier hs-type">canonicalize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700226"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700226"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700226"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680700226"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#Canonicalizer"><span class="hs-identifier hs-type">Canonicalizer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700226"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-117"></span><span id="canonicalize"><span class="annot"><span class="annottext">canonicalize :: forall a. Ord a =&gt; Canonicalizer a -&gt; a -&gt; (a, Canonicalizer a)
+</span><a href="Unison.Runtime.Canonicalizer.html#canonicalize"><span class="hs-identifier hs-var hs-var">canonicalize</span></a></span></span><span> </span><span id="local-6989586621680700395"><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700395"><span class="hs-identifier hs-var">cn</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621680700396"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700396"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><span class="annottext">IO (a, Canonicalizer a) -&gt; (a, Canonicalizer a)
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (a, Canonicalizer a) -&gt; (a, Canonicalizer a))
+-&gt; IO (a, Canonicalizer a) -&gt; (a, Canonicalizer a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO (StableName a)
+forall a. a -&gt; IO (StableName a)
+</span><span class="hs-identifier hs-var">makeStableName</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700396"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">IO (StableName a)
+-&gt; (StableName a -&gt; IO (a, Canonicalizer a))
+-&gt; IO (a, Canonicalizer a)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a -&gt; a -&gt; StableName a -&gt; IO (a, Canonicalizer a)
+forall a.
+Ord a =&gt;
+Canonicalizer a -&gt; a -&gt; StableName a -&gt; IO (a, Canonicalizer a)
+</span><a href="Unison.Runtime.Canonicalizer.html#canonicalize0"><span class="hs-identifier hs-var">canonicalize0</span></a></span><span> </span><span class="annot"><span class="annottext">Canonicalizer a
+</span><a href="#local-6989586621680700395"><span class="hs-identifier hs-var">cn</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700396"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-119"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#canonicalize"><span class="hs-pragma hs-type">canonicalize</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-keyword">data</span><span> </span><span id="CanonMap"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-var">CanonMap</span></a></span></span><span> </span><span id="local-6989586621680700228"><span class="annot"><a href="#local-6989586621680700228"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621680700229"><span class="annot"><a href="#local-6989586621680700229"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CanonM"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonM"><span class="hs-identifier hs-var">CanonM</span></a></span></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="_fast"><span class="annot"><span class="annottext">forall k v. CanonMap k v -&gt; HashMap (StableName k) v
+</span><a href="Unison.Runtime.Canonicalizer.html#_fast"><span class="hs-identifier hs-var hs-var">_fast</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HashMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">StableName</span></span><span> </span><span class="annot"><a href="#local-6989586621680700228"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680700229"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-123"></span><span>    </span><span id="_slow"><span class="annot"><span class="annottext">forall k v. CanonMap k v -&gt; Map k v
+</span><a href="Unison.Runtime.Canonicalizer.html#_slow"><span class="hs-identifier hs-var hs-var">_slow</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">M.Map</span></span><span> </span><span class="annot"><a href="#local-6989586621680700228"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700229"><span class="hs-identifier hs-type">v</span></a></span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680700401"><span id="local-6989586621680700407"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; CanonMap k a -&gt; CanonMap k b)
+-&gt; (forall a b. a -&gt; CanonMap k b -&gt; CanonMap k a)
+-&gt; Functor (CanonMap k)
+forall a b. a -&gt; CanonMap k b -&gt; CanonMap k a
+forall a b. (a -&gt; b) -&gt; CanonMap k a -&gt; CanonMap k b
+forall k a b. a -&gt; CanonMap k b -&gt; CanonMap k a
+forall k a b. (a -&gt; b) -&gt; CanonMap k a -&gt; CanonMap k b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall k a b. (a -&gt; b) -&gt; CanonMap k a -&gt; CanonMap k b
+fmap :: forall a b. (a -&gt; b) -&gt; CanonMap k a -&gt; CanonMap k b
+$c&lt;$ :: forall k a b. a -&gt; CanonMap k b -&gt; CanonMap k a
+&lt;$ :: forall a b. a -&gt; CanonMap k b -&gt; CanonMap k a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span id="local-6989586621680700241"><span id="local-6989586621680700242"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#lookup0"><span class="hs-identifier hs-type">lookup0</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700241"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700241"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700241"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700242"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">StableName</span></span><span> </span><span class="annot"><a href="#local-6989586621680700241"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621680700242"><span class="hs-identifier hs-type">v</span></a></span></span></span><span>
+</span><span id="line-128"></span><span id="lookup0"><span class="annot"><span class="annottext">lookup0 :: forall k v. Ord k =&gt; k -&gt; CanonMap k v -&gt; StableName k -&gt; Maybe v
+</span><a href="Unison.Runtime.Canonicalizer.html#lookup0"><span class="hs-identifier hs-var hs-var">lookup0</span></a></span></span><span> </span><span id="local-6989586621680700418"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700418"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonM"><span class="hs-identifier hs-type">CanonM</span></a></span><span> </span><span id="local-6989586621680700419"><span class="annot"><span class="annottext">HashMap (StableName k) v
+</span><a href="#local-6989586621680700419"><span class="hs-identifier hs-var">fast</span></a></span></span><span> </span><span id="local-6989586621680700420"><span class="annot"><span class="annottext">Map k v
+</span><a href="#local-6989586621680700420"><span class="hs-identifier hs-var">slow</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680700421"><span class="annot"><span class="annottext">StableName k
+</span><a href="#local-6989586621680700421"><span class="hs-identifier hs-var">name</span></a></span></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621680700422"><span class="annot"><span class="annottext">r :: Maybe v
+</span><a href="#local-6989586621680700422"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StableName k -&gt; HashMap (StableName k) v -&gt; Maybe v
+forall k v. (Eq k, Hashable k) =&gt; k -&gt; HashMap k v -&gt; Maybe v
+</span><span class="hs-identifier hs-var">HM.lookup</span></span><span> </span><span class="annot"><span class="annottext">StableName k
+</span><a href="#local-6989586621680700421"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap (StableName k) v
+</span><a href="#local-6989586621680700419"><span class="hs-identifier hs-var">fast</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe v
+</span><a href="#local-6989586621680700422"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">k -&gt; Map k v -&gt; Maybe v
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">M.lookup</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700418"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Map k v
+</span><a href="#local-6989586621680700420"><span class="hs-identifier hs-var">slow</span></a></span><span>
+</span><span id="line-131"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#lookup0"><span class="hs-pragma hs-type">lookup0</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span id="local-6989586621680700245"><span id="local-6989586621680700246"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#lookup"><span class="hs-identifier hs-type">lookup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700245"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700245"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700245"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700246"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621680700246"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-134"></span><span id="lookup"><span class="annot"><span class="annottext">lookup :: forall k v. Ord k =&gt; k -&gt; CanonMap k v -&gt; IO (Maybe v)
+</span><a href="Unison.Runtime.Canonicalizer.html#lookup"><span class="hs-identifier hs-var hs-var">lookup</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621680700426"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700426"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621680700427"><span class="annot"><span class="annottext">CanonMap k v
+</span><a href="#local-6989586621680700427"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">k -&gt; CanonMap k v -&gt; StableName k -&gt; Maybe v
+forall k v. Ord k =&gt; k -&gt; CanonMap k v -&gt; StableName k -&gt; Maybe v
+</span><a href="Unison.Runtime.Canonicalizer.html#lookup0"><span class="hs-identifier hs-var">lookup0</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700426"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">CanonMap k v
+</span><a href="#local-6989586621680700427"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">(StableName k -&gt; Maybe v) -&gt; IO (StableName k) -&gt; IO (Maybe v)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; IO (StableName k)
+forall a. a -&gt; IO (StableName a)
+</span><span class="hs-identifier hs-var">makeStableName</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700426"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-135"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#lookup"><span class="hs-pragma hs-type">lookup</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span id="local-6989586621680700252"><span id="local-6989586621680700253"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#insert0"><span class="hs-identifier hs-type">insert0</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700252"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700252"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700253"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700252"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700253"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">StableName</span></span><span> </span><span class="annot"><a href="#local-6989586621680700252"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700252"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700253"><span class="hs-identifier hs-type">v</span></a></span></span></span><span>
+</span><span id="line-138"></span><span id="insert0"><span class="annot"><span class="annottext">insert0 :: forall k v.
+Ord k =&gt;
+k -&gt; v -&gt; CanonMap k v -&gt; StableName k -&gt; CanonMap k v
+</span><a href="Unison.Runtime.Canonicalizer.html#insert0"><span class="hs-identifier hs-var hs-var">insert0</span></a></span></span><span> </span><span id="local-6989586621680700434"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700434"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621680700435"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680700435"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonM"><span class="hs-identifier hs-type">CanonM</span></a></span><span> </span><span id="local-6989586621680700436"><span class="annot"><span class="annottext">HashMap (StableName k) v
+</span><a href="#local-6989586621680700436"><span class="hs-identifier hs-var">fast</span></a></span></span><span> </span><span id="local-6989586621680700437"><span class="annot"><span class="annottext">Map k v
+</span><a href="#local-6989586621680700437"><span class="hs-identifier hs-var">slow</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680700438"><span class="annot"><span class="annottext">StableName k
+</span><a href="#local-6989586621680700438"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-139"></span><span>  </span><span class="annot"><span class="annottext">HashMap (StableName k) v -&gt; Map k v -&gt; CanonMap k v
+forall k v. HashMap (StableName k) v -&gt; Map k v -&gt; CanonMap k v
+</span><a href="Unison.Runtime.Canonicalizer.html#CanonM"><span class="hs-identifier hs-var">CanonM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StableName k
+-&gt; v -&gt; HashMap (StableName k) v -&gt; HashMap (StableName k) v
+forall k v.
+(Eq k, Hashable k) =&gt;
+k -&gt; v -&gt; HashMap k v -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.insert</span></span><span> </span><span class="annot"><span class="annottext">StableName k
+</span><a href="#local-6989586621680700438"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680700435"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap (StableName k) v
+</span><a href="#local-6989586621680700436"><span class="hs-identifier hs-var">fast</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; v -&gt; Map k v -&gt; Map k v
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.insert</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700434"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680700435"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Map k v
+</span><a href="#local-6989586621680700437"><span class="hs-identifier hs-var">slow</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#insert0"><span class="hs-pragma hs-type">insert0</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- Inserts a key-value pair into the map. Note that this operation</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- should _only_ be used in conjunction with a `Canonicalizer` that</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- matches the `CanonMap` on canonical keys, to ensure that any key</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- inserted into the latter is canonical. Otherwise it is possible to</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- create an inconsistent `CanonMap` that will map the same key to</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- different values depending on which copy is given.</span><span>
+</span><span id="line-148"></span><span id="local-6989586621680700256"><span id="local-6989586621680700257"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#insert"><span class="hs-identifier hs-type">insert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700256"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700256"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700257"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700256"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700257"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700256"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700257"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-149"></span><span id="insert"><span class="annot"><span class="annottext">insert :: forall k v. Ord k =&gt; k -&gt; v -&gt; CanonMap k v -&gt; IO (CanonMap k v)
+</span><a href="Unison.Runtime.Canonicalizer.html#insert"><span class="hs-identifier hs-var hs-var">insert</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621680700442"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700442"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621680700443"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680700443"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621680700444"><span class="annot"><span class="annottext">CanonMap k v
+</span><a href="#local-6989586621680700444"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">k -&gt; v -&gt; CanonMap k v -&gt; StableName k -&gt; CanonMap k v
+forall k v.
+Ord k =&gt;
+k -&gt; v -&gt; CanonMap k v -&gt; StableName k -&gt; CanonMap k v
+</span><a href="Unison.Runtime.Canonicalizer.html#insert0"><span class="hs-identifier hs-var">insert0</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700442"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680700443"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">CanonMap k v
+</span><a href="#local-6989586621680700444"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">(StableName k -&gt; CanonMap k v)
+-&gt; IO (StableName k) -&gt; IO (CanonMap k v)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; IO (StableName k)
+forall a. a -&gt; IO (StableName a)
+</span><span class="hs-identifier hs-var">makeStableName</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700442"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span id="local-6989586621680700260"><span id="local-6989586621680700261"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#findWithDefault0"><span class="hs-identifier hs-type">findWithDefault0</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700260"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700261"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700260"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700260"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700261"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">StableName</span></span><span> </span><span class="annot"><a href="#local-6989586621680700260"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700261"><span class="hs-identifier hs-type">v</span></a></span></span></span><span>
+</span><span id="line-152"></span><span id="findWithDefault0"><span class="annot"><span class="annottext">findWithDefault0 :: forall k v. Ord k =&gt; v -&gt; k -&gt; CanonMap k v -&gt; StableName k -&gt; v
+</span><a href="Unison.Runtime.Canonicalizer.html#findWithDefault0"><span class="hs-identifier hs-var hs-var">findWithDefault0</span></a></span></span><span> </span><span id="local-6989586621680700450"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680700450"><span class="hs-identifier hs-var">df</span></a></span></span><span> </span><span id="local-6989586621680700451"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700451"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonM"><span class="hs-identifier hs-type">CanonM</span></a></span><span> </span><span id="local-6989586621680700452"><span class="annot"><span class="annottext">HashMap (StableName k) v
+</span><a href="#local-6989586621680700452"><span class="hs-identifier hs-var">fast</span></a></span></span><span> </span><span id="local-6989586621680700453"><span class="annot"><span class="annottext">Map k v
+</span><a href="#local-6989586621680700453"><span class="hs-identifier hs-var">slow</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680700454"><span class="annot"><span class="annottext">StableName k
+</span><a href="#local-6989586621680700454"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><span class="annottext">v -&gt; StableName k -&gt; HashMap (StableName k) v -&gt; v
+forall k v. (Eq k, Hashable k) =&gt; v -&gt; k -&gt; HashMap k v -&gt; v
+</span><span class="hs-identifier hs-var">HM.findWithDefault</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; k -&gt; Map k v -&gt; v
+forall k a. Ord k =&gt; a -&gt; k -&gt; Map k a -&gt; a
+</span><span class="hs-identifier hs-var">M.findWithDefault</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680700450"><span class="hs-identifier hs-var">df</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700451"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Map k v
+</span><a href="#local-6989586621680700453"><span class="hs-identifier hs-var">slow</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">StableName k
+</span><a href="#local-6989586621680700454"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap (StableName k) v
+</span><a href="#local-6989586621680700452"><span class="hs-identifier hs-var">fast</span></a></span><span>
+</span><span id="line-154"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#findWithDefault0"><span class="hs-pragma hs-type">findWithDefault0</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span id="local-6989586621680700268"><span id="local-6989586621680700269"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#findWithDefault"><span class="hs-identifier hs-type">findWithDefault</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700268"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700269"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700268"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700268"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700269"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621680700269"><span class="hs-identifier hs-type">v</span></a></span></span></span><span>
+</span><span id="line-157"></span><span id="findWithDefault"><span class="annot"><span class="annottext">findWithDefault :: forall k v. Ord k =&gt; v -&gt; k -&gt; CanonMap k v -&gt; IO v
+</span><a href="Unison.Runtime.Canonicalizer.html#findWithDefault"><span class="hs-identifier hs-var hs-var">findWithDefault</span></a></span></span><span> </span><span id="local-6989586621680700460"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680700460"><span class="hs-identifier hs-var">df</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621680700461"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700461"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621680700462"><span class="annot"><span class="annottext">CanonMap k v
+</span><a href="#local-6989586621680700462"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-158"></span><span>  </span><span class="annot"><span class="annottext">v -&gt; k -&gt; CanonMap k v -&gt; StableName k -&gt; v
+forall k v. Ord k =&gt; v -&gt; k -&gt; CanonMap k v -&gt; StableName k -&gt; v
+</span><a href="Unison.Runtime.Canonicalizer.html#findWithDefault0"><span class="hs-identifier hs-var">findWithDefault0</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621680700460"><span class="hs-identifier hs-var">df</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700461"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">CanonMap k v
+</span><a href="#local-6989586621680700462"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">(StableName k -&gt; v) -&gt; IO (StableName k) -&gt; IO v
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; IO (StableName k)
+forall a. a -&gt; IO (StableName a)
+</span><span class="hs-identifier hs-var">makeStableName</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700461"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-159"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#findWithDefault"><span class="hs-pragma hs-type">findWithDefault</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span id="local-6989586621680700272"><span id="local-6989586621680700273"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#unsafeLookup"><span class="hs-identifier hs-type">unsafeLookup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700272"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680700272"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700272"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700273"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621680700273"><span class="hs-identifier hs-type">v</span></a></span></span></span><span>
+</span><span id="line-162"></span><span id="unsafeLookup"><span class="annot"><span class="annottext">unsafeLookup :: forall k v. Ord k =&gt; k -&gt; CanonMap k v -&gt; Maybe v
+</span><a href="Unison.Runtime.Canonicalizer.html#unsafeLookup"><span class="hs-identifier hs-var hs-var">unsafeLookup</span></a></span></span><span> </span><span id="local-6989586621680700465"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700465"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621680700466"><span class="annot"><span class="annottext">CanonMap k v
+</span><a href="#local-6989586621680700466"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Maybe v) -&gt; Maybe v
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (Maybe v) -&gt; Maybe v) -&gt; IO (Maybe v) -&gt; Maybe v
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; CanonMap k v -&gt; IO (Maybe v)
+forall k v. Ord k =&gt; k -&gt; CanonMap k v -&gt; IO (Maybe v)
+</span><a href="Unison.Runtime.Canonicalizer.html#lookup"><span class="hs-identifier hs-var">lookup</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700465"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">CanonMap k v
+</span><a href="#local-6989586621680700466"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-163"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#unsafeLookup"><span class="hs-pragma hs-type">unsafeLookup</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span id="local-6989586621680700276"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#fromListByIndex"><span class="hs-identifier hs-type">fromListByIndex</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700276"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680700276"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700276"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-166"></span><span id="fromListByIndex"><span class="annot"><span class="annottext">fromListByIndex :: forall k. Ord k =&gt; [k] -&gt; CanonMap k Int
+</span><a href="Unison.Runtime.Canonicalizer.html#fromListByIndex"><span class="hs-identifier hs-var hs-var">fromListByIndex</span></a></span></span><span> </span><span id="local-6989586621680700482"><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621680700482"><span class="hs-identifier hs-var">ks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (CanonMap k Int) -&gt; CanonMap k Int
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-167"></span><span>  </span><span id="local-6989586621680700483"><span class="annot"><span class="annottext">[StableName k]
+</span><a href="#local-6989586621680700483"><span class="hs-identifier hs-var">ns</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(k -&gt; IO (StableName k)) -&gt; [k] -&gt; IO [StableName k]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680700485"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700485"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">k -&gt; IO (StableName k)
+forall a. a -&gt; IO (StableName a)
+</span><span class="hs-identifier hs-var">makeStableName</span></span><span> </span><span class="annot"><span class="annottext">(k -&gt; IO (StableName k)) -&gt; IO k -&gt; IO (StableName k)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; IO k
+forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621680700485"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621680700482"><span class="hs-identifier hs-var">ks</span></a></span><span>
+</span><span id="line-168"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">HashMap (StableName k) Int -&gt; Map k Int -&gt; CanonMap k Int
+forall k v. HashMap (StableName k) v -&gt; Map k v -&gt; CanonMap k v
+</span><a href="Unison.Runtime.Canonicalizer.html#CanonM"><span class="hs-identifier hs-var">CanonM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(StableName k, Int)] -&gt; HashMap (StableName k) Int
+forall k v. (Eq k, Hashable k) =&gt; [(k, v)] -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.fromList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[StableName k] -&gt; [Int] -&gt; [(StableName k, Int)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="annot"><span class="annottext">[StableName k]
+</span><a href="#local-6989586621680700483"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(k, Int)] -&gt; Map k Int
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.fromList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[k] -&gt; [Int] -&gt; [(k, Int)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621680700482"><span class="hs-identifier hs-var">ks</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span id="local-6989586621680700293"><span id="local-6989586621680700294"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#fromList"><span class="hs-identifier hs-type">fromList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621680700293"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680700293"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621680700294"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700293"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700294"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-171"></span><span id="fromList"><span class="annot"><span class="annottext">fromList :: forall k v. Ord k =&gt; [(k, v)] -&gt; IO (CanonMap k v)
+</span><a href="Unison.Runtime.Canonicalizer.html#fromList"><span class="hs-identifier hs-var hs-var">fromList</span></a></span></span><span> </span><span id="local-6989586621680700496"><span class="annot"><span class="annottext">[(k, v)]
+</span><a href="#local-6989586621680700496"><span class="hs-identifier hs-var">kvs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-172"></span><span>  </span><span id="local-6989586621680700497"><span class="annot"><span class="annottext">[(StableName k, v)]
+</span><a href="#local-6989586621680700497"><span class="hs-identifier hs-var">nvs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">((k, v) -&gt; IO (StableName k, v))
+-&gt; [(k, v)] -&gt; IO [(StableName k, v)]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">(k, v) -&gt; IO (StableName k, v)
+forall {a} {t}. (a, t) -&gt; IO (StableName a, t)
+</span><a href="#local-6989586621680700498"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[(k, v)]
+</span><a href="#local-6989586621680700496"><span class="hs-identifier hs-var">kvs</span></a></span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">HashMap (StableName k) v -&gt; Map k v -&gt; CanonMap k v
+forall k v. HashMap (StableName k) v -&gt; Map k v -&gt; CanonMap k v
+</span><a href="Unison.Runtime.Canonicalizer.html#CanonM"><span class="hs-identifier hs-var">CanonM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(StableName k, v)] -&gt; HashMap (StableName k) v
+forall k v. (Eq k, Hashable k) =&gt; [(k, v)] -&gt; HashMap k v
+</span><span class="hs-identifier hs-var">HM.fromList</span></span><span> </span><span class="annot"><span class="annottext">[(StableName k, v)]
+</span><a href="#local-6989586621680700497"><span class="hs-identifier hs-var">nvs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(k, v)] -&gt; Map k v
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.fromList</span></span><span> </span><span class="annot"><span class="annottext">[(k, v)]
+</span><a href="#local-6989586621680700496"><span class="hs-identifier hs-var">kvs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-175"></span><span>    </span><span id="local-6989586621680700498"><span class="annot"><span class="annottext">f :: (a, t) -&gt; IO (StableName a, t)
+</span><a href="#local-6989586621680700498"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680700501"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700501"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680700502"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621680700502"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621680700502"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(StableName a -&gt; (StableName a, t))
+-&gt; IO (StableName a) -&gt; IO (StableName a, t)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; IO (StableName a)
+forall a. a -&gt; IO (StableName a)
+</span><span class="hs-identifier hs-var">makeStableName</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO (StableName a)) -&gt; IO a -&gt; IO (StableName a)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680700501"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span id="local-6989586621680700299"><span id="local-6989586621680700300"><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#emptyCM"><span class="hs-identifier hs-type">emptyCM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Canonicalizer.html#CanonMap"><span class="hs-identifier hs-type">CanonMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700299"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680700300"><span class="hs-identifier hs-type">v</span></a></span></span></span><span>
+</span><span id="line-178"></span><span id="emptyCM"><span class="annot"><span class="annottext">emptyCM :: forall k v. CanonMap k v
+</span><a href="Unison.Runtime.Canonicalizer.html#emptyCM"><span class="hs-identifier hs-var hs-var">emptyCM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashMap (StableName k) v -&gt; Map k v -&gt; CanonMap k v
+forall k v. HashMap (StableName k) v -&gt; Map k v -&gt; CanonMap k v
+</span><a href="Unison.Runtime.Canonicalizer.html#CanonM"><span class="hs-identifier hs-var">CanonM</span></a></span><span> </span><span class="annot"><span class="annottext">HashMap (StableName k) v
+forall k v. HashMap k v
+</span><span class="hs-identifier hs-var">HM.empty</span></span><span> </span><span class="annot"><span class="annottext">Map k v
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span>
+</span><span id="line-179"></span></pre></body></html>

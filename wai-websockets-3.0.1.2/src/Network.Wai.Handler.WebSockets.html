@@ -1,0 +1,292 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.Wai.Handler.WebSockets.html"><span class="hs-identifier">Network.Wai.Handler.WebSockets</span></a></span><span>
+</span><span id="line-3"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.Wai.Handler.WebSockets.html#websocketsOr"><span class="hs-identifier">websocketsOr</span></a></span><span>
+</span><span id="line-4"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.Wai.Handler.WebSockets.html#websocketsApp"><span class="hs-identifier">websocketsApp</span></a></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.Wai.Handler.WebSockets.html#isWebSocketsReq"><span class="hs-identifier">isWebSocketsReq</span></a></span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.Wai.Handler.WebSockets.html#getRequestHead"><span class="hs-identifier">getRequestHead</span></a></span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.Wai.Handler.WebSockets.html#runWebSockets"><span class="hs-identifier">runWebSockets</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>              </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">bracket</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">tryJust</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>              </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span>    </span><span class="annot"><span class="hs-identifier">Data.ByteString.Char8</span></span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BC</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span>    </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BL</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span>    </span><span class="annot"><span class="hs-identifier">Data.CaseInsensitive</span></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CI</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>              </span><span class="annot"><span class="hs-identifier">Network.HTTP.Types</span></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">status500</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span>    </span><span class="annot"><span class="hs-identifier">Network.Wai</span></span><span>                     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Wai</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span>    </span><span class="annot"><span class="hs-identifier">Network.WebSockets</span></span><span>              </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">WS</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span>    </span><span class="annot"><span class="hs-identifier">Network.WebSockets.Connection</span></span><span>   </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">WS</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span>    </span><span class="annot"><span class="hs-identifier">Network.WebSockets.Stream</span></span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">WS</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span class="annot"><span class="hs-comment">-- | Returns whether or not the given 'Wai.Request' is a WebSocket request.</span></span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Network.Wai.Handler.WebSockets.html#isWebSocketsReq"><span class="hs-identifier hs-type">isWebSocketsReq</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Wai.Request</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-24"></span><span id="isWebSocketsReq"><span class="annot"><span class="annottext">isWebSocketsReq :: Request -&gt; Bool
+</span><a href="Network.Wai.Handler.WebSockets.html#isWebSocketsReq"><span class="hs-identifier hs-var hs-var">isWebSocketsReq</span></a></span></span><span> </span><span id="local-6989586621679047427"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047427"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="annottext">(ByteString -&gt; CI ByteString)
+-&gt; Maybe ByteString -&gt; Maybe (CI ByteString)
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; CI ByteString
+forall s. FoldCase s =&gt; s -&gt; CI s
+</span><span class="hs-identifier hs-var">CI.mk</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CI ByteString -&gt; [(CI ByteString, ByteString)] -&gt; Maybe ByteString
+forall a b. Eq a =&gt; a -&gt; [(a, b)] -&gt; Maybe b
+</span><span class="hs-identifier hs-var">lookup</span></span><span> </span><span class="annot"><span class="annottext">CI ByteString
+</span><span class="hs-string">&quot;upgrade&quot;</span></span><span> </span><span class="annot"><span class="annottext">([(CI ByteString, ByteString)] -&gt; Maybe ByteString)
+-&gt; [(CI ByteString, ByteString)] -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Request -&gt; [(CI ByteString, ByteString)]
+</span><span class="hs-identifier hs-var">Wai.requestHeaders</span></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047427"><span class="hs-identifier hs-var">req</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (CI ByteString) -&gt; Maybe (CI ByteString) -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">CI ByteString -&gt; Maybe (CI ByteString)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CI ByteString
+</span><span class="hs-string">&quot;websocket&quot;</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- | Upgrade a @websockets@ 'WS.ServerApp' to a @wai@ 'Wai.Application'. Uses</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- the given backup 'Wai.Application' to handle 'Wai.Request's that are not</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- WebSocket requests.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- websocketsOr opts ws_app backup_app = \\req respond -&gt;</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--     __case__ 'websocketsApp' opts ws_app req __of__</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--         'Nothing'  -&gt; backup_app req send_response</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--         'Just' res -&gt; respond res</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- For example, below is an 'Wai.Application' that sends @&quot;Hello, client!&quot;@ to</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- each connected client.</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- app :: 'Wai.Application'</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- app = 'websocketsOr' 'WS.defaultConnectionOptions' wsApp backupApp</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--   __where__</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--     wsApp :: 'WS.ServerApp'</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--     wsApp pending_conn = do</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--         conn &lt;- 'WS.acceptRequest' pending_conn</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--         'WS.sendTextData' conn (&quot;Hello, client!&quot; :: 'Data.Text.Text')</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--     backupApp :: 'Wai.Application'</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--     backupApp _ respond = respond $ 'Wai.responseLBS' 'Network.HTTP.Types.status400' [] &quot;Not a WebSocket request&quot;</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-54"></span><span class="annot"><a href="Network.Wai.Handler.WebSockets.html#websocketsOr"><span class="hs-identifier hs-type">websocketsOr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.ConnectionOptions</span></span><span>
+</span><span id="line-55"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.ServerApp</span></span><span>
+</span><span id="line-56"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Wai.Application</span></span><span>
+</span><span id="line-57"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Wai.Application</span></span><span>
+</span><span id="line-58"></span><span id="websocketsOr"><span class="annot"><span class="annottext">websocketsOr :: ConnectionOptions -&gt; ServerApp -&gt; Application -&gt; Application
+</span><a href="Network.Wai.Handler.WebSockets.html#websocketsOr"><span class="hs-identifier hs-var hs-var">websocketsOr</span></a></span></span><span> </span><span id="local-6989586621679047435"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679047435"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679047436"><span class="annot"><span class="annottext">ServerApp
+</span><a href="#local-6989586621679047436"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span id="local-6989586621679047437"><span class="annot"><span class="annottext">Application
+</span><a href="#local-6989586621679047437"><span class="hs-identifier hs-var">backup</span></a></span></span><span> </span><span id="local-6989586621679047438"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047438"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span id="local-6989586621679047439"><span class="annot"><span class="annottext">Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679047439"><span class="hs-identifier hs-var">sendResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ConnectionOptions -&gt; ServerApp -&gt; Request -&gt; Maybe Response
+</span><a href="Network.Wai.Handler.WebSockets.html#websocketsApp"><span class="hs-identifier hs-var">websocketsApp</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679047435"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">ServerApp
+</span><a href="#local-6989586621679047436"><span class="hs-identifier hs-var">app</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047438"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><span class="annottext">Maybe Response
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Application
+</span><a href="#local-6989586621679047437"><span class="hs-identifier hs-var">backup</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047438"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="annot"><span class="annottext">Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679047439"><span class="hs-identifier hs-var">sendResponse</span></a></span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679047440"><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621679047440"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Response -&gt; IO ResponseReceived
+</span><a href="#local-6989586621679047439"><span class="hs-identifier hs-var">sendResponse</span></a></span><span> </span><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621679047440"><span class="hs-identifier hs-var">res</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- | Handle a single @wai@ 'Wai.Request' with the given @websockets@</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- 'WS.ServerApp'. Returns 'Nothing' if the 'Wai.Request' is not a WebSocket</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- request, 'Just' otherwise.</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- Usually, 'websocketsOr' is more convenient.</span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Network.Wai.Handler.WebSockets.html#websocketsApp"><span class="hs-identifier hs-type">websocketsApp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.ConnectionOptions</span></span><span>
+</span><span id="line-70"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.ServerApp</span></span><span>
+</span><span id="line-71"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Wai.Request</span></span><span>
+</span><span id="line-72"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Wai.Response</span></span><span>
+</span><span id="line-73"></span><span id="websocketsApp"><span class="annot"><span class="annottext">websocketsApp :: ConnectionOptions -&gt; ServerApp -&gt; Request -&gt; Maybe Response
+</span><a href="Network.Wai.Handler.WebSockets.html#websocketsApp"><span class="hs-identifier hs-var hs-var">websocketsApp</span></a></span></span><span> </span><span id="local-6989586621679047441"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679047441"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679047442"><span class="annot"><span class="annottext">ServerApp
+</span><a href="#local-6989586621679047442"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span id="local-6989586621679047443"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047443"><span class="hs-identifier hs-var">req</span></a></span></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Request -&gt; Bool
+</span><a href="Network.Wai.Handler.WebSockets.html#isWebSocketsReq"><span class="hs-identifier hs-var">isWebSocketsReq</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047443"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-75"></span><span>        </span><span class="annot"><span class="annottext">Response -&gt; Maybe Response
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Response -&gt; Maybe Response) -&gt; Response -&gt; Maybe Response
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((IO ByteString -&gt; (ByteString -&gt; IO ()) -&gt; IO ())
+ -&gt; Response -&gt; Response)
+-&gt; Response
+-&gt; (IO ByteString -&gt; (ByteString -&gt; IO ()) -&gt; IO ())
+-&gt; Response
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">(IO ByteString -&gt; (ByteString -&gt; IO ()) -&gt; IO ())
+-&gt; Response -&gt; Response
+</span><span class="hs-identifier hs-var">Wai.responseRaw</span></span><span> </span><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621679047446"><span class="hs-identifier hs-var">backup</span></a></span><span> </span><span class="annot"><span class="annottext">((IO ByteString -&gt; (ByteString -&gt; IO ()) -&gt; IO ()) -&gt; Response)
+-&gt; (IO ByteString -&gt; (ByteString -&gt; IO ()) -&gt; IO ()) -&gt; Response
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679047447"><span class="annot"><span class="annottext">IO ByteString
+</span><a href="#local-6989586621679047447"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span id="local-6989586621679047448"><span class="annot"><span class="annottext">ByteString -&gt; IO ()
+</span><a href="#local-6989586621679047448"><span class="hs-identifier hs-var">sink</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-76"></span><span>            </span><span class="annot"><span class="annottext">ConnectionOptions
+-&gt; RequestHead
+-&gt; ServerApp
+-&gt; IO ByteString
+-&gt; (ByteString -&gt; IO ())
+-&gt; IO ()
+forall a.
+ConnectionOptions
+-&gt; RequestHead
+-&gt; (PendingConnection -&gt; IO a)
+-&gt; IO ByteString
+-&gt; (ByteString -&gt; IO ())
+-&gt; IO a
+</span><a href="Network.Wai.Handler.WebSockets.html#runWebSockets"><span class="hs-identifier hs-var">runWebSockets</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679047441"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">RequestHead
+</span><a href="#local-6989586621679047449"><span class="hs-identifier hs-var">req'</span></a></span><span> </span><span class="annot"><span class="annottext">ServerApp
+</span><a href="#local-6989586621679047442"><span class="hs-identifier hs-var">app</span></a></span><span> </span><span class="annot"><span class="annottext">IO ByteString
+</span><a href="#local-6989586621679047447"><span class="hs-identifier hs-var">src</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO ()
+</span><a href="#local-6989586621679047448"><span class="hs-identifier hs-var">sink</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Response
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679047449"><span class="annot"><span class="annottext">req' :: RequestHead
+</span><a href="#local-6989586621679047449"><span class="hs-identifier hs-var hs-var">req'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Request -&gt; RequestHead
+</span><a href="Network.Wai.Handler.WebSockets.html#getRequestHead"><span class="hs-identifier hs-var">getRequestHead</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047443"><span class="hs-identifier hs-var">req</span></a></span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679047446"><span class="annot"><span class="annottext">backup :: Response
+</span><a href="#local-6989586621679047446"><span class="hs-identifier hs-var hs-var">backup</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Status -&gt; [(CI ByteString, ByteString)] -&gt; ByteString -&gt; Response
+</span><span class="hs-identifier hs-var">Wai.responseLBS</span></span><span> </span><span class="annot"><span class="annottext">Status
+</span><span class="hs-identifier hs-var">status500</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">CI ByteString
+</span><span class="hs-string">&quot;Content-Type&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;text/plain&quot;</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>                </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;The web application attempted to send a WebSockets response, but WebSockets are not supported by your WAI handler.&quot;</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-84"></span><span class="annot"><a href="Network.Wai.Handler.WebSockets.html#getRequestHead"><span class="hs-identifier hs-type">getRequestHead</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Wai.Request</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.RequestHead</span></span><span>
+</span><span id="line-85"></span><span id="getRequestHead"><span class="annot"><span class="annottext">getRequestHead :: Request -&gt; RequestHead
+</span><a href="Network.Wai.Handler.WebSockets.html#getRequestHead"><span class="hs-identifier hs-var hs-var">getRequestHead</span></a></span></span><span> </span><span id="local-6989586621679047456"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047456"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; [(CI ByteString, ByteString)] -&gt; Bool -&gt; RequestHead
+</span><span class="hs-identifier hs-var">WS.RequestHead</span></span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Request -&gt; ByteString
+</span><span class="hs-identifier hs-var">Wai.rawPathInfo</span></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047456"><span class="hs-identifier hs-var">req</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+</span><span class="hs-operator hs-var">`BC.append`</span></span><span> </span><span class="annot"><span class="annottext">Request -&gt; ByteString
+</span><span class="hs-identifier hs-var">Wai.rawQueryString</span></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047456"><span class="hs-identifier hs-var">req</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Request -&gt; [(CI ByteString, ByteString)]
+</span><span class="hs-identifier hs-var">Wai.requestHeaders</span></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047456"><span class="hs-identifier hs-var">req</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Request -&gt; Bool
+</span><span class="hs-identifier hs-var">Wai.isSecure</span></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679047456"><span class="hs-identifier hs-var">req</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-91"></span><span class="annot"><span class="hs-comment">-- | Internal function to run the WebSocket io-streams using the conduit library.</span></span><span>
+</span><span id="line-92"></span><span id="local-6989586621679047380"><span class="annot"><a href="Network.Wai.Handler.WebSockets.html#runWebSockets"><span class="hs-identifier hs-type">runWebSockets</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.ConnectionOptions</span></span><span>
+</span><span id="line-93"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.RequestHead</span></span><span>
+</span><span id="line-94"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WS.PendingConnection</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679047380"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-96"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679047380"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-98"></span><span id="runWebSockets"><span class="annot"><span class="annottext">runWebSockets :: forall a.
+ConnectionOptions
+-&gt; RequestHead
+-&gt; (PendingConnection -&gt; IO a)
+-&gt; IO ByteString
+-&gt; (ByteString -&gt; IO ())
+-&gt; IO a
+</span><a href="Network.Wai.Handler.WebSockets.html#runWebSockets"><span class="hs-identifier hs-var hs-var">runWebSockets</span></a></span></span><span> </span><span id="local-6989586621679047462"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679047462"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679047463"><span class="annot"><span class="annottext">RequestHead
+</span><a href="#local-6989586621679047463"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span id="local-6989586621679047464"><span class="annot"><span class="annottext">PendingConnection -&gt; IO a
+</span><a href="#local-6989586621679047464"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span id="local-6989586621679047465"><span class="annot"><span class="annottext">IO ByteString
+</span><a href="#local-6989586621679047465"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span id="local-6989586621679047466"><span class="annot"><span class="annottext">ByteString -&gt; IO ()
+</span><a href="#local-6989586621679047466"><span class="hs-identifier hs-var">sink</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Stream
+-&gt; (Stream -&gt; IO (Either () ())) -&gt; (Stream -&gt; IO a) -&gt; IO a
+forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">bracket</span></span><span> </span><span class="annot"><span class="annottext">IO Stream
+</span><a href="#local-6989586621679047467"><span class="hs-identifier hs-var">mkStream</span></a></span><span> </span><span class="annot"><span class="annottext">Stream -&gt; IO (Either () ())
+</span><a href="#local-6989586621679047468"><span class="hs-identifier hs-var">ensureClose</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PendingConnection -&gt; IO a
+</span><a href="#local-6989586621679047464"><span class="hs-identifier hs-var">app</span></a></span><span> </span><span class="annot"><span class="annottext">(PendingConnection -&gt; IO a)
+-&gt; (Stream -&gt; PendingConnection) -&gt; Stream -&gt; IO a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Stream -&gt; PendingConnection
+</span><a href="#local-6989586621679047470"><span class="hs-identifier hs-var">pc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621679047468"><span class="annot"><span class="annottext">ensureClose :: Stream -&gt; IO (Either () ())
+</span><a href="#local-6989586621679047468"><span class="hs-identifier hs-var hs-var">ensureClose</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ConnectionException -&gt; Maybe ()) -&gt; IO () -&gt; IO (Either () ())
+forall e b a.
+Exception e =&gt;
+(e -&gt; Maybe b) -&gt; IO a -&gt; IO (Either b a)
+</span><span class="hs-identifier hs-var">tryJust</span></span><span> </span><span class="annot"><span class="annottext">ConnectionException -&gt; Maybe ()
+</span><a href="#local-6989586621679047473"><span class="hs-identifier hs-var">onConnectionException</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO (Either () ()))
+-&gt; (Stream -&gt; IO ()) -&gt; Stream -&gt; IO (Either () ())
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Stream -&gt; IO ()
+</span><span class="hs-identifier hs-var">WS.close</span></span><span>
+</span><span id="line-101"></span><span>    </span><span class="annot"><a href="#local-6989586621679047473"><span class="hs-identifier hs-type">onConnectionException</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.ConnectionException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>    </span><span id="local-6989586621679047473"><span class="annot"><span class="annottext">onConnectionException :: ConnectionException -&gt; Maybe ()
+</span><a href="#local-6989586621679047473"><span class="hs-identifier hs-var hs-var">onConnectionException</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConnectionException
+</span><span class="hs-identifier hs-var">WS.ConnectionClosed</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; Maybe ()
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>    </span><span class="annot"><a href="#local-6989586621679047473"><span class="hs-identifier hs-var">onConnectionException</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionException
+</span><span class="hs-identifier">_</span></span><span>                   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe ()
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-104"></span><span>    </span><span id="local-6989586621679047467"><span class="annot"><span class="annottext">mkStream :: IO Stream
+</span><a href="#local-6989586621679047467"><span class="hs-identifier hs-var hs-var">mkStream</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-105"></span><span>        </span><span class="annot"><span class="annottext">IO (Maybe ByteString) -&gt; (Maybe ByteString -&gt; IO ()) -&gt; IO Stream
+</span><span class="hs-identifier hs-var">WS.makeStream</span></span><span>
+</span><span id="line-106"></span><span>            </span><span class="hs-special">(</span><span class="hs-keyword">do</span><span>
+</span><span id="line-107"></span><span>                </span><span id="local-6989586621679047484"><span class="annot"><a href="#local-6989586621679047484"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ByteString
+</span><a href="#local-6989586621679047465"><span class="hs-identifier hs-var">src</span></a></span><span>
+</span><span id="line-108"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BC.null</span></span><span> </span><span class="annot"><a href="#local-6989586621679047484"><span class="hs-identifier hs-type">bs</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="#local-6989586621679047484"><span class="hs-identifier hs-type">bs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>            </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679047486"><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679047486"><span class="hs-identifier hs-var">mbBl</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679047486"><span class="hs-identifier hs-var">mbBl</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-110"></span><span>                </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679047487"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679047487"><span class="hs-identifier hs-var">bl</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO ()) -&gt; [ByteString] -&gt; IO ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO ()
+</span><a href="#local-6989586621679047466"><span class="hs-identifier hs-var">sink</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; [ByteString]
+</span><span class="hs-identifier hs-var">BL.toChunks</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679047487"><span class="hs-identifier hs-var">bl</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621679047470"><span class="annot"><span class="annottext">pc :: Stream -&gt; PendingConnection
+</span><a href="#local-6989586621679047470"><span class="hs-identifier hs-var hs-var">pc</span></a></span></span><span> </span><span id="local-6989586621679047491"><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679047491"><span class="hs-identifier hs-var">stream</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WS.PendingConnection</span></span><span>
+</span><span id="line-114"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">pendingOptions :: ConnectionOptions
+</span><span class="hs-identifier hs-var">WS.pendingOptions</span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679047462"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-115"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pendingRequest :: RequestHead
+</span><span class="hs-identifier hs-var">WS.pendingRequest</span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RequestHead
+</span><a href="#local-6989586621679047463"><span class="hs-identifier hs-var">req</span></a></span><span>
+</span><span id="line-116"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pendingOnAccept :: Connection -&gt; IO ()
+</span><span class="hs-identifier hs-var">WS.pendingOnAccept</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Connection
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pendingStream :: Stream
+</span><span class="hs-identifier hs-var">WS.pendingStream</span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679047491"><span class="hs-identifier hs-var">stream</span></a></span><span>
+</span><span id="line-118"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-119"></span></pre></body></html>

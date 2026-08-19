@@ -1,0 +1,526 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679519508"><span id="local-6989586621679519509"></span></span><span class="hs-pragma">{-# LANGUAGE DataKinds         #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures    #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html"><span class="hs-identifier">GitHub.Data.Actions.Workflows</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#Workflow"><span class="hs-identifier">Workflow</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#CreateWorkflowDispatchEvent"><span class="hs-identifier">CreateWorkflowDispatchEvent</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Common.html"><span class="hs-identifier">GitHub.Data.Actions.Common</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier">WithTotalCount</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier">WithTotalCount</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span>             </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.URL.html"><span class="hs-identifier">GitHub.Data.URL</span></a></span><span>            </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">data</span><span> </span><span id="Workflow"><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#Workflow"><span class="hs-identifier hs-var">Workflow</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Workflow"><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#Workflow"><span class="hs-identifier hs-var">Workflow</span></a></span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="workflowWorkflowId"><span class="annot"><span class="annottext">Workflow -&gt; Id Workflow
+</span><a href="GitHub.Data.Actions.Workflows.html#workflowWorkflowId"><span class="hs-identifier hs-var hs-var">workflowWorkflowId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#Workflow"><span class="hs-identifier hs-type">Workflow</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="workflowName"><span class="annot"><span class="annottext">Workflow -&gt; Text
+</span><a href="GitHub.Data.Actions.Workflows.html#workflowName"><span class="hs-identifier hs-var hs-var">workflowName</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="workflowPath"><span class="annot"><span class="annottext">Workflow -&gt; Text
+</span><a href="GitHub.Data.Actions.Workflows.html#workflowPath"><span class="hs-identifier hs-var hs-var">workflowPath</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="workflowState"><span class="annot"><span class="annottext">Workflow -&gt; Text
+</span><a href="GitHub.Data.Actions.Workflows.html#workflowState"><span class="hs-identifier hs-var hs-var">workflowState</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="workflowCreatedAt"><span class="annot"><span class="annottext">Workflow -&gt; UTCTime
+</span><a href="GitHub.Data.Actions.Workflows.html#workflowCreatedAt"><span class="hs-identifier hs-var hs-var">workflowCreatedAt</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="workflowUpdatedAt"><span class="annot"><span class="annottext">Workflow -&gt; UTCTime
+</span><a href="GitHub.Data.Actions.Workflows.html#workflowUpdatedAt"><span class="hs-identifier hs-var hs-var">workflowUpdatedAt</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="workflowUrl"><span class="annot"><span class="annottext">Workflow -&gt; URL
+</span><a href="GitHub.Data.Actions.Workflows.html#workflowUrl"><span class="hs-identifier hs-var hs-var">workflowUrl</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="workflowHtmlUrl"><span class="annot"><span class="annottext">Workflow -&gt; URL
+</span><a href="GitHub.Data.Actions.Workflows.html#workflowHtmlUrl"><span class="hs-identifier hs-var hs-var">workflowHtmlUrl</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="workflowBadgeUrl"><span class="annot"><span class="annottext">Workflow -&gt; URL
+</span><a href="GitHub.Data.Actions.Workflows.html#workflowBadgeUrl"><span class="hs-identifier hs-var hs-var">workflowBadgeUrl</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679519522"><span id="local-6989586621679519539"><span id="local-6989586621679519543"><span class="annot"><span class="annottext">Int -&gt; Workflow -&gt; ShowS
+[Workflow] -&gt; ShowS
+Workflow -&gt; String
+(Int -&gt; Workflow -&gt; ShowS)
+-&gt; (Workflow -&gt; String) -&gt; ([Workflow] -&gt; ShowS) -&gt; Show Workflow
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Workflow -&gt; ShowS
+showsPrec :: Int -&gt; Workflow -&gt; ShowS
+$cshow :: Workflow -&gt; String
+show :: Workflow -&gt; String
+$cshowList :: [Workflow] -&gt; ShowS
+showList :: [Workflow] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519550"><span id="local-6989586621679519566"><span id="local-6989586621679519578"><span id="local-6989586621679519580"><span id="local-6989586621679519582"><span id="local-6989586621679519588"><span id="local-6989586621679519593"><span id="local-6989586621679519596"><span id="local-6989586621679519599"><span id="local-6989586621679519602"><span id="local-6989586621679519605"><span id="local-6989586621679519608"><span id="local-6989586621679519613"><span id="local-6989586621679519618"><span class="annot"><span class="annottext">Typeable Workflow
+Typeable Workflow =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Workflow -&gt; c Workflow)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Workflow)
+-&gt; (Workflow -&gt; Constr)
+-&gt; (Workflow -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Workflow))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Workflow))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Workflow -&gt; Workflow)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Workflow -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Workflow -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Workflow -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Workflow -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow)
+-&gt; Data Workflow
+Workflow -&gt; Constr
+Workflow -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Workflow -&gt; Workflow
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Workflow -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Workflow -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Workflow -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Workflow -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Workflow
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Workflow -&gt; c Workflow
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Workflow)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Workflow)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Workflow -&gt; c Workflow
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Workflow -&gt; c Workflow
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Workflow
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Workflow
+$ctoConstr :: Workflow -&gt; Constr
+toConstr :: Workflow -&gt; Constr
+$cdataTypeOf :: Workflow -&gt; DataType
+dataTypeOf :: Workflow -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Workflow)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Workflow)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Workflow)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Workflow)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Workflow -&gt; Workflow
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Workflow -&gt; Workflow
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Workflow -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Workflow -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Workflow -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Workflow -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Workflow -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Workflow -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Workflow -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Workflow -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Workflow -&gt; m Workflow
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519628"><span id="local-6989586621679519643"><span class="annot"><span class="annottext">Workflow -&gt; Workflow -&gt; Bool
+(Workflow -&gt; Workflow -&gt; Bool)
+-&gt; (Workflow -&gt; Workflow -&gt; Bool) -&gt; Eq Workflow
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Workflow -&gt; Workflow -&gt; Bool
+== :: Workflow -&gt; Workflow -&gt; Bool
+$c/= :: Workflow -&gt; Workflow -&gt; Bool
+/= :: Workflow -&gt; Workflow -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519650"><span id="local-6989586621679519665"><span id="local-6989586621679519676"><span id="local-6989586621679519680"><span id="local-6989586621679519683"><span id="local-6989586621679519686"><span id="local-6989586621679519689"><span class="annot"><span class="annottext">Eq Workflow
+Eq Workflow =&gt;
+(Workflow -&gt; Workflow -&gt; Ordering)
+-&gt; (Workflow -&gt; Workflow -&gt; Bool)
+-&gt; (Workflow -&gt; Workflow -&gt; Bool)
+-&gt; (Workflow -&gt; Workflow -&gt; Bool)
+-&gt; (Workflow -&gt; Workflow -&gt; Bool)
+-&gt; (Workflow -&gt; Workflow -&gt; Workflow)
+-&gt; (Workflow -&gt; Workflow -&gt; Workflow)
+-&gt; Ord Workflow
+Workflow -&gt; Workflow -&gt; Bool
+Workflow -&gt; Workflow -&gt; Ordering
+Workflow -&gt; Workflow -&gt; Workflow
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Workflow -&gt; Workflow -&gt; Ordering
+compare :: Workflow -&gt; Workflow -&gt; Ordering
+$c&lt; :: Workflow -&gt; Workflow -&gt; Bool
+&lt; :: Workflow -&gt; Workflow -&gt; Bool
+$c&lt;= :: Workflow -&gt; Workflow -&gt; Bool
+&lt;= :: Workflow -&gt; Workflow -&gt; Bool
+$c&gt; :: Workflow -&gt; Workflow -&gt; Bool
+&gt; :: Workflow -&gt; Workflow -&gt; Bool
+$c&gt;= :: Workflow -&gt; Workflow -&gt; Bool
+&gt;= :: Workflow -&gt; Workflow -&gt; Bool
+$cmax :: Workflow -&gt; Workflow -&gt; Workflow
+max :: Workflow -&gt; Workflow -&gt; Workflow
+$cmin :: Workflow -&gt; Workflow -&gt; Workflow
+min :: Workflow -&gt; Workflow -&gt; Workflow
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519697"><span id="local-6989586621679519699"><span class="annot"><span class="annottext">(forall x. Workflow -&gt; Rep Workflow x)
+-&gt; (forall x. Rep Workflow x -&gt; Workflow) -&gt; Generic Workflow
+forall x. Rep Workflow x -&gt; Workflow
+forall x. Workflow -&gt; Rep Workflow x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Workflow -&gt; Rep Workflow x
+from :: forall x. Workflow -&gt; Rep Workflow x
+$cto :: forall x. Rep Workflow x -&gt; Workflow
+to :: forall x. Rep Workflow x -&gt; Workflow
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">data</span><span> </span><span id="CreateWorkflowDispatchEvent"><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#CreateWorkflowDispatchEvent"><span class="hs-identifier hs-var">CreateWorkflowDispatchEvent</span></a></span></span><span> </span><span id="local-6989586621679519400"><span class="annot"><a href="#local-6989586621679519400"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CreateWorkflowDispatchEvent"><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#CreateWorkflowDispatchEvent"><span class="hs-identifier hs-var">CreateWorkflowDispatchEvent</span></a></span></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="createWorkflowDispatchEventRef"><span class="annot"><span class="annottext">forall a. CreateWorkflowDispatchEvent a -&gt; Text
+</span><a href="GitHub.Data.Actions.Workflows.html#createWorkflowDispatchEventRef"><span class="hs-identifier hs-var hs-var">createWorkflowDispatchEventRef</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="createWorkflowDispatchEventInputs"><span class="annot"><span class="annottext">forall a. CreateWorkflowDispatchEvent a -&gt; a
+</span><a href="GitHub.Data.Actions.Workflows.html#createWorkflowDispatchEventInputs"><span class="hs-identifier hs-var hs-var">createWorkflowDispatchEventInputs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679519400"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679519709"><span id="local-6989586621679519714"><span id="local-6989586621679519718"><span class="annot"><span class="annottext">Int -&gt; CreateWorkflowDispatchEvent a -&gt; ShowS
+[CreateWorkflowDispatchEvent a] -&gt; ShowS
+CreateWorkflowDispatchEvent a -&gt; String
+(Int -&gt; CreateWorkflowDispatchEvent a -&gt; ShowS)
+-&gt; (CreateWorkflowDispatchEvent a -&gt; String)
+-&gt; ([CreateWorkflowDispatchEvent a] -&gt; ShowS)
+-&gt; Show (CreateWorkflowDispatchEvent a)
+forall a. Show a =&gt; Int -&gt; CreateWorkflowDispatchEvent a -&gt; ShowS
+forall a. Show a =&gt; [CreateWorkflowDispatchEvent a] -&gt; ShowS
+forall a. Show a =&gt; CreateWorkflowDispatchEvent a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; CreateWorkflowDispatchEvent a -&gt; ShowS
+showsPrec :: Int -&gt; CreateWorkflowDispatchEvent a -&gt; ShowS
+$cshow :: forall a. Show a =&gt; CreateWorkflowDispatchEvent a -&gt; String
+show :: CreateWorkflowDispatchEvent a -&gt; String
+$cshowList :: forall a. Show a =&gt; [CreateWorkflowDispatchEvent a] -&gt; ShowS
+showList :: [CreateWorkflowDispatchEvent a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679519721"><span id="local-6989586621679519723"><span class="annot"><span class="annottext">(forall x.
+ CreateWorkflowDispatchEvent a
+ -&gt; Rep (CreateWorkflowDispatchEvent a) x)
+-&gt; (forall x.
+    Rep (CreateWorkflowDispatchEvent a) x
+    -&gt; CreateWorkflowDispatchEvent a)
+-&gt; Generic (CreateWorkflowDispatchEvent a)
+forall x.
+Rep (CreateWorkflowDispatchEvent a) x
+-&gt; CreateWorkflowDispatchEvent a
+forall x.
+CreateWorkflowDispatchEvent a
+-&gt; Rep (CreateWorkflowDispatchEvent a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x.
+Rep (CreateWorkflowDispatchEvent a) x
+-&gt; CreateWorkflowDispatchEvent a
+forall a x.
+CreateWorkflowDispatchEvent a
+-&gt; Rep (CreateWorkflowDispatchEvent a) x
+$cfrom :: forall a x.
+CreateWorkflowDispatchEvent a
+-&gt; Rep (CreateWorkflowDispatchEvent a) x
+from :: forall x.
+CreateWorkflowDispatchEvent a
+-&gt; Rep (CreateWorkflowDispatchEvent a) x
+$cto :: forall a x.
+Rep (CreateWorkflowDispatchEvent a) x
+-&gt; CreateWorkflowDispatchEvent a
+to :: forall x.
+Rep (CreateWorkflowDispatchEvent a) x
+-&gt; CreateWorkflowDispatchEvent a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519424"><span id="local-6989586621679519727"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679519424"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#CreateWorkflowDispatchEvent"><span class="hs-identifier hs-type">CreateWorkflowDispatchEvent</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519424"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519446"><span id="local-6989586621679519747"><span id="local-6989586621679519754"><span id="local-6989586621679519760"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="#local-6989586621679519446"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#CreateWorkflowDispatchEvent"><span class="hs-identifier hs-type">CreateWorkflowDispatchEvent</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519446"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- JSON instances</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519786"><span id="local-6989586621679519790"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#Workflow"><span class="hs-identifier hs-type">Workflow</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>    </span><span id="local-6989586621679519827"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Workflow
+</span><a href="#local-6989586621679519827"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Workflow) -&gt; Value -&gt; Parser Workflow
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Workflow&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Workflow) -&gt; Value -&gt; Parser Workflow)
+-&gt; (Object -&gt; Parser Workflow) -&gt; Value -&gt; Parser Workflow
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679519830"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519830"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Id Workflow
+-&gt; Text
+-&gt; Text
+-&gt; Text
+-&gt; UTCTime
+-&gt; UTCTime
+-&gt; URL
+-&gt; URL
+-&gt; URL
+-&gt; Workflow
+</span><a href="GitHub.Data.Actions.Workflows.html#Workflow"><span class="hs-identifier hs-var">Workflow</span></a></span><span>
+</span><span id="line-45"></span><span>        </span><span class="annot"><span class="annottext">(Id Workflow
+ -&gt; Text
+ -&gt; Text
+ -&gt; Text
+ -&gt; UTCTime
+ -&gt; UTCTime
+ -&gt; URL
+ -&gt; URL
+ -&gt; URL
+ -&gt; Workflow)
+-&gt; Parser (Id Workflow)
+-&gt; Parser
+     (Text
+      -&gt; Text
+      -&gt; Text
+      -&gt; UTCTime
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; URL
+      -&gt; URL
+      -&gt; Workflow)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519830"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Workflow)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-46"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Text
+   -&gt; Text
+   -&gt; Text
+   -&gt; UTCTime
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; URL
+   -&gt; URL
+   -&gt; Workflow)
+-&gt; Parser Text
+-&gt; Parser
+     (Text
+      -&gt; Text -&gt; UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; URL -&gt; Workflow)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519830"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;name&quot;</span></span><span>
+</span><span id="line-47"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Text
+   -&gt; Text -&gt; UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; URL -&gt; Workflow)
+-&gt; Parser Text
+-&gt; Parser
+     (Text -&gt; UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; URL -&gt; Workflow)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519830"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;path&quot;</span></span><span>
+</span><span id="line-48"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Text -&gt; UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; URL -&gt; Workflow)
+-&gt; Parser Text
+-&gt; Parser (UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; URL -&gt; Workflow)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519830"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;state&quot;</span></span><span>
+</span><span id="line-49"></span><span>        </span><span class="annot"><span class="annottext">Parser (UTCTime -&gt; UTCTime -&gt; URL -&gt; URL -&gt; URL -&gt; Workflow)
+-&gt; Parser UTCTime
+-&gt; Parser (UTCTime -&gt; URL -&gt; URL -&gt; URL -&gt; Workflow)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519830"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-50"></span><span>        </span><span class="annot"><span class="annottext">Parser (UTCTime -&gt; URL -&gt; URL -&gt; URL -&gt; Workflow)
+-&gt; Parser UTCTime -&gt; Parser (URL -&gt; URL -&gt; URL -&gt; Workflow)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519830"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;updated_at&quot;</span></span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; URL -&gt; URL -&gt; Workflow)
+-&gt; Parser URL -&gt; Parser (URL -&gt; URL -&gt; Workflow)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519830"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-52"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; URL -&gt; Workflow)
+-&gt; Parser URL -&gt; Parser (URL -&gt; Workflow)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519830"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;html_url&quot;</span></span><span>
+</span><span id="line-53"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; Workflow) -&gt; Parser URL -&gt; Parser Workflow
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519830"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;badge_url&quot;</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519835"><span id="local-6989586621679519839"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier hs-type">WithTotalCount</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#Workflow"><span class="hs-identifier hs-type">Workflow</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679519850"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser (WithTotalCount Workflow)
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser (WithTotalCount Workflow))
+-&gt; Value
+-&gt; Parser (WithTotalCount Workflow)
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;WorkflowList&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser (WithTotalCount Workflow))
+ -&gt; Value -&gt; Parser (WithTotalCount Workflow))
+-&gt; (Object -&gt; Parser (WithTotalCount Workflow))
+-&gt; Value
+-&gt; Parser (WithTotalCount Workflow)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679519851"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519851"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Vector Workflow -&gt; Int -&gt; WithTotalCount Workflow
+forall a. Vector a -&gt; Int -&gt; WithTotalCount a
+</span><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier hs-var">WithTotalCount</span></a></span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><span class="annottext">(Vector Workflow -&gt; Int -&gt; WithTotalCount Workflow)
+-&gt; Parser (Vector Workflow)
+-&gt; Parser (Int -&gt; WithTotalCount Workflow)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519851"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Vector Workflow)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;workflows&quot;</span></span><span>
+</span><span id="line-58"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; WithTotalCount Workflow)
+-&gt; Parser Int -&gt; Parser (WithTotalCount Workflow)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679519851"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;total_count&quot;</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519475"><span id="local-6989586621679519855"><span id="local-6989586621679519859"><span id="local-6989586621679519862"><span id="local-6989586621679519865"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679519475"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#CreateWorkflowDispatchEvent"><span class="hs-identifier hs-type">CreateWorkflowDispatchEvent</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519475"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679519878"><span class="annot"><span class="annottext">toJSON :: CreateWorkflowDispatchEvent a -&gt; Value
+</span><a href="#local-6989586621679519878"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#CreateWorkflowDispatchEvent"><span class="hs-identifier hs-type">CreateWorkflowDispatchEvent</span></a></span><span> </span><span id="local-6989586621679519880"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679519880"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span id="local-6989586621679519881"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679519881"><span class="hs-identifier hs-var">inputs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;ref&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679519880"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;inputs&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; a -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679519881"><span class="hs-identifier hs-var">inputs</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span></pre></body></html>

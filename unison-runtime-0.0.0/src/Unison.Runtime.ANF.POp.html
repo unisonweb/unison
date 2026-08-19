@@ -1,0 +1,786 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621680699282"><span id="local-6989586621680699283"></span></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.POp.html"><span class="hs-identifier">Unison.Runtime.ANF.POp</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">map</span></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Note: Enum/Bounded instances should only be used for things like</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- getting a list of all ops. Using auto-generated numberings for</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- serialization, for instance, could cause observable changes to</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- formats that we want to control and version.</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">data</span><span> </span><span id="POp"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#POp"><span class="hs-identifier hs-var">POp</span></a></span></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">-- Int</span><span>
+</span><span id="line-12"></span><span>    </span><span id="ADDI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ADDI"><span class="hs-identifier hs-var">ADDI</span></a></span></span><span> </span><span class="hs-comment">-- +</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SUBI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SUBI"><span class="hs-identifier hs-var">SUBI</span></a></span></span><span> </span><span class="hs-comment">-- -</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MULI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#MULI"><span class="hs-identifier hs-var">MULI</span></a></span></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DIVI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#DIVI"><span class="hs-identifier hs-var">DIVI</span></a></span></span><span> </span><span class="hs-comment">-- /</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SGNI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SGNI"><span class="hs-identifier hs-var">SGNI</span></a></span></span><span> </span><span class="hs-comment">-- sgn</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NEGI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#NEGI"><span class="hs-identifier hs-var">NEGI</span></a></span></span><span> </span><span class="hs-comment">-- neg</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MODI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#MODI"><span class="hs-identifier hs-var">MODI</span></a></span></span><span> </span><span class="hs-comment">-- mod</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="POWI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#POWI"><span class="hs-identifier hs-var">POWI</span></a></span></span><span> </span><span class="hs-comment">-- pow</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SHLI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SHLI"><span class="hs-identifier hs-var">SHLI</span></a></span></span><span> </span><span class="hs-comment">-- shiftl</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SHRI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SHRI"><span class="hs-identifier hs-var">SHRI</span></a></span></span><span> </span><span class="hs-comment">-- shiftr</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ANDI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ANDI"><span class="hs-identifier hs-var">ANDI</span></a></span></span><span> </span><span class="hs-comment">-- and</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IORI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#IORI"><span class="hs-identifier hs-var">IORI</span></a></span></span><span> </span><span class="hs-comment">-- or</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XORI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#XORI"><span class="hs-identifier hs-var">XORI</span></a></span></span><span> </span><span class="hs-comment">-- xor</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="COMI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#COMI"><span class="hs-identifier hs-var">COMI</span></a></span></span><span> </span><span class="hs-comment">-- complement</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="INCI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#INCI"><span class="hs-identifier hs-var">INCI</span></a></span></span><span> </span><span class="hs-comment">-- inc</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DECI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#DECI"><span class="hs-identifier hs-var">DECI</span></a></span></span><span> </span><span class="hs-comment">-- dec</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LEQI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LEQI"><span class="hs-identifier hs-var">LEQI</span></a></span></span><span> </span><span class="hs-comment">-- &lt;=</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LESI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LESI"><span class="hs-identifier hs-var">LESI</span></a></span></span><span> </span><span class="hs-comment">-- &lt;</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EQLI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#EQLI"><span class="hs-identifier hs-var">EQLI</span></a></span></span><span> </span><span class="hs-comment">-- ==</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NEQI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#NEQI"><span class="hs-identifier hs-var">NEQI</span></a></span></span><span> </span><span class="hs-comment">-- !=</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TRNC"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TRNC"><span class="hs-identifier hs-var">TRNC</span></a></span></span><span> </span><span class="hs-comment">-- truncate0</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-comment">-- Nat</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ADDN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ADDN"><span class="hs-identifier hs-var">ADDN</span></a></span></span><span> </span><span class="hs-comment">-- +</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SUBN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SUBN"><span class="hs-identifier hs-var">SUBN</span></a></span></span><span> </span><span class="hs-comment">-- -</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DRPN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#DRPN"><span class="hs-identifier hs-var">DRPN</span></a></span></span><span> </span><span class="hs-comment">-- drop</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MULN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#MULN"><span class="hs-identifier hs-var">MULN</span></a></span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DIVN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#DIVN"><span class="hs-identifier hs-var">DIVN</span></a></span></span><span> </span><span class="hs-comment">-- /</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MODN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#MODN"><span class="hs-identifier hs-var">MODN</span></a></span></span><span> </span><span class="hs-comment">-- mod</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TZRO"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TZRO"><span class="hs-identifier hs-var">TZRO</span></a></span></span><span> </span><span class="hs-comment">-- trailingZeros</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LZRO"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LZRO"><span class="hs-identifier hs-var">LZRO</span></a></span></span><span> </span><span class="hs-comment">-- leadingZeros</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="POPC"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#POPC"><span class="hs-identifier hs-var">POPC</span></a></span></span><span> </span><span class="hs-comment">-- popCount</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="POWN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#POWN"><span class="hs-identifier hs-var">POWN</span></a></span></span><span> </span><span class="hs-comment">-- pow</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SHLN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SHLN"><span class="hs-identifier hs-var">SHLN</span></a></span></span><span> </span><span class="hs-comment">-- shiftl</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SHRN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SHRN"><span class="hs-identifier hs-var">SHRN</span></a></span></span><span> </span><span class="hs-comment">-- shiftr</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ANDN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ANDN"><span class="hs-identifier hs-var">ANDN</span></a></span></span><span> </span><span class="hs-comment">-- and</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IORN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#IORN"><span class="hs-identifier hs-var">IORN</span></a></span></span><span> </span><span class="hs-comment">-- or</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XORN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#XORN"><span class="hs-identifier hs-var">XORN</span></a></span></span><span> </span><span class="hs-comment">-- xor</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="COMN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#COMN"><span class="hs-identifier hs-var">COMN</span></a></span></span><span> </span><span class="hs-comment">-- complement</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="INCN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#INCN"><span class="hs-identifier hs-var">INCN</span></a></span></span><span> </span><span class="hs-comment">-- inc</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DECN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#DECN"><span class="hs-identifier hs-var">DECN</span></a></span></span><span> </span><span class="hs-comment">-- dec</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LEQN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LEQN"><span class="hs-identifier hs-var">LEQN</span></a></span></span><span> </span><span class="hs-comment">-- &lt;=</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LESN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LESN"><span class="hs-identifier hs-var">LESN</span></a></span></span><span> </span><span class="hs-comment">-- &lt;</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EQLN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#EQLN"><span class="hs-identifier hs-var">EQLN</span></a></span></span><span> </span><span class="hs-comment">-- ==</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NEQN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#NEQN"><span class="hs-identifier hs-var">NEQN</span></a></span></span><span> </span><span class="hs-comment">-- !=</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-comment">-- Float</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ADDF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ADDF"><span class="hs-identifier hs-var">ADDF</span></a></span></span><span> </span><span class="hs-comment">-- +</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SUBF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SUBF"><span class="hs-identifier hs-var">SUBF</span></a></span></span><span> </span><span class="hs-comment">-- -</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MULF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#MULF"><span class="hs-identifier hs-var">MULF</span></a></span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DIVF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#DIVF"><span class="hs-identifier hs-var">DIVF</span></a></span></span><span> </span><span class="hs-comment">-- /</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MINF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#MINF"><span class="hs-identifier hs-var">MINF</span></a></span></span><span> </span><span class="hs-comment">-- min</span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MAXF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#MAXF"><span class="hs-identifier hs-var">MAXF</span></a></span></span><span> </span><span class="hs-comment">-- max</span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LEQF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LEQF"><span class="hs-identifier hs-var">LEQF</span></a></span></span><span> </span><span class="hs-comment">-- &lt;=</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LESF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LESF"><span class="hs-identifier hs-var">LESF</span></a></span></span><span> </span><span class="hs-comment">-- &lt;</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EQLF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#EQLF"><span class="hs-identifier hs-var">EQLF</span></a></span></span><span> </span><span class="hs-comment">-- ==</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NEQF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#NEQF"><span class="hs-identifier hs-var">NEQF</span></a></span></span><span> </span><span class="hs-comment">-- !=</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="POWF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#POWF"><span class="hs-identifier hs-var">POWF</span></a></span></span><span> </span><span class="hs-comment">-- pow</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EXPF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#EXPF"><span class="hs-identifier hs-var">EXPF</span></a></span></span><span> </span><span class="hs-comment">-- exp</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SQRT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SQRT"><span class="hs-identifier hs-var">SQRT</span></a></span></span><span> </span><span class="hs-comment">-- sqrt</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LOGF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LOGF"><span class="hs-identifier hs-var">LOGF</span></a></span></span><span> </span><span class="hs-comment">-- log</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LOGB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LOGB"><span class="hs-identifier hs-var">LOGB</span></a></span></span><span> </span><span class="hs-comment">-- logBase</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ABSF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ABSF"><span class="hs-identifier hs-var">ABSF</span></a></span></span><span> </span><span class="hs-comment">-- abs</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CEIL"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#CEIL"><span class="hs-identifier hs-var">CEIL</span></a></span></span><span> </span><span class="hs-comment">-- ceil</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FLOR"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#FLOR"><span class="hs-identifier hs-var">FLOR</span></a></span></span><span> </span><span class="hs-comment">-- floor</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TRNF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TRNF"><span class="hs-identifier hs-var">TRNF</span></a></span></span><span> </span><span class="hs-comment">-- truncate</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RNDF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#RNDF"><span class="hs-identifier hs-var">RNDF</span></a></span></span><span> </span><span class="hs-comment">-- round</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-comment">-- Trig</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="COSF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#COSF"><span class="hs-identifier hs-var">COSF</span></a></span></span><span> </span><span class="hs-comment">-- cos</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ACOS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ACOS"><span class="hs-identifier hs-var">ACOS</span></a></span></span><span> </span><span class="hs-comment">-- acos</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="COSH"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#COSH"><span class="hs-identifier hs-var">COSH</span></a></span></span><span> </span><span class="hs-comment">-- cosh</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ACSH"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ACSH"><span class="hs-identifier hs-var">ACSH</span></a></span></span><span> </span><span class="hs-comment">-- acosh</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SINF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SINF"><span class="hs-identifier hs-var">SINF</span></a></span></span><span> </span><span class="hs-comment">-- sin</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ASIN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ASIN"><span class="hs-identifier hs-var">ASIN</span></a></span></span><span> </span><span class="hs-comment">-- asin</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SINH"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SINH"><span class="hs-identifier hs-var">SINH</span></a></span></span><span> </span><span class="hs-comment">-- sinh</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ASNH"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ASNH"><span class="hs-identifier hs-var">ASNH</span></a></span></span><span> </span><span class="hs-comment">-- asinh</span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TANF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TANF"><span class="hs-identifier hs-var">TANF</span></a></span></span><span> </span><span class="hs-comment">-- tan</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ATAN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ATAN"><span class="hs-identifier hs-var">ATAN</span></a></span></span><span> </span><span class="hs-comment">-- atan</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TANH"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TANH"><span class="hs-identifier hs-var">TANH</span></a></span></span><span> </span><span class="hs-comment">-- tanh</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ATNH"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ATNH"><span class="hs-identifier hs-var">ATNH</span></a></span></span><span> </span><span class="hs-comment">-- atanh</span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ATN2"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ATN2"><span class="hs-identifier hs-var">ATN2</span></a></span></span><span> </span><span class="hs-comment">-- atan2</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-comment">-- Text</span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CATT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#CATT"><span class="hs-identifier hs-var">CATT</span></a></span></span><span> </span><span class="hs-comment">-- ++</span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TAKT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TAKT"><span class="hs-identifier hs-var">TAKT</span></a></span></span><span> </span><span class="hs-comment">-- take</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DRPT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#DRPT"><span class="hs-identifier hs-var">DRPT</span></a></span></span><span> </span><span class="hs-comment">-- drop</span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SIZT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SIZT"><span class="hs-identifier hs-var">SIZT</span></a></span></span><span> </span><span class="hs-comment">-- size</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IXOT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#IXOT"><span class="hs-identifier hs-var">IXOT</span></a></span></span><span> </span><span class="hs-comment">-- indexOf</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UCNS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#UCNS"><span class="hs-identifier hs-var">UCNS</span></a></span></span><span> </span><span class="hs-comment">-- uncons</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="USNC"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#USNC"><span class="hs-identifier hs-var">USNC</span></a></span></span><span> </span><span class="hs-comment">-- unsnoc</span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EQLT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#EQLT"><span class="hs-identifier hs-var">EQLT</span></a></span></span><span> </span><span class="hs-comment">-- ==</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LEQT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LEQT"><span class="hs-identifier hs-var">LEQT</span></a></span></span><span> </span><span class="hs-comment">-- &lt;=</span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PAKT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#PAKT"><span class="hs-identifier hs-var">PAKT</span></a></span></span><span> </span><span class="hs-comment">-- pack</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UPKT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#UPKT"><span class="hs-identifier hs-var">UPKT</span></a></span></span><span> </span><span class="hs-comment">-- unpack</span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-comment">-- Sequence</span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CATS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#CATS"><span class="hs-identifier hs-var">CATS</span></a></span></span><span> </span><span class="hs-comment">-- ++</span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TAKS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TAKS"><span class="hs-identifier hs-var">TAKS</span></a></span></span><span> </span><span class="hs-comment">-- take</span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DRPS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#DRPS"><span class="hs-identifier hs-var">DRPS</span></a></span></span><span> </span><span class="hs-comment">-- drop</span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SIZS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SIZS"><span class="hs-identifier hs-var">SIZS</span></a></span></span><span> </span><span class="hs-comment">-- size</span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CONS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#CONS"><span class="hs-identifier hs-var">CONS</span></a></span></span><span> </span><span class="hs-comment">-- cons</span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SNOC"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SNOC"><span class="hs-identifier hs-var">SNOC</span></a></span></span><span> </span><span class="hs-comment">-- snoc</span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IDXS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#IDXS"><span class="hs-identifier hs-var">IDXS</span></a></span></span><span> </span><span class="hs-comment">-- at</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BLDS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#BLDS"><span class="hs-identifier hs-var">BLDS</span></a></span></span><span> </span><span class="hs-comment">-- build</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="VWLS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#VWLS"><span class="hs-identifier hs-var">VWLS</span></a></span></span><span> </span><span class="hs-comment">-- viewl</span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="VWRS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#VWRS"><span class="hs-identifier hs-var">VWRS</span></a></span></span><span> </span><span class="hs-comment">-- viewr</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SPLL"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SPLL"><span class="hs-identifier hs-var">SPLL</span></a></span></span><span> </span><span class="hs-comment">-- splitl</span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SPLR"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SPLR"><span class="hs-identifier hs-var">SPLR</span></a></span></span><span> </span><span class="hs-comment">-- splitr</span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-comment">-- Bytes</span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PAKB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#PAKB"><span class="hs-identifier hs-var">PAKB</span></a></span></span><span> </span><span class="hs-comment">-- pack</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UPKB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#UPKB"><span class="hs-identifier hs-var">UPKB</span></a></span></span><span> </span><span class="hs-comment">-- unpack</span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TAKB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TAKB"><span class="hs-identifier hs-var">TAKB</span></a></span></span><span> </span><span class="hs-comment">-- take</span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DRPB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#DRPB"><span class="hs-identifier hs-var">DRPB</span></a></span></span><span> </span><span class="hs-comment">-- drop</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IXOB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#IXOB"><span class="hs-identifier hs-var">IXOB</span></a></span></span><span> </span><span class="hs-comment">-- indexOf</span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IDXB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#IDXB"><span class="hs-identifier hs-var">IDXB</span></a></span></span><span> </span><span class="hs-comment">-- index</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SIZB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SIZB"><span class="hs-identifier hs-var">SIZB</span></a></span></span><span> </span><span class="hs-comment">-- size</span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FLTB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#FLTB"><span class="hs-identifier hs-var">FLTB</span></a></span></span><span> </span><span class="hs-comment">-- flatten</span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CATB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#CATB"><span class="hs-identifier hs-var">CATB</span></a></span></span><span> </span><span class="hs-comment">-- append</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-comment">-- Conversion</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ITOF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ITOF"><span class="hs-identifier hs-var">ITOF</span></a></span></span><span> </span><span class="hs-comment">-- intToFloat</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NTOF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#NTOF"><span class="hs-identifier hs-var">NTOF</span></a></span></span><span> </span><span class="hs-comment">-- natToFloat</span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ITOT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ITOT"><span class="hs-identifier hs-var">ITOT</span></a></span></span><span> </span><span class="hs-comment">-- intToText</span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NTOT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#NTOT"><span class="hs-identifier hs-var">NTOT</span></a></span></span><span> </span><span class="hs-comment">-- natToText</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TTOI"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TTOI"><span class="hs-identifier hs-var">TTOI</span></a></span></span><span> </span><span class="hs-comment">-- textToInt</span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TTON"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TTON"><span class="hs-identifier hs-var">TTON</span></a></span></span><span> </span><span class="hs-comment">-- textToNat</span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TTOF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TTOF"><span class="hs-identifier hs-var">TTOF</span></a></span></span><span> </span><span class="hs-comment">-- textToFloat</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FTOT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#FTOT"><span class="hs-identifier hs-var">FTOT</span></a></span></span><span> </span><span class="hs-comment">-- floatToText</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CAST"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#CAST"><span class="hs-identifier hs-var">CAST</span></a></span></span><span> </span><span class="hs-comment">-- runtime type cast for unboxed values.</span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- Concurrency</span><span>
+</span><span id="line-137"></span><span>    </span><span id="FORK"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#FORK"><span class="hs-identifier hs-var">FORK</span></a></span></span><span> </span><span class="hs-comment">-- fork</span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- Universal operations</span><span>
+</span><span id="line-139"></span><span>    </span><span id="EQLU"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#EQLU"><span class="hs-identifier hs-var">EQLU</span></a></span></span><span> </span><span class="hs-comment">-- ==</span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CMPU"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#CMPU"><span class="hs-identifier hs-var">CMPU</span></a></span></span><span> </span><span class="hs-comment">-- compare</span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LEQU"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LEQU"><span class="hs-identifier hs-var">LEQU</span></a></span></span><span> </span><span class="hs-comment">-- &lt;=</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LESU"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LESU"><span class="hs-identifier hs-var">LESU</span></a></span></span><span> </span><span class="hs-comment">-- &lt;</span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EROR"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#EROR"><span class="hs-identifier hs-var">EROR</span></a></span></span><span> </span><span class="hs-comment">-- error</span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- Code</span><span>
+</span><span id="line-145"></span><span>    </span><span id="MISS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#MISS"><span class="hs-identifier hs-var">MISS</span></a></span></span><span> </span><span class="hs-comment">-- isMissing</span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CACH"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#CACH"><span class="hs-identifier hs-var">CACH</span></a></span></span><span> </span><span class="hs-comment">-- cache_</span><span>
+</span><span id="line-147"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LKUP"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LKUP"><span class="hs-identifier hs-var">LKUP</span></a></span></span><span> </span><span class="hs-comment">-- lookup</span><span>
+</span><span id="line-148"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LOAD"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#LOAD"><span class="hs-identifier hs-var">LOAD</span></a></span></span><span> </span><span class="hs-comment">-- load</span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CVLD"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#CVLD"><span class="hs-identifier hs-var">CVLD</span></a></span></span><span> </span><span class="hs-comment">-- validate</span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SDBX"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SDBX"><span class="hs-identifier hs-var">SDBX</span></a></span></span><span> </span><span class="hs-comment">-- sandbox</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="VALU"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#VALU"><span class="hs-identifier hs-var">VALU</span></a></span></span><span> </span><span class="hs-comment">-- value</span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TLTT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TLTT"><span class="hs-identifier hs-var">TLTT</span></a></span></span><span> </span><span class="hs-comment">-- Term.Link.toText</span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-comment">-- Debug</span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PRNT"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#PRNT"><span class="hs-identifier hs-var">PRNT</span></a></span></span><span> </span><span class="hs-comment">-- print</span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="INFO"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#INFO"><span class="hs-identifier hs-var">INFO</span></a></span></span><span> </span><span class="hs-comment">-- info</span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TRCE"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TRCE"><span class="hs-identifier hs-var">TRCE</span></a></span></span><span> </span><span class="hs-comment">-- trace</span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DBTX"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#DBTX"><span class="hs-identifier hs-var">DBTX</span></a></span></span><span> </span><span class="hs-comment">-- debugText</span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- STM</span><span>
+</span><span id="line-159"></span><span>    </span><span id="ATOM"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ATOM"><span class="hs-identifier hs-var">ATOM</span></a></span></span><span> </span><span class="hs-comment">-- atomically</span><span>
+</span><span id="line-160"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TFRC"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TFRC"><span class="hs-identifier hs-var">TFRC</span></a></span></span><span> </span><span class="hs-comment">-- try force</span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SDBL"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SDBL"><span class="hs-identifier hs-var">SDBL</span></a></span></span><span> </span><span class="hs-comment">-- sandbox link list</span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SDBV"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#SDBV"><span class="hs-identifier hs-var">SDBV</span></a></span></span><span> </span><span class="hs-comment">-- sandbox check for Values</span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-comment">-- Refs</span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="REFN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#REFN"><span class="hs-identifier hs-var">REFN</span></a></span></span><span> </span><span class="hs-comment">-- Ref.new</span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="REFR"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#REFR"><span class="hs-identifier hs-var">REFR</span></a></span></span><span> </span><span class="hs-comment">-- Ref.read</span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="REFW"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#REFW"><span class="hs-identifier hs-var">REFW</span></a></span></span><span> </span><span class="hs-comment">-- Ref.write</span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RCAS"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#RCAS"><span class="hs-identifier hs-var">RCAS</span></a></span></span><span> </span><span class="hs-comment">-- Ref.cas</span><span>
+</span><span id="line-168"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RRFC"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#RRFC"><span class="hs-identifier hs-var">RRFC</span></a></span></span><span> </span><span class="hs-comment">-- Ref.readForCas</span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TIKR"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#TIKR"><span class="hs-identifier hs-var">TIKR</span></a></span></span><span> </span><span class="hs-comment">-- Ref.Ticket.read</span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-comment">-- Bools</span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NOTB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#NOTB"><span class="hs-identifier hs-var">NOTB</span></a></span></span><span> </span><span class="hs-comment">-- not</span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ANDB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#ANDB"><span class="hs-identifier hs-var">ANDB</span></a></span></span><span> </span><span class="hs-comment">-- and</span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IORB"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#IORB"><span class="hs-identifier hs-var">IORB</span></a></span></span><span> </span><span class="hs-comment">-- or</span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-comment">-- low level</span><span>
+</span><span id="line-175"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="KEEP"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#KEEP"><span class="hs-identifier hs-var">KEEP</span></a></span></span><span> </span><span class="hs-comment">-- keepAlive</span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FGNN"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#FGNN"><span class="hs-identifier hs-var">FGNN</span></a></span></span><span> </span><span class="hs-comment">-- foreign pointer new</span><span>
+</span><span id="line-177"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FGNF"><span class="annot"><a href="Unison.Runtime.ANF.POp.html#FGNF"><span class="hs-identifier hs-var">FGNF</span></a></span></span><span> </span><span class="hs-comment">-- foreign pointer add finalizer</span><span>
+</span><span id="line-178"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680699600"><span id="local-6989586621680699602"><span id="local-6989586621680699606"><span class="annot"><span class="annottext">Int -&gt; POp -&gt; ShowS
+[POp] -&gt; ShowS
+POp -&gt; String
+(Int -&gt; POp -&gt; ShowS)
+-&gt; (POp -&gt; String) -&gt; ([POp] -&gt; ShowS) -&gt; Show POp
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; POp -&gt; ShowS
+showsPrec :: Int -&gt; POp -&gt; ShowS
+$cshow :: POp -&gt; String
+show :: POp -&gt; String
+$cshowList :: [POp] -&gt; ShowS
+showList :: [POp] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680699611"><span id="local-6989586621680699616"><span class="annot"><span class="annottext">POp -&gt; POp -&gt; Bool
+(POp -&gt; POp -&gt; Bool) -&gt; (POp -&gt; POp -&gt; Bool) -&gt; Eq POp
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: POp -&gt; POp -&gt; Bool
+== :: POp -&gt; POp -&gt; Bool
+$c/= :: POp -&gt; POp -&gt; Bool
+/= :: POp -&gt; POp -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680699623"><span id="local-6989586621680699627"><span id="local-6989586621680699631"><span id="local-6989586621680699634"><span id="local-6989586621680699637"><span id="local-6989586621680699640"><span id="local-6989586621680699643"><span class="annot"><span class="annottext">Eq POp
+Eq POp =&gt;
+(POp -&gt; POp -&gt; Ordering)
+-&gt; (POp -&gt; POp -&gt; Bool)
+-&gt; (POp -&gt; POp -&gt; Bool)
+-&gt; (POp -&gt; POp -&gt; Bool)
+-&gt; (POp -&gt; POp -&gt; Bool)
+-&gt; (POp -&gt; POp -&gt; POp)
+-&gt; (POp -&gt; POp -&gt; POp)
+-&gt; Ord POp
+POp -&gt; POp -&gt; Bool
+POp -&gt; POp -&gt; Ordering
+POp -&gt; POp -&gt; POp
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: POp -&gt; POp -&gt; Ordering
+compare :: POp -&gt; POp -&gt; Ordering
+$c&lt; :: POp -&gt; POp -&gt; Bool
+&lt; :: POp -&gt; POp -&gt; Bool
+$c&lt;= :: POp -&gt; POp -&gt; Bool
+&lt;= :: POp -&gt; POp -&gt; Bool
+$c&gt; :: POp -&gt; POp -&gt; Bool
+&gt; :: POp -&gt; POp -&gt; Bool
+$c&gt;= :: POp -&gt; POp -&gt; Bool
+&gt;= :: POp -&gt; POp -&gt; Bool
+$cmax :: POp -&gt; POp -&gt; POp
+max :: POp -&gt; POp -&gt; POp
+$cmin :: POp -&gt; POp -&gt; POp
+min :: POp -&gt; POp -&gt; POp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680699651"><span id="local-6989586621680699660"><span id="local-6989586621680699667"><span id="local-6989586621680699681"><span id="local-6989586621680699684"><span id="local-6989586621680699689"><span id="local-6989586621680699695"><span id="local-6989586621680699698"><span class="annot"><span class="annottext">Int -&gt; POp
+POp -&gt; Int
+POp -&gt; [POp]
+POp -&gt; POp
+POp -&gt; POp -&gt; [POp]
+POp -&gt; POp -&gt; POp -&gt; [POp]
+(POp -&gt; POp)
+-&gt; (POp -&gt; POp)
+-&gt; (Int -&gt; POp)
+-&gt; (POp -&gt; Int)
+-&gt; (POp -&gt; [POp])
+-&gt; (POp -&gt; POp -&gt; [POp])
+-&gt; (POp -&gt; POp -&gt; [POp])
+-&gt; (POp -&gt; POp -&gt; POp -&gt; [POp])
+-&gt; Enum POp
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: POp -&gt; POp
+succ :: POp -&gt; POp
+$cpred :: POp -&gt; POp
+pred :: POp -&gt; POp
+$ctoEnum :: Int -&gt; POp
+toEnum :: Int -&gt; POp
+$cfromEnum :: POp -&gt; Int
+fromEnum :: POp -&gt; Int
+$cenumFrom :: POp -&gt; [POp]
+enumFrom :: POp -&gt; [POp]
+$cenumFromThen :: POp -&gt; POp -&gt; [POp]
+enumFromThen :: POp -&gt; POp -&gt; [POp]
+$cenumFromTo :: POp -&gt; POp -&gt; [POp]
+enumFromTo :: POp -&gt; POp -&gt; [POp]
+$cenumFromThenTo :: POp -&gt; POp -&gt; POp -&gt; [POp]
+enumFromThenTo :: POp -&gt; POp -&gt; POp -&gt; [POp]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680699706"><span id="local-6989586621680699708"><span class="annot"><span class="annottext">POp
+POp -&gt; POp -&gt; Bounded POp
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: POp
+minBound :: POp
+$cmaxBound :: POp
+maxBound :: POp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="annot"><a href="Unison.Runtime.ANF.POp.html#pOpCode"><span class="hs-identifier hs-type">pOpCode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.POp.html#POp"><span class="hs-identifier hs-type">POp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-181"></span><span id="pOpCode"><span class="annot"><span class="annottext">pOpCode :: POp -&gt; Word16
+</span><a href="Unison.Runtime.ANF.POp.html#pOpCode"><span class="hs-identifier hs-var hs-var">pOpCode</span></a></span></span><span> </span><span id="local-6989586621680699713"><span class="annot"><span class="annottext">POp
+</span><a href="#local-6989586621680699713"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">POp
+</span><a href="#local-6989586621680699713"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-182"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ADDI"><span class="hs-identifier hs-var">ADDI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-183"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SUBI"><span class="hs-identifier hs-var">SUBI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-184"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#MULI"><span class="hs-identifier hs-var">MULI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-185"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#DIVI"><span class="hs-identifier hs-var">DIVI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-186"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SGNI"><span class="hs-identifier hs-var">SGNI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-187"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#NEGI"><span class="hs-identifier hs-var">NEGI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-188"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#MODI"><span class="hs-identifier hs-var">MODI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-189"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#POWI"><span class="hs-identifier hs-var">POWI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">7</span></span><span>
+</span><span id="line-190"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SHLI"><span class="hs-identifier hs-var">SHLI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-191"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SHRI"><span class="hs-identifier hs-var">SHRI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">9</span></span><span>
+</span><span id="line-192"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#INCI"><span class="hs-identifier hs-var">INCI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-193"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#DECI"><span class="hs-identifier hs-var">DECI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">11</span></span><span>
+</span><span id="line-194"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LEQI"><span class="hs-identifier hs-var">LEQI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">12</span></span><span>
+</span><span id="line-195"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#EQLI"><span class="hs-identifier hs-var">EQLI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">13</span></span><span>
+</span><span id="line-196"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ADDN"><span class="hs-identifier hs-var">ADDN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">14</span></span><span>
+</span><span id="line-197"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SUBN"><span class="hs-identifier hs-var">SUBN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">15</span></span><span>
+</span><span id="line-198"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#MULN"><span class="hs-identifier hs-var">MULN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-199"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#DIVN"><span class="hs-identifier hs-var">DIVN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">17</span></span><span>
+</span><span id="line-200"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#MODN"><span class="hs-identifier hs-var">MODN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">18</span></span><span>
+</span><span id="line-201"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TZRO"><span class="hs-identifier hs-var">TZRO</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">19</span></span><span>
+</span><span id="line-202"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LZRO"><span class="hs-identifier hs-var">LZRO</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">20</span></span><span>
+</span><span id="line-203"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#POWN"><span class="hs-identifier hs-var">POWN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">21</span></span><span>
+</span><span id="line-204"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SHLN"><span class="hs-identifier hs-var">SHLN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">22</span></span><span>
+</span><span id="line-205"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SHRN"><span class="hs-identifier hs-var">SHRN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">23</span></span><span>
+</span><span id="line-206"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ANDN"><span class="hs-identifier hs-var">ANDN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">24</span></span><span>
+</span><span id="line-207"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#IORN"><span class="hs-identifier hs-var">IORN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">25</span></span><span>
+</span><span id="line-208"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#XORN"><span class="hs-identifier hs-var">XORN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">26</span></span><span>
+</span><span id="line-209"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#COMN"><span class="hs-identifier hs-var">COMN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">27</span></span><span>
+</span><span id="line-210"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#INCN"><span class="hs-identifier hs-var">INCN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">28</span></span><span>
+</span><span id="line-211"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#DECN"><span class="hs-identifier hs-var">DECN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">29</span></span><span>
+</span><span id="line-212"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LEQN"><span class="hs-identifier hs-var">LEQN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">30</span></span><span>
+</span><span id="line-213"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#EQLN"><span class="hs-identifier hs-var">EQLN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">31</span></span><span>
+</span><span id="line-214"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ADDF"><span class="hs-identifier hs-var">ADDF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">32</span></span><span>
+</span><span id="line-215"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SUBF"><span class="hs-identifier hs-var">SUBF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">33</span></span><span>
+</span><span id="line-216"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#MULF"><span class="hs-identifier hs-var">MULF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">34</span></span><span>
+</span><span id="line-217"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#DIVF"><span class="hs-identifier hs-var">DIVF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">35</span></span><span>
+</span><span id="line-218"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#MINF"><span class="hs-identifier hs-var">MINF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">36</span></span><span>
+</span><span id="line-219"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#MAXF"><span class="hs-identifier hs-var">MAXF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">37</span></span><span>
+</span><span id="line-220"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LEQF"><span class="hs-identifier hs-var">LEQF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">38</span></span><span>
+</span><span id="line-221"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#EQLF"><span class="hs-identifier hs-var">EQLF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">39</span></span><span>
+</span><span id="line-222"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#POWF"><span class="hs-identifier hs-var">POWF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">40</span></span><span>
+</span><span id="line-223"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#EXPF"><span class="hs-identifier hs-var">EXPF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">41</span></span><span>
+</span><span id="line-224"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SQRT"><span class="hs-identifier hs-var">SQRT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">42</span></span><span>
+</span><span id="line-225"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LOGF"><span class="hs-identifier hs-var">LOGF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">43</span></span><span>
+</span><span id="line-226"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LOGB"><span class="hs-identifier hs-var">LOGB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">44</span></span><span>
+</span><span id="line-227"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ABSF"><span class="hs-identifier hs-var">ABSF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">45</span></span><span>
+</span><span id="line-228"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#CEIL"><span class="hs-identifier hs-var">CEIL</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">46</span></span><span>
+</span><span id="line-229"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#FLOR"><span class="hs-identifier hs-var">FLOR</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">47</span></span><span>
+</span><span id="line-230"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TRNF"><span class="hs-identifier hs-var">TRNF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">48</span></span><span>
+</span><span id="line-231"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#RNDF"><span class="hs-identifier hs-var">RNDF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">49</span></span><span>
+</span><span id="line-232"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#COSF"><span class="hs-identifier hs-var">COSF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">50</span></span><span>
+</span><span id="line-233"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ACOS"><span class="hs-identifier hs-var">ACOS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">51</span></span><span>
+</span><span id="line-234"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#COSH"><span class="hs-identifier hs-var">COSH</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">52</span></span><span>
+</span><span id="line-235"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ACSH"><span class="hs-identifier hs-var">ACSH</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">53</span></span><span>
+</span><span id="line-236"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SINF"><span class="hs-identifier hs-var">SINF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">54</span></span><span>
+</span><span id="line-237"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ASIN"><span class="hs-identifier hs-var">ASIN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">55</span></span><span>
+</span><span id="line-238"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SINH"><span class="hs-identifier hs-var">SINH</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">56</span></span><span>
+</span><span id="line-239"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ASNH"><span class="hs-identifier hs-var">ASNH</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">57</span></span><span>
+</span><span id="line-240"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TANF"><span class="hs-identifier hs-var">TANF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">58</span></span><span>
+</span><span id="line-241"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ATAN"><span class="hs-identifier hs-var">ATAN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">59</span></span><span>
+</span><span id="line-242"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TANH"><span class="hs-identifier hs-var">TANH</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">60</span></span><span>
+</span><span id="line-243"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ATNH"><span class="hs-identifier hs-var">ATNH</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">61</span></span><span>
+</span><span id="line-244"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ATN2"><span class="hs-identifier hs-var">ATN2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">62</span></span><span>
+</span><span id="line-245"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#CATT"><span class="hs-identifier hs-var">CATT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">63</span></span><span>
+</span><span id="line-246"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TAKT"><span class="hs-identifier hs-var">TAKT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">64</span></span><span>
+</span><span id="line-247"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#DRPT"><span class="hs-identifier hs-var">DRPT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">65</span></span><span>
+</span><span id="line-248"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SIZT"><span class="hs-identifier hs-var">SIZT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">66</span></span><span>
+</span><span id="line-249"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#UCNS"><span class="hs-identifier hs-var">UCNS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">67</span></span><span>
+</span><span id="line-250"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#USNC"><span class="hs-identifier hs-var">USNC</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">68</span></span><span>
+</span><span id="line-251"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#EQLT"><span class="hs-identifier hs-var">EQLT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">69</span></span><span>
+</span><span id="line-252"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LEQT"><span class="hs-identifier hs-var">LEQT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">70</span></span><span>
+</span><span id="line-253"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#PAKT"><span class="hs-identifier hs-var">PAKT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">71</span></span><span>
+</span><span id="line-254"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#UPKT"><span class="hs-identifier hs-var">UPKT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">72</span></span><span>
+</span><span id="line-255"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#CATS"><span class="hs-identifier hs-var">CATS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">73</span></span><span>
+</span><span id="line-256"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TAKS"><span class="hs-identifier hs-var">TAKS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">74</span></span><span>
+</span><span id="line-257"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#DRPS"><span class="hs-identifier hs-var">DRPS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">75</span></span><span>
+</span><span id="line-258"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SIZS"><span class="hs-identifier hs-var">SIZS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">76</span></span><span>
+</span><span id="line-259"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#CONS"><span class="hs-identifier hs-var">CONS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">77</span></span><span>
+</span><span id="line-260"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SNOC"><span class="hs-identifier hs-var">SNOC</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">78</span></span><span>
+</span><span id="line-261"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#IDXS"><span class="hs-identifier hs-var">IDXS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">79</span></span><span>
+</span><span id="line-262"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#BLDS"><span class="hs-identifier hs-var">BLDS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">80</span></span><span>
+</span><span id="line-263"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#VWLS"><span class="hs-identifier hs-var">VWLS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">81</span></span><span>
+</span><span id="line-264"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#VWRS"><span class="hs-identifier hs-var">VWRS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">82</span></span><span>
+</span><span id="line-265"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SPLL"><span class="hs-identifier hs-var">SPLL</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">83</span></span><span>
+</span><span id="line-266"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SPLR"><span class="hs-identifier hs-var">SPLR</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">84</span></span><span>
+</span><span id="line-267"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#PAKB"><span class="hs-identifier hs-var">PAKB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">85</span></span><span>
+</span><span id="line-268"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#UPKB"><span class="hs-identifier hs-var">UPKB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">86</span></span><span>
+</span><span id="line-269"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TAKB"><span class="hs-identifier hs-var">TAKB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">87</span></span><span>
+</span><span id="line-270"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#DRPB"><span class="hs-identifier hs-var">DRPB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">88</span></span><span>
+</span><span id="line-271"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#IDXB"><span class="hs-identifier hs-var">IDXB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">89</span></span><span>
+</span><span id="line-272"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SIZB"><span class="hs-identifier hs-var">SIZB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">90</span></span><span>
+</span><span id="line-273"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#FLTB"><span class="hs-identifier hs-var">FLTB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">91</span></span><span>
+</span><span id="line-274"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#CATB"><span class="hs-identifier hs-var">CATB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">92</span></span><span>
+</span><span id="line-275"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ITOF"><span class="hs-identifier hs-var">ITOF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">93</span></span><span>
+</span><span id="line-276"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#NTOF"><span class="hs-identifier hs-var">NTOF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">94</span></span><span>
+</span><span id="line-277"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ITOT"><span class="hs-identifier hs-var">ITOT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">95</span></span><span>
+</span><span id="line-278"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#NTOT"><span class="hs-identifier hs-var">NTOT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">96</span></span><span>
+</span><span id="line-279"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TTOI"><span class="hs-identifier hs-var">TTOI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">97</span></span><span>
+</span><span id="line-280"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TTON"><span class="hs-identifier hs-var">TTON</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">98</span></span><span>
+</span><span id="line-281"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TTOF"><span class="hs-identifier hs-var">TTOF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">99</span></span><span>
+</span><span id="line-282"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#FTOT"><span class="hs-identifier hs-var">FTOT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">100</span></span><span>
+</span><span id="line-283"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#FORK"><span class="hs-identifier hs-var">FORK</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">101</span></span><span>
+</span><span id="line-284"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#EQLU"><span class="hs-identifier hs-var">EQLU</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">102</span></span><span>
+</span><span id="line-285"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#CMPU"><span class="hs-identifier hs-var">CMPU</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">103</span></span><span>
+</span><span id="line-286"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#EROR"><span class="hs-identifier hs-var">EROR</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">104</span></span><span>
+</span><span id="line-287"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#PRNT"><span class="hs-identifier hs-var">PRNT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">105</span></span><span>
+</span><span id="line-288"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#INFO"><span class="hs-identifier hs-var">INFO</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">106</span></span><span>
+</span><span id="line-289"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#POPC"><span class="hs-identifier hs-var">POPC</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">107</span></span><span>
+</span><span id="line-290"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#MISS"><span class="hs-identifier hs-var">MISS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">108</span></span><span>
+</span><span id="line-291"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#CACH"><span class="hs-identifier hs-var">CACH</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">109</span></span><span>
+</span><span id="line-292"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LKUP"><span class="hs-identifier hs-var">LKUP</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">110</span></span><span>
+</span><span id="line-293"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LOAD"><span class="hs-identifier hs-var">LOAD</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">111</span></span><span>
+</span><span id="line-294"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#CVLD"><span class="hs-identifier hs-var">CVLD</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">112</span></span><span>
+</span><span id="line-295"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SDBX"><span class="hs-identifier hs-var">SDBX</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">113</span></span><span>
+</span><span id="line-296"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#VALU"><span class="hs-identifier hs-var">VALU</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">114</span></span><span>
+</span><span id="line-297"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TLTT"><span class="hs-identifier hs-var">TLTT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">115</span></span><span>
+</span><span id="line-298"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TRCE"><span class="hs-identifier hs-var">TRCE</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">116</span></span><span>
+</span><span id="line-299"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ATOM"><span class="hs-identifier hs-var">ATOM</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">117</span></span><span>
+</span><span id="line-300"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TFRC"><span class="hs-identifier hs-var">TFRC</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">118</span></span><span>
+</span><span id="line-301"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#DBTX"><span class="hs-identifier hs-var">DBTX</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">119</span></span><span>
+</span><span id="line-302"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#IXOT"><span class="hs-identifier hs-var">IXOT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">120</span></span><span>
+</span><span id="line-303"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#IXOB"><span class="hs-identifier hs-var">IXOB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">121</span></span><span>
+</span><span id="line-304"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SDBL"><span class="hs-identifier hs-var">SDBL</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">122</span></span><span>
+</span><span id="line-305"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#SDBV"><span class="hs-identifier hs-var">SDBV</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">123</span></span><span>
+</span><span id="line-306"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#CAST"><span class="hs-identifier hs-var">CAST</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">124</span></span><span>
+</span><span id="line-307"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ANDI"><span class="hs-identifier hs-var">ANDI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">125</span></span><span>
+</span><span id="line-308"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#IORI"><span class="hs-identifier hs-var">IORI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">126</span></span><span>
+</span><span id="line-309"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#XORI"><span class="hs-identifier hs-var">XORI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">127</span></span><span>
+</span><span id="line-310"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#COMI"><span class="hs-identifier hs-var">COMI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">128</span></span><span>
+</span><span id="line-311"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#DRPN"><span class="hs-identifier hs-var">DRPN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">129</span></span><span>
+</span><span id="line-312"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TRNC"><span class="hs-identifier hs-var">TRNC</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">130</span></span><span>
+</span><span id="line-313"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#REFN"><span class="hs-identifier hs-var">REFN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">131</span></span><span>
+</span><span id="line-314"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#REFR"><span class="hs-identifier hs-var">REFR</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">132</span></span><span>
+</span><span id="line-315"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#REFW"><span class="hs-identifier hs-var">REFW</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">133</span></span><span>
+</span><span id="line-316"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#RCAS"><span class="hs-identifier hs-var">RCAS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">134</span></span><span>
+</span><span id="line-317"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#RRFC"><span class="hs-identifier hs-var">RRFC</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">135</span></span><span>
+</span><span id="line-318"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#TIKR"><span class="hs-identifier hs-var">TIKR</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">136</span></span><span>
+</span><span id="line-319"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LESI"><span class="hs-identifier hs-var">LESI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">137</span></span><span>
+</span><span id="line-320"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#NEQI"><span class="hs-identifier hs-var">NEQI</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">138</span></span><span>
+</span><span id="line-321"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LESN"><span class="hs-identifier hs-var">LESN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">139</span></span><span>
+</span><span id="line-322"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#NEQN"><span class="hs-identifier hs-var">NEQN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">140</span></span><span>
+</span><span id="line-323"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LESF"><span class="hs-identifier hs-var">LESF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">141</span></span><span>
+</span><span id="line-324"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#NEQF"><span class="hs-identifier hs-var">NEQF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">142</span></span><span>
+</span><span id="line-325"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LEQU"><span class="hs-identifier hs-var">LEQU</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">143</span></span><span>
+</span><span id="line-326"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#LESU"><span class="hs-identifier hs-var">LESU</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">144</span></span><span>
+</span><span id="line-327"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#NOTB"><span class="hs-identifier hs-var">NOTB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">145</span></span><span>
+</span><span id="line-328"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#ANDB"><span class="hs-identifier hs-var">ANDB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">146</span></span><span>
+</span><span id="line-329"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#IORB"><span class="hs-identifier hs-var">IORB</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">147</span></span><span>
+</span><span id="line-330"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#KEEP"><span class="hs-identifier hs-var">KEEP</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">148</span></span><span>
+</span><span id="line-331"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#FGNN"><span class="hs-identifier hs-var">FGNN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">149</span></span><span>
+</span><span id="line-332"></span><span>  </span><span class="annot"><span class="annottext">POp
+</span><a href="Unison.Runtime.ANF.POp.html#FGNF"><span class="hs-identifier hs-var">FGNF</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word16
+</span><span class="hs-number">150</span></span><span>
+</span><span id="line-333"></span><span>
+</span><span id="line-334"></span><span class="annot"><a href="Unison.Runtime.ANF.POp.html#pOpAssoc"><span class="hs-identifier hs-type">pOpAssoc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.POp.html#POp"><span class="hs-identifier hs-type">POp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-335"></span><span id="pOpAssoc"><span class="annot"><span class="annottext">pOpAssoc :: [(POp, Word16)]
+</span><a href="Unison.Runtime.ANF.POp.html#pOpAssoc"><span class="hs-identifier hs-var hs-var">pOpAssoc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(POp -&gt; (POp, Word16)) -&gt; [POp] -&gt; [(POp, Word16)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680699715"><span class="annot"><span class="annottext">POp
+</span><a href="#local-6989586621680699715"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">POp
+</span><a href="#local-6989586621680699715"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">POp -&gt; Word16
+</span><a href="Unison.Runtime.ANF.POp.html#pOpCode"><span class="hs-identifier hs-var">pOpCode</span></a></span><span> </span><span class="annot"><span class="annottext">POp
+</span><a href="#local-6989586621680699715"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">POp
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">POp
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span class="hs-special">]</span><span>
+</span><span id="line-336"></span><span>
+</span><span id="line-337"></span><span class="annot"><a href="Unison.Runtime.ANF.POp.html#pop2word"><span class="hs-identifier hs-type">pop2word</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.POp.html#POp"><span class="hs-identifier hs-type">POp</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-338"></span><span id="pop2word"><span class="annot"><span class="annottext">pop2word :: Map POp Word16
+</span><a href="Unison.Runtime.ANF.POp.html#pop2word"><span class="hs-identifier hs-var hs-var">pop2word</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(POp, Word16)] -&gt; Map POp Word16
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">[(POp, Word16)]
+</span><a href="Unison.Runtime.ANF.POp.html#pOpAssoc"><span class="hs-identifier hs-var">pOpAssoc</span></a></span><span>
+</span><span id="line-339"></span><span>
+</span><span id="line-340"></span><span class="annot"><a href="Unison.Runtime.ANF.POp.html#word2pop"><span class="hs-identifier hs-type">word2pop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.POp.html#POp"><span class="hs-identifier hs-type">POp</span></a></span><span>
+</span><span id="line-341"></span><span id="word2pop"><span class="annot"><span class="annottext">word2pop :: Map Word16 POp
+</span><a href="Unison.Runtime.ANF.POp.html#word2pop"><span class="hs-identifier hs-var hs-var">word2pop</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Word16, POp)] -&gt; Map Word16 POp
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Word16, POp)] -&gt; Map Word16 POp)
+-&gt; [(Word16, POp)] -&gt; Map Word16 POp
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(POp, Word16) -&gt; (Word16, POp)
+forall {b} {a}. (b, a) -&gt; (a, b)
+</span><a href="#local-6989586621680699719"><span class="hs-identifier hs-var">swap</span></a></span><span> </span><span class="annot"><span class="annottext">((POp, Word16) -&gt; (Word16, POp))
+-&gt; [(POp, Word16)] -&gt; [(Word16, POp)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(POp, Word16)]
+</span><a href="Unison.Runtime.ANF.POp.html#pOpAssoc"><span class="hs-identifier hs-var">pOpAssoc</span></a></span><span>
+</span><span id="line-342"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-343"></span><span>    </span><span id="local-6989586621680699719"><span class="annot"><span class="annottext">swap :: (b, a) -&gt; (a, b)
+</span><a href="#local-6989586621680699719"><span class="hs-identifier hs-var hs-var">swap</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680699721"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621680699721"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680699722"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680699722"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680699722"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621680699721"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-344"></span></pre></body></html>

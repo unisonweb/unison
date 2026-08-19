@@ -1,0 +1,72 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.Rootfix.html"><span class="hs-identifier">Bench.Vector.Algo.Rootfix</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Unboxed</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="annot"><a href="Bench.Vector.Algo.Rootfix.html#rootfix"><span class="hs-identifier hs-type">rootfix</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.Rootfix.html#rootfix"><span class="hs-pragma hs-type">rootfix</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-7"></span><span id="rootfix"><span class="annot"><span class="annottext">rootfix :: (Vector Int, Vector Int) -&gt; Vector Int
+</span><a href="Bench.Vector.Algo.Rootfix.html#rootfix"><span class="hs-identifier hs-var hs-var">rootfix</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072331"><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072331"><span class="hs-identifier hs-var">ls</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679072332"><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072332"><span class="hs-identifier hs-var">rs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector Int -&gt; Vector Int -&gt; Vector Int -&gt; Vector Int
+forall {a}.
+(Unbox a, Num a) =&gt;
+Vector a -&gt; Vector Int -&gt; Vector Int -&gt; Vector a
+</span><a href="#local-6989586621679072333"><span class="hs-identifier hs-var">rootfix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Vector Int
+forall a. Unbox a =&gt; Int -&gt; a -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Int -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072331"><span class="hs-identifier hs-var">ls</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072331"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072332"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>      </span><span id="local-6989586621679072333"><span class="annot"><span class="annottext">rootfix :: Vector a -&gt; Vector Int -&gt; Vector Int -&gt; Vector a
+</span><a href="#local-6989586621679072333"><span class="hs-identifier hs-var hs-var">rootfix</span></a></span></span><span> </span><span id="local-6989586621679072347"><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679072347"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679072348"><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072348"><span class="hs-identifier hs-var">ls</span></a></span></span><span> </span><span id="local-6989586621679072349"><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072349"><span class="hs-identifier hs-var">rs</span></a></span></span><span>
+</span><span id="line-10"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679072365"><span class="annot"><span class="annottext">zs :: Vector a
+</span><a href="#local-6989586621679072365"><span class="hs-identifier hs-var hs-var">zs</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; Vector a
+forall a. Unbox a =&gt; Int -&gt; a -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector Int -&gt; Int
+forall a. Unbox a =&gt; Vector a -&gt; Int
+</span><span class="hs-identifier hs-var">V.length</span></span><span> </span><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072348"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-11"></span><span>              </span><span id="local-6989586621679072376"><span class="annot"><span class="annottext">vs :: Vector a
+</span><a href="#local-6989586621679072376"><span class="hs-identifier hs-var hs-var">vs</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Vector a -&gt; Vector Int -&gt; Vector a -&gt; Vector a
+forall a. Unbox a =&gt; Vector a -&gt; Vector Int -&gt; Vector a -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.update_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vector a -&gt; Vector Int -&gt; Vector a -&gt; Vector a
+forall a. Unbox a =&gt; Vector a -&gt; Vector Int -&gt; Vector a -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.update_</span></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679072365"><span class="hs-identifier hs-var">zs</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072348"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679072347"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072349"><span class="hs-identifier hs-var">rs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; a) -&gt; Vector a -&gt; Vector a
+forall a b. (Unbox a, Unbox b) =&gt; (a -&gt; b) -&gt; Vector a -&gt; Vector b
+</span><span class="hs-identifier hs-var">V.map</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">negate</span></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679072347"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>              </span><span id="local-6989586621679072387"><span class="annot"><span class="annottext">sums :: Vector a
+</span><a href="#local-6989586621679072387"><span class="hs-identifier hs-var hs-var">sums</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; a) -&gt; a -&gt; Vector a -&gt; Vector a
+forall a b.
+(Unbox a, Unbox b) =&gt;
+(a -&gt; b -&gt; a) -&gt; a -&gt; Vector b -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.prescanl'</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679072376"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-13"></span><span>          </span><span class="hs-keyword">in</span><span>
+</span><span id="line-14"></span><span>          </span><span class="annot"><span class="annottext">Vector a -&gt; Vector Int -&gt; Vector a
+forall a. Unbox a =&gt; Vector a -&gt; Vector Int -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.backpermute</span></span><span> </span><span class="annot"><span class="annottext">Vector a
+</span><a href="#local-6989586621679072387"><span class="hs-identifier hs-var">sums</span></a></span><span> </span><span class="annot"><span class="annottext">Vector Int
+</span><a href="#local-6989586621679072348"><span class="hs-identifier hs-var">ls</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span></pre></body></html>

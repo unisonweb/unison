@@ -1,0 +1,450 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Module      :  Text.Parsec.Expr</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Copyright   :  (c) Daan Leijen 1999-2001, (c) Paolo Martini 2007</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- License     :  BSD-style (see the LICENSE file)</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Maintainer  :  derek.a.elkins@gmail.com</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Portability :  non-portable</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- A helper module to parse \&quot;expressions\&quot;.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Builds a parser given a table of operators and associativities.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Text.Parsec.Expr.html"><span class="hs-identifier">Text.Parsec.Expr</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Text.Parsec.Expr.html#Assoc"><span class="hs-identifier">Assoc</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.Parsec.Expr.html#Operator"><span class="hs-identifier">Operator</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.Parsec.Expr.html#OperatorTable"><span class="hs-identifier">OperatorTable</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.Parsec.Expr.html#buildExpressionParser"><span class="hs-identifier">buildExpressionParser</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Typeable.html"><span class="hs-identifier">Data.Typeable</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Typeable</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Text.Parsec.Prim.html"><span class="hs-identifier">Text.Parsec.Prim</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Text.Parsec.Combinator.html"><span class="hs-identifier">Text.Parsec.Combinator</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-----------------------------------------------------------</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- Assoc and OperatorTable</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-----------------------------------------------------------</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- |  This data type specifies the associativity of operators: left, right</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- or none.</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">data</span><span> </span><span id="Assoc"><span class="annot"><a href="Text.Parsec.Expr.html#Assoc"><span class="hs-identifier hs-var">Assoc</span></a></span></span><span>                </span><span class="hs-glyph">=</span><span> </span><span id="AssocNone"><span class="annot"><a href="Text.Parsec.Expr.html#AssocNone"><span class="hs-identifier hs-var">AssocNone</span></a></span></span><span>
+</span><span id="line-37"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="AssocLeft"><span class="annot"><a href="Text.Parsec.Expr.html#AssocLeft"><span class="hs-identifier hs-var">AssocLeft</span></a></span></span><span>
+</span><span id="line-38"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="AssocRight"><span class="annot"><a href="Text.Parsec.Expr.html#AssocRight"><span class="hs-identifier hs-var">AssocRight</span></a></span></span><span>
+</span><span id="line-39"></span><span>   </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | This data type specifies operators that work on values of type @a@.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- An operator is either binary infix or unary prefix or postfix. A</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- binary operator has also an associated associativity.</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">data</span><span> </span><span id="Operator"><span class="annot"><a href="Text.Parsec.Expr.html#Operator"><span class="hs-identifier hs-var">Operator</span></a></span></span><span> </span><span id="local-6989586621679083515"><span class="annot"><a href="#local-6989586621679083515"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679083516"><span class="annot"><a href="#local-6989586621679083516"><span class="hs-identifier hs-type">u</span></a></span></span><span> </span><span id="local-6989586621679083517"><span class="annot"><a href="#local-6989586621679083517"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679083518"><span class="annot"><a href="#local-6989586621679083518"><span class="hs-identifier hs-type">a</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span id="Infix"><span class="annot"><a href="Text.Parsec.Expr.html#Infix"><span class="hs-identifier hs-var">Infix</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Text.Parsec.Prim.html#ParsecT"><span class="hs-identifier hs-type">ParsecT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083515"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083516"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083517"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083518"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083518"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083518"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Text.Parsec.Expr.html#Assoc"><span class="hs-identifier hs-type">Assoc</span></a></span><span>
+</span><span id="line-46"></span><span>                        </span><span class="hs-glyph">|</span><span> </span><span id="Prefix"><span class="annot"><a href="Text.Parsec.Expr.html#Prefix"><span class="hs-identifier hs-var">Prefix</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Text.Parsec.Prim.html#ParsecT"><span class="hs-identifier hs-type">ParsecT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083515"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083516"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083517"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083518"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083518"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>                        </span><span class="hs-glyph">|</span><span> </span><span id="Postfix"><span class="annot"><a href="Text.Parsec.Expr.html#Postfix"><span class="hs-identifier hs-var">Postfix</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Text.Parsec.Prim.html#ParsecT"><span class="hs-identifier hs-type">ParsecT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083515"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083516"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083517"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083518"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083518"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | An @OperatorTable s u m a@ is a list of @Operator s u m a@</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- lists. The list is ordered in descending</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- precedence. All operators in one list have the same precedence (but</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- may have a different associativity).</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">type</span><span> </span><span id="OperatorTable"><span class="annot"><a href="Text.Parsec.Expr.html#OperatorTable"><span class="hs-identifier hs-var">OperatorTable</span></a></span></span><span> </span><span id="local-6989586621679083522"><span class="annot"><a href="#local-6989586621679083522"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679083523"><span class="annot"><a href="#local-6989586621679083523"><span class="hs-identifier hs-type">u</span></a></span></span><span> </span><span id="local-6989586621679083524"><span class="annot"><a href="#local-6989586621679083524"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679083525"><span class="annot"><a href="#local-6989586621679083525"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="Text.Parsec.Expr.html#Operator"><span class="hs-identifier hs-type">Operator</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083522"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083523"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083524"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083525"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-----------------------------------------------------------</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- Convert an OperatorTable and basic term parser into</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- a full fledged expression parser</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-----------------------------------------------------------</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- | @buildExpressionParser table term@ builds an expression parser for</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- terms @term@ with operators from @table@, taking the associativity</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- and precedence specified in @table@ into account. Prefix and postfix</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- operators of the same precedence can only occur once (i.e. @--2@ is</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- not allowed if @-@ is prefix negate). Prefix and postfix operators</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- of the same precedence associate to the left (i.e. if @++@ is</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- postfix increment, than @-2++@ equals @-1@, not @-3@).</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- The @buildExpressionParser@ takes care of all the complexity</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- involved in building expression parser. Here is an example of an</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- expression parser that handles prefix signs, postfix increment and</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- basic arithmetic.</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- &gt;  expr    = buildExpressionParser table term</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- &gt;          &lt;?&gt; &quot;expression&quot;</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- &gt;  term    =  parens expr</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- &gt;          &lt;|&gt; natural</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- &gt;          &lt;?&gt; &quot;simple expression&quot;</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- &gt;  table   = [ [prefix &quot;-&quot; negate, prefix &quot;+&quot; id ]</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- &gt;            , [postfix &quot;++&quot; (+1)]</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- &gt;            , [binary &quot;*&quot; (*) AssocLeft, binary &quot;/&quot; (div) AssocLeft ]</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- &gt;            , [binary &quot;+&quot; (+) AssocLeft, binary &quot;-&quot; (-)   AssocLeft ]</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- &gt;            ]</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- &gt;  binary  name fun assoc = Infix (do{ reservedOp name; return fun }) assoc</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- &gt;  prefix  name fun       = Prefix (do{ reservedOp name; return fun })</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- &gt;  postfix name fun       = Postfix (do{ reservedOp name; return fun })</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span id="local-6989586621679083435"><span id="local-6989586621679083436"><span id="local-6989586621679083437"><span id="local-6989586621679083439"><span id="local-6989586621679083440"><span class="annot"><a href="Text.Parsec.Expr.html#buildExpressionParser"><span class="hs-identifier hs-type">buildExpressionParser</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Text.Parsec.Prim.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083435"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083436"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083437"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>                      </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Text.Parsec.Expr.html#OperatorTable"><span class="hs-identifier hs-type">OperatorTable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083435"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083439"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083436"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083440"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-94"></span><span>                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Text.Parsec.Prim.html#ParsecT"><span class="hs-identifier hs-type">ParsecT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083435"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083439"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083436"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083440"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-95"></span><span>                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Text.Parsec.Prim.html#ParsecT"><span class="hs-identifier hs-type">ParsecT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083435"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083439"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083436"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083440"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span></span><span>
+</span><span id="line-96"></span><span class="hs-pragma">{-# INLINABLE</span><span> </span><span class="annot"><a href="Text.Parsec.Expr.html#buildExpressionParser"><span class="hs-pragma hs-type">buildExpressionParser</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-97"></span><span id="buildExpressionParser"><span class="annot"><span class="annottext">buildExpressionParser :: forall s (m :: * -&gt; *) t u a.
+Stream s m t =&gt;
+OperatorTable s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Expr.html#buildExpressionParser"><span class="hs-identifier hs-var hs-var">buildExpressionParser</span></a></span></span><span> </span><span id="local-6989586621679083531"><span class="annot"><span class="annottext">OperatorTable s u m a
+</span><a href="#local-6989586621679083531"><span class="hs-identifier hs-var">operators</span></a></span></span><span> </span><span id="local-6989586621679083532"><span class="annot"><span class="annottext">ParsecT s u m a
+</span><a href="#local-6989586621679083532"><span class="hs-identifier hs-var">simpleExpr</span></a></span></span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ParsecT s u m a -&gt; [Operator s u m a] -&gt; ParsecT s u m a)
+-&gt; ParsecT s u m a -&gt; OperatorTable s u m a -&gt; ParsecT s u m a
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ParsecT s u m a -&gt; [Operator s u m a] -&gt; ParsecT s u m a
+forall {t :: * -&gt; *} {s} {m :: * -&gt; *} {t} {u} {b}.
+(Foldable t, Stream s m t) =&gt;
+ParsecT s u m b -&gt; t (Operator s u m b) -&gt; ParsecT s u m b
+</span><a href="#local-6989586621679083534"><span class="hs-identifier hs-var">makeParser</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ParsecT s u m a
+</span><a href="#local-6989586621679083532"><span class="hs-identifier hs-var">simpleExpr</span></a></span><span> </span><span class="annot"><span class="annottext">OperatorTable s u m a
+</span><a href="#local-6989586621679083531"><span class="hs-identifier hs-var">operators</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>      </span><span id="local-6989586621679083534"><span class="annot"><span class="annottext">makeParser :: ParsecT s u m b -&gt; t (Operator s u m b) -&gt; ParsecT s u m b
+</span><a href="#local-6989586621679083534"><span class="hs-identifier hs-var hs-var">makeParser</span></a></span></span><span> </span><span id="local-6989586621679083546"><span class="annot"><span class="annottext">ParsecT s u m b
+</span><a href="#local-6989586621679083546"><span class="hs-identifier hs-var">term</span></a></span></span><span> </span><span id="local-6989586621679083547"><span class="annot"><span class="annottext">t (Operator s u m b)
+</span><a href="#local-6989586621679083547"><span class="hs-identifier hs-var">ops</span></a></span></span><span>
+</span><span id="line-101"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679083549"><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b -&gt; b)]
+</span><a href="#local-6989586621679083549"><span class="hs-identifier hs-var">rassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083550"><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b -&gt; b)]
+</span><a href="#local-6989586621679083550"><span class="hs-identifier hs-var">lassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083551"><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b -&gt; b)]
+</span><a href="#local-6989586621679083551"><span class="hs-identifier hs-var">nassoc</span></a></span></span><span>
+</span><span id="line-102"></span><span>               </span><span class="hs-special">,</span><span id="local-6989586621679083552"><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b)]
+</span><a href="#local-6989586621679083552"><span class="hs-identifier hs-var">prefix</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083553"><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b)]
+</span><a href="#local-6989586621679083553"><span class="hs-identifier hs-var">postfix</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Operator s u m b
+ -&gt; ([ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b -&gt; b)],
+     [ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b)],
+     [ParsecT s u m (b -&gt; b)])
+ -&gt; ([ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b -&gt; b)],
+     [ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b)],
+     [ParsecT s u m (b -&gt; b)]))
+-&gt; ([ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b -&gt; b)],
+    [ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b)],
+    [ParsecT s u m (b -&gt; b)])
+-&gt; t (Operator s u m b)
+-&gt; ([ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b -&gt; b)],
+    [ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b)],
+    [ParsecT s u m (b -&gt; b)])
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">Operator s u m b
+-&gt; ([ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b -&gt; b)],
+    [ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b)],
+    [ParsecT s u m (b -&gt; b)])
+-&gt; ([ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b -&gt; b)],
+    [ParsecT s u m (b -&gt; b -&gt; b)], [ParsecT s u m (b -&gt; b)],
+    [ParsecT s u m (b -&gt; b)])
+forall {s} {u} {m :: * -&gt; *} {a}.
+Operator s u m a
+-&gt; ([ParsecT s u m (a -&gt; a -&gt; a)], [ParsecT s u m (a -&gt; a -&gt; a)],
+    [ParsecT s u m (a -&gt; a -&gt; a)], [ParsecT s u m (a -&gt; a)],
+    [ParsecT s u m (a -&gt; a)])
+-&gt; ([ParsecT s u m (a -&gt; a -&gt; a)], [ParsecT s u m (a -&gt; a -&gt; a)],
+    [ParsecT s u m (a -&gt; a -&gt; a)], [ParsecT s u m (a -&gt; a)],
+    [ParsecT s u m (a -&gt; a)])
+</span><a href="#local-6989586621679083555"><span class="hs-identifier hs-var">splitOp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t (Operator s u m b)
+</span><a href="#local-6989586621679083547"><span class="hs-identifier hs-var">ops</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span>              </span><span id="local-6989586621679083560"><span class="annot"><span class="annottext">rassocOp :: ParsecT s u m (b -&gt; b -&gt; b)
+</span><a href="#local-6989586621679083560"><span class="hs-identifier hs-var hs-var">rassocOp</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b -&gt; b)] -&gt; ParsecT s u m (b -&gt; b -&gt; b)
+forall s (m :: * -&gt; *) t u a.
+Stream s m t =&gt;
+[ParsecT s u m a] -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Combinator.html#choice"><span class="hs-identifier hs-var">choice</span></a></span><span> </span><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b -&gt; b)]
+</span><a href="#local-6989586621679083549"><span class="hs-identifier hs-var">rassoc</span></a></span><span>
+</span><span id="line-105"></span><span>              </span><span id="local-6989586621679083566"><span class="annot"><span class="annottext">lassocOp :: ParsecT s u m (b -&gt; b -&gt; b)
+</span><a href="#local-6989586621679083566"><span class="hs-identifier hs-var hs-var">lassocOp</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b -&gt; b)] -&gt; ParsecT s u m (b -&gt; b -&gt; b)
+forall s (m :: * -&gt; *) t u a.
+Stream s m t =&gt;
+[ParsecT s u m a] -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Combinator.html#choice"><span class="hs-identifier hs-var">choice</span></a></span><span> </span><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b -&gt; b)]
+</span><a href="#local-6989586621679083550"><span class="hs-identifier hs-var">lassoc</span></a></span><span>
+</span><span id="line-106"></span><span>              </span><span id="local-6989586621679083571"><span class="annot"><span class="annottext">nassocOp :: ParsecT s u m (b -&gt; b -&gt; b)
+</span><a href="#local-6989586621679083571"><span class="hs-identifier hs-var hs-var">nassocOp</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b -&gt; b)] -&gt; ParsecT s u m (b -&gt; b -&gt; b)
+forall s (m :: * -&gt; *) t u a.
+Stream s m t =&gt;
+[ParsecT s u m a] -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Combinator.html#choice"><span class="hs-identifier hs-var">choice</span></a></span><span> </span><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b -&gt; b)]
+</span><a href="#local-6989586621679083551"><span class="hs-identifier hs-var">nassoc</span></a></span><span>
+</span><span id="line-107"></span><span>              </span><span id="local-6989586621679083576"><span class="annot"><span class="annottext">prefixOp :: ParsecT s u m (b -&gt; b)
+</span><a href="#local-6989586621679083576"><span class="hs-identifier hs-var hs-var">prefixOp</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b)] -&gt; ParsecT s u m (b -&gt; b)
+forall s (m :: * -&gt; *) t u a.
+Stream s m t =&gt;
+[ParsecT s u m a] -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Combinator.html#choice"><span class="hs-identifier hs-var">choice</span></a></span><span> </span><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b)]
+</span><a href="#local-6989586621679083552"><span class="hs-identifier hs-var">prefix</span></a></span><span>  </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b) -&gt; String -&gt; ParsecT s u m (b -&gt; b)
+forall s u (m :: * -&gt; *) a.
+ParsecT s u m a -&gt; String -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#%3C%3F%3E"><span class="hs-operator hs-var">&lt;?&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-108"></span><span>              </span><span id="local-6989586621679083582"><span class="annot"><span class="annottext">postfixOp :: ParsecT s u m (b -&gt; b)
+</span><a href="#local-6989586621679083582"><span class="hs-identifier hs-var hs-var">postfixOp</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b)] -&gt; ParsecT s u m (b -&gt; b)
+forall s (m :: * -&gt; *) t u a.
+Stream s m t =&gt;
+[ParsecT s u m a] -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Combinator.html#choice"><span class="hs-identifier hs-var">choice</span></a></span><span> </span><span class="annot"><span class="annottext">[ParsecT s u m (b -&gt; b)]
+</span><a href="#local-6989586621679083553"><span class="hs-identifier hs-var">postfix</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b) -&gt; String -&gt; ParsecT s u m (b -&gt; b)
+forall s u (m :: * -&gt; *) a.
+ParsecT s u m a -&gt; String -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#%3C%3F%3E"><span class="hs-operator hs-var">&lt;?&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>              </span><span id="local-6989586621679083586"><span class="annot"><span class="annottext">ambiguous :: String -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="#local-6989586621679083586"><span class="hs-identifier hs-var hs-var">ambiguous</span></a></span></span><span> </span><span id="local-6989586621679083587"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679083587"><span class="hs-identifier hs-var">assoc</span></a></span></span><span> </span><span id="local-6989586621679083588"><span class="annot"><span class="annottext">ParsecT s u m a
+</span><a href="#local-6989586621679083588"><span class="hs-identifier hs-var">op</span></a></span></span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ParsecT s u m a -&gt; ParsecT s u m a
+forall s u (m :: * -&gt; *) a. ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#try"><span class="hs-identifier hs-var">try</span></a></span><span> </span><span class="annot"><span class="annottext">(ParsecT s u m a -&gt; ParsecT s u m a)
+-&gt; ParsecT s u m a -&gt; ParsecT s u m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-111"></span><span>                                  </span><span class="hs-keyword">do</span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT s u m a
+</span><a href="#local-6989586621679083588"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">fail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;ambiguous use of a &quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="annot"><a href="#local-6989586621679083587"><span class="hs-identifier hs-type">assoc</span></a></span><span>
+</span><span id="line-112"></span><span>                                                     </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="annot"><span class="hs-string">&quot; associative operator&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>                                    </span><span class="hs-special">}</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span>              </span><span id="local-6989586621679083590"><span class="annot"><span class="annottext">ambiguousRight :: ParsecT s u m a
+</span><a href="#local-6989586621679083590"><span class="hs-identifier hs-var hs-var">ambiguousRight</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ParsecT s u m (b -&gt; b -&gt; b) -&gt; ParsecT s u m a
+forall {s} {u} {m :: * -&gt; *} {a} {a}.
+String -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="#local-6989586621679083586"><span class="hs-identifier hs-var">ambiguous</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;right&quot;</span></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b -&gt; b)
+</span><a href="#local-6989586621679083560"><span class="hs-identifier hs-var">rassocOp</span></a></span><span>
+</span><span id="line-116"></span><span>              </span><span id="local-6989586621679083591"><span class="annot"><span class="annottext">ambiguousLeft :: ParsecT s u m a
+</span><a href="#local-6989586621679083591"><span class="hs-identifier hs-var hs-var">ambiguousLeft</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ParsecT s u m (b -&gt; b -&gt; b) -&gt; ParsecT s u m a
+forall {s} {u} {m :: * -&gt; *} {a} {a}.
+String -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="#local-6989586621679083586"><span class="hs-identifier hs-var">ambiguous</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;left&quot;</span></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b -&gt; b)
+</span><a href="#local-6989586621679083566"><span class="hs-identifier hs-var">lassocOp</span></a></span><span>
+</span><span id="line-117"></span><span>              </span><span id="local-6989586621679083592"><span class="annot"><span class="annottext">ambiguousNon :: ParsecT s u m a
+</span><a href="#local-6989586621679083592"><span class="hs-identifier hs-var hs-var">ambiguousNon</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ParsecT s u m (b -&gt; b -&gt; b) -&gt; ParsecT s u m a
+forall {s} {u} {m :: * -&gt; *} {a} {a}.
+String -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="#local-6989586621679083586"><span class="hs-identifier hs-var">ambiguous</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;non&quot;</span></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b -&gt; b)
+</span><a href="#local-6989586621679083571"><span class="hs-identifier hs-var">nassocOp</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span>              </span><span id="local-6989586621679083597"><span class="annot"><span class="annottext">termP :: ParsecT s u m b
+</span><a href="#local-6989586621679083597"><span class="hs-identifier hs-var hs-var">termP</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-special">{</span><span> </span><span id="local-6989586621679083598"><span class="annot"><a href="#local-6989586621679083598"><span class="hs-identifier hs-var">pre</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b)
+</span><a href="#local-6989586621679083599"><span class="hs-identifier hs-var">prefixP</span></a></span><span>
+</span><span id="line-120"></span><span>                             </span><span class="hs-special">;</span><span> </span><span id="local-6989586621679083600"><span class="annot"><a href="#local-6989586621679083600"><span class="hs-identifier hs-var">x</span></a></span></span><span>    </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679083546"><span class="hs-identifier hs-type">term</span></a></span><span>
+</span><span id="line-121"></span><span>                             </span><span class="hs-special">;</span><span> </span><span id="local-6989586621679083601"><span class="annot"><a href="#local-6989586621679083601"><span class="hs-identifier hs-var">post</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679083602"><span class="hs-identifier hs-type">postfixP</span></a></span><span>
+</span><span id="line-122"></span><span>                             </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083601"><span class="hs-identifier hs-type">post</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083598"><span class="hs-identifier hs-type">pre</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083600"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>                             </span><span class="hs-special">}</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span>              </span><span id="local-6989586621679083602"><span class="annot"><span class="annottext">postfixP :: ParsecT s u m (b -&gt; b)
+</span><a href="#local-6989586621679083602"><span class="hs-identifier hs-var hs-var">postfixP</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b)
+</span><a href="#local-6989586621679083582"><span class="hs-identifier hs-var">postfixOp</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b)
+-&gt; ParsecT s u m (b -&gt; b) -&gt; ParsecT s u m (b -&gt; b)
+forall s u (m :: * -&gt; *) a.
+ParsecT s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; b) -&gt; ParsecT s u m (b -&gt; b)
+forall a. a -&gt; ParsecT s u m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; b
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>              </span><span id="local-6989586621679083599"><span class="annot"><span class="annottext">prefixP :: ParsecT s u m (b -&gt; b)
+</span><a href="#local-6989586621679083599"><span class="hs-identifier hs-var hs-var">prefixP</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b)
+</span><a href="#local-6989586621679083576"><span class="hs-identifier hs-var">prefixOp</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b)
+-&gt; ParsecT s u m (b -&gt; b) -&gt; ParsecT s u m (b -&gt; b)
+forall s u (m :: * -&gt; *) a.
+ParsecT s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; b) -&gt; ParsecT s u m (b -&gt; b)
+forall a. a -&gt; ParsecT s u m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; b
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span>              </span><span id="local-6989586621679083612"><span class="annot"><span class="annottext">rassocP :: b -&gt; ParsecT s u m b
+</span><a href="#local-6989586621679083612"><span class="hs-identifier hs-var hs-var">rassocP</span></a></span></span><span> </span><span id="local-6989586621679083613"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679083613"><span class="hs-identifier hs-var">x</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-special">{</span><span> </span><span id="local-6989586621679083614"><span class="annot"><a href="#local-6989586621679083614"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b -&gt; b)
+</span><a href="#local-6989586621679083560"><span class="hs-identifier hs-var">rassocOp</span></a></span><span>
+</span><span id="line-130"></span><span>                             </span><span class="hs-special">;</span><span> </span><span id="local-6989586621679083615"><span class="annot"><a href="#local-6989586621679083615"><span class="hs-identifier hs-var">y</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">do</span><span class="hs-special">{</span><span> </span><span id="local-6989586621679083616"><span class="annot"><a href="#local-6989586621679083616"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679083597"><span class="hs-identifier hs-type">termP</span></a></span><span class="hs-special">;</span><span> </span><span class="annot"><a href="#local-6989586621679083617"><span class="hs-identifier hs-type">rassocP1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083616"><span class="hs-identifier hs-type">z</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-131"></span><span>                             </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083614"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083613"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083615"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>                             </span><span class="hs-special">}</span><span>
+</span><span id="line-133"></span><span>                           </span><span class="annot"><span class="annottext">ParsecT s u m b -&gt; ParsecT s u m b -&gt; ParsecT s u m b
+forall s u (m :: * -&gt; *) a.
+ParsecT s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m b
+forall {a}. ParsecT s u m a
+</span><a href="#local-6989586621679083591"><span class="hs-identifier hs-var">ambiguousLeft</span></a></span><span>
+</span><span id="line-134"></span><span>                           </span><span class="annot"><span class="annottext">ParsecT s u m b -&gt; ParsecT s u m b -&gt; ParsecT s u m b
+forall s u (m :: * -&gt; *) a.
+ParsecT s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m b
+forall {a}. ParsecT s u m a
+</span><a href="#local-6989586621679083592"><span class="hs-identifier hs-var">ambiguousNon</span></a></span><span>
+</span><span id="line-135"></span><span>                           </span><span class="hs-comment">-- &lt;|&gt; return x</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>              </span><span id="local-6989586621679083617"><span class="annot"><span class="annottext">rassocP1 :: b -&gt; ParsecT s u m b
+</span><a href="#local-6989586621679083617"><span class="hs-identifier hs-var hs-var">rassocP1</span></a></span></span><span> </span><span id="local-6989586621679083618"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679083618"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; ParsecT s u m b
+</span><a href="#local-6989586621679083612"><span class="hs-identifier hs-var">rassocP</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679083618"><span class="hs-identifier hs-var">x</span></a></span><span>  </span><span class="annot"><span class="annottext">ParsecT s u m b -&gt; ParsecT s u m b -&gt; ParsecT s u m b
+forall s u (m :: * -&gt; *) a.
+ParsecT s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ParsecT s u m b
+forall a. a -&gt; ParsecT s u m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679083618"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>              </span><span id="local-6989586621679083622"><span class="annot"><span class="annottext">lassocP :: b -&gt; ParsecT s u m b
+</span><a href="#local-6989586621679083622"><span class="hs-identifier hs-var hs-var">lassocP</span></a></span></span><span> </span><span id="local-6989586621679083623"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679083623"><span class="hs-identifier hs-var">x</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-special">{</span><span> </span><span id="local-6989586621679083624"><span class="annot"><a href="#local-6989586621679083624"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b -&gt; b)
+</span><a href="#local-6989586621679083566"><span class="hs-identifier hs-var">lassocOp</span></a></span><span>
+</span><span id="line-140"></span><span>                             </span><span class="hs-special">;</span><span> </span><span id="local-6989586621679083625"><span class="annot"><a href="#local-6989586621679083625"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679083597"><span class="hs-identifier hs-type">termP</span></a></span><span>
+</span><span id="line-141"></span><span>                             </span><span class="hs-special">;</span><span> </span><span class="annot"><a href="#local-6989586621679083626"><span class="hs-identifier hs-type">lassocP1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083624"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083623"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083625"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>                             </span><span class="hs-special">}</span><span>
+</span><span id="line-143"></span><span>                           </span><span class="annot"><span class="annottext">ParsecT s u m b -&gt; ParsecT s u m b -&gt; ParsecT s u m b
+forall s u (m :: * -&gt; *) a.
+ParsecT s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m b
+forall {a}. ParsecT s u m a
+</span><a href="#local-6989586621679083590"><span class="hs-identifier hs-var">ambiguousRight</span></a></span><span>
+</span><span id="line-144"></span><span>                           </span><span class="annot"><span class="annottext">ParsecT s u m b -&gt; ParsecT s u m b -&gt; ParsecT s u m b
+forall s u (m :: * -&gt; *) a.
+ParsecT s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m b
+forall {a}. ParsecT s u m a
+</span><a href="#local-6989586621679083592"><span class="hs-identifier hs-var">ambiguousNon</span></a></span><span>
+</span><span id="line-145"></span><span>                           </span><span class="hs-comment">-- &lt;|&gt; return x</span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span>              </span><span id="local-6989586621679083626"><span class="annot"><span class="annottext">lassocP1 :: b -&gt; ParsecT s u m b
+</span><a href="#local-6989586621679083626"><span class="hs-identifier hs-var hs-var">lassocP1</span></a></span></span><span> </span><span id="local-6989586621679083627"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679083627"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; ParsecT s u m b
+</span><a href="#local-6989586621679083622"><span class="hs-identifier hs-var">lassocP</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679083627"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT s u m b -&gt; ParsecT s u m b -&gt; ParsecT s u m b
+forall s u (m :: * -&gt; *) a.
+ParsecT s u m a -&gt; ParsecT s u m a -&gt; ParsecT s u m a
+</span><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; ParsecT s u m b
+forall a. a -&gt; ParsecT s u m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679083627"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span>              </span><span id="local-6989586621679083631"><span class="annot"><span class="annottext">nassocP :: b -&gt; ParsecT s u m b
+</span><a href="#local-6989586621679083631"><span class="hs-identifier hs-var hs-var">nassocP</span></a></span></span><span> </span><span id="local-6989586621679083632"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679083632"><span class="hs-identifier hs-var">x</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-special">{</span><span> </span><span id="local-6989586621679083633"><span class="annot"><a href="#local-6989586621679083633"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT s u m (b -&gt; b -&gt; b)
+</span><a href="#local-6989586621679083571"><span class="hs-identifier hs-var">nassocOp</span></a></span><span>
+</span><span id="line-150"></span><span>                             </span><span class="hs-special">;</span><span> </span><span id="local-6989586621679083634"><span class="annot"><a href="#local-6989586621679083634"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679083597"><span class="hs-identifier hs-type">termP</span></a></span><span>
+</span><span id="line-151"></span><span>                             </span><span class="hs-special">;</span><span>    </span><span class="annot"><a href="#local-6989586621679083590"><span class="hs-identifier hs-type">ambiguousRight</span></a></span><span>
+</span><span id="line-152"></span><span>                              </span><span class="annot"><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-type">&lt;|&gt;</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083591"><span class="hs-identifier hs-type">ambiguousLeft</span></a></span><span>
+</span><span id="line-153"></span><span>                              </span><span class="annot"><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-type">&lt;|&gt;</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083592"><span class="hs-identifier hs-type">ambiguousNon</span></a></span><span>
+</span><span id="line-154"></span><span>                              </span><span class="annot"><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-type">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083633"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083632"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083634"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>                             </span><span class="hs-special">}</span><span>
+</span><span id="line-156"></span><span>                           </span><span class="hs-comment">-- &lt;|&gt; return x</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span>           </span><span class="hs-keyword">in</span><span>  </span><span class="hs-keyword">do</span><span class="hs-special">{</span><span> </span><span id="local-6989586621679083635"><span class="annot"><a href="#local-6989586621679083635"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParsecT s u m b
+</span><a href="#local-6989586621679083597"><span class="hs-identifier hs-var">termP</span></a></span><span>
+</span><span id="line-159"></span><span>                 </span><span class="hs-special">;</span><span> </span><span class="annot"><a href="#local-6989586621679083612"><span class="hs-identifier hs-type">rassocP</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083635"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-type">&lt;|&gt;</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083622"><span class="hs-identifier hs-type">lassocP</span></a></span><span>  </span><span class="annot"><a href="#local-6989586621679083635"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-type">&lt;|&gt;</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083631"><span class="hs-identifier hs-type">nassocP</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083635"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="Text.Parsec.Prim.html#%3C%7C%3E"><span class="hs-operator hs-type">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679083635"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-160"></span><span>                   </span><span class="annot"><a href="Text.Parsec.Prim.html#%3C%3F%3E"><span class="hs-operator hs-type">&lt;?&gt;</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;operator&quot;</span></span><span>
+</span><span id="line-161"></span><span>                 </span><span class="hs-special">}</span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span>      </span><span id="local-6989586621679083555"><span class="annot"><span class="annottext">splitOp :: Operator s u m a
+-&gt; ([ParsecT s u m (a -&gt; a -&gt; a)], [ParsecT s u m (a -&gt; a -&gt; a)],
+    [ParsecT s u m (a -&gt; a -&gt; a)], [ParsecT s u m (a -&gt; a)],
+    [ParsecT s u m (a -&gt; a)])
+-&gt; ([ParsecT s u m (a -&gt; a -&gt; a)], [ParsecT s u m (a -&gt; a -&gt; a)],
+    [ParsecT s u m (a -&gt; a -&gt; a)], [ParsecT s u m (a -&gt; a)],
+    [ParsecT s u m (a -&gt; a)])
+</span><a href="#local-6989586621679083555"><span class="hs-identifier hs-var hs-var">splitOp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Text.Parsec.Expr.html#Infix"><span class="hs-identifier hs-type">Infix</span></a></span><span> </span><span id="local-6989586621679083636"><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a -&gt; a)
+</span><a href="#local-6989586621679083636"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span id="local-6989586621679083637"><span class="annot"><span class="annottext">Assoc
+</span><a href="#local-6989586621679083637"><span class="hs-identifier hs-var">assoc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679083638"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083638"><span class="hs-identifier hs-var">rassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083639"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083639"><span class="hs-identifier hs-var">lassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083640"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083640"><span class="hs-identifier hs-var">nassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083641"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083641"><span class="hs-identifier hs-var">prefix</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083642"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083642"><span class="hs-identifier hs-var">postfix</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Assoc
+</span><a href="#local-6989586621679083637"><span class="hs-identifier hs-var">assoc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-166"></span><span>            </span><span class="annot"><span class="annottext">Assoc
+</span><a href="Text.Parsec.Expr.html#AssocNone"><span class="hs-identifier hs-var">AssocNone</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083638"><span class="hs-identifier hs-var">rassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083639"><span class="hs-identifier hs-var">lassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a -&gt; a)
+</span><a href="#local-6989586621679083636"><span class="hs-identifier hs-var">op</span></a></span><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a -&gt; a)
+-&gt; [ParsecT s u m (a -&gt; a -&gt; a)] -&gt; [ParsecT s u m (a -&gt; a -&gt; a)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083640"><span class="hs-identifier hs-var">nassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083641"><span class="hs-identifier hs-var">prefix</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083642"><span class="hs-identifier hs-var">postfix</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>            </span><span class="annot"><span class="annottext">Assoc
+</span><a href="Text.Parsec.Expr.html#AssocLeft"><span class="hs-identifier hs-var">AssocLeft</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083638"><span class="hs-identifier hs-var">rassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a -&gt; a)
+</span><a href="#local-6989586621679083636"><span class="hs-identifier hs-var">op</span></a></span><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a -&gt; a)
+-&gt; [ParsecT s u m (a -&gt; a -&gt; a)] -&gt; [ParsecT s u m (a -&gt; a -&gt; a)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083639"><span class="hs-identifier hs-var">lassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083640"><span class="hs-identifier hs-var">nassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083641"><span class="hs-identifier hs-var">prefix</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083642"><span class="hs-identifier hs-var">postfix</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span>            </span><span class="annot"><span class="annottext">Assoc
+</span><a href="Text.Parsec.Expr.html#AssocRight"><span class="hs-identifier hs-var">AssocRight</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a -&gt; a)
+</span><a href="#local-6989586621679083636"><span class="hs-identifier hs-var">op</span></a></span><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a -&gt; a)
+-&gt; [ParsecT s u m (a -&gt; a -&gt; a)] -&gt; [ParsecT s u m (a -&gt; a -&gt; a)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083638"><span class="hs-identifier hs-var">rassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083639"><span class="hs-identifier hs-var">lassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083640"><span class="hs-identifier hs-var">nassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083641"><span class="hs-identifier hs-var">prefix</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083642"><span class="hs-identifier hs-var">postfix</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span>      </span><span class="annot"><a href="#local-6989586621679083555"><span class="hs-identifier hs-var">splitOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Text.Parsec.Expr.html#Prefix"><span class="hs-identifier hs-type">Prefix</span></a></span><span> </span><span id="local-6989586621679083643"><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a)
+</span><a href="#local-6989586621679083643"><span class="hs-identifier hs-var">op</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679083644"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083644"><span class="hs-identifier hs-var">rassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083645"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083645"><span class="hs-identifier hs-var">lassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083646"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083646"><span class="hs-identifier hs-var">nassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083647"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083647"><span class="hs-identifier hs-var">prefix</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083648"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083648"><span class="hs-identifier hs-var">postfix</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083644"><span class="hs-identifier hs-var">rassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083645"><span class="hs-identifier hs-var">lassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083646"><span class="hs-identifier hs-var">nassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a)
+</span><a href="#local-6989586621679083643"><span class="hs-identifier hs-var">op</span></a></span><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a)
+-&gt; [ParsecT s u m (a -&gt; a)] -&gt; [ParsecT s u m (a -&gt; a)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083647"><span class="hs-identifier hs-var">prefix</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083648"><span class="hs-identifier hs-var">postfix</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span>      </span><span class="annot"><a href="#local-6989586621679083555"><span class="hs-identifier hs-var">splitOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Text.Parsec.Expr.html#Postfix"><span class="hs-identifier hs-type">Postfix</span></a></span><span> </span><span id="local-6989586621679083649"><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a)
+</span><a href="#local-6989586621679083649"><span class="hs-identifier hs-var">op</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679083650"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083650"><span class="hs-identifier hs-var">rassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083651"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083651"><span class="hs-identifier hs-var">lassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083652"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083652"><span class="hs-identifier hs-var">nassoc</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083653"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083653"><span class="hs-identifier hs-var">prefix</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679083654"><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083654"><span class="hs-identifier hs-var">postfix</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083650"><span class="hs-identifier hs-var">rassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083651"><span class="hs-identifier hs-var">lassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a -&gt; a)]
+</span><a href="#local-6989586621679083652"><span class="hs-identifier hs-var">nassoc</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083653"><span class="hs-identifier hs-var">prefix</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a)
+</span><a href="#local-6989586621679083649"><span class="hs-identifier hs-var">op</span></a></span><span class="annot"><span class="annottext">ParsecT s u m (a -&gt; a)
+-&gt; [ParsecT s u m (a -&gt; a)] -&gt; [ParsecT s u m (a -&gt; a)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[ParsecT s u m (a -&gt; a)]
+</span><a href="#local-6989586621679083654"><span class="hs-identifier hs-var">postfix</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span></pre></body></html>

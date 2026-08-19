@@ -1,0 +1,54 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;libraries/unix/System/Posix/Directory/Internals.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module      :  System.Posix.Directory.Internals</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2022</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Portability :  non-portable (requires POSIX)</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- POSIX directory support (internal module, no PVP guarantees)</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.Posix.Directory.Internals.html"><span class="hs-identifier">System.Posix.Directory.Internals</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#DirStream"><span class="hs-identifier">DirStream</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#CDir"><span class="hs-identifier">CDir</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#CDirent"><span class="hs-identifier">CDirent</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#DirStreamOffset"><span class="hs-identifier">DirStreamOffset</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#DirStreamWithPath"><span class="hs-identifier">DirStreamWithPath</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#fromDirStreamWithPath"><span class="hs-identifier">fromDirStreamWithPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#toDirStreamWithPath"><span class="hs-identifier">toDirStreamWithPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#DirEnt"><span class="hs-identifier">DirEnt</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#dirEntName"><span class="hs-identifier">dirEntName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#dirEntType"><span class="hs-identifier">dirEntType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#DirType"><span class="hs-identifier">DirType</span></a></span><span class="hs-special">(</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html#DirType"><span class="hs-identifier">DirType</span></a></span><span>
+</span><span id="line-28"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html#UnknownType"><span class="hs-identifier">UnknownType</span></a></span><span>
+</span><span id="line-29"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html#NamedPipeType"><span class="hs-identifier">NamedPipeType</span></a></span><span>
+</span><span id="line-30"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html#CharacterDeviceType"><span class="hs-identifier">CharacterDeviceType</span></a></span><span>
+</span><span id="line-31"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html#DirectoryType"><span class="hs-identifier">DirectoryType</span></a></span><span>
+</span><span id="line-32"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html#BlockDeviceType"><span class="hs-identifier">BlockDeviceType</span></a></span><span>
+</span><span id="line-33"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html#RegularFileType"><span class="hs-identifier">RegularFileType</span></a></span><span>
+</span><span id="line-34"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html#SymbolicLinkType"><span class="hs-identifier">SymbolicLinkType</span></a></span><span>
+</span><span id="line-35"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html#SocketType"><span class="hs-identifier">SocketType</span></a></span><span>
+</span><span id="line-36"></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html#WhiteoutType"><span class="hs-identifier">WhiteoutType</span></a></span><span>
+</span><span id="line-37"></span><span>           </span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#isUnknownType"><span class="hs-identifier">isUnknownType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#isNamedPipeType"><span class="hs-identifier">isNamedPipeType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#isCharacterDeviceType"><span class="hs-identifier">isCharacterDeviceType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#isDirectoryType"><span class="hs-identifier">isDirectoryType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#isBlockDeviceType"><span class="hs-identifier">isBlockDeviceType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#isRegularFileType"><span class="hs-identifier">isRegularFileType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#isSymbolicLinkType"><span class="hs-identifier">isSymbolicLinkType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#isSocketType"><span class="hs-identifier">isSocketType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#isWhiteoutType"><span class="hs-identifier">isWhiteoutType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#getRealDirType"><span class="hs-identifier">getRealDirType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#readDirStreamWith"><span class="hs-identifier">readDirStreamWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="System.Posix.Directory.Common.html#readDirStreamWithPtr"><span class="hs-identifier">readDirStreamWithPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.Posix.Directory.Common.html"><span class="hs-identifier">System.Posix.Directory.Common</span></a></span><span>
+</span><span id="line-53"></span></pre></body></html>

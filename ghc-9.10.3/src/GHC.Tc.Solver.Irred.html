@@ -1,0 +1,338 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveFunctor #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MultiWayIf #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE RecursiveDo #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Irred.html"><span class="hs-identifier">GHC.Tc.Solver.Irred</span></a></span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>     </span><span class="annot"><a href="GHC.Tc.Solver.Irred.html#solveIrred"><span class="hs-identifier">solveIrred</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Constraint.html"><span class="hs-identifier">GHC.Tc.Types.Constraint</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.InertSet.html"><span class="hs-identifier">GHC.Tc.Solver.InertSet</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Dict.html"><span class="hs-identifier">GHC.Tc.Solver.Dict</span></a></span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Dict.html#matchLocalInst"><span class="hs-identifier">matchLocalInst</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Dict.html#chooseInstance"><span class="hs-identifier">chooseInstance</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Monad.html"><span class="hs-identifier">GHC.Tc.Solver.Monad</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Evidence.html"><span class="hs-identifier">GHC.Tc.Types.Evidence</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Coercion.html"><span class="hs-identifier">GHC.Core.Coercion</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html"><span class="hs-identifier">GHC.Types.Basic</span></a></span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#SwapFlag"><span class="hs-identifier">SwapFlag</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Bag.html"><span class="hs-identifier">GHC.Data.Bag</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Void.html"><span class="hs-identifier">Data.Void</span></a></span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Void</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="annot"><span class="hs-comment">{- *********************************************************************
+*                                                                      *
+*                      Irreducibles
+*                                                                      *
+********************************************************************* -}</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="GHC.Tc.Solver.Irred.html#solveIrred"><span class="hs-identifier hs-type">solveIrred</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Constraint.html#IrredCt"><span class="hs-identifier hs-type">IrredCt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Monad.html#SolverStage"><span class="hs-identifier hs-type">SolverStage</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Void</span></span><span>
+</span><span id="line-35"></span><span id="solveIrred"><span class="annot"><span class="annottext">solveIrred :: IrredCt -&gt; SolverStage Void
+</span><a href="GHC.Tc.Solver.Irred.html#solveIrred"><span class="hs-identifier hs-var hs-var">solveIrred</span></a></span></span><span> </span><span id="local-6989586621682844208"><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844208"><span class="hs-identifier hs-var">irred</span></a></span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">TcS () -&gt; SolverStage ()
+forall a. TcS a -&gt; SolverStage a
+</span><a href="GHC.Tc.Solver.Monad.html#simpleStage"><span class="hs-identifier hs-var">simpleStage</span></a></span><span> </span><span class="annot"><span class="annottext">(TcS () -&gt; SolverStage ()) -&gt; TcS () -&gt; SolverStage ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; TcS ()
+</span><a href="GHC.Tc.Solver.Monad.html#traceTcS"><span class="hs-identifier hs-var">traceTcS</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;solveIrred:&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IrredCt -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844208"><span class="hs-identifier hs-var">irred</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>       </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">IrredCt -&gt; SolverStage ()
+</span><a href="GHC.Tc.Solver.Irred.html#tryInertIrreds"><span class="hs-identifier hs-var">tryInertIrreds</span></a></span><span> </span><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844208"><span class="hs-identifier hs-var">irred</span></a></span><span>
+</span><span id="line-38"></span><span>       </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">IrredCt -&gt; SolverStage ()
+</span><a href="GHC.Tc.Solver.Irred.html#tryQCsIrredCt"><span class="hs-identifier hs-var">tryQCsIrredCt</span></a></span><span> </span><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844208"><span class="hs-identifier hs-var">irred</span></a></span><span>
+</span><span id="line-39"></span><span>       </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">TcS () -&gt; SolverStage ()
+forall a. TcS a -&gt; SolverStage a
+</span><a href="GHC.Tc.Solver.Monad.html#simpleStage"><span class="hs-identifier hs-var">simpleStage</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IrredCt -&gt; TcS ()
+</span><a href="GHC.Tc.Solver.Irred.html#updInertIrreds"><span class="hs-identifier hs-var">updInertIrreds</span></a></span><span> </span><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844208"><span class="hs-identifier hs-var">irred</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>       </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">CtEvidence -&gt; String -&gt; SolverStage Void
+forall a. CtEvidence -&gt; String -&gt; SolverStage a
+</span><a href="GHC.Tc.Solver.Monad.html#stopWithStage"><span class="hs-identifier hs-var">stopWithStage</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IrredCt -&gt; CtEvidence
+</span><a href="GHC.Tc.Types.Constraint.html#irredCtEvidence"><span class="hs-identifier hs-var">irredCtEvidence</span></a></span><span> </span><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844208"><span class="hs-identifier hs-var">irred</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Kept inert IrredCt&quot;</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="GHC.Tc.Solver.Irred.html#updInertIrreds"><span class="hs-identifier hs-type">updInertIrreds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Constraint.html#IrredCt"><span class="hs-identifier hs-type">IrredCt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Monad.html#TcS"><span class="hs-identifier hs-type">TcS</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span id="updInertIrreds"><span class="annot"><span class="annottext">updInertIrreds :: IrredCt -&gt; TcS ()
+</span><a href="GHC.Tc.Solver.Irred.html#updInertIrreds"><span class="hs-identifier hs-var hs-var">updInertIrreds</span></a></span></span><span> </span><span id="local-6989586621682844217"><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844217"><span class="hs-identifier hs-var">irred</span></a></span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621682844218"><span class="annot"><a href="#local-6989586621682844218"><span class="hs-identifier hs-var">tc_lvl</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TcS TcLevel
+</span><a href="GHC.Tc.Solver.Monad.html#getTcLevel"><span class="hs-identifier hs-var">getTcLevel</span></a></span><span>
+</span><span id="line-45"></span><span>       </span><span class="hs-special">;</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Monad.html#updInertCans"><span class="hs-identifier hs-type">updInertCans</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Tc.Solver.InertSet.html#addIrredToCans"><span class="hs-identifier hs-type">addIrredToCans</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682844218"><span class="hs-identifier hs-type">tc_lvl</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682844217"><span class="hs-identifier hs-type">irred</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><span class="hs-comment">{- *********************************************************************
+*                                                                      *
+*                      Inert Irreducibles
+*                                                                      *
+********************************************************************* -}</span></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- Two pieces of irreducible evidence: if their types are *exactly identical*</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- we can rewrite them. We can never improve using this:</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- if we want ty1 :: Constraint and have ty2 :: Constraint it clearly does not</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- mean that (ty1 ~ ty2)</span><span>
+</span><span id="line-57"></span><span class="annot"><a href="GHC.Tc.Solver.Irred.html#tryInertIrreds"><span class="hs-identifier hs-type">tryInertIrreds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Constraint.html#IrredCt"><span class="hs-identifier hs-type">IrredCt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Monad.html#SolverStage"><span class="hs-identifier hs-type">SolverStage</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span id="tryInertIrreds"><span class="annot"><span class="annottext">tryInertIrreds :: IrredCt -&gt; SolverStage ()
+</span><a href="GHC.Tc.Solver.Irred.html#tryInertIrreds"><span class="hs-identifier hs-var hs-var">tryInertIrreds</span></a></span></span><span> </span><span id="local-6989586621682844222"><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844222"><span class="hs-identifier hs-var">irred</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TcS (StopOrContinue ()) -&gt; SolverStage ()
+forall a. TcS (StopOrContinue a) -&gt; SolverStage a
+</span><a href="GHC.Tc.Solver.Monad.html#Stage"><span class="hs-identifier hs-var">Stage</span></a></span><span> </span><span class="annot"><span class="annottext">(TcS (StopOrContinue ()) -&gt; SolverStage ())
+-&gt; TcS (StopOrContinue ()) -&gt; SolverStage ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621682844224"><span class="annot"><a href="#local-6989586621682844224"><span class="hs-identifier hs-var">ics</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TcS InertCans
+</span><a href="GHC.Tc.Solver.Monad.html#getInertCans"><span class="hs-identifier hs-var">getInertCans</span></a></span><span>
+</span><span id="line-60"></span><span>               </span><span class="hs-special">;</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Irred.html#try_inert_irreds"><span class="hs-identifier hs-type">try_inert_irreds</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682844224"><span class="hs-identifier hs-type">ics</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682844222"><span class="hs-identifier hs-type">irred</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="GHC.Tc.Solver.Irred.html#try_inert_irreds"><span class="hs-identifier hs-type">try_inert_irreds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.InertSet.html#InertCans"><span class="hs-identifier hs-type">InertCans</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Constraint.html#IrredCt"><span class="hs-identifier hs-type">IrredCt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Monad.html#TcS"><span class="hs-identifier hs-type">TcS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Solver.Monad.html#StopOrContinue"><span class="hs-identifier hs-type">StopOrContinue</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span id="try_inert_irreds"><span class="annot"><span class="annottext">try_inert_irreds :: InertCans -&gt; IrredCt -&gt; TcS (StopOrContinue ())
+</span><a href="GHC.Tc.Solver.Irred.html#try_inert_irreds"><span class="hs-identifier hs-var hs-var">try_inert_irreds</span></a></span></span><span> </span><span id="local-6989586621682844227"><span class="annot"><span class="annottext">InertCans
+</span><a href="#local-6989586621682844227"><span class="hs-identifier hs-var">inerts</span></a></span></span><span> </span><span id="local-6989586621682844228"><span class="annot"><span class="annottext">irred_w :: IrredCt
+</span><a href="#local-6989586621682844228"><span class="hs-identifier hs-var">irred_w</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.Constraint.html#IrredCt"><span class="hs-identifier hs-type">IrredCt</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ir_ev :: IrredCt -&gt; CtEvidence
+</span><a href="GHC.Tc.Types.Constraint.html#ir_ev"><span class="hs-identifier hs-var">ir_ev</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682844231"><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844231"><span class="hs-identifier hs-var">ev_w</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ir_reason :: IrredCt -&gt; CtIrredReason
+</span><a href="GHC.Tc.Types.Constraint.html#ir_reason"><span class="hs-identifier hs-var">ir_reason</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682844233"><span class="annot"><span class="annottext">CtIrredReason
+</span><a href="#local-6989586621682844233"><span class="hs-identifier hs-var">reason</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682844234"><span class="annot"><span class="annottext">Bag (IrredCt, SwapFlag)
+</span><a href="#local-6989586621682844234"><span class="hs-identifier hs-var">matching_irreds</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682844235"><span class="annot"><span class="annottext">InertIrreds
+</span><a href="#local-6989586621682844235"><span class="hs-identifier hs-var">others</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InertIrreds -&gt; CtEvidence -&gt; (Bag (IrredCt, SwapFlag), InertIrreds)
+</span><a href="GHC.Tc.Solver.InertSet.html#findMatchingIrreds"><span class="hs-identifier hs-var">findMatchingIrreds</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InertCans -&gt; InertIrreds
+</span><a href="GHC.Tc.Solver.InertSet.html#inert_irreds"><span class="hs-identifier hs-var">inert_irreds</span></a></span><span> </span><span class="annot"><span class="annottext">InertCans
+</span><a href="#local-6989586621682844227"><span class="hs-identifier hs-var">inerts</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844231"><span class="hs-identifier hs-var">ev_w</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621682844238"><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844238"><span class="hs-identifier hs-var">irred_i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682844239"><span class="annot"><span class="annottext">SwapFlag
+</span><a href="#local-6989586621682844239"><span class="hs-identifier hs-var">swap</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621682844240"><span class="annot"><span class="annottext">[(IrredCt, SwapFlag)]
+</span><a href="#local-6989586621682844240"><span class="hs-identifier hs-var">_rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Bag (IrredCt, SwapFlag) -&gt; [(IrredCt, SwapFlag)]
+forall a. Bag a -&gt; [a]
+</span><a href="GHC.Data.Bag.html#bagToList"><span class="hs-identifier hs-var">bagToList</span></a></span><span> </span><span class="annot"><span class="annottext">Bag (IrredCt, SwapFlag)
+</span><a href="#local-6989586621682844234"><span class="hs-identifier hs-var">matching_irreds</span></a></span><span>
+</span><span id="line-67"></span><span>        </span><span class="hs-comment">-- See Note [Multiple matching irreds]</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682844242"><span class="annot"><span class="annottext">ev_i :: CtEvidence
+</span><a href="#local-6989586621682844242"><span class="hs-identifier hs-var hs-var">ev_i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IrredCt -&gt; CtEvidence
+</span><a href="GHC.Tc.Types.Constraint.html#irredCtEvidence"><span class="hs-identifier hs-var">irredCtEvidence</span></a></span><span> </span><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844238"><span class="hs-identifier hs-var">irred_i</span></a></span><span>
+</span><span id="line-69"></span><span>        </span><span id="local-6989586621682844243"><span class="annot"><span class="annottext">ct_i :: Ct
+</span><a href="#local-6989586621682844243"><span class="hs-identifier hs-var hs-var">ct_i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IrredCt -&gt; Ct
+</span><a href="GHC.Tc.Types.Constraint.html#CIrredCan"><span class="hs-identifier hs-var">CIrredCan</span></a></span><span> </span><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844238"><span class="hs-identifier hs-var">irred_i</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CtIrredReason -&gt; Bool
+</span><a href="GHC.Tc.Types.Constraint.html#isInsolubleReason"><span class="hs-identifier hs-var">isInsolubleReason</span></a></span><span> </span><span class="annot"><span class="annottext">CtIrredReason
+</span><a href="#local-6989586621682844233"><span class="hs-identifier hs-var">reason</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">CtEvidence -&gt; Bool
+</span><a href="GHC.Tc.Types.Constraint.html#isGiven"><span class="hs-identifier hs-var">isGiven</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844242"><span class="hs-identifier hs-var">ev_i</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">CtEvidence -&gt; Bool
+</span><a href="GHC.Tc.Types.Constraint.html#isGiven"><span class="hs-identifier hs-var">isGiven</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844231"><span class="hs-identifier hs-var">ev_w</span></a></span><span>
+</span><span id="line-71"></span><span>        </span><span class="hs-comment">-- See Note [Insoluble irreds]</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; TcS ()
+</span><a href="GHC.Tc.Solver.Monad.html#traceTcS"><span class="hs-identifier hs-var">traceTcS</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;iteractIrred&quot;</span></span><span> </span><span class="annot"><span class="annottext">(SDoc -&gt; TcS ()) -&gt; SDoc -&gt; TcS ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-73"></span><span>         </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;wanted:&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ct -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Ct
+</span><a href="#local-6989586621682844252"><span class="hs-identifier hs-var">ct_w</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsDoc doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">$$</span></a></span><span> </span><span class="annot"><span class="annottext">CtOrigin -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ct -&gt; CtOrigin
+</span><a href="GHC.Tc.Types.Constraint.html#ctOrigin"><span class="hs-identifier hs-var">ctOrigin</span></a></span><span> </span><span class="annot"><span class="annottext">Ct
+</span><a href="#local-6989586621682844252"><span class="hs-identifier hs-var">ct_w</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;inert: &quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ct -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Ct
+</span><a href="#local-6989586621682844243"><span class="hs-identifier hs-var">ct_i</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsDoc doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">$$</span></a></span><span> </span><span class="annot"><span class="annottext">CtOrigin -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ct -&gt; CtOrigin
+</span><a href="GHC.Tc.Types.Constraint.html#ctOrigin"><span class="hs-identifier hs-var">ctOrigin</span></a></span><span> </span><span class="annot"><span class="annottext">Ct
+</span><a href="#local-6989586621682844243"><span class="hs-identifier hs-var">ct_i</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-75"></span><span>       </span><span class="hs-special">;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Ct -&gt; Ct -&gt; InteractResult
+</span><a href="GHC.Tc.Solver.InertSet.html#solveOneFromTheOther"><span class="hs-identifier hs-var">solveOneFromTheOther</span></a></span><span> </span><span class="annot"><span class="annottext">Ct
+</span><a href="#local-6989586621682844243"><span class="hs-identifier hs-var">ct_i</span></a></span><span> </span><span class="annot"><span class="annottext">Ct
+</span><a href="#local-6989586621682844252"><span class="hs-identifier hs-var">ct_w</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-76"></span><span>            </span><span class="annot"><span class="annottext">InteractResult
+</span><a href="GHC.Tc.Solver.InertSet.html#KeepInert"><span class="hs-identifier hs-var">KeepInert</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">CtEvidence -&gt; Bool -&gt; EvTerm -&gt; TcS ()
+</span><a href="GHC.Tc.Solver.Monad.html#setEvBindIfWanted"><span class="hs-identifier hs-var">setEvBindIfWanted</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844231"><span class="hs-identifier hs-var">ev_w</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SwapFlag -&gt; CtEvidence -&gt; EvTerm
+</span><a href="#local-6989586621682844258"><span class="hs-identifier hs-var">swap_me</span></a></span><span> </span><span class="annot"><span class="annottext">SwapFlag
+</span><a href="#local-6989586621682844239"><span class="hs-identifier hs-var">swap</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844242"><span class="hs-identifier hs-var">ev_i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>                            </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">StopOrContinue () -&gt; TcS (StopOrContinue ())
+forall a. a -&gt; TcS a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CtEvidence -&gt; SDoc -&gt; StopOrContinue ()
+forall a. CtEvidence -&gt; SDoc -&gt; StopOrContinue a
+</span><a href="GHC.Tc.Solver.Monad.html#Stop"><span class="hs-identifier hs-var">Stop</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844231"><span class="hs-identifier hs-var">ev_w</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Irred equal:KeepInert&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Ct -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Ct
+</span><a href="#local-6989586621682844252"><span class="hs-identifier hs-var">ct_w</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-78"></span><span>            </span><span class="annot"><span class="annottext">InteractResult
+</span><a href="GHC.Tc.Solver.InertSet.html#KeepWork"><span class="hs-identifier hs-var">KeepWork</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>  </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">CtEvidence -&gt; Bool -&gt; EvTerm -&gt; TcS ()
+</span><a href="GHC.Tc.Solver.Monad.html#setEvBindIfWanted"><span class="hs-identifier hs-var">setEvBindIfWanted</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844242"><span class="hs-identifier hs-var">ev_i</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SwapFlag -&gt; CtEvidence -&gt; EvTerm
+</span><a href="#local-6989586621682844258"><span class="hs-identifier hs-var">swap_me</span></a></span><span> </span><span class="annot"><span class="annottext">SwapFlag
+</span><a href="#local-6989586621682844239"><span class="hs-identifier hs-var">swap</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844231"><span class="hs-identifier hs-var">ev_w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>                            </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">(InertCans -&gt; InertCans) -&gt; TcS ()
+</span><a href="GHC.Tc.Solver.Monad.html#updInertCans"><span class="hs-identifier hs-var">updInertCans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(InertIrreds -&gt; InertIrreds) -&gt; InertCans -&gt; InertCans
+</span><a href="GHC.Tc.Solver.InertSet.html#updIrreds"><span class="hs-identifier hs-var">updIrreds</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">InertIrreds
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">InertIrreds
+</span><a href="#local-6989586621682844235"><span class="hs-identifier hs-var">others</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>                            </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">() -&gt; TcS (StopOrContinue ())
+forall a. a -&gt; TcS (StopOrContinue a)
+</span><a href="GHC.Tc.Solver.Monad.html#continueWith"><span class="hs-identifier hs-var">continueWith</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; TcS (StopOrContinue ())
+forall a. a -&gt; TcS (StopOrContinue a)
+</span><a href="GHC.Tc.Solver.Monad.html#continueWith"><span class="hs-identifier hs-var">continueWith</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621682844252"><span class="annot"><span class="annottext">ct_w :: Ct
+</span><a href="#local-6989586621682844252"><span class="hs-identifier hs-var hs-var">ct_w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IrredCt -&gt; Ct
+</span><a href="GHC.Tc.Types.Constraint.html#CIrredCan"><span class="hs-identifier hs-var">CIrredCan</span></a></span><span> </span><span class="annot"><span class="annottext">IrredCt
+</span><a href="#local-6989586621682844228"><span class="hs-identifier hs-var">irred_w</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>    </span><span class="annot"><a href="#local-6989586621682844258"><span class="hs-identifier hs-type">swap_me</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#SwapFlag"><span class="hs-identifier hs-type">SwapFlag</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Constraint.html#CtEvidence"><span class="hs-identifier hs-type">CtEvidence</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Evidence.html#EvTerm"><span class="hs-identifier hs-type">EvTerm</span></a></span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621682844258"><span class="annot"><span class="annottext">swap_me :: SwapFlag -&gt; CtEvidence -&gt; EvTerm
+</span><a href="#local-6989586621682844258"><span class="hs-identifier hs-var hs-var">swap_me</span></a></span></span><span> </span><span id="local-6989586621682844263"><span class="annot"><span class="annottext">SwapFlag
+</span><a href="#local-6989586621682844263"><span class="hs-identifier hs-var">swap</span></a></span></span><span> </span><span id="local-6989586621682844264"><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844264"><span class="hs-identifier hs-var">ev</span></a></span></span><span>
+</span><span id="line-90"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SwapFlag
+</span><a href="#local-6989586621682844263"><span class="hs-identifier hs-var">swap</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-91"></span><span>           </span><span class="annot"><span class="annottext">SwapFlag
+</span><a href="GHC.Types.Basic.html#NotSwapped"><span class="hs-identifier hs-var">NotSwapped</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CtEvidence -&gt; EvTerm
+</span><a href="GHC.Tc.Types.Constraint.html#ctEvTerm"><span class="hs-identifier hs-var">ctEvTerm</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844264"><span class="hs-identifier hs-var">ev</span></a></span><span>
+</span><span id="line-92"></span><span>           </span><span class="annot"><span class="annottext">SwapFlag
+</span><a href="GHC.Types.Basic.html#IsSwapped"><span class="hs-identifier hs-var">IsSwapped</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TcCoercion -&gt; EvTerm
+</span><a href="GHC.Tc.Types.Evidence.html#evCoercion"><span class="hs-identifier hs-var">evCoercion</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TcCoercion -&gt; TcCoercion
+</span><a href="GHC.Core.Coercion.html#mkSymCo"><span class="hs-identifier hs-var">mkSymCo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">EvTerm -&gt; TcCoercion
+</span><a href="GHC.Tc.Types.Evidence.html#evTermCoercion"><span class="hs-identifier hs-var">evTermCoercion</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CtEvidence -&gt; EvTerm
+</span><a href="GHC.Tc.Types.Constraint.html#ctEvTerm"><span class="hs-identifier hs-var">ctEvTerm</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844264"><span class="hs-identifier hs-var">ev</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-comment">{- Note [Multiple matching irreds]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+You might think that it's impossible to have multiple irreds all match the
+work item; after all, interactIrred looks for matches and solves one from the
+other. However, note that interacting insoluble, non-droppable irreds does not
+do this matching. We thus might end up with several insoluble, non-droppable,
+matching irreds in the inert set. When another irred comes along that we have
+not yet labeled insoluble, we can find multiple matches. These multiple matches
+cause no harm, but it would be wrong to ASSERT that they aren't there (as we
+once had done). This problem can be tickled by typecheck/should_compile/holes.
+
+Note [Insoluble irreds]
+~~~~~~~~~~~~~~~~~~~~~~~
+We don't allow an /insoluble/ Wanted to be solved from another identical
+Wanted.  We want to keep all the insoluble Wanteds distinct, so that we get
+distinct error messages with -fdefer-type-errors
+
+However we /do/ allow an insoluble constraint (Given or Wanted) to be solved
+from an identical insoluble Given.  This might seem a little odd, but there is
+lots of discussion in #23413 and #17543.  We currently implement the PermissivePlan
+of #23413.  An alternative would be the LibertarianPlan, but that is harder to
+implemnent.
+
+By &quot;identical&quot; we include swapping.  See Note [Solving irreducible equalities]
+in GHC.Tc.Solver.InertSet.
+
+Test cases that are involved bkpfail24.run, T15450, GivenForallLoop, T20189, T8392a.
+-}</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="annot"><span class="hs-comment">{- *********************************************************************
+*                                                                      *
+*                      Quantified constraints
+*                                                                      *
+********************************************************************* -}</span></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="annot"><a href="GHC.Tc.Solver.Irred.html#tryQCsIrredCt"><span class="hs-identifier hs-type">tryQCsIrredCt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Constraint.html#IrredCt"><span class="hs-identifier hs-type">IrredCt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Solver.Monad.html#SolverStage"><span class="hs-identifier hs-type">SolverStage</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- Try local quantified constraints for</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- and CIrredCan e.g.  (c a)</span><span>
+</span><span id="line-133"></span><span id="tryQCsIrredCt"><span class="annot"><span class="annottext">tryQCsIrredCt :: IrredCt -&gt; SolverStage ()
+</span><a href="GHC.Tc.Solver.Irred.html#tryQCsIrredCt"><span class="hs-identifier hs-var hs-var">tryQCsIrredCt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.Constraint.html#IrredCt"><span class="hs-identifier hs-type">IrredCt</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ir_ev :: IrredCt -&gt; CtEvidence
+</span><a href="GHC.Tc.Types.Constraint.html#ir_ev"><span class="hs-identifier hs-var">ir_ev</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682844271"><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844271"><span class="hs-identifier hs-var">ev</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">CtEvidence -&gt; Bool
+</span><a href="GHC.Tc.Types.Constraint.html#isGiven"><span class="hs-identifier hs-var">isGiven</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844271"><span class="hs-identifier hs-var">ev</span></a></span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TcS (StopOrContinue ()) -&gt; SolverStage ()
+forall a. TcS (StopOrContinue a) -&gt; SolverStage a
+</span><a href="GHC.Tc.Solver.Monad.html#Stage"><span class="hs-identifier hs-var">Stage</span></a></span><span> </span><span class="annot"><span class="annottext">(TcS (StopOrContinue ()) -&gt; SolverStage ())
+-&gt; TcS (StopOrContinue ()) -&gt; SolverStage ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">() -&gt; TcS (StopOrContinue ())
+forall a. a -&gt; TcS (StopOrContinue a)
+</span><a href="GHC.Tc.Solver.Monad.html#continueWith"><span class="hs-identifier hs-var">continueWith</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TcS (StopOrContinue ()) -&gt; SolverStage ()
+forall a. TcS (StopOrContinue a) -&gt; SolverStage a
+</span><a href="GHC.Tc.Solver.Monad.html#Stage"><span class="hs-identifier hs-var">Stage</span></a></span><span> </span><span class="annot"><span class="annottext">(TcS (StopOrContinue ()) -&gt; SolverStage ())
+-&gt; TcS (StopOrContinue ()) -&gt; SolverStage ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621682844272"><span class="annot"><a href="#local-6989586621682844272"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TcPredType -&gt; CtLoc -&gt; TcS ClsInstResult
+</span><a href="GHC.Tc.Solver.Dict.html#matchLocalInst"><span class="hs-identifier hs-var">matchLocalInst</span></a></span><span> </span><span class="annot"><span class="annottext">TcPredType
+</span><a href="#local-6989586621682844273"><span class="hs-identifier hs-var">pred</span></a></span><span> </span><span class="annot"><span class="annottext">CtLoc
+</span><a href="#local-6989586621682844274"><span class="hs-identifier hs-var">loc</span></a></span><span>
+</span><span id="line-139"></span><span>               </span><span class="hs-special">;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621682844272"><span class="hs-identifier hs-type">res</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-140"></span><span>                    </span><span class="annot"><a href="GHC.Tc.Instance.Class.html#OneInst"><span class="hs-identifier hs-type">OneInst</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CtEvidence -&gt; ClsInstResult -&gt; TcS (StopOrContinue ())
+forall a. CtEvidence -&gt; ClsInstResult -&gt; TcS (StopOrContinue a)
+</span><a href="GHC.Tc.Solver.Dict.html#chooseInstance"><span class="hs-identifier hs-var">chooseInstance</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844271"><span class="hs-identifier hs-var">ev</span></a></span><span> </span><span class="annot"><span class="annottext">ClsInstResult
+</span><a href="#local-6989586621682844272"><span class="hs-identifier hs-var">res</span></a></span><span>
+</span><span id="line-141"></span><span>                    </span><span class="annot"><span class="annottext">ClsInstResult
+</span><span class="hs-identifier">_</span></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; TcS (StopOrContinue ())
+forall a. a -&gt; TcS (StopOrContinue a)
+</span><a href="GHC.Tc.Solver.Monad.html#continueWith"><span class="hs-identifier hs-var">continueWith</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-143"></span><span>    </span><span id="local-6989586621682844274"><span class="annot"><span class="annottext">loc :: CtLoc
+</span><a href="#local-6989586621682844274"><span class="hs-identifier hs-var hs-var">loc</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CtEvidence -&gt; CtLoc
+</span><a href="GHC.Tc.Types.Constraint.html#ctEvLoc"><span class="hs-identifier hs-var">ctEvLoc</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844271"><span class="hs-identifier hs-var">ev</span></a></span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621682844273"><span class="annot"><span class="annottext">pred :: TcPredType
+</span><a href="#local-6989586621682844273"><span class="hs-identifier hs-var hs-var">pred</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CtEvidence -&gt; TcPredType
+</span><a href="GHC.Tc.Types.Constraint.html#ctEvPred"><span class="hs-identifier hs-var">ctEvPred</span></a></span><span> </span><span class="annot"><span class="annottext">CtEvidence
+</span><a href="#local-6989586621682844271"><span class="hs-identifier hs-var">ev</span></a></span><span>
+</span><span id="line-145"></span></pre></body></html>

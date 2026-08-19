@@ -1,0 +1,97 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.LSP.ProjectContext.html"><span class="hs-identifier">Unison.LSP.ProjectContext</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.LSP.ProjectContext.html#projectContextHandler"><span class="hs-identifier">projectContextHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Message</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Msg</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.ProjectPath</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ProjectPathG</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.ProjectPath</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PP</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Core.Project</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html"><span class="hs-identifier">Unison.LSP.Types</span></a></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">data</span><span> </span><span id="ProjectContextResponse"><span class="annot"><a href="Unison.LSP.ProjectContext.html#ProjectContextResponse"><span class="hs-identifier hs-var">ProjectContextResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ProjectContextSuccess"><span class="annot"><a href="Unison.LSP.ProjectContext.html#ProjectContextSuccess"><span class="hs-identifier hs-var">ProjectContextSuccess</span></a></span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="projectName"><span class="annot"><span class="annottext">ProjectContextResponse -&gt; ProjectName
+</span><a href="Unison.LSP.ProjectContext.html#projectName"><span class="hs-identifier hs-var hs-var">projectName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectName</span></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span id="projectBranch"><span class="annot"><span class="annottext">ProjectContextResponse -&gt; ProjectBranchName
+</span><a href="Unison.LSP.ProjectContext.html#projectBranch"><span class="hs-identifier hs-var hs-var">projectBranch</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProjectBranchName</span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681560761"><span id="local-6989586621681560769"><span id="local-6989586621681560773"><span class="annot"><span class="annottext">Int -&gt; ProjectContextResponse -&gt; ShowS
+[ProjectContextResponse] -&gt; ShowS
+ProjectContextResponse -&gt; String
+(Int -&gt; ProjectContextResponse -&gt; ShowS)
+-&gt; (ProjectContextResponse -&gt; String)
+-&gt; ([ProjectContextResponse] -&gt; ShowS)
+-&gt; Show ProjectContextResponse
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ProjectContextResponse -&gt; ShowS
+showsPrec :: Int -&gt; ProjectContextResponse -&gt; ShowS
+$cshow :: ProjectContextResponse -&gt; String
+show :: ProjectContextResponse -&gt; String
+$cshowList :: [ProjectContextResponse] -&gt; ShowS
+showList :: [ProjectContextResponse] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681560778"><span id="local-6989586621681560784"><span class="annot"><span class="annottext">ProjectContextResponse -&gt; ProjectContextResponse -&gt; Bool
+(ProjectContextResponse -&gt; ProjectContextResponse -&gt; Bool)
+-&gt; (ProjectContextResponse -&gt; ProjectContextResponse -&gt; Bool)
+-&gt; Eq ProjectContextResponse
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ProjectContextResponse -&gt; ProjectContextResponse -&gt; Bool
+== :: ProjectContextResponse -&gt; ProjectContextResponse -&gt; Bool
+$c/= :: ProjectContextResponse -&gt; ProjectContextResponse -&gt; Bool
+/= :: ProjectContextResponse -&gt; ProjectContextResponse -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681560790"><span id="local-6989586621681560794"><span id="local-6989586621681560797"><span id="local-6989586621681560800"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Unison.LSP.ProjectContext.html#ProjectContextResponse"><span class="hs-identifier hs-type">ProjectContextResponse</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>  </span><span id="local-6989586621681560815"><span class="annot"><span class="annottext">toJSON :: ProjectContextResponse -&gt; Value
+</span><a href="#local-6989586621681560815"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Unison.LSP.ProjectContext.html#ProjectContextSuccess"><span class="hs-identifier hs-type">ProjectContextSuccess</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681560817"><span class="annot"><span class="annottext">ProjectName
+projectName :: ProjectContextResponse -&gt; ProjectName
+projectName :: ProjectName
+</span><a href="Unison.LSP.ProjectContext.html#projectName"><span class="hs-identifier hs-var hs-var">projectName</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681560818"><span class="annot"><span class="annottext">ProjectBranchName
+projectBranch :: ProjectContextResponse -&gt; ProjectBranchName
+projectBranch :: ProjectBranchName
+</span><a href="Unison.LSP.ProjectContext.html#projectBranch"><span class="hs-identifier hs-var hs-var">projectBranch</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-24"></span><span>      </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span>
+</span><span id="line-25"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;projectName&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; ProjectName -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">ProjectName
+</span><a href="#local-6989586621681560817"><span class="hs-identifier hs-var">projectName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>          </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;projectBranch&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; ProjectBranchName -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">ProjectBranchName
+</span><a href="#local-6989586621681560818"><span class="hs-identifier hs-var">projectBranch</span></a></span><span>
+</span><span id="line-27"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | Handler for the 'unison/projectContext' custom LSP request.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- This returns the current project's name and branch.</span><span>
+</span><span id="line-31"></span><span class="annot"><a href="Unison.LSP.ProjectContext.html#projectContextHandler"><span class="hs-identifier hs-type">projectContextHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Msg.TRequestMessage</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_CustomMethod</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison/projectContext&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Msg.TResponseError</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">Msg.Method_CustomMethod</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison/projectContext&quot;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Aeson.Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><a href="Unison.LSP.Types.html#Lsp"><span class="hs-identifier hs-type">Lsp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span id="projectContextHandler"><span class="annot"><span class="annottext">projectContextHandler :: forall {f :: MessageDirection} {f :: MessageDirection}.
+TRequestMessage ('Method_CustomMethod &quot;unison/projectContext&quot;)
+-&gt; (Either
+      (TResponseError ('Method_CustomMethod &quot;unison/projectContext&quot;))
+      Value
+    -&gt; Lsp ())
+-&gt; Lsp ()
+</span><a href="Unison.LSP.ProjectContext.html#projectContextHandler"><span class="hs-identifier hs-var hs-var">projectContextHandler</span></a></span></span><span> </span><span id="local-6989586621681560829"><span class="annot"><span class="annottext">TRequestMessage ('Method_CustomMethod &quot;unison/projectContext&quot;)
+</span><a href="#local-6989586621681560829"><span class="hs-identifier hs-var">_m</span></a></span></span><span> </span><span id="local-6989586621681560830"><span class="annot"><span class="annottext">Either
+  (TResponseError ('Method_CustomMethod &quot;unison/projectContext&quot;))
+  Value
+-&gt; Lsp ()
+</span><a href="#local-6989586621681560830"><span class="hs-identifier hs-var">respond</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621681560831"><span class="annot"><a href="#local-6989586621681560831"><span class="hs-identifier hs-var">pp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Lsp ProjectPath
+forall (m :: * -&gt; *). Lspish m =&gt; m ProjectPath
+</span><a href="Unison.LSP.Types.html#getCurrentProjectPath"><span class="hs-identifier hs-var">getCurrentProjectPath</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PP.ProjectPath</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681560834"><span class="annot"><a href="#local-6989586621681560834"><span class="hs-identifier hs-var hs-var">project</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681560836"><span class="annot"><a href="#local-6989586621681560836"><span class="hs-identifier hs-var hs-var">branch</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PP.toNames</span></span><span> </span><span class="annot"><a href="#local-6989586621681560831"><span class="hs-identifier hs-type">pp</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><a href="#local-6989586621681560830"><span class="hs-identifier hs-type">respond</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Aeson.toJSON</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Unison.LSP.ProjectContext.html#ProjectContextSuccess"><span class="hs-identifier hs-type">ProjectContextSuccess</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681560834"><span class="hs-identifier hs-type">project</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681560836"><span class="hs-identifier hs-type">branch</span></a></span><span>
+</span><span id="line-39"></span></pre></body></html>

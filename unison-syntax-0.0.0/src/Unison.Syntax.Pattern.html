@@ -1,0 +1,295 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Syntax.Pattern.html"><span class="hs-identifier">Unison.Syntax.Pattern</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier">Pattern</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#setPos"><span class="hs-identifier">setPos</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#SeqOp"><span class="hs-identifier">SeqOp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HashQualified</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HashQualified</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html"><span class="hs-identifier">Unison.Parser.Ann</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier">Ann</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Syntax.Lexer.Token.html"><span class="hs-identifier">Unison.Syntax.Lexer.Token</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Lexer.Token.html#Token"><span class="hs-identifier">Token</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Syntax.Parser.html"><span class="hs-identifier">Unison.Syntax.Parser</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Parser.Ann.html#Annotated"><span class="hs-identifier">Annotated</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Bytes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">data</span><span> </span><span id="Pattern"><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-var">Pattern</span></a></span></span><span> </span><span id="local-6989586621679252653"><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="As"><span class="annot"><a href="Unison.Syntax.Pattern.html#As"><span class="hs-identifier hs-var">As</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Lexer.Token.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Boolean"><span class="annot"><a href="Unison.Syntax.Pattern.html#Boolean"><span class="hs-identifier hs-var">Boolean</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Bytes"><span class="annot"><a href="Unison.Syntax.Pattern.html#Bytes"><span class="hs-identifier hs-var">Bytes</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bytes</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Char"><span class="annot"><a href="Unison.Syntax.Pattern.html#Char"><span class="hs-identifier hs-var">Char</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Constructor"><span class="annot"><a href="Unison.Syntax.Pattern.html#Constructor"><span class="hs-identifier hs-var">Constructor</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Lexer.Token.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EffectBind"><span class="annot"><a href="Unison.Syntax.Pattern.html#EffectBind"><span class="hs-identifier hs-var">EffectBind</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Lexer.Token.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EffectPure"><span class="annot"><a href="Unison.Syntax.Pattern.html#EffectPure"><span class="hs-identifier hs-var">EffectPure</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Float"><span class="annot"><a href="Unison.Syntax.Pattern.html#Float"><span class="hs-identifier hs-var">Float</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Int"><span class="annot"><a href="Unison.Syntax.Pattern.html#Int"><span class="hs-identifier hs-var">Int</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Nat"><span class="annot"><a href="Unison.Syntax.Pattern.html#Nat"><span class="hs-identifier hs-var">Nat</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Pair"><span class="annot"><a href="Unison.Syntax.Pattern.html#Pair"><span class="hs-identifier hs-var">Pair</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SequenceLiteral"><span class="annot"><a href="Unison.Syntax.Pattern.html#SequenceLiteral"><span class="hs-identifier hs-var">SequenceLiteral</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SequenceOp"><span class="annot"><a href="Unison.Syntax.Pattern.html#SequenceOp"><span class="hs-identifier hs-var">SequenceOp</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Syntax.Pattern.html#SeqOp"><span class="hs-identifier hs-type">SeqOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252653"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Text"><span class="annot"><a href="Unison.Syntax.Pattern.html#Text"><span class="hs-identifier hs-var">Text</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Unbound"><span class="annot"><a href="Unison.Syntax.Pattern.html#Unbound"><span class="hs-identifier hs-var">Unbound</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Unit"><span class="annot"><a href="Unison.Syntax.Pattern.html#Unit"><span class="hs-identifier hs-var">Unit</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- There's unfortunately no syntactic difference between nullary constructors and variables,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-comment">-- so we can't commit to one or the other yet.</span><span>
+</span><span id="line-35"></span><span>    </span><span id="VarOrNullaryConstructor"><span class="annot"><a href="Unison.Syntax.Pattern.html#VarOrNullaryConstructor"><span class="hs-identifier hs-var">VarOrNullaryConstructor</span></a></span></span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Lexer.Token.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679252674"><span id="local-6989586621679252747"><span id="local-6989586621679252750"><span class="annot"><span class="annottext">Int -&gt; Pattern v -&gt; ShowS
+[Pattern v] -&gt; ShowS
+Pattern v -&gt; String
+(Int -&gt; Pattern v -&gt; ShowS)
+-&gt; (Pattern v -&gt; String)
+-&gt; ([Pattern v] -&gt; ShowS)
+-&gt; Show (Pattern v)
+forall v. Show v =&gt; Int -&gt; Pattern v -&gt; ShowS
+forall v. Show v =&gt; [Pattern v] -&gt; ShowS
+forall v. Show v =&gt; Pattern v -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall v. Show v =&gt; Int -&gt; Pattern v -&gt; ShowS
+showsPrec :: Int -&gt; Pattern v -&gt; ShowS
+$cshow :: forall v. Show v =&gt; Pattern v -&gt; String
+show :: Pattern v -&gt; String
+$cshowList :: forall v. Show v =&gt; [Pattern v] -&gt; ShowS
+showList :: [Pattern v] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679252650"><span class="annot"><a href="Unison.Parser.Ann.html#Annotated"><span class="hs-identifier hs-type">Annotated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252650"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621679252759"><span class="annot"><span class="annottext">ann :: Pattern v -&gt; Ann
+</span><a href="#local-6989586621679252759"><span class="hs-identifier hs-var hs-var hs-var">ann</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#As"><span class="hs-identifier hs-type">As</span></a></span><span> </span><span id="local-6989586621679252761"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252761"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Token v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252761"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Boolean"><span class="hs-identifier hs-type">Boolean</span></a></span><span> </span><span id="local-6989586621679252762"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252762"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252762"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Bytes"><span class="hs-identifier hs-type">Bytes</span></a></span><span> </span><span id="local-6989586621679252763"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252763"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bytes
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252763"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span id="local-6989586621679252764"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252764"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252764"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Constructor"><span class="hs-identifier hs-type">Constructor</span></a></span><span> </span><span id="local-6989586621679252765"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252765"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Token (HashQualified Name)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[Pattern v]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252765"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#EffectBind"><span class="hs-identifier hs-type">EffectBind</span></a></span><span> </span><span id="local-6989586621679252766"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252766"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Token (HashQualified Name)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[Pattern v]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252766"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#EffectPure"><span class="hs-identifier hs-type">EffectPure</span></a></span><span> </span><span id="local-6989586621679252767"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252767"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252767"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Float"><span class="hs-identifier hs-type">Float</span></a></span><span> </span><span id="local-6989586621679252768"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252768"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252768"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span id="local-6989586621679252769"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252769"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252769"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Nat"><span class="hs-identifier hs-type">Nat</span></a></span><span> </span><span id="local-6989586621679252770"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252770"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252770"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span id="local-6989586621679252771"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252771"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252771"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#SequenceLiteral"><span class="hs-identifier hs-type">SequenceLiteral</span></a></span><span> </span><span id="local-6989586621679252772"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252772"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">[Pattern v]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252772"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#SequenceOp"><span class="hs-identifier hs-type">SequenceOp</span></a></span><span> </span><span id="local-6989586621679252773"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252773"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">SeqOp
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252773"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span id="local-6989586621679252774"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252774"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252774"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Unbound"><span class="hs-identifier hs-type">Unbound</span></a></span><span> </span><span id="local-6989586621679252775"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252775"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252775"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Unit"><span class="hs-identifier hs-type">Unit</span></a></span><span> </span><span id="local-6989586621679252776"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252776"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252776"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><a href="Unison.Syntax.Pattern.html#VarOrNullaryConstructor"><span class="hs-identifier hs-type">VarOrNullaryConstructor</span></a></span><span> </span><span id="local-6989586621679252777"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252777"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Token Name
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252777"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span id="local-6989586621679252651"><span class="annot"><a href="Unison.Syntax.Pattern.html#setPos"><span class="hs-identifier hs-type">setPos</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Parser.Ann.html#Ann"><span class="hs-identifier hs-type">Ann</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252651"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679252651"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-59"></span><span id="setPos"><span class="annot"><span class="annottext">setPos :: forall v. Ann -&gt; Pattern v -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#setPos"><span class="hs-identifier hs-var hs-var">setPos</span></a></span></span><span> </span><span id="local-6989586621679252778"><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#As"><span class="hs-identifier hs-type">As</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252779"><span class="annot"><span class="annottext">Token v
+</span><a href="#local-6989586621679252779"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679252780"><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252780"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Token v -&gt; Pattern v -&gt; Pattern v
+forall v. Ann -&gt; Token v -&gt; Pattern v -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#As"><span class="hs-identifier hs-var">As</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Token v
+</span><a href="#local-6989586621679252779"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252780"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Boolean"><span class="hs-identifier hs-type">Boolean</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252781"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679252781"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Bool -&gt; Pattern v
+forall v. Ann -&gt; Bool -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Boolean"><span class="hs-identifier hs-var">Boolean</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679252781"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Bytes"><span class="hs-identifier hs-type">Bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252782"><span class="annot"><span class="annottext">Bytes
+</span><a href="#local-6989586621679252782"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Bytes -&gt; Pattern v
+forall v. Ann -&gt; Bytes -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Bytes"><span class="hs-identifier hs-var">Bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Bytes
+</span><a href="#local-6989586621679252782"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252783"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679252783"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Char -&gt; Pattern v
+forall v. Ann -&gt; Char -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Char"><span class="hs-identifier hs-var">Char</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679252783"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Constructor"><span class="hs-identifier hs-type">Constructor</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252784"><span class="annot"><span class="annottext">Token (HashQualified Name)
+</span><a href="#local-6989586621679252784"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679252785"><span class="annot"><span class="annottext">[Pattern v]
+</span><a href="#local-6989586621679252785"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Token (HashQualified Name) -&gt; [Pattern v] -&gt; Pattern v
+forall v.
+Ann -&gt; Token (HashQualified Name) -&gt; [Pattern v] -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Constructor"><span class="hs-identifier hs-var">Constructor</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Token (HashQualified Name)
+</span><a href="#local-6989586621679252784"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[Pattern v]
+</span><a href="#local-6989586621679252785"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#EffectBind"><span class="hs-identifier hs-type">EffectBind</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252786"><span class="annot"><span class="annottext">Token (HashQualified Name)
+</span><a href="#local-6989586621679252786"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679252787"><span class="annot"><span class="annottext">[Pattern v]
+</span><a href="#local-6989586621679252787"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679252788"><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252788"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann
+-&gt; Token (HashQualified Name)
+-&gt; [Pattern v]
+-&gt; Pattern v
+-&gt; Pattern v
+forall v.
+Ann
+-&gt; Token (HashQualified Name)
+-&gt; [Pattern v]
+-&gt; Pattern v
+-&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#EffectBind"><span class="hs-identifier hs-var">EffectBind</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Token (HashQualified Name)
+</span><a href="#local-6989586621679252786"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[Pattern v]
+</span><a href="#local-6989586621679252787"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252788"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#EffectPure"><span class="hs-identifier hs-type">EffectPure</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252789"><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252789"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Pattern v -&gt; Pattern v
+forall v. Ann -&gt; Pattern v -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#EffectPure"><span class="hs-identifier hs-var">EffectPure</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252789"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Float"><span class="hs-identifier hs-type">Float</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252790"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679252790"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Double -&gt; Pattern v
+forall v. Ann -&gt; Double -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Float"><span class="hs-identifier hs-var">Float</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679252790"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252791"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679252791"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Int64 -&gt; Pattern v
+forall v. Ann -&gt; Int64 -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Int"><span class="hs-identifier hs-var">Int</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679252791"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Nat"><span class="hs-identifier hs-type">Nat</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252792"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679252792"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Word64 -&gt; Pattern v
+forall v. Ann -&gt; Word64 -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Nat"><span class="hs-identifier hs-var">Nat</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679252792"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252793"><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252793"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679252794"><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252794"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Pattern v -&gt; Pattern v -&gt; Pattern v
+forall v. Ann -&gt; Pattern v -&gt; Pattern v -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Pair"><span class="hs-identifier hs-var">Pair</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252793"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252794"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#SequenceLiteral"><span class="hs-identifier hs-type">SequenceLiteral</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252795"><span class="annot"><span class="annottext">[Pattern v]
+</span><a href="#local-6989586621679252795"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; [Pattern v] -&gt; Pattern v
+forall v. Ann -&gt; [Pattern v] -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#SequenceLiteral"><span class="hs-identifier hs-var">SequenceLiteral</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">[Pattern v]
+</span><a href="#local-6989586621679252795"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#SequenceOp"><span class="hs-identifier hs-type">SequenceOp</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252796"><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252796"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679252797"><span class="annot"><span class="annottext">SeqOp
+</span><a href="#local-6989586621679252797"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679252798"><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252798"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Pattern v -&gt; SeqOp -&gt; Pattern v -&gt; Pattern v
+forall v. Ann -&gt; Pattern v -&gt; SeqOp -&gt; Pattern v -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#SequenceOp"><span class="hs-identifier hs-var">SequenceOp</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252796"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">SeqOp
+</span><a href="#local-6989586621679252797"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern v
+</span><a href="#local-6989586621679252798"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252799"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679252799"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Text -&gt; Pattern v
+forall v. Ann -&gt; Text -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Text"><span class="hs-identifier hs-var">Text</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679252799"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Unbound"><span class="hs-identifier hs-type">Unbound</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Pattern v
+forall v. Ann -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Unbound"><span class="hs-identifier hs-var">Unbound</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#Unit"><span class="hs-identifier hs-type">Unit</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Pattern v
+forall v. Ann -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#Unit"><span class="hs-identifier hs-var">Unit</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="Unison.Syntax.Pattern.html#VarOrNullaryConstructor"><span class="hs-identifier hs-type">VarOrNullaryConstructor</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679252800"><span class="annot"><span class="annottext">Token Name
+</span><a href="#local-6989586621679252800"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ann -&gt; Token Name -&gt; Pattern v
+forall v. Ann -&gt; Token Name -&gt; Pattern v
+</span><a href="Unison.Syntax.Pattern.html#VarOrNullaryConstructor"><span class="hs-identifier hs-var">VarOrNullaryConstructor</span></a></span><span> </span><span class="annot"><span class="annottext">Ann
+</span><a href="#local-6989586621679252778"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Token Name
+</span><a href="#local-6989586621679252800"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">data</span><span> </span><span id="SeqOp"><span class="annot"><a href="Unison.Syntax.Pattern.html#SeqOp"><span class="hs-identifier hs-var">SeqOp</span></a></span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Concat"><span class="annot"><a href="Unison.Syntax.Pattern.html#Concat"><span class="hs-identifier hs-var">Concat</span></a></span></span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Cons"><span class="annot"><a href="Unison.Syntax.Pattern.html#Cons"><span class="hs-identifier hs-var">Cons</span></a></span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Snoc"><span class="annot"><a href="Unison.Syntax.Pattern.html#Snoc"><span class="hs-identifier hs-var">Snoc</span></a></span></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679252805"><span id="local-6989586621679252807"><span id="local-6989586621679252810"><span class="annot"><span class="annottext">Int -&gt; SeqOp -&gt; ShowS
+[SeqOp] -&gt; ShowS
+SeqOp -&gt; String
+(Int -&gt; SeqOp -&gt; ShowS)
+-&gt; (SeqOp -&gt; String) -&gt; ([SeqOp] -&gt; ShowS) -&gt; Show SeqOp
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SeqOp -&gt; ShowS
+showsPrec :: Int -&gt; SeqOp -&gt; ShowS
+$cshow :: SeqOp -&gt; String
+show :: SeqOp -&gt; String
+$cshowList :: [SeqOp] -&gt; ShowS
+showList :: [SeqOp] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span></pre></body></html>

@@ -1,0 +1,263 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.DebugDependentsGraph.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.DebugDependentsGraph</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.DebugDependentsGraph.html#handleDebugDependentsGraph"><span class="hs-identifier">handleDebugDependentsGraph</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Algebra.Graph.AdjacencyMap</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Graph</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.IO</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Sqlite.Operations</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Operations</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Builtin</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Builtin</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier">Cli</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html"><span class="hs-identifier">Unison.Cli.MonadUtils</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HashQualified</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HashQualified</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnv</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPE</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnvDecl</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PrettyPrintEnvDecl</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">TermReference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TermReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TypeReference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TypeReferenceId</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Reference</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Syntax.NamePrinter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">prettyHashQualified</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Defn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Defn</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DefnsF</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Pretty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Pretty</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Relation</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Relation</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.DebugDependentsGraph.html#handleDebugDependentsGraph"><span class="hs-identifier hs-type">handleDebugDependentsGraph</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span id="handleDebugDependentsGraph"><span class="annot"><span class="annottext">handleDebugDependentsGraph :: Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.DebugDependentsGraph.html#handleDebugDependentsGraph"><span class="hs-identifier hs-var hs-var">handleDebugDependentsGraph</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621681608889"><span class="annot"><a href="#local-6989586621681608889"><span class="hs-identifier hs-var">currentNamespace</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cli (Branch0 IO)
+</span><a href="Unison.Cli.MonadUtils.html#getCurrentBranch0"><span class="hs-identifier hs-var">Cli.getCurrentBranch0</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681608891"><span class="annot"><a href="#local-6989586621681608891"><span class="hs-identifier hs-var hs-var">currentNamespaceSansLib</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-36"></span><span>        </span><span class="annot"><span class="annottext">Branch0 IO -&gt; Branch0 IO
+forall (m :: * -&gt; *). Branch0 m -&gt; Branch0 m
+</span><span class="hs-identifier hs-var">Branch.deleteLibdeps</span></span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621681608889"><span class="hs-identifier hs-var">currentNamespace</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681608893"><span class="hs-identifier hs-type">query</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefnsF</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span>
+</span><span id="line-39"></span><span>      </span><span id="local-6989586621681608893"><span class="annot"><a href="#local-6989586621681608893"><span class="hs-identifier hs-var hs-var">query</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><span class="annottext">(Relation (Referent' TermReference) Name -&gt; Set TermReference)
+-&gt; (Relation TermReference Name -&gt; Set TermReference)
+-&gt; Defns
+     (Relation (Referent' TermReference) Name)
+     (Relation TermReference Name)
+-&gt; DefnsF Set TermReference TermReference
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Referent' TermReference -&gt; Maybe TermReference)
+-&gt; Set (Referent' TermReference) -&gt; Set TermReference
+forall b a. Ord b =&gt; (a -&gt; Maybe b) -&gt; Set a -&gt; Set b
+</span><span class="hs-identifier hs-var">Set.mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">Referent' TermReference -&gt; Maybe TermReference
+forall r. Referent' r -&gt; Maybe r
+</span><span class="hs-identifier hs-var">Referent.toTermReference</span></span><span> </span><span class="annot"><span class="annottext">(Set (Referent' TermReference) -&gt; Set TermReference)
+-&gt; (Relation (Referent' TermReference) Name
+    -&gt; Set (Referent' TermReference))
+-&gt; Relation (Referent' TermReference) Name
+-&gt; Set TermReference
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Relation (Referent' TermReference) Name
+-&gt; Set (Referent' TermReference)
+forall a b. Relation a b -&gt; Set a
+</span><span class="hs-identifier hs-var">Relation.dom</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Relation TermReference Name -&gt; Set TermReference
+forall a b. Relation a b -&gt; Set a
+</span><span class="hs-identifier hs-var">Relation.dom</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Branch0 IO
+-&gt; Defns
+     (Relation (Referent' TermReference) Name)
+     (Relation TermReference Name)
+forall (m :: * -&gt; *).
+Branch0 m
+-&gt; Defns
+     (Relation (Referent' TermReference) Name)
+     (Relation TermReference Name)
+</span><span class="hs-identifier hs-var">Branch.deepDefns</span></span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621681608891"><span class="hs-identifier hs-var">currentNamespaceSansLib</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681608900"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefnsF</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span>
+</span><span id="line-43"></span><span>      </span><span id="local-6989586621681608900"><span class="annot"><a href="#local-6989586621681608900"><span class="hs-identifier hs-var hs-var">scope</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><span class="annottext">(Set TermReference -&gt; Set TermReferenceId)
+-&gt; (Set TermReference -&gt; Set TermReferenceId)
+-&gt; DefnsF Set TermReference TermReference
+-&gt; DefnsF Set TermReferenceId TermReferenceId
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(TermReference -&gt; Maybe TermReferenceId)
+-&gt; Set TermReference -&gt; Set TermReferenceId
+forall b a. Ord b =&gt; (a -&gt; Maybe b) -&gt; Set a -&gt; Set b
+</span><span class="hs-identifier hs-var">Set.mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">TermReference -&gt; Maybe TermReferenceId
+</span><span class="hs-identifier hs-var">Reference.toId</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(TermReference -&gt; Maybe TermReferenceId)
+-&gt; Set TermReference -&gt; Set TermReferenceId
+forall b a. Ord b =&gt; (a -&gt; Maybe b) -&gt; Set a -&gt; Set b
+</span><span class="hs-identifier hs-var">Set.mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">TermReference -&gt; Maybe TermReferenceId
+</span><span class="hs-identifier hs-var">Reference.toId</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">DefnsF Set TermReference TermReference
+</span><a href="#local-6989586621681608893"><span class="hs-identifier hs-var">query</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621681608902"><span class="annot"><a href="#local-6989586621681608902"><span class="hs-identifier hs-var">edges</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="Unison.Cli.Monad.html#runTransaction"><span class="hs-identifier hs-type">Cli.runTransaction</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Operations.transitiveDependentsGraphWithinScope</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builtin.isBuiltinType</span></span><span> </span><span class="annot"><a href="#local-6989586621681608900"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681608893"><span class="hs-identifier hs-type">query</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681608906"><span class="hs-identifier hs-type">graph</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Graph.AdjacencyMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Defn</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>      </span><span id="local-6989586621681608906"><span class="annot"><a href="#local-6989586621681608906"><span class="hs-identifier hs-var hs-var">graph</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><span class="annottext">(AdjacencyMap (Defn TermReference TermReference)
+ -&gt; DependencyEdge
+ -&gt; AdjacencyMap (Defn TermReference TermReference))
+-&gt; AdjacencyMap (Defn TermReference TermReference)
+-&gt; [DependencyEdge]
+-&gt; AdjacencyMap (Defn TermReference TermReference)
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">List.foldl</span></span><span>
+</span><span id="line-52"></span><span>          </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681608908"><span class="annot"><span class="annottext">AdjacencyMap (Defn TermReference TermReference)
+</span><a href="#local-6989586621681608908"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681608909"><span class="annot"><span class="annottext">DependencyEdge
+</span><a href="#local-6989586621681608909"><span class="hs-identifier hs-var">edge</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-53"></span><span>              </span><span class="annot"><span class="annottext">AdjacencyMap (Defn TermReference TermReference)
+-&gt; AdjacencyMap (Defn TermReference TermReference)
+-&gt; AdjacencyMap (Defn TermReference TermReference)
+forall a.
+Ord a =&gt;
+AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><span class="hs-identifier hs-var">Graph.overlay</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap (Defn TermReference TermReference)
+</span><a href="#local-6989586621681608908"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">DependencyEdge
+</span><a href="#local-6989586621681608909"><span class="hs-identifier hs-var">edge</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-54"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Operations.TermDependsOnTerm</span></span><span> </span><span id="local-6989586621681608912"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681608912"><span class="hs-identifier hs-var">dependent</span></a></span></span><span> </span><span id="local-6989586621681608913"><span class="annot"><span class="annottext">TermReference
+</span><a href="#local-6989586621681608913"><span class="hs-keyword hs-var">dependency</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-55"></span><span>                  </span><span class="annot"><span class="annottext">Defn TermReference TermReference
+-&gt; Defn TermReference TermReference
+-&gt; AdjacencyMap (Defn TermReference TermReference)
+forall a. Ord a =&gt; a -&gt; a -&gt; AdjacencyMap a
+</span><span class="hs-identifier hs-var">Graph.edge</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReference -&gt; Defn TermReference TermReference
+forall term typ. term -&gt; Defn term typ
+</span><span class="hs-identifier hs-var">TermDefn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReferenceId -&gt; TermReference
+</span><span class="hs-identifier hs-var">Reference.fromId</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681608912"><span class="hs-identifier hs-var">dependent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReference -&gt; Defn TermReference TermReference
+forall term typ. term -&gt; Defn term typ
+</span><span class="hs-identifier hs-var">TermDefn</span></span><span> </span><span class="annot"><span class="annottext">TermReference
+</span><a href="#local-6989586621681608913"><span class="hs-keyword hs-var">dependency</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Operations.TermDependsOnType</span></span><span> </span><span id="local-6989586621681608918"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681608918"><span class="hs-identifier hs-var">dependent</span></a></span></span><span> </span><span id="local-6989586621681608919"><span class="annot"><span class="annottext">TermReference
+</span><a href="#local-6989586621681608919"><span class="hs-keyword hs-var">dependency</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-57"></span><span>                  </span><span class="annot"><span class="annottext">Defn TermReference TermReference
+-&gt; Defn TermReference TermReference
+-&gt; AdjacencyMap (Defn TermReference TermReference)
+forall a. Ord a =&gt; a -&gt; a -&gt; AdjacencyMap a
+</span><span class="hs-identifier hs-var">Graph.edge</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReference -&gt; Defn TermReference TermReference
+forall term typ. term -&gt; Defn term typ
+</span><span class="hs-identifier hs-var">TermDefn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReferenceId -&gt; TermReference
+</span><span class="hs-identifier hs-var">Reference.fromId</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681608918"><span class="hs-identifier hs-var">dependent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReference -&gt; Defn TermReference TermReference
+forall term typ. typ -&gt; Defn term typ
+</span><span class="hs-identifier hs-var">TypeDefn</span></span><span> </span><span class="annot"><span class="annottext">TermReference
+</span><a href="#local-6989586621681608919"><span class="hs-keyword hs-var">dependency</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Operations.TypeDependsOnType</span></span><span> </span><span id="local-6989586621681608922"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681608922"><span class="hs-identifier hs-var">dependent</span></a></span></span><span> </span><span id="local-6989586621681608923"><span class="annot"><span class="annottext">TermReference
+</span><a href="#local-6989586621681608923"><span class="hs-keyword hs-var">dependency</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-59"></span><span>                  </span><span class="annot"><span class="annottext">Defn TermReference TermReference
+-&gt; Defn TermReference TermReference
+-&gt; AdjacencyMap (Defn TermReference TermReference)
+forall a. Ord a =&gt; a -&gt; a -&gt; AdjacencyMap a
+</span><span class="hs-identifier hs-var">Graph.edge</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReference -&gt; Defn TermReference TermReference
+forall term typ. typ -&gt; Defn term typ
+</span><span class="hs-identifier hs-var">TypeDefn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReferenceId -&gt; TermReference
+</span><span class="hs-identifier hs-var">Reference.fromId</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621681608922"><span class="hs-identifier hs-var">dependent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReference -&gt; Defn TermReference TermReference
+forall term typ. typ -&gt; Defn term typ
+</span><span class="hs-identifier hs-var">TypeDefn</span></span><span> </span><span class="annot"><span class="annottext">TermReference
+</span><a href="#local-6989586621681608923"><span class="hs-keyword hs-var">dependency</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>          </span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>          </span><span class="annot"><span class="annottext">AdjacencyMap (Defn TermReference TermReference)
+forall a. AdjacencyMap a
+</span><span class="hs-identifier hs-var">Graph.empty</span></span><span>
+</span><span id="line-62"></span><span>          </span><span class="annot"><span class="annottext">[DependencyEdge]
+</span><a href="#local-6989586621681608902"><span class="hs-identifier hs-var">edges</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681608925"><span class="annot"><a href="#local-6989586621681608925"><span class="hs-identifier hs-var hs-var">adjacency</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-65"></span><span>        </span><span class="annot"><span class="annottext">AdjacencyMap (Defn TermReference TermReference)
+-&gt; [(Defn TermReference TermReference,
+     [Defn TermReference TermReference])]
+forall a. AdjacencyMap a -&gt; [(a, [a])]
+</span><span class="hs-identifier hs-var">Graph.adjacencyList</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap (Defn TermReference TermReference)
+</span><a href="#local-6989586621681608906"><span class="hs-identifier hs-var">graph</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681608927"><span class="annot"><a href="#local-6989586621681608927"><span class="hs-identifier hs-var hs-var">ppe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-68"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Branch0 IO -&gt; PrettyPrintEnvDecl
+forall (m :: * -&gt; *). Int -&gt; Branch0 m -&gt; PrettyPrintEnvDecl
+</span><span class="hs-identifier hs-var">Branch.toPrettyPrintEnvDecl</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Branch0 IO
+</span><a href="#local-6989586621681608889"><span class="hs-identifier hs-var">currentNamespace</span></a></span><span class="hs-special">)</span><span class="hs-operator">.</span><span class="hs-identifier">suffixifiedPPE</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="#local-6989586621681608929"><span class="hs-identifier hs-type">prettyDefn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Defn</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span>
+</span><span id="line-71"></span><span>      </span><span id="local-6989586621681608929"><span class="annot"><a href="#local-6989586621681608929"><span class="hs-identifier hs-var hs-var">prettyDefn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-72"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">TermDefn</span></span><span> </span><span id="local-6989586621681608930"><span class="annot"><span class="annottext">TermReference
+</span><a href="#local-6989586621681608930"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; Referent' TermReference -&gt; HashQualified Name
+</span><span class="hs-identifier hs-var">PPE.termName</span></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621681608927"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermReference -&gt; Referent' TermReference
+</span><span class="hs-identifier hs-var">Referent.fromTermReference</span></span><span> </span><span class="annot"><span class="annottext">TermReference
+</span><a href="#local-6989586621681608930"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">TypeDefn</span></span><span> </span><span id="local-6989586621681608933"><span class="annot"><span class="annottext">TermReference
+</span><a href="#local-6989586621681608933"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; TermReference -&gt; HashQualified Name
+</span><span class="hs-identifier hs-var">PPE.typeName</span></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621681608927"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">TermReference
+</span><a href="#local-6989586621681608933"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681608945"><span class="annot"><a href="#local-6989586621681608945"><span class="hs-identifier hs-var hs-var">output</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>        </span><span class="annot"><span class="annottext">[Pretty SyntaxText] -&gt; Pretty SyntaxText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">Pretty.lines</span></span><span>
+</span><span id="line-77"></span><span>          </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">((Defn TermReference TermReference,
+  [Defn TermReference TermReference])
+ -&gt; Pretty SyntaxText)
+-&gt; [(Defn TermReference TermReference,
+     [Defn TermReference TermReference])]
+-&gt; [Pretty SyntaxText]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span>
+</span><span id="line-78"></span><span>              </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681608947"><span class="annot"><span class="annottext">Defn TermReference TermReference
+</span><a href="#local-6989586621681608947"><span class="hs-identifier hs-var">dependent</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681608948"><span class="annot"><span class="annottext">[Defn TermReference TermReference]
+</span><a href="#local-6989586621681608948"><span class="hs-identifier hs-var">dependencies</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-79"></span><span>                  </span><span class="annot"><span class="annottext">HashQualified Name -&gt; Pretty SyntaxText
+</span><span class="hs-identifier hs-var">prettyHashQualified</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Defn TermReference TermReference -&gt; HashQualified Name
+</span><a href="#local-6989586621681608929"><span class="hs-identifier hs-var">prettyDefn</span></a></span><span> </span><span class="annot"><span class="annottext">Defn TermReference TermReference
+</span><a href="#local-6989586621681608947"><span class="hs-identifier hs-var">dependent</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>                    </span><span class="annot"><span class="annottext">Pretty SyntaxText -&gt; Pretty SyntaxText -&gt; Pretty SyntaxText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty SyntaxText
+</span><span class="hs-string">&quot; depends on: &quot;</span></span><span>
+</span><span id="line-81"></span><span>                    </span><span class="annot"><span class="annottext">Pretty SyntaxText -&gt; Pretty SyntaxText -&gt; Pretty SyntaxText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Pretty SyntaxText] -&gt; Pretty SyntaxText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">Pretty.commas</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Defn TermReference TermReference -&gt; Pretty SyntaxText)
+-&gt; [Defn TermReference TermReference] -&gt; [Pretty SyntaxText]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HashQualified Name -&gt; Pretty SyntaxText
+</span><span class="hs-identifier hs-var">prettyHashQualified</span></span><span> </span><span class="annot"><span class="annottext">(HashQualified Name -&gt; Pretty SyntaxText)
+-&gt; (Defn TermReference TermReference -&gt; HashQualified Name)
+-&gt; Defn TermReference TermReference
+-&gt; Pretty SyntaxText
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Defn TermReference TermReference -&gt; HashQualified Name
+</span><a href="#local-6989586621681608929"><span class="hs-identifier hs-var">prettyDefn</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Defn TermReference TermReference]
+</span><a href="#local-6989586621681608948"><span class="hs-identifier hs-var">dependencies</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>              </span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>              </span><span class="annot"><span class="annottext">[(Defn TermReference TermReference,
+  [Defn TermReference TermReference])]
+</span><a href="#local-6989586621681608925"><span class="hs-identifier hs-var">adjacency</span></a></span><span>
+</span><span id="line-84"></span><span>          </span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text.putStrLn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Pretty.toANSI</span></span><span> </span><span class="annot"><span class="hs-number">80</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Pretty.syntaxToColor</span></span><span> </span><span class="annot"><a href="#local-6989586621681608945"><span class="hs-identifier hs-type">output</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span></pre></body></html>

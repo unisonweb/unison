@@ -1,0 +1,213 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Util.Timing.html"><span class="hs-identifier">Unison.Util.Timing</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Util.Timing.html#time"><span class="hs-identifier">time</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Util.Timing.html#startTiming"><span class="hs-identifier">startTiming</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Util.Timing.html#stopTiming"><span class="hs-identifier">stopTiming</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Clock</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getMonotonicTimeNSec</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.CPUTime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getCPUTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Text.Printf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">printf</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Debug.html"><span class="hs-identifier">Unison.Debug</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Debug</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">UnliftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span id="local-6989586621679131557"><span id="local-6989586621679131559"><span class="annot"><a href="Unison.Util.Timing.html#time"><span class="hs-identifier hs-type">time</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679131557"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131557"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679131559"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131557"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679131559"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-17"></span><span id="time"><span class="annot"><span class="annottext">time :: forall (m :: * -&gt; *) a. MonadIO m =&gt; Text -&gt; m a -&gt; m a
+</span><a href="Unison.Util.Timing.html#time"><span class="hs-identifier hs-var hs-var">time</span></a></span></span><span> </span><span id="local-6989586621679131677"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679131677"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679131678"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679131678"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">DebugFlag -&gt; Bool
+</span><a href="Unison.Debug.html#shouldDebug"><span class="hs-identifier hs-var">Debug.shouldDebug</span></a></span><span> </span><span class="annot"><span class="annottext">DebugFlag
+</span><a href="Unison.Debug.html#Timing"><span class="hs-identifier hs-var">Debug.Timing</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-20"></span><span>      </span><span id="local-6989586621679131681"><span class="annot"><span class="annottext">(Word64, Integer)
+</span><a href="#local-6989586621679131681"><span class="hs-identifier hs-var">startTime</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Word64, Integer) -&gt; m (Word64, Integer)
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">IO (Word64, Integer)
+</span><a href="Unison.Util.Timing.html#startTiming"><span class="hs-identifier hs-var">startTiming</span></a></span><span>
+</span><span id="line-21"></span><span>      </span><span id="local-6989586621679131682"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131682"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679131678"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-22"></span><span>      </span><span class="annot"><span class="annottext">IO () -&gt; m ()
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; (Word64, Integer) -&gt; IO ()
+</span><a href="Unison.Util.Timing.html#stopTiming"><span class="hs-identifier hs-var">stopTiming</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679131677"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="annot"><span class="annottext">(Word64, Integer)
+</span><a href="#local-6989586621679131681"><span class="hs-identifier hs-var">startTime</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131682"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679131678"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Unison.Util.Timing.html#startTiming"><span class="hs-identifier hs-type">startTiming</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span id="startTiming"><span class="annot"><span class="annottext">startTiming :: IO (Word64, Integer)
+</span><a href="Unison.Util.Timing.html#startTiming"><span class="hs-identifier hs-var hs-var">startTiming</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Integer -&gt; (Word64, Integer))
+-&gt; IO Word64 -&gt; IO (Integer -&gt; (Word64, Integer))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO Word64
+</span><span class="hs-identifier hs-var">getMonotonicTimeNSec</span></span><span> </span><span class="annot"><span class="annottext">IO (Integer -&gt; (Word64, Integer))
+-&gt; IO Integer -&gt; IO (Word64, Integer)
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO Integer
+</span><span class="hs-identifier hs-var">getCPUTime</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Unison.Util.Timing.html#stopTiming"><span class="hs-identifier hs-type">stopTiming</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span id="stopTiming"><span class="annot"><span class="annottext">stopTiming :: Text -&gt; (Word64, Integer) -&gt; IO ()
+</span><a href="Unison.Util.Timing.html#stopTiming"><span class="hs-identifier hs-var hs-var">stopTiming</span></a></span></span><span> </span><span id="local-6989586621679131684"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679131684"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679131685"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679131685"><span class="hs-identifier hs-var">systemTimeStart</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131686"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679131686"><span class="hs-identifier hs-var">cpuTimeStart</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679131687"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679131687"><span class="hs-identifier hs-var">systemTimeEnd</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131688"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679131688"><span class="hs-identifier hs-var">cpuTimeEnd</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Word64, Integer)
+</span><a href="Unison.Util.Timing.html#startTiming"><span class="hs-identifier hs-var">startTiming</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679131689"><span class="annot"><span class="annottext">systemDiff :: Double
+</span><a href="#local-6989586621679131689"><span class="hs-identifier hs-var hs-var">systemDiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679131687"><span class="hs-identifier hs-var">systemTimeEnd</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679131685"><span class="hs-identifier hs-var">systemTimeStart</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679131690"><span class="annot"><span class="annottext">cpuDiff :: Double
+</span><a href="#local-6989586621679131690"><span class="hs-identifier hs-var hs-var">cpuDiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Real a, Fractional b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">realToFrac</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679131688"><span class="hs-identifier hs-var">cpuTimeEnd</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679131686"><span class="hs-identifier hs-var">cpuTimeStart</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1_000</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; Text -&gt; String -&gt; String -&gt; IO ()
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%s: %s (cpu), %s (system)\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679131684"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; String
+</span><a href="#local-6989586621679131692"><span class="hs-identifier hs-var">renderNanos</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131690"><span class="hs-identifier hs-var">cpuDiff</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; String
+</span><a href="#local-6989586621679131692"><span class="hs-identifier hs-var">renderNanos</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131689"><span class="hs-identifier hs-var">systemDiff</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-comment">-- Render nanoseconds, trying to fit into 4 characters.</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="#local-6989586621679131692"><span class="hs-identifier hs-type">renderNanos</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621679131692"><span class="annot"><span class="annottext">renderNanos :: Double -&gt; String
+</span><a href="#local-6989586621679131692"><span class="hs-identifier hs-var hs-var">renderNanos</span></a></span></span><span> </span><span id="local-6989586621679131693"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span></span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0.5</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;0 ns&quot;</span></span><span>
+</span><span id="line-40"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">995</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; String
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%.0f ns&quot;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">9_950</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; String
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%.2f &#181;s&quot;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131695"><span class="hs-identifier hs-var">us</span></a></span><span>
+</span><span id="line-42"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">99_500</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; String
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%.1f &#181;s&quot;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131695"><span class="hs-identifier hs-var">us</span></a></span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">995_000</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; String
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%.0f &#181;s&quot;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131695"><span class="hs-identifier hs-var">us</span></a></span><span>
+</span><span id="line-44"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">9_950_000</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; String
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%.2f ms&quot;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131696"><span class="hs-identifier hs-var">ms</span></a></span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">99_500_000</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; String
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%.1f ms&quot;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131696"><span class="hs-identifier hs-var">ms</span></a></span><span>
+</span><span id="line-46"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">995_000_000</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; String
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%.0f ms&quot;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131696"><span class="hs-identifier hs-var">ms</span></a></span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">9_950_000_000</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; String
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%.2f s&quot;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131697"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-48"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">99_500_000_000</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; String
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%.1f s&quot;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131697"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-49"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Double -&gt; String
+forall r. PrintfType r =&gt; String -&gt; r
+</span><span class="hs-identifier hs-var">printf</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%.0f s&quot;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131697"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>        </span><span id="local-6989586621679131695"><span class="annot"><span class="annottext">us :: Double
+</span><a href="#local-6989586621679131695"><span class="hs-identifier hs-var hs-var">us</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1_000</span></span><span>
+</span><span id="line-52"></span><span>        </span><span id="local-6989586621679131696"><span class="annot"><span class="annottext">ms :: Double
+</span><a href="#local-6989586621679131696"><span class="hs-identifier hs-var hs-var">ms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1_000_000</span></span><span>
+</span><span id="line-53"></span><span>        </span><span id="local-6989586621679131697"><span class="annot"><span class="annottext">s :: Double
+</span><a href="#local-6989586621679131697"><span class="hs-identifier hs-var hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621679131693"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1_000_000_000</span></span><span>
+</span><span id="line-54"></span></pre></body></html>

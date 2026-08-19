@@ -1,0 +1,54 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span class="hs-cpp">
+
+#if defined(PURE_HASKELL)
+</span><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE MultiWayIf #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !defined(PURE_HASKELL)
+</span><span class="hs-pragma">{-# LANGUAGE UnliftedFFITypes #-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-13"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="annot"><span class="hs-comment">-- | Implements 'measure_off', using efficient C routines by default.</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Text.Internal.Measure.html"><span class="hs-identifier">Data.Text.Internal.Measure</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Text.Internal.Measure.html#measure_off"><span class="hs-identifier">measure_off</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Exts.html"><span class="hs-identifier">GHC.Exts</span></a></span><span class="hs-cpp">
+
+#if defined(PURE_HASKELL)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Word</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Text.Internal.Encoding.Utf8</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">utf8LengthByLeader</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Foreign.C.Types.html"><span class="hs-identifier">Foreign.C.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CSize</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/System.Posix.Types.html"><span class="hs-identifier">System.Posix.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CSsize</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if defined(PURE_HASKELL)
+</span><span>
+</span><span id="line-33"></span><span class="hs-identifier">measure_off</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ByteArray#</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CSize</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CSize</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CSize</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CSsize</span><span>
+</span><span id="line-34"></span><span class="hs-identifier">measure_off</span><span> </span><span class="hs-identifier">ba</span><span> </span><span class="hs-identifier">off</span><span> </span><span class="hs-identifier">len</span><span> </span><span class="hs-identifier">cnt</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">go</span><span> </span><span class="hs-number">0</span><span> </span><span class="hs-number">0</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-identifier">go</span><span> </span><span class="hs-glyph">!</span><span class="hs-identifier">cc</span><span> </span><span class="hs-glyph">!</span><span class="hs-identifier">i</span><span>
+</span><span id="line-37"></span><span>      </span><span class="hs-comment">-- return the number of bytes for the first cnt codepoints,</span><span>
+</span><span id="line-38"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">cc</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">cnt</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">i</span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-comment">-- return negated number of codepoints if there are fewer than cnt</span><span>
+</span><span id="line-40"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">i</span><span> </span><span class="hs-operator">&gt;=</span><span> </span><span class="hs-identifier">len</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">negate</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">cc</span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">otherwise</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-42"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="hs-identifier">I#</span><span> </span><span class="hs-identifier">o</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">off</span><span class="hs-operator">+</span><span class="hs-identifier">i</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>              </span><span class="hs-glyph">!</span><span class="hs-identifier">b</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">indexWord8Array#</span><span> </span><span class="hs-identifier">ba</span><span> </span><span class="hs-identifier">o</span><span>
+</span><span id="line-44"></span><span>          </span><span class="hs-keyword">in</span><span> </span><span class="hs-identifier">go</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">cc</span><span class="hs-operator">+</span><span class="hs-number">1</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">i</span><span> </span><span class="hs-operator">+</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">utf8LengthByLeader</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">W8#</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#else
+</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | The input buffer (arr :: ByteArray#, off :: CSize, len :: CSize)</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- must specify a valid UTF-8 sequence, this condition is not checked.</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;_hs_text_measure_off&quot;</span></span><span> </span><span id="measure_off"><span class="annot"><a href="Data.Text.Internal.Measure.html#measure_off"><span class="hs-identifier hs-var">measure_off</span></a></span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#ByteArray%23"><span class="hs-identifier hs-type">ByteArray#</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSsize</span></span><span class="hs-cpp">
+
+#endif
+</span></pre></body></html>

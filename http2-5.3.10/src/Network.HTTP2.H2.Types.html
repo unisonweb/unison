@@ -1,0 +1,533 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveAnyClass #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html"><span class="hs-identifier">Network.HTTP2.H2.Types</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><span class="hs-identifier">Exception</span></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><span class="hs-identifier">SomeAsyncException</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><span class="hs-identifier">SomeException</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">E</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.Control</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Semantics.Client</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Semantics.IO</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.Socket</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Stream</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.TimeManager</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Imports.html"><span class="hs-identifier">Imports</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HPACK.html"><span class="hs-identifier">Network.HPACK</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.html"><span class="hs-identifier">Network.HTTP2.Frame</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">{-
+
+== Stream state
+
+The stream state is stored in the 'streamState' field (an @IORef@) of a
+'Stream'. The main place where the stream state is updated is in
+'controlOrStream', which does something like this:
+
+&gt; state0 &lt;- readStreamState strm
+&gt; state1 &lt;- stream .. state0 ..
+&gt; processState .. state1 ..
+
+where 'processState' updates the @IORef@, based on 'state1' (the state computed
+by 'stream') and the /current/ state of the stream; for simplicity, we will
+assume here that this must equal 'state0' (it might not, if a concurrent thread
+changed the stream state).
+
+The diagram below summarizes the stream state transitions on the client side,
+omitting error cases (which result in exceptions being thrown). Each transition
+is labelled with the relevant case in either the function 'stream' or the
+function 'processState'.
+
+&gt;                        [Open JustOpened]
+&gt;                               |
+&gt;                               |
+&gt;                            HEADERS
+&gt;                               |
+&gt;                               | (stream1)
+&gt;                               |
+&gt;                          END_HEADERS?
+&gt;                               |
+&gt;                        ______/ \______
+&gt;                       /   yes   no    \
+&gt;                      |                |
+&gt;                      |         [Open Continued] &lt;--\
+&gt;                      |                |            |
+&gt;                      |           CONTINUATION      |
+&gt;                      |                |            |
+&gt;                      |                | (stream5)  |
+&gt;                      |                |            |
+&gt;                      |           END_HEADERS?      |
+&gt;                      |                |            |
+&gt;                      v           yes / \ no        |
+&gt;                 END_STREAM? &lt;-------/   \-----------/
+&gt;                      |                   (process3)
+&gt;                      |
+&gt;            _________/ \_________
+&gt;           /      yes   no       \
+&gt;           |                     |
+&gt;      [Open NoBody]        [Open HasBody]
+&gt;           |                     |
+&gt;           | (process1)          | (process2)
+&gt;           |                     |
+&gt;  [HalfClosedRemote] &lt;--\   [Open Body] &lt;----------------------\
+&gt;           |             |        |                             |
+&gt;           |             |        +---------------\             |
+&gt;       RST_STREAM        |        |               |             |
+&gt;           |             |     HEADERS           DATA           |
+&gt;           | (stream6)   |        |               |             |
+&gt;           |             |        | (stream2)     | (stream4)   |
+&gt;           | (process5)  |        |               |             |
+&gt;           |             |   END_STREAM?      END_STREAM?       |
+&gt;        [Closed]         |        |               |             |
+&gt;                         |        | yes      yes / \ no         |
+&gt;                         \--------+-------------/   \-----------/
+&gt;                          (process4)                 (process6)
+
+Notes:
+
+- The 'HalfClosedLocal' state is not used on the client side.
+- Indeed, unless an exception is thrown, even the 'Closed' stream state is not
+  used in the client; when the @IORef@ is collected, it is typically in
+  'HalfClosedRemote' state.
+
+-}</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">data</span><span> </span><span id="OpenState"><span class="annot"><a href="Network.HTTP2.H2.Types.html#OpenState"><span class="hs-identifier hs-var">OpenState</span></a></span></span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="JustOpened"><span class="annot"><a href="Network.HTTP2.H2.Types.html#JustOpened"><span class="hs-identifier hs-var">JustOpened</span></a></span></span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Continued"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Continued"><span class="hs-identifier hs-var">Continued</span></a></span></span><span>
+</span><span id="line-109"></span><span>        </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#HeaderBlockFragment"><span class="hs-identifier hs-type">HeaderBlockFragment</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-110"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-comment">-- Total size</span><span>
+</span><span id="line-111"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-comment">-- The number of continuation frames</span><span>
+</span><span id="line-112"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- End of stream</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="NoBody"><span class="annot"><a href="Network.HTTP2.H2.Types.html#NoBody"><span class="hs-identifier hs-var">NoBody</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TokenHeaderTable</span></span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="HasBody"><span class="annot"><a href="Network.HTTP2.H2.Types.html#HasBody"><span class="hs-identifier hs-var">HasBody</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TokenHeaderTable</span></span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Body"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Body"><span class="hs-identifier hs-var">Body</span></a></span></span><span>
+</span><span id="line-116"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TQueue</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- received Content-Length</span><span>
+</span><span id="line-118"></span><span>        </span><span class="hs-comment">-- compared the body length for error checking</span><span>
+</span><span id="line-119"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- actual body length</span><span>
+</span><span id="line-120"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TokenHeaderTable</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- trailers</span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-keyword">data</span><span> </span><span id="ClosedCode"><span class="annot"><a href="Network.HTTP2.H2.Types.html#ClosedCode"><span class="hs-identifier hs-var">ClosedCode</span></a></span></span><span>
+</span><span id="line-123"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="Finished"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Finished"><span class="hs-identifier hs-var">Finished</span></a></span></span><span>
+</span><span id="line-124"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Killed"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Killed"><span class="hs-identifier hs-var">Killed</span></a></span></span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Reset"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Reset"><span class="hs-identifier hs-var">Reset</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#ErrorCode"><span class="hs-identifier hs-type">ErrorCode</span></a></span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ResetByMe"><span class="annot"><a href="Network.HTTP2.H2.Types.html#ResetByMe"><span class="hs-identifier hs-var">ResetByMe</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132148"><span id="local-6989586621679132156"><span id="local-6989586621679132160"><span class="annot"><span class="annottext">SettingsValue -&gt; ClosedCode -&gt; ShowS
+[ClosedCode] -&gt; ShowS
+ClosedCode -&gt; String
+(SettingsValue -&gt; ClosedCode -&gt; ShowS)
+-&gt; (ClosedCode -&gt; String)
+-&gt; ([ClosedCode] -&gt; ShowS)
+-&gt; Show ClosedCode
+forall a.
+(SettingsValue -&gt; a -&gt; ShowS)
+-&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: SettingsValue -&gt; ClosedCode -&gt; ShowS
+showsPrec :: SettingsValue -&gt; ClosedCode -&gt; ShowS
+$cshow :: ClosedCode -&gt; String
+show :: ClosedCode -&gt; String
+$cshowList :: [ClosedCode] -&gt; ShowS
+showList :: [ClosedCode] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- | Used for streams which are cancelled by calling</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- 'Network.HTTP.Semantics.outBodyCancel'.</span><span>
+</span><span id="line-131"></span><span class="hs-keyword">data</span><span> </span><span id="CancelledStream"><span class="annot"><a href="Network.HTTP2.H2.Types.html#CancelledStream"><span class="hs-identifier hs-var">CancelledStream</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CancelledStream"><span class="annot"><a href="Network.HTTP2.H2.Types.html#CancelledStream"><span class="hs-identifier hs-var">CancelledStream</span></a></span></span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132166"><span id="local-6989586621679132168"><span id="local-6989586621679132172"><span class="annot"><span class="annottext">SettingsValue -&gt; CancelledStream -&gt; ShowS
+[CancelledStream] -&gt; ShowS
+CancelledStream -&gt; String
+(SettingsValue -&gt; CancelledStream -&gt; ShowS)
+-&gt; (CancelledStream -&gt; String)
+-&gt; ([CancelledStream] -&gt; ShowS)
+-&gt; Show CancelledStream
+forall a.
+(SettingsValue -&gt; a -&gt; ShowS)
+-&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: SettingsValue -&gt; CancelledStream -&gt; ShowS
+showsPrec :: SettingsValue -&gt; CancelledStream -&gt; ShowS
+$cshow :: CancelledStream -&gt; String
+show :: CancelledStream -&gt; String
+$cshowList :: [CancelledStream] -&gt; ShowS
+showList :: [CancelledStream] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132179"><span id="local-6989586621679132183"><span id="local-6989586621679132186"><span id="local-6989586621679132189"><span class="annot"><span class="annottext">Show CancelledStream
+Typeable CancelledStream
+(Typeable CancelledStream, Show CancelledStream) =&gt;
+(CancelledStream -&gt; SomeException)
+-&gt; (SomeException -&gt; Maybe CancelledStream)
+-&gt; (CancelledStream -&gt; String)
+-&gt; (CancelledStream -&gt; Bool)
+-&gt; Exception CancelledStream
+SomeException -&gt; Maybe CancelledStream
+CancelledStream -&gt; Bool
+CancelledStream -&gt; String
+CancelledStream -&gt; SomeException
+forall e.
+(Typeable e, Show e) =&gt;
+(e -&gt; SomeException)
+-&gt; (SomeException -&gt; Maybe e)
+-&gt; (e -&gt; String)
+-&gt; (e -&gt; Bool)
+-&gt; Exception e
+$ctoException :: CancelledStream -&gt; SomeException
+toException :: CancelledStream -&gt; SomeException
+$cfromException :: SomeException -&gt; Maybe CancelledStream
+fromException :: SomeException -&gt; Maybe CancelledStream
+$cdisplayException :: CancelledStream -&gt; String
+displayException :: CancelledStream -&gt; String
+$cbacktraceDesired :: CancelledStream -&gt; Bool
+backtraceDesired :: CancelledStream -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">E.Exception</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><a href="Network.HTTP2.H2.Types.html#closedCodeToError"><span class="hs-identifier hs-type">closedCodeToError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#StreamId"><span class="hs-identifier hs-type">StreamId</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#ClosedCode"><span class="hs-identifier hs-type">ClosedCode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#HTTP2Error"><span class="hs-identifier hs-type">HTTP2Error</span></a></span><span>
+</span><span id="line-135"></span><span id="closedCodeToError"><span class="annot"><span class="annottext">closedCodeToError :: SettingsValue -&gt; ClosedCode -&gt; HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#closedCodeToError"><span class="hs-identifier hs-var hs-var">closedCodeToError</span></a></span></span><span> </span><span id="local-6989586621679132194"><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132194"><span class="hs-identifier hs-var">sid</span></a></span></span><span> </span><span id="local-6989586621679132195"><span class="annot"><span class="annottext">ClosedCode
+</span><a href="#local-6989586621679132195"><span class="hs-identifier hs-var">cc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-136"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ClosedCode
+</span><a href="#local-6989586621679132195"><span class="hs-identifier hs-var">cc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-137"></span><span>        </span><span class="annot"><span class="annottext">ClosedCode
+</span><a href="Network.HTTP2.H2.Types.html#Finished"><span class="hs-identifier hs-var">Finished</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#ConnectionIsClosed"><span class="hs-identifier hs-var">ConnectionIsClosed</span></a></span><span>
+</span><span id="line-138"></span><span>        </span><span class="annot"><span class="annottext">ClosedCode
+</span><a href="Network.HTTP2.H2.Types.html#Killed"><span class="hs-identifier hs-var">Killed</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#ConnectionIsTimeout"><span class="hs-identifier hs-var">ConnectionIsTimeout</span></a></span><span>
+</span><span id="line-139"></span><span>        </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Reset"><span class="hs-identifier hs-type">Reset</span></a></span><span> </span><span id="local-6989586621679132198"><span class="annot"><span class="annottext">ErrorCode
+</span><a href="#local-6989586621679132198"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ErrorCode -&gt; SettingsValue -&gt; ReasonPhrase -&gt; HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#ConnectionErrorIsReceived"><span class="hs-identifier hs-var">ConnectionErrorIsReceived</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCode
+</span><a href="#local-6989586621679132198"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132194"><span class="hs-identifier hs-var">sid</span></a></span><span> </span><span class="annot"><span class="annottext">ReasonPhrase
+</span><span class="hs-string">&quot;Connection was reset&quot;</span></span><span>
+</span><span id="line-140"></span><span>        </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#ResetByMe"><span class="hs-identifier hs-type">ResetByMe</span></a></span><span> </span><span id="local-6989586621679132200"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679132200"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#BadThingHappen"><span class="hs-identifier hs-var">BadThingHappen</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679132200"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-keyword">data</span><span> </span><span id="StreamState"><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamState"><span class="hs-identifier hs-var">StreamState</span></a></span></span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="Idle"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Idle"><span class="hs-identifier hs-var">Idle</span></a></span></span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Open"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Open"><span class="hs-identifier hs-var">Open</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#ClosedCode"><span class="hs-identifier hs-type">ClosedCode</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#OpenState"><span class="hs-identifier hs-type">OpenState</span></a></span><span> </span><span class="hs-comment">-- HalfClosedLocal if Just</span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="HalfClosedRemote"><span class="annot"><a href="Network.HTTP2.H2.Types.html#HalfClosedRemote"><span class="hs-identifier hs-var">HalfClosedRemote</span></a></span></span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Closed"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Closed"><span class="hs-identifier hs-var">Closed</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#ClosedCode"><span class="hs-identifier hs-type">ClosedCode</span></a></span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Reserved"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Reserved"><span class="hs-identifier hs-var">Reserved</span></a></span></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679132208"><span id="local-6989586621679132213"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-152"></span><span>    </span><span id="local-6989586621679132221"><span class="annot"><span class="annottext">show :: StreamState -&gt; String
+</span><a href="#local-6989586621679132221"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><a href="Network.HTTP2.H2.Types.html#Idle"><span class="hs-identifier hs-var">Idle</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Idle&quot;</span></span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Open"><span class="hs-identifier hs-type">Open</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ClosedCode
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">OpenState
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Open&quot;</span></span><span>
+</span><span id="line-154"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Open"><span class="hs-identifier hs-type">Open</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679132223"><span class="annot"><span class="annottext">ClosedCode
+</span><a href="#local-6989586621679132223"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">OpenState
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;HalfClosedLocal: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">ClosedCode -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">ClosedCode
+</span><a href="#local-6989586621679132223"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-155"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><a href="Network.HTTP2.H2.Types.html#HalfClosedRemote"><span class="hs-identifier hs-var">HalfClosedRemote</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;HalfClosedRemote&quot;</span></span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span> </span><span id="local-6989586621679132224"><span class="annot"><span class="annottext">ClosedCode
+</span><a href="#local-6989586621679132224"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Closed: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">ClosedCode -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">ClosedCode
+</span><a href="#local-6989586621679132224"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><a href="Network.HTTP2.H2.Types.html#Reserved"><span class="hs-identifier hs-var">Reserved</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Reserved&quot;</span></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-keyword">type</span><span> </span><span id="RxQ"><span class="annot"><a href="Network.HTTP2.H2.Types.html#RxQ"><span class="hs-identifier hs-var">RxQ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TQueue</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">E.SomeException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span class="hs-keyword">data</span><span> </span><span id="Stream"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Stream"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span></span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="streamNumber"><span class="annot"><span class="annottext">Stream -&gt; SettingsValue
+</span><a href="Network.HTTP2.H2.Types.html#streamNumber"><span class="hs-identifier hs-var hs-var">streamNumber</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#StreamId"><span class="hs-identifier hs-type">StreamId</span></a></span><span>
+</span><span id="line-165"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="streamState"><span class="annot"><span class="annottext">Stream -&gt; IORef StreamState
+</span><a href="Network.HTTP2.H2.Types.html#streamState"><span class="hs-identifier hs-var hs-var">streamState</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span>
+</span><span id="line-166"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="streamInput"><span class="annot"><span class="annottext">Stream -&gt; MVar (Either SomeException InpObj)
+</span><a href="Network.HTTP2.H2.Types.html#streamInput"><span class="hs-identifier hs-var hs-var">streamInput</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">InpObj</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- Client only</span><span>
+</span><span id="line-167"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="streamTxFlow"><span class="annot"><span class="annottext">Stream -&gt; TVar TxFlow
+</span><a href="Network.HTTP2.H2.Types.html#streamTxFlow"><span class="hs-identifier hs-var hs-var">streamTxFlow</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TxFlow</span></span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="streamRxFlow"><span class="annot"><span class="annottext">Stream -&gt; IORef RxFlow
+</span><a href="Network.HTTP2.H2.Types.html#streamRxFlow"><span class="hs-identifier hs-var hs-var">streamRxFlow</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">RxFlow</span></span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="streamRxQ"><span class="annot"><span class="annottext">Stream -&gt; IORef (Maybe RxQ)
+</span><a href="Network.HTTP2.H2.Types.html#streamRxQ"><span class="hs-identifier hs-var hs-var">streamRxQ</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#RxQ"><span class="hs-identifier hs-type">RxQ</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679132233"><span id="local-6989586621679132238"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-173"></span><span>    </span><span id="local-6989586621679132247"><span class="annot"><span class="annottext">show :: Stream -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var">show</span></span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span class="hs-special">{</span><span id="local-6989586621679132248"><span id="local-6989586621679132249"><span id="local-6989586621679132250"><span id="local-6989586621679132251"><span id="local-6989586621679132252"><span id="local-6989586621679132253"><span class="annot"><span class="annottext">SettingsValue
+TVar TxFlow
+MVar (Either SomeException InpObj)
+IORef (Maybe RxQ)
+IORef RxFlow
+IORef StreamState
+streamNumber :: Stream -&gt; SettingsValue
+streamState :: Stream -&gt; IORef StreamState
+streamInput :: Stream -&gt; MVar (Either SomeException InpObj)
+streamTxFlow :: Stream -&gt; TVar TxFlow
+streamRxFlow :: Stream -&gt; IORef RxFlow
+streamRxQ :: Stream -&gt; IORef (Maybe RxQ)
+streamNumber :: SettingsValue
+streamState :: IORef StreamState
+streamInput :: MVar (Either SomeException InpObj)
+streamTxFlow :: TVar TxFlow
+streamRxFlow :: IORef RxFlow
+streamRxQ :: IORef (Maybe RxQ)
+</span><a href="Network.HTTP2.H2.Types.html#streamNumber"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-174"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Stream{id=&quot;</span></span><span>
+</span><span id="line-175"></span><span>            </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">SettingsValue -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132248"><span class="hs-identifier hs-var">streamNumber</span></a></span><span>
+</span><span id="line-176"></span><span>            </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;,state=&quot;</span></span><span>
+</span><span id="line-177"></span><span>            </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">StreamState -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO StreamState -&gt; StreamState
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO StreamState
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679132249"><span class="hs-identifier hs-var">streamState</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>            </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;}&quot;</span></span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-keyword">data</span><span> </span><span id="Output"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Output"><span class="hs-identifier hs-var">Output</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Output"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Output"><span class="hs-identifier hs-var">Output</span></a></span></span><span>
+</span><span id="line-183"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="outputStream"><span class="annot"><span class="annottext">Output -&gt; Stream
+</span><a href="Network.HTTP2.H2.Types.html#outputStream"><span class="hs-identifier hs-var hs-var">outputStream</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span>
+</span><span id="line-184"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="outputType"><span class="annot"><span class="annottext">Output -&gt; OutputType
+</span><a href="Network.HTTP2.H2.Types.html#outputType"><span class="hs-identifier hs-var hs-var">outputType</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#OutputType"><span class="hs-identifier hs-type">OutputType</span></a></span><span>
+</span><span id="line-185"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="outputSync"><span class="annot"><span class="annottext">Output -&gt; Maybe Output -&gt; IO ()
+</span><a href="Network.HTTP2.H2.Types.html#outputSync"><span class="hs-identifier hs-var hs-var">outputSync</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Output"><span class="hs-identifier hs-type">Output</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span class="hs-keyword">data</span><span> </span><span id="OutputType"><span class="annot"><a href="Network.HTTP2.H2.Types.html#OutputType"><span class="hs-identifier hs-var">OutputType</span></a></span></span><span>
+</span><span id="line-189"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="OHeader"><span class="annot"><a href="Network.HTTP2.H2.Types.html#OHeader"><span class="hs-identifier hs-var">OHeader</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Header</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DynaNext</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TrailersMaker</span></span><span>
+</span><span id="line-190"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="OPush"><span class="annot"><a href="Network.HTTP2.H2.Types.html#OPush"><span class="hs-identifier hs-var">OPush</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TokenHeaderList</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#StreamId"><span class="hs-identifier hs-type">StreamId</span></a></span><span> </span><span class="hs-comment">-- associated stream id from client</span><span>
+</span><span id="line-191"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ONext"><span class="annot"><a href="Network.HTTP2.H2.Types.html#ONext"><span class="hs-identifier hs-var">ONext</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DynaNext</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TrailersMaker</span></span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-keyword">data</span><span> </span><span id="Sync"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Sync"><span class="hs-identifier hs-var">Sync</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Done"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Done"><span class="hs-identifier hs-var">Done</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Cont"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Cont"><span class="hs-identifier hs-var">Cont</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Output"><span class="hs-identifier hs-type">Output</span></a></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="hs-keyword">data</span><span> </span><span id="Control"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Control"><span class="hs-identifier hs-var">Control</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CFrames"><span class="annot"><a href="Network.HTTP2.H2.Types.html#CFrames"><span class="hs-identifier hs-var">CFrames</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#SettingsList"><span class="hs-identifier hs-type">SettingsList</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">]</span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span class="hs-keyword">type</span><span> </span><span id="ReasonPhrase"><span class="annot"><a href="Network.HTTP2.H2.Types.html#ReasonPhrase"><span class="hs-identifier hs-var">ReasonPhrase</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- | The connection error or the stream error.</span><span>
+</span><span id="line-204"></span><span class="hs-comment">--   Stream errors are treated as connection errors since</span><span>
+</span><span id="line-205"></span><span class="hs-comment">--   there are no good recovery ways.</span><span>
+</span><span id="line-206"></span><span class="hs-comment">--   `ErrorCode` in connection errors should be the highest stream identifier</span><span>
+</span><span id="line-207"></span><span class="hs-comment">--   but in this implementation it identifies the stream that</span><span>
+</span><span id="line-208"></span><span class="hs-comment">--   caused this error.</span><span>
+</span><span id="line-209"></span><span class="hs-keyword">data</span><span> </span><span id="HTTP2Error"><span class="annot"><a href="Network.HTTP2.H2.Types.html#HTTP2Error"><span class="hs-identifier hs-var">HTTP2Error</span></a></span></span><span>
+</span><span id="line-210"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="ConnectionIsClosed"><span class="annot"><a href="Network.HTTP2.H2.Types.html#ConnectionIsClosed"><span class="hs-identifier hs-var">ConnectionIsClosed</span></a></span></span><span> </span><span class="hs-comment">-- NoError</span><span>
+</span><span id="line-211"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ConnectionIsTimeout"><span class="annot"><a href="Network.HTTP2.H2.Types.html#ConnectionIsTimeout"><span class="hs-identifier hs-var">ConnectionIsTimeout</span></a></span></span><span>
+</span><span id="line-212"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ConnectionErrorIsReceived"><span class="annot"><a href="Network.HTTP2.H2.Types.html#ConnectionErrorIsReceived"><span class="hs-identifier hs-var">ConnectionErrorIsReceived</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#ErrorCode"><span class="hs-identifier hs-type">ErrorCode</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#StreamId"><span class="hs-identifier hs-type">StreamId</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#ReasonPhrase"><span class="hs-identifier hs-type">ReasonPhrase</span></a></span><span>
+</span><span id="line-213"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ConnectionErrorIsSent"><span class="annot"><a href="Network.HTTP2.H2.Types.html#ConnectionErrorIsSent"><span class="hs-identifier hs-var">ConnectionErrorIsSent</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#ErrorCode"><span class="hs-identifier hs-type">ErrorCode</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#StreamId"><span class="hs-identifier hs-type">StreamId</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#ReasonPhrase"><span class="hs-identifier hs-type">ReasonPhrase</span></a></span><span>
+</span><span id="line-214"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="StreamErrorIsReceived"><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamErrorIsReceived"><span class="hs-identifier hs-var">StreamErrorIsReceived</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#ErrorCode"><span class="hs-identifier hs-type">ErrorCode</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#StreamId"><span class="hs-identifier hs-type">StreamId</span></a></span><span>
+</span><span id="line-215"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="StreamErrorIsSent"><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamErrorIsSent"><span class="hs-identifier hs-var">StreamErrorIsSent</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#ErrorCode"><span class="hs-identifier hs-type">ErrorCode</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#StreamId"><span class="hs-identifier hs-type">StreamId</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#ReasonPhrase"><span class="hs-identifier hs-type">ReasonPhrase</span></a></span><span>
+</span><span id="line-216"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="BadThingHappen"><span class="annot"><a href="Network.HTTP2.H2.Types.html#BadThingHappen"><span class="hs-identifier hs-var">BadThingHappen</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">E.SomeException</span></span><span>
+</span><span id="line-217"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132278"><span id="local-6989586621679132298"><span id="local-6989586621679132302"><span class="annot"><span class="annottext">SettingsValue -&gt; HTTP2Error -&gt; ShowS
+[HTTP2Error] -&gt; ShowS
+HTTP2Error -&gt; String
+(SettingsValue -&gt; HTTP2Error -&gt; ShowS)
+-&gt; (HTTP2Error -&gt; String)
+-&gt; ([HTTP2Error] -&gt; ShowS)
+-&gt; Show HTTP2Error
+forall a.
+(SettingsValue -&gt; a -&gt; ShowS)
+-&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: SettingsValue -&gt; HTTP2Error -&gt; ShowS
+showsPrec :: SettingsValue -&gt; HTTP2Error -&gt; ShowS
+$cshow :: HTTP2Error -&gt; String
+show :: HTTP2Error -&gt; String
+$cshowList :: [HTTP2Error] -&gt; ShowS
+showList :: [HTTP2Error] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679132309"><span id="local-6989586621679132313"><span id="local-6989586621679132316"><span id="local-6989586621679132319"><span class="annot"><span class="hs-identifier hs-type">E.Exception</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#HTTP2Error"><span class="hs-identifier hs-type">HTTP2Error</span></a></span></span></span></span></span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- | Checking 'SettingsList' and reporting an error if any.</span><span>
+</span><span id="line-224"></span><span class="hs-comment">--</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- &gt;&gt;&gt; checkSettingsList [(SettingsEnablePush,2)]</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- Just (ConnectionErrorIsSent ProtocolError 0 &quot;enable push must be 0 or 1&quot;)</span><span>
+</span><span id="line-227"></span><span class="annot"><a href="Network.HTTP2.H2.Types.html#checkSettingsList"><span class="hs-identifier hs-type">checkSettingsList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#SettingsList"><span class="hs-identifier hs-type">SettingsList</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#HTTP2Error"><span class="hs-identifier hs-type">HTTP2Error</span></a></span><span>
+</span><span id="line-228"></span><span id="checkSettingsList"><span class="annot"><span class="annottext">checkSettingsList :: SettingsList -&gt; Maybe HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#checkSettingsList"><span class="hs-identifier hs-var hs-var">checkSettingsList</span></a></span></span><span> </span><span id="local-6989586621679132322"><span class="annot"><span class="annottext">SettingsList
+</span><a href="#local-6989586621679132322"><span class="hs-identifier hs-var">settings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">((SettingsKey, SettingsValue) -&gt; Maybe HTTP2Error)
+-&gt; SettingsList -&gt; [HTTP2Error]
+forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">(SettingsKey, SettingsValue) -&gt; Maybe HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#checkSettingsValue"><span class="hs-identifier hs-var">checkSettingsValue</span></a></span><span> </span><span class="annot"><span class="annottext">SettingsList
+</span><a href="#local-6989586621679132322"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-229"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe HTTP2Error
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-230"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679132325"><span class="annot"><span class="annottext">HTTP2Error
+</span><a href="#local-6989586621679132325"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[HTTP2Error]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HTTP2Error -&gt; Maybe HTTP2Error
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">HTTP2Error
+</span><a href="#local-6989586621679132325"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="annot"><a href="Network.HTTP2.H2.Types.html#checkSettingsValue"><span class="hs-identifier hs-type">checkSettingsValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#SettingsKey"><span class="hs-identifier hs-type">SettingsKey</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#SettingsValue"><span class="hs-identifier hs-type">SettingsValue</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#HTTP2Error"><span class="hs-identifier hs-type">HTTP2Error</span></a></span><span>
+</span><span id="line-233"></span><span id="checkSettingsValue"><span class="annot"><span class="annottext">checkSettingsValue :: (SettingsKey, SettingsValue) -&gt; Maybe HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#checkSettingsValue"><span class="hs-identifier hs-var hs-var">checkSettingsValue</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SettingsKey
+</span><a href="Network.HTTP2.Frame.Types.html#SettingsEnablePush"><span class="hs-identifier hs-var">SettingsEnablePush</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132327"><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132327"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-234"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132327"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">SettingsValue -&gt; SettingsValue -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132327"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">SettingsValue -&gt; SettingsValue -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-235"></span><span>        </span><span class="annot"><span class="annottext">HTTP2Error -&gt; Maybe HTTP2Error
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(HTTP2Error -&gt; Maybe HTTP2Error) -&gt; HTTP2Error -&gt; Maybe HTTP2Error
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ErrorCode -&gt; SettingsValue -&gt; ReasonPhrase -&gt; HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#ConnectionErrorIsSent"><span class="hs-identifier hs-var">ConnectionErrorIsSent</span></a></span><span> </span><span class="annot"><span class="annottext">ErrorCode
+</span><a href="Network.HTTP2.Frame.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">ReasonPhrase
+</span><span class="hs-string">&quot;enable push must be 0 or 1&quot;</span></span><span>
+</span><span id="line-236"></span><span class="annot"><a href="Network.HTTP2.H2.Types.html#checkSettingsValue"><span class="hs-identifier hs-var">checkSettingsValue</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SettingsKey
+</span><a href="Network.HTTP2.Frame.Types.html#SettingsInitialWindowSize"><span class="hs-identifier hs-var">SettingsInitialWindowSize</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132332"><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132332"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-237"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132332"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">SettingsValue -&gt; SettingsValue -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><a href="Network.HTTP2.Frame.Types.html#maxWindowSize"><span class="hs-identifier hs-var">maxWindowSize</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-238"></span><span>        </span><span class="annot"><span class="annottext">HTTP2Error -&gt; Maybe HTTP2Error
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(HTTP2Error -&gt; Maybe HTTP2Error) -&gt; HTTP2Error -&gt; Maybe HTTP2Error
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-239"></span><span>            </span><span class="annot"><span class="annottext">ErrorCode -&gt; SettingsValue -&gt; ReasonPhrase -&gt; HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#ConnectionErrorIsSent"><span class="hs-identifier hs-var">ConnectionErrorIsSent</span></a></span><span>
+</span><span id="line-240"></span><span>                </span><span class="annot"><span class="annottext">ErrorCode
+</span><a href="Network.HTTP2.Frame.Types.html#FlowControlError"><span class="hs-identifier hs-var">FlowControlError</span></a></span><span>
+</span><span id="line-241"></span><span>                </span><span class="annot"><span class="annottext">SettingsValue
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-242"></span><span>                </span><span class="annot"><span class="annottext">ReasonPhrase
+</span><span class="hs-string">&quot;Window size must be less than or equal to 65535&quot;</span></span><span>
+</span><span id="line-243"></span><span class="annot"><a href="Network.HTTP2.H2.Types.html#checkSettingsValue"><span class="hs-identifier hs-var">checkSettingsValue</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SettingsKey
+</span><a href="Network.HTTP2.Frame.Types.html#SettingsMaxFrameSize"><span class="hs-identifier hs-var">SettingsMaxFrameSize</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679132337"><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132337"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-244"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132337"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">SettingsValue -&gt; SettingsValue -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><a href="Network.HTTP2.Frame.Types.html#defaultPayloadLength"><span class="hs-identifier hs-var">defaultPayloadLength</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><a href="#local-6989586621679132337"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">SettingsValue -&gt; SettingsValue -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">SettingsValue
+</span><a href="Network.HTTP2.Frame.Types.html#maxPayloadLength"><span class="hs-identifier hs-var">maxPayloadLength</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-245"></span><span>        </span><span class="annot"><span class="annottext">HTTP2Error -&gt; Maybe HTTP2Error
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(HTTP2Error -&gt; Maybe HTTP2Error) -&gt; HTTP2Error -&gt; Maybe HTTP2Error
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-246"></span><span>            </span><span class="annot"><span class="annottext">ErrorCode -&gt; SettingsValue -&gt; ReasonPhrase -&gt; HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#ConnectionErrorIsSent"><span class="hs-identifier hs-var">ConnectionErrorIsSent</span></a></span><span>
+</span><span id="line-247"></span><span>                </span><span class="annot"><span class="annottext">ErrorCode
+</span><a href="Network.HTTP2.Frame.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span>
+</span><span id="line-248"></span><span>                </span><span class="annot"><span class="annottext">SettingsValue
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-249"></span><span>                </span><span class="annot"><span class="annottext">ReasonPhrase
+</span><span class="hs-string">&quot;Max frame size must be in between 16384 and 16777215&quot;</span></span><span>
+</span><span id="line-250"></span><span class="annot"><a href="Network.HTTP2.H2.Types.html#checkSettingsValue"><span class="hs-identifier hs-var">checkSettingsValue</span></a></span><span> </span><span class="annot"><span class="annottext">(SettingsKey, SettingsValue)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe HTTP2Error
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-251"></span><span>
+</span><span id="line-252"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-253"></span><span>
+</span><span id="line-254"></span><span class="annot"><span class="hs-comment">-- | HTTP/2 configuration.</span></span><span>
+</span><span id="line-255"></span><span class="hs-keyword">data</span><span> </span><span id="Config"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-var">Config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Config"><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-var">Config</span></a></span></span><span>
+</span><span id="line-256"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="confWriteBuffer"><span class="annot"><span class="annottext">Config -&gt; Buffer
+</span><a href="Network.HTTP2.H2.Types.html#confWriteBuffer"><span class="hs-identifier hs-var hs-var">confWriteBuffer</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Buffer</span></span><span>
+</span><span id="line-257"></span><span>    </span><span class="hs-comment">-- ^ This is used only by frameSender.</span><span>
+</span><span id="line-258"></span><span>    </span><span class="hs-comment">-- This MUST be freed after frameSender is terminated.</span><span>
+</span><span id="line-259"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="confBufferSize"><span class="annot"><span class="annottext">Config -&gt; SettingsValue
+</span><a href="Network.HTTP2.H2.Types.html#confBufferSize"><span class="hs-identifier hs-var hs-var">confBufferSize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BufferSize</span></span><span>
+</span><span id="line-260"></span><span>    </span><span class="hs-comment">-- ^ The size of the write buffer.</span><span>
+</span><span id="line-261"></span><span>    </span><span class="hs-comment">--   We assume that the read buffer is the same size.</span><span>
+</span><span id="line-262"></span><span>    </span><span class="hs-comment">--   So, this value is announced via SETTINGS_MAX_FRAME_SIZE</span><span>
+</span><span id="line-263"></span><span>    </span><span class="hs-comment">--   to the peer.</span><span>
+</span><span id="line-264"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="confSendAll"><span class="annot"><span class="annottext">Config -&gt; ByteString -&gt; IO ()
+</span><a href="Network.HTTP2.H2.Types.html#confSendAll"><span class="hs-identifier hs-var hs-var">confSendAll</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-265"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="confReadN"><span class="annot"><span class="annottext">Config -&gt; SettingsValue -&gt; IO ByteString
+</span><a href="Network.HTTP2.H2.Types.html#confReadN"><span class="hs-identifier hs-var hs-var">confReadN</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-266"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="confPositionReadMaker"><span class="annot"><span class="annottext">Config -&gt; PositionReadMaker
+</span><a href="Network.HTTP2.H2.Types.html#confPositionReadMaker"><span class="hs-identifier hs-var hs-var">confPositionReadMaker</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PositionReadMaker</span></span><span>
+</span><span id="line-267"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="confTimeoutManager"><span class="annot"><span class="annottext">Config -&gt; Manager
+</span><a href="Network.HTTP2.H2.Types.html#confTimeoutManager"><span class="hs-identifier hs-var hs-var">confTimeoutManager</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Manager</span></span><span>
+</span><span id="line-268"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="confMySockAddr"><span class="annot"><span class="annottext">Config -&gt; SockAddr
+</span><a href="Network.HTTP2.H2.Types.html#confMySockAddr"><span class="hs-identifier hs-var hs-var">confMySockAddr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SockAddr</span></span><span>
+</span><span id="line-269"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ This is copied into 'Aux', if exist, on server.</span></span><span>
+</span><span id="line-270"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="confPeerSockAddr"><span class="annot"><span class="annottext">Config -&gt; SockAddr
+</span><a href="Network.HTTP2.H2.Types.html#confPeerSockAddr"><span class="hs-identifier hs-var hs-var">confPeerSockAddr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SockAddr</span></span><span>
+</span><span id="line-271"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ This is copied into 'Aux', if exist, on server.</span></span><span>
+</span><span id="line-272"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-273"></span><span>
+</span><span id="line-274"></span><span id="local-6989586621679132115"><span class="annot"><a href="Network.HTTP2.H2.Types.html#isAsyncException"><span class="hs-identifier hs-type">isAsyncException</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="#local-6989586621679132115"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679132115"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-275"></span><span id="isAsyncException"><span class="annot"><span class="annottext">isAsyncException :: forall e. Exception e =&gt; e -&gt; Bool
+</span><a href="Network.HTTP2.H2.Types.html#isAsyncException"><span class="hs-identifier hs-var hs-var">isAsyncException</span></a></span></span><span> </span><span id="local-6989586621679132358"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679132358"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-276"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Maybe SomeAsyncException
+forall e. Exception e =&gt; SomeException -&gt; Maybe e
+</span><span class="hs-identifier hs-var">E.fromException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">e -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">E.toException</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679132358"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-277"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">SomeAsyncException</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-278"></span><span>        </span><span class="annot"><span class="annottext">Maybe SomeAsyncException
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-279"></span></pre></body></html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | A utility module for unconflicted namespaces and related types/functionality.</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.NamesUtils.html"><span class="hs-identifier">Unison.NamesUtils</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.NamesUtils.html#byName"><span class="hs-identifier">byName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.NamesUtils.html#forgetNames"><span class="hs-identifier">forgetNames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.NamesUtils.html#referentsToIds"><span class="hs-identifier">referentsToIds</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.NamesUtils.html#referentsToRefs"><span class="hs-identifier">referentsToRefs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.NamesUtils.html#restrictNames"><span class="hs-identifier">restrictNames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.ConstructorReference.html"><span class="hs-identifier">Unison.ConstructorReference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#GConstructorReference"><span class="hs-identifier">GConstructorReference</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Reference.html"><span class="hs-identifier">Unison.Reference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TermReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TypeReference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TypeReferenceId</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Reference.html"><span class="hs-identifier">Unison.Reference</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Reference</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Referent.html"><span class="hs-identifier">Unison.Referent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Referent.html#Referent"><span class="hs-identifier">Referent</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Referent.html"><span class="hs-identifier">Unison.Referent</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.ReferentPrime.html"><span class="hs-identifier">Unison.ReferentPrime</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ReferentPrime.html#Referent%27"><span class="hs-identifier">Referent'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.ReferentPrime.html"><span class="hs-identifier">Unison.ReferentPrime</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent'</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html"><span class="hs-identifier">Unison.Util.Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier">DefnsF</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#zipDefnsWith"><span class="hs-identifier">zipDefnsWith</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html"><span class="hs-identifier">Unison.Util.Defns</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Defns</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><span class="hs-comment">-- | /O(1)/. View unconflicted names by name (throwing away ref-&gt;name mapping).</span></span><span>
+</span><span id="line-27"></span><span id="local-6989586621679330389"><span id="local-6989586621679330390"><span id="local-6989586621679330392"><span class="annot"><a href="Unison.NamesUtils.html#byName"><span class="hs-identifier hs-type">byName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679330389"><span class="hs-identifier hs-type">terms</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330390"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679330392"><span class="hs-identifier hs-type">types</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330390"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier hs-type">DefnsF</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="#local-6989586621679330390"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679330389"><span class="hs-identifier hs-type">terms</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330392"><span class="hs-identifier hs-type">types</span></a></span></span></span></span><span>
+</span><span id="line-28"></span><span id="byName"><span class="annot"><span class="annottext">byName :: forall terms name types.
+Defns (BiMultimap terms name) (BiMultimap types name)
+-&gt; DefnsF (Map name) terms types
+</span><a href="Unison.NamesUtils.html#byName"><span class="hs-identifier hs-var hs-var">byName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><span class="annottext">(BiMultimap terms name -&gt; Map name terms)
+-&gt; (BiMultimap types name -&gt; Map name types)
+-&gt; Defns (BiMultimap terms name) (BiMultimap types name)
+-&gt; Defns (Map name terms) (Map name types)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap terms name -&gt; Map name terms
+forall a b. BiMultimap a b -&gt; Map b a
+</span><span class="hs-identifier hs-var">BiMultimap.range</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap types name -&gt; Map name types
+forall a b. BiMultimap a b -&gt; Map b a
+</span><span class="hs-identifier hs-var">BiMultimap.range</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span id="local-6989586621679330405"><span id="local-6989586621679330406"><span id="local-6989586621679330407"><span class="annot"><a href="Unison.NamesUtils.html#forgetNames"><span class="hs-identifier hs-type">forgetNames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679330405"><span class="hs-identifier hs-type">terms</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330406"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679330407"><span class="hs-identifier hs-type">types</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330406"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier hs-type">DefnsF</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679330405"><span class="hs-identifier hs-type">terms</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330407"><span class="hs-identifier hs-type">types</span></a></span></span></span></span><span>
+</span><span id="line-32"></span><span id="forgetNames"><span class="annot"><span class="annottext">forgetNames :: forall terms name types.
+Defns (BiMultimap terms name) (BiMultimap types name)
+-&gt; DefnsF Set terms types
+</span><a href="Unison.NamesUtils.html#forgetNames"><span class="hs-identifier hs-var hs-var">forgetNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><span class="annottext">(BiMultimap terms name -&gt; Set terms)
+-&gt; (BiMultimap types name -&gt; Set types)
+-&gt; Defns (BiMultimap terms name) (BiMultimap types name)
+-&gt; Defns (Set terms) (Set types)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap terms name -&gt; Set terms
+forall a b. BiMultimap a b -&gt; Set a
+</span><span class="hs-identifier hs-var">BiMultimap.dom</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap types name -&gt; Set types
+forall a b. BiMultimap a b -&gt; Set a
+</span><span class="hs-identifier hs-var">BiMultimap.dom</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span id="local-6989586621679330413"><span id="local-6989586621679330414"><span id="local-6989586621679330415"><span class="annot"><a href="Unison.NamesUtils.html#restrictNames"><span class="hs-identifier hs-type">restrictNames</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679330413"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679330414"><span class="hs-identifier hs-type">terms</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679330415"><span class="hs-identifier hs-type">types</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier hs-type">DefnsF</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679330413"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330413"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679330414"><span class="hs-identifier hs-type">terms</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330413"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679330415"><span class="hs-identifier hs-type">types</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330413"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679330414"><span class="hs-identifier hs-type">terms</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330413"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679330415"><span class="hs-identifier hs-type">types</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330413"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-40"></span><span id="restrictNames"><span class="annot"><span class="annottext">restrictNames :: forall name terms types.
+(Ord name, Ord terms, Ord types) =&gt;
+DefnsF Set name name
+-&gt; Defns (BiMultimap terms name) (BiMultimap types name)
+-&gt; Defns (BiMultimap terms name) (BiMultimap types name)
+</span><a href="Unison.NamesUtils.html#restrictNames"><span class="hs-identifier hs-var hs-var">restrictNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="annottext">(Set name -&gt; BiMultimap terms name -&gt; BiMultimap terms name)
+-&gt; (Set name -&gt; BiMultimap types name -&gt; BiMultimap types name)
+-&gt; Defns (Set name) (Set name)
+-&gt; Defns (BiMultimap terms name) (BiMultimap types name)
+-&gt; Defns (BiMultimap terms name) (BiMultimap types name)
+forall tm1 tm2 tm3 ty1 ty2 ty3.
+(tm1 -&gt; tm2 -&gt; tm3)
+-&gt; (ty1 -&gt; ty2 -&gt; ty3)
+-&gt; Defns tm1 ty1
+-&gt; Defns tm2 ty2
+-&gt; Defns tm3 ty3
+</span><a href="Unison.Util.Defns.html#zipDefnsWith"><span class="hs-identifier hs-var">zipDefnsWith</span></a></span><span> </span><span class="annot"><span class="annottext">Set name -&gt; BiMultimap terms name -&gt; BiMultimap terms name
+forall a b.
+(Ord a, Ord b) =&gt;
+Set b -&gt; BiMultimap a b -&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.restrictRan</span></span><span> </span><span class="annot"><span class="annottext">Set name -&gt; BiMultimap types name -&gt; BiMultimap types name
+forall a b.
+(Ord a, Ord b) =&gt;
+Set b -&gt; BiMultimap a b -&gt; BiMultimap a b
+</span><span class="hs-identifier hs-var">BiMultimap.restrictRan</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Unison.NamesUtils.html#referentsToIds"><span class="hs-identifier hs-type">referentsToIds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier hs-type">DefnsF</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="Unison.Referent.html#Referent"><span class="hs-identifier hs-type">Referent</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier hs-type">DefnsF</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span>
+</span><span id="line-44"></span><span id="referentsToIds"><span class="annot"><span class="annottext">referentsToIds :: DefnsF Set Referent TypeReference
+-&gt; Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="Unison.NamesUtils.html#referentsToIds"><span class="hs-identifier hs-var hs-var">referentsToIds</span></a></span></span><span> </span><span id="local-6989586621679330486"><span class="annot"><span class="annottext">DefnsF Set Referent TypeReference
+</span><a href="#local-6989586621679330486"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><span class="annottext">Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="#local-6989586621679330487"><span class="hs-identifier hs-var">fromTerms</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (Set TermReferenceId) (Set TermReferenceId)
+-&gt; Defns (Set TermReferenceId) (Set TermReferenceId)
+-&gt; Defns (Set TermReferenceId) (Set TermReferenceId)
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="#local-6989586621679330488"><span class="hs-identifier hs-var">fromTypes</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679330487"><span class="annot"><span class="annottext">fromTerms :: Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="#local-6989586621679330487"><span class="hs-identifier hs-var hs-var">fromTerms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-48"></span><span>      </span><span class="annot"><span class="annottext">(Defns (Set TermReferenceId) (Set TermReferenceId)
+ -&gt; Referent -&gt; Defns (Set TermReferenceId) (Set TermReferenceId))
+-&gt; Defns (Set TermReferenceId) (Set TermReferenceId)
+-&gt; Set Referent
+-&gt; Defns (Set TermReferenceId) (Set TermReferenceId)
+forall a b. (a -&gt; b -&gt; a) -&gt; a -&gt; Set b -&gt; a
+</span><span class="hs-identifier hs-var">Set.foldl'</span></span><span>
+</span><span id="line-49"></span><span>        </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679330490"><span class="annot"><span class="annottext">Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="#local-6989586621679330490"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-50"></span><span>            </span><span class="annot"><a href="Unison.Referent.html#Ref"><span class="hs-identifier hs-type">Referent.Ref</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ReferenceDerived</span></span><span> </span><span id="local-6989586621679330493"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679330493"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-51"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679330494"><span class="annot"><span class="annottext">terms :: Set TermReferenceId
+</span><a href="#local-6989586621679330494"><span class="hs-identifier hs-var hs-var">terms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TermReferenceId -&gt; Set TermReferenceId -&gt; Set TermReferenceId
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679330493"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="#local-6989586621679330490"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Set TermReferenceId
+-&gt; Set TermReferenceId
+-&gt; Defns (Set TermReferenceId) (Set TermReferenceId)
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="annot"><span class="annottext">Set TermReferenceId
+</span><a href="#local-6989586621679330494"><span class="hs-identifier hs-var">terms</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="#local-6989586621679330490"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span>
+</span><span id="line-52"></span><span>            </span><span class="annot"><a href="Unison.Referent.html#Con"><span class="hs-identifier hs-type">Referent.Con</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ReferenceDerived</span></span><span> </span><span id="local-6989586621679330499"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679330499"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorType
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-53"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679330500"><span class="annot"><span class="annottext">types :: Set TermReferenceId
+</span><a href="#local-6989586621679330500"><span class="hs-identifier hs-var hs-var">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TermReferenceId -&gt; Set TermReferenceId -&gt; Set TermReferenceId
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679330499"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="#local-6989586621679330490"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Set TermReferenceId
+-&gt; Set TermReferenceId
+-&gt; Defns (Set TermReferenceId) (Set TermReferenceId)
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="#local-6989586621679330490"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="annot"><span class="annottext">Set TermReferenceId
+</span><a href="#local-6989586621679330500"><span class="hs-identifier hs-var">types</span></a></span><span>
+</span><span id="line-54"></span><span>            </span><span class="annot"><span class="annottext">Referent
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="#local-6989586621679330490"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set TermReferenceId
+-&gt; Set TermReferenceId
+-&gt; Defns (Set TermReferenceId) (Set TermReferenceId)
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="annot"><span class="annottext">Set TermReferenceId
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span> </span><span class="annot"><span class="annottext">Set TermReferenceId
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><span class="annottext">DefnsF Set Referent TypeReference
+</span><a href="#local-6989586621679330486"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679330488"><span class="annot"><span class="annottext">fromTypes :: Defns (Set TermReferenceId) (Set TermReferenceId)
+</span><a href="#local-6989586621679330488"><span class="hs-identifier hs-var hs-var">fromTypes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-60"></span><span>      </span><span class="annot"><span class="annottext">Set TermReferenceId
+-&gt; Defns (Set TermReferenceId) (Set TermReferenceId)
+forall terms types. Monoid terms =&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#fromTypes"><span class="hs-identifier hs-var">Defns.fromTypes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(TypeReference -&gt; Maybe TermReferenceId)
+-&gt; Set TypeReference -&gt; Set TermReferenceId
+forall b a. Ord b =&gt; (a -&gt; Maybe b) -&gt; Set a -&gt; Set b
+</span><span class="hs-identifier hs-var">Set.mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">TypeReference -&gt; Maybe TermReferenceId
+</span><span class="hs-identifier hs-var">Reference.toId</span></span><span> </span><span class="annot"><span class="annottext">DefnsF Set Referent TypeReference
+</span><a href="#local-6989586621679330486"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span id="local-6989586621679330441"><span class="annot"><a href="Unison.NamesUtils.html#referentsToRefs"><span class="hs-identifier hs-type">referentsToRefs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679330441"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier hs-type">DefnsF</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ReferentPrime.html#Referent%27"><span class="hs-identifier hs-type">Referent'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330441"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679330441"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier hs-type">DefnsF</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679330441"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679330441"><span class="hs-identifier hs-type">r</span></a></span></span><span>
+</span><span id="line-63"></span><span id="referentsToRefs"><span class="annot"><span class="annottext">referentsToRefs :: forall r. Ord r =&gt; DefnsF Set (Referent' r) r -&gt; DefnsF Set r r
+</span><a href="Unison.NamesUtils.html#referentsToRefs"><span class="hs-identifier hs-var hs-var">referentsToRefs</span></a></span></span><span> </span><span id="local-6989586621679330518"><span class="annot"><span class="annottext">DefnsF Set (Referent' r) r
+</span><a href="#local-6989586621679330518"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><span class="annottext">Defns (Set r) (Set r)
+</span><a href="#local-6989586621679330519"><span class="hs-identifier hs-var">fromTerms</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (Set r) (Set r)
+-&gt; Defns (Set r) (Set r) -&gt; Defns (Set r) (Set r)
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Defns (Set r) (Set r)
+</span><a href="#local-6989586621679330520"><span class="hs-identifier hs-var">fromTypes</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621679330519"><span class="annot"><span class="annottext">fromTerms :: Defns (Set r) (Set r)
+</span><a href="#local-6989586621679330519"><span class="hs-identifier hs-var hs-var">fromTerms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><span class="annottext">(Defns (Set r) (Set r) -&gt; Referent' r -&gt; Defns (Set r) (Set r))
+-&gt; Defns (Set r) (Set r)
+-&gt; Set (Referent' r)
+-&gt; Defns (Set r) (Set r)
+forall a b. (a -&gt; b -&gt; a) -&gt; a -&gt; Set b -&gt; a
+</span><span class="hs-identifier hs-var">Set.foldl'</span></span><span>
+</span><span id="line-68"></span><span>        </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679330521"><span class="annot"><span class="annottext">Defns (Set r) (Set r)
+</span><a href="#local-6989586621679330521"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-69"></span><span>            </span><span class="annot"><a href="Unison.ReferentPrime.html#Ref%27"><span class="hs-identifier hs-type">Referent'.Ref'</span></a></span><span> </span><span id="local-6989586621679330523"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679330523"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679330524"><span class="annot"><span class="annottext">terms :: Set r
+</span><a href="#local-6989586621679330524"><span class="hs-identifier hs-var hs-var">terms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">r -&gt; Set r -&gt; Set r
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679330523"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (Set r) (Set r)
+</span><a href="#local-6989586621679330521"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Set r -&gt; Set r -&gt; Defns (Set r) (Set r)
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="annot"><span class="annottext">Set r
+</span><a href="#local-6989586621679330524"><span class="hs-identifier hs-var">terms</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (Set r) (Set r)
+</span><a href="#local-6989586621679330521"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span>
+</span><span id="line-70"></span><span>            </span><span class="annot"><a href="Unison.ReferentPrime.html#Con%27"><span class="hs-identifier hs-type">Referent'.Con'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ConstructorReference.html#ConstructorReference"><span class="hs-identifier hs-type">ConstructorReference</span></a></span><span> </span><span id="local-6989586621679330526"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679330526"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorType
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-71"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679330527"><span class="annot"><span class="annottext">types :: Set r
+</span><a href="#local-6989586621679330527"><span class="hs-identifier hs-var hs-var">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">r -&gt; Set r -&gt; Set r
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679330526"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (Set r) (Set r)
+</span><a href="#local-6989586621679330521"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Set r -&gt; Set r -&gt; Defns (Set r) (Set r)
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (Set r) (Set r)
+</span><a href="#local-6989586621679330521"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="annot"><span class="annottext">Set r
+</span><a href="#local-6989586621679330527"><span class="hs-identifier hs-var">types</span></a></span><span>
+</span><span id="line-72"></span><span>        </span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set r -&gt; Set r -&gt; Defns (Set r) (Set r)
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="annot"><span class="annottext">Set r
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span> </span><span class="annot"><span class="annottext">Set r
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>        </span><span class="annot"><span class="annottext">DefnsF Set (Referent' r) r
+</span><a href="#local-6989586621679330518"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679330520"><span class="annot"><span class="annottext">fromTypes :: Defns (Set r) (Set r)
+</span><a href="#local-6989586621679330520"><span class="hs-identifier hs-var hs-var">fromTypes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-77"></span><span>      </span><span class="annot"><span class="annottext">Set r -&gt; Defns (Set r) (Set r)
+forall terms types. Monoid terms =&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#fromTypes"><span class="hs-identifier hs-var">Defns.fromTypes</span></a></span><span> </span><span class="annot"><span class="annottext">DefnsF Set (Referent' r) r
+</span><a href="#local-6989586621679330518"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span>
+</span><span id="line-78"></span></pre></body></html>

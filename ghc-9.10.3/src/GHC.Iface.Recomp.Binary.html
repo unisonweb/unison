@@ -1,0 +1,118 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="annot"><span class="hs-comment">-- | Computing fingerprints of values serializable with GHC's \&quot;Binary\&quot; module.</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Iface.Recomp.Binary.html"><span class="hs-identifier">GHC.Iface.Recomp.Binary</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Computing fingerprints</span></span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GHC.Iface.Recomp.Binary.html#fingerprintBinMem"><span class="hs-identifier">fingerprintBinMem</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Iface.Recomp.Binary.html#computeFingerprint"><span class="hs-identifier">computeFingerprint</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Iface.Recomp.Binary.html#putNameLiterally"><span class="hs-identifier">putNameLiterally</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Fingerprint.html"><span class="hs-identifier">GHC.Utils.Fingerprint</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Binary.html"><span class="hs-identifier">GHC.Utils.Binary</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.Plain.html"><span class="hs-identifier">GHC.Utils.Panic.Plain</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="annot"><a href="GHC.Iface.Recomp.Binary.html#fingerprintBinMem"><span class="hs-identifier hs-type">fingerprintBinMem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Binary.html#BinHandle"><span class="hs-identifier hs-type">BinHandle</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fingerprint</span></span><span>
+</span><span id="line-19"></span><span id="fingerprintBinMem"><span class="annot"><span class="annottext">fingerprintBinMem :: BinHandle -&gt; IO Fingerprint
+</span><a href="GHC.Iface.Recomp.Binary.html#fingerprintBinMem"><span class="hs-identifier hs-var hs-var">fingerprintBinMem</span></a></span></span><span> </span><span id="local-6989586621682402998"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682402998"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; (ByteString -&gt; IO Fingerprint) -&gt; IO Fingerprint
+forall a. BinHandle -&gt; (ByteString -&gt; IO a) -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#withBinBuffer"><span class="hs-identifier hs-var">withBinBuffer</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682402998"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO Fingerprint
+forall {m :: * -&gt; *}. Monad m =&gt; ByteString -&gt; m Fingerprint
+</span><a href="#local-6989586621682403000"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>    </span><span id="local-6989586621682403000"><span class="annot"><span class="annottext">f :: ByteString -&gt; m Fingerprint
+</span><a href="#local-6989586621682403000"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621682403009"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621682403009"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-22"></span><span>        </span><span class="hs-comment">-- we need to take care that we force the result here</span><span>
+</span><span id="line-23"></span><span>        </span><span class="hs-comment">-- lest a reference to the ByteString may leak out of</span><span>
+</span><span id="line-24"></span><span>        </span><span class="hs-comment">-- withBinBuffer.</span><span>
+</span><span id="line-25"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682403010"><span class="annot"><span class="annottext">fp :: Fingerprint
+</span><a href="#local-6989586621682403010"><span class="hs-identifier hs-var hs-var">fp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Fingerprint
+</span><a href="GHC.Utils.Fingerprint.html#fingerprintByteString"><span class="hs-identifier hs-var">fingerprintByteString</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621682403009"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-26"></span><span>        </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621682403010"><span class="hs-identifier hs-var">fp</span></a></span><span> </span><span class="annot"><span class="annottext">Fingerprint -&gt; m Fingerprint -&gt; m Fingerprint
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">Fingerprint -&gt; m Fingerprint
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Fingerprint
+</span><a href="#local-6989586621682403010"><span class="hs-identifier hs-var">fp</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span id="local-6989586621682402965"><span class="annot"><a href="GHC.Iface.Recomp.Binary.html#computeFingerprint"><span class="hs-identifier hs-type">computeFingerprint</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682402965"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>                   </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Binary.html#BinHandle"><span class="hs-identifier hs-type">BinHandle</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682402965"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-31"></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fingerprint</span></span></span><span>
+</span><span id="line-32"></span><span id="computeFingerprint"><span class="annot"><span class="annottext">computeFingerprint :: forall a.
+Binary a =&gt;
+(BinHandle -&gt; Name -&gt; IO ()) -&gt; a -&gt; IO Fingerprint
+</span><a href="GHC.Iface.Recomp.Binary.html#computeFingerprint"><span class="hs-identifier hs-var hs-var">computeFingerprint</span></a></span></span><span> </span><span id="local-6989586621682403022"><span class="annot"><span class="annottext">BinHandle -&gt; Name -&gt; IO ()
+</span><a href="#local-6989586621682403022"><span class="hs-identifier hs-var">put_nonbinding_name</span></a></span></span><span> </span><span id="local-6989586621682403023"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682403023"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-33"></span><span>    </span><span id="local-6989586621682403024"><span class="annot"><a href="#local-6989586621682403024"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(BinHandle -&gt; BinHandle) -&gt; IO BinHandle -&gt; IO BinHandle
+forall a b. (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; BinHandle
+</span><a href="#local-6989586621682403025"><span class="hs-identifier hs-var">set_user_data</span></a></span><span> </span><span class="annot"><span class="annottext">(IO BinHandle -&gt; IO BinHandle) -&gt; IO BinHandle -&gt; IO BinHandle
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO BinHandle
+</span><a href="GHC.Utils.Binary.html#openBinMem"><span class="hs-identifier hs-var">openBinMem</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1024</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- just less than a block</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-type">put_</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682403024"><span class="hs-identifier hs-type">bh</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682403023"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="GHC.Iface.Recomp.Binary.html#fingerprintBinMem"><span class="hs-identifier hs-type">fingerprintBinMem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682403024"><span class="hs-identifier hs-type">bh</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-37"></span><span>    </span><span id="local-6989586621682403025"><span class="annot"><span class="annottext">set_user_data :: BinHandle -&gt; BinHandle
+</span><a href="#local-6989586621682403025"><span class="hs-identifier hs-var hs-var">set_user_data</span></a></span></span><span> </span><span id="local-6989586621682403029"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682403029"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>      </span><span class="annot"><span class="annottext">BinHandle -&gt; UserData -&gt; BinHandle
+</span><a href="GHC.Utils.Binary.html#setUserData"><span class="hs-identifier hs-var">setUserData</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682403029"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">(UserData -&gt; BinHandle) -&gt; UserData -&gt; BinHandle
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(BinHandle -&gt; Name -&gt; IO ())
+-&gt; (BinHandle -&gt; Name -&gt; IO ())
+-&gt; (BinHandle -&gt; FastString -&gt; IO ())
+-&gt; UserData
+</span><a href="GHC.Utils.Binary.html#newWriteState"><span class="hs-identifier hs-var">newWriteState</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Name -&gt; IO ()
+</span><a href="#local-6989586621682403022"><span class="hs-identifier hs-var">put_nonbinding_name</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; Name -&gt; IO ()
+</span><a href="GHC.Iface.Recomp.Binary.html#putNameLiterally"><span class="hs-identifier hs-var">putNameLiterally</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; FastString -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#putFS"><span class="hs-identifier hs-var">putFS</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | Used when we want to fingerprint a structure without depending on the</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- fingerprints of external Names that it refers to.</span><span>
+</span><span id="line-42"></span><span class="annot"><a href="GHC.Iface.Recomp.Binary.html#putNameLiterally"><span class="hs-identifier hs-type">putNameLiterally</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Binary.html#BinHandle"><span class="hs-identifier hs-type">BinHandle</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span id="putNameLiterally"><span class="annot"><span class="annottext">putNameLiterally :: BinHandle -&gt; Name -&gt; IO ()
+</span><a href="GHC.Iface.Recomp.Binary.html#putNameLiterally"><span class="hs-identifier hs-var hs-var">putNameLiterally</span></a></span></span><span> </span><span id="local-6989586621682403033"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682403033"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span id="local-6989586621682403034"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682403034"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall a. HasCallStack =&gt; Bool -&gt; a -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#assert"><span class="hs-identifier hs-var">assert</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; Bool
+</span><a href="GHC.Types.Name.html#isExternalName"><span class="hs-identifier hs-var">isExternalName</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682403034"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="annottext">BinHandle -&gt; Module -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682403033"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">(Module -&gt; IO ()) -&gt; Module -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Name -&gt; Module
+Name -&gt; Module
+</span><a href="GHC.Types.Name.html#nameModule"><span class="hs-identifier hs-var">nameModule</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682403034"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="annottext">BinHandle -&gt; OccName -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682403033"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">(OccName -&gt; IO ()) -&gt; OccName -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; OccName
+</span><a href="GHC.Types.Name.html#nameOccName"><span class="hs-identifier hs-var">nameOccName</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682403034"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-46"></span></pre></body></html>

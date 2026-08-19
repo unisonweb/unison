@@ -1,0 +1,256 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE MultiWayIf #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright: Alan Zimmerman, 2016-2021</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License: MIT</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- This code was removed from the lsp package in version 2.4.0.0. It&#8217;s vendored here until it&#8217;s replaced with a Unison-</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- specific version.</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.LSP.VFS.CompletionPrefix.html"><span class="hs-identifier">Unison.LSP.VFS.CompletionPrefix</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.LSP.VFS.CompletionPrefix.html#PosPrefixInfo"><span class="hs-identifier">PosPrefixInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.LSP.VFS.CompletionPrefix.html#getCompletionPrefix"><span class="hs-identifier">getCompletionPrefix</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isAlphaNum</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isUpper</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Utf16.Rope.Mixed</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Rope</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">J</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.VFS</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><span class="hs-comment">-- | Describes the line at the current cursor position</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">data</span><span> </span><span id="PosPrefixInfo"><span class="annot"><a href="Unison.LSP.VFS.CompletionPrefix.html#PosPrefixInfo"><span class="hs-identifier hs-var">PosPrefixInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PosPrefixInfo"><span class="annot"><a href="Unison.LSP.VFS.CompletionPrefix.html#PosPrefixInfo"><span class="hs-identifier hs-var">PosPrefixInfo</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">-- | The full contents of the line the cursor is at</span></span><span>
+</span><span id="line-26"></span><span>    </span><span id="fullLine"><span class="annot"><span class="annottext">PosPrefixInfo -&gt; Text
+</span><a href="Unison.LSP.VFS.CompletionPrefix.html#fullLine"><span class="hs-identifier hs-var hs-var">fullLine</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-comment">-- | If any, the module name that was typed right before the cursor position.</span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-comment">--  For example, if the user has typed &quot;Data.Maybe.from&quot;, then this property</span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-comment">--  will be &quot;Data.Maybe&quot;</span><span>
+</span><span id="line-30"></span><span>    </span><span id="prefixModule"><span class="annot"><span class="annottext">PosPrefixInfo -&gt; Text
+</span><a href="Unison.LSP.VFS.CompletionPrefix.html#prefixModule"><span class="hs-identifier hs-var hs-var">prefixModule</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-comment">-- | The word right before the cursor position, after removing the module part.</span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-comment">-- For example if the user has typed &quot;Data.Maybe.from&quot;,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-comment">-- then this property will be &quot;from&quot;</span><span>
+</span><span id="line-34"></span><span>    </span><span id="prefixText"><span class="annot"><span class="annottext">PosPrefixInfo -&gt; Text
+</span><a href="Unison.LSP.VFS.CompletionPrefix.html#prefixText"><span class="hs-identifier hs-var hs-var">prefixText</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="hs-comment">-- | The cursor position</span></span><span>
+</span><span id="line-36"></span><span>    </span><span id="cursorPos"><span class="annot"><span class="annottext">PosPrefixInfo -&gt; Position
+</span><a href="Unison.LSP.VFS.CompletionPrefix.html#cursorPos"><span class="hs-identifier hs-var hs-var">cursorPos</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">J.Position</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681562520"><span id="local-6989586621681562530"><span id="local-6989586621681562534"><span class="annot"><span class="annottext">Int -&gt; PosPrefixInfo -&gt; ShowS
+[PosPrefixInfo] -&gt; ShowS
+PosPrefixInfo -&gt; String
+(Int -&gt; PosPrefixInfo -&gt; ShowS)
+-&gt; (PosPrefixInfo -&gt; String)
+-&gt; ([PosPrefixInfo] -&gt; ShowS)
+-&gt; Show PosPrefixInfo
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PosPrefixInfo -&gt; ShowS
+showsPrec :: Int -&gt; PosPrefixInfo -&gt; ShowS
+$cshow :: PosPrefixInfo -&gt; String
+show :: PosPrefixInfo -&gt; String
+$cshowList :: [PosPrefixInfo] -&gt; ShowS
+showList :: [PosPrefixInfo] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681562539"><span id="local-6989586621681562547"><span class="annot"><span class="annottext">PosPrefixInfo -&gt; PosPrefixInfo -&gt; Bool
+(PosPrefixInfo -&gt; PosPrefixInfo -&gt; Bool)
+-&gt; (PosPrefixInfo -&gt; PosPrefixInfo -&gt; Bool) -&gt; Eq PosPrefixInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PosPrefixInfo -&gt; PosPrefixInfo -&gt; Bool
+== :: PosPrefixInfo -&gt; PosPrefixInfo -&gt; Bool
+$c/= :: PosPrefixInfo -&gt; PosPrefixInfo -&gt; Bool
+/= :: PosPrefixInfo -&gt; PosPrefixInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span id="local-6989586621681562481"><span class="annot"><a href="Unison.LSP.VFS.CompletionPrefix.html#getCompletionPrefix"><span class="hs-identifier hs-type">getCompletionPrefix</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621681562481"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">J.Position</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VirtualFile</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681562481"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.LSP.VFS.CompletionPrefix.html#PosPrefixInfo"><span class="hs-identifier hs-type">PosPrefixInfo</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-41"></span><span id="getCompletionPrefix"><span class="annot"><span class="annottext">getCompletionPrefix :: forall (m :: * -&gt; *).
+Monad m =&gt;
+Position -&gt; VirtualFile -&gt; m (Maybe PosPrefixInfo)
+</span><a href="Unison.LSP.VFS.CompletionPrefix.html#getCompletionPrefix"><span class="hs-identifier hs-var hs-var">getCompletionPrefix</span></a></span></span><span> </span><span id="local-6989586621681562580"><span class="annot"><span class="annottext">pos :: Position
+</span><a href="#local-6989586621681562580"><span class="hs-identifier hs-var">pos</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">J.Position</span></span><span> </span><span id="local-6989586621681562582"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562582"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621681562583"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562583"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">VirtualFile</span></span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681562585"><span class="annot"><span class="annottext">Rope
+</span><a href="#local-6989586621681562585"><span class="hs-identifier hs-var">ropetext</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><span class="annottext">Maybe PosPrefixInfo -&gt; m (Maybe PosPrefixInfo)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe PosPrefixInfo -&gt; m (Maybe PosPrefixInfo))
+-&gt; Maybe PosPrefixInfo -&gt; m (Maybe PosPrefixInfo)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PosPrefixInfo -&gt; Maybe PosPrefixInfo
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(PosPrefixInfo -&gt; Maybe PosPrefixInfo)
+-&gt; PosPrefixInfo -&gt; Maybe PosPrefixInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PosPrefixInfo -&gt; Maybe PosPrefixInfo -&gt; PosPrefixInfo
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text -&gt; Position -&gt; PosPrefixInfo
+</span><a href="Unison.LSP.VFS.CompletionPrefix.html#PosPrefixInfo"><span class="hs-identifier hs-var">PosPrefixInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621681562580"><span class="hs-identifier hs-var">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe PosPrefixInfo -&gt; PosPrefixInfo)
+-&gt; Maybe PosPrefixInfo -&gt; PosPrefixInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-comment">-- Maybe monad</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681562589"><span class="annot"><span class="annottext">lastMaybe :: [a] -&gt; Maybe a
+</span><a href="#local-6989586621681562589"><span class="hs-identifier hs-var hs-var hs-var">lastMaybe</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-45"></span><span>        </span><span class="annot"><a href="#local-6989586621681562589"><span class="hs-identifier hs-var">lastMaybe</span></a></span><span> </span><span id="local-6989586621681562590"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681562590"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Maybe a) -&gt; a -&gt; Maybe a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; a
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">last</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681562590"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681562592"><span class="annot"><span class="annottext">curRope :: Rope
+</span><a href="#local-6989586621681562592"><span class="hs-identifier hs-var hs-var hs-var">curRope</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Rope, Rope) -&gt; Rope
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">((Rope, Rope) -&gt; Rope) -&gt; (Rope, Rope) -&gt; Rope
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Rope -&gt; (Rope, Rope)
+</span><span class="hs-identifier hs-var">Rope.splitAtLine</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">(Rope -&gt; (Rope, Rope)) -&gt; Rope -&gt; (Rope, Rope)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Rope, Rope) -&gt; Rope
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">((Rope, Rope) -&gt; Rope) -&gt; (Rope, Rope) -&gt; Rope
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Rope -&gt; (Rope, Rope)
+</span><span class="hs-identifier hs-var">Rope.splitAtLine</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UInt -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562582"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Rope
+</span><a href="#local-6989586621681562585"><span class="hs-identifier hs-var">ropetext</span></a></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681562596"><span class="annot"><span class="annottext">beforePos :: Text
+</span><a href="#local-6989586621681562596"><span class="hs-identifier hs-var hs-var hs-var">beforePos</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rope -&gt; Text
+</span><span class="hs-identifier hs-var">Rope.toText</span></span><span> </span><span class="annot"><span class="annottext">(Rope -&gt; Text) -&gt; ((Rope, Rope) -&gt; Rope) -&gt; (Rope, Rope) -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Rope, Rope) -&gt; Rope
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">((Rope, Rope) -&gt; Text) -&gt; (Rope, Rope) -&gt; Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Rope -&gt; (Rope, Rope)
+</span><span class="hs-identifier hs-var">Rope.charSplitAt</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UInt -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621681562583"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Rope
+</span><a href="#local-6989586621681562592"><span class="hs-identifier hs-var">curRope</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621681562600"><span class="annot"><a href="#local-6989586621681562600"><span class="hs-identifier hs-var">curWord</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-keyword">if</span><span>
+</span><span id="line-51"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">T.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681562596"><span class="hs-identifier hs-var">beforePos</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-52"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; Text -&gt; Char
+Text -&gt; Char
+</span><span class="hs-identifier hs-var">T.last</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681562596"><span class="hs-identifier hs-var">beforePos</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-comment">-- don't count abc as the curword in 'abc '</span><span>
+</span><span id="line-53"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Maybe Text
+forall {a}. [a] -&gt; Maybe a
+</span><a href="#local-6989586621681562589"><span class="hs-identifier hs-var">lastMaybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">T.words</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681562596"><span class="hs-identifier hs-var">beforePos</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681562604"><span class="annot"><a href="#local-6989586621681562604"><span class="hs-identifier hs-var hs-var">parts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-56"></span><span>          </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">T.split</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'.'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Text -&gt; [Text]) -&gt; Text -&gt; [Text]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-57"></span><span>            </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.takeWhileEnd</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681562607"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681562607"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isAlphaNum</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681562607"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681562607"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; String -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;._'&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681562600"><span class="hs-identifier hs-var">curWord</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="hs-identifier hs-type">reverse</span></span><span> </span><span class="annot"><a href="#local-6989586621681562604"><span class="hs-identifier hs-type">parts</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-59"></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe PosPrefixInfo
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-60"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621681562611"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681562611"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681562612"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681562612"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-61"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681562613"><span class="annot"><span class="annottext">modParts :: [Text]
+</span><a href="#local-6989586621681562613"><span class="hs-identifier hs-var hs-var hs-var">modParts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-62"></span><span>              </span><span class="annot"><span class="annottext">(Text -&gt; Bool) -&gt; [Text] -&gt; [Text]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (Text -&gt; Bool) -&gt; Text -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isUpper</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; (Text -&gt; Char) -&gt; Text -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; Text -&gt; Char
+Text -&gt; Char
+</span><span class="hs-identifier hs-var">T.head</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; [Text]) -&gt; [Text] -&gt; [Text]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-63"></span><span>                </span><span class="annot"><span class="annottext">[Text] -&gt; [Text]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; [Text]) -&gt; [Text] -&gt; [Text]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-64"></span><span>                  </span><span class="annot"><span class="annottext">(Text -&gt; Bool) -&gt; [Text] -&gt; [Text]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (Text -&gt; Bool) -&gt; Text -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">T.null</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681562612"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-65"></span><span>            </span><span id="local-6989586621681562617"><span class="annot"><span class="annottext">modName :: Text
+</span><a href="#local-6989586621681562617"><span class="hs-identifier hs-var hs-var hs-var">modName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text] -&gt; Text
+</span><span class="hs-identifier hs-var">T.intercalate</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;.&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681562613"><span class="hs-identifier hs-var">modParts</span></a></span><span>
+</span><span id="line-66"></span><span>        </span><span class="hs-comment">-- curRope is already a single line, but it may include an enclosing '\n'</span><span>
+</span><span id="line-67"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681562619"><span class="annot"><span class="annottext">curLine :: Text
+</span><a href="#local-6989586621681562619"><span class="hs-identifier hs-var hs-var">curLine</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.dropWhileEnd</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\n'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text) -&gt; Text -&gt; Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Rope -&gt; Text
+</span><span class="hs-identifier hs-var">Rope.toText</span></span><span> </span><span class="annot"><span class="annottext">Rope
+</span><a href="#local-6989586621681562592"><span class="hs-identifier hs-var">curRope</span></a></span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><span class="annottext">PosPrefixInfo -&gt; Maybe PosPrefixInfo
+forall a. a -&gt; Maybe a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(PosPrefixInfo -&gt; Maybe PosPrefixInfo)
+-&gt; PosPrefixInfo -&gt; Maybe PosPrefixInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text -&gt; Position -&gt; PosPrefixInfo
+</span><a href="Unison.LSP.VFS.CompletionPrefix.html#PosPrefixInfo"><span class="hs-identifier hs-var">PosPrefixInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681562619"><span class="hs-identifier hs-var">curLine</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681562617"><span class="hs-identifier hs-var">modName</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681562611"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621681562580"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-69"></span></pre></body></html>

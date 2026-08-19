@@ -1,0 +1,630 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.Semaphore.html"><span class="hs-identifier">System.Semaphore</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * System semaphores</span></span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier">Semaphore</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#SemaphoreName"><span class="hs-identifier">SemaphoreName</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#createSemaphore"><span class="hs-identifier">createSemaphore</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#freshSemaphore"><span class="hs-identifier">freshSemaphore</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#openSemaphore"><span class="hs-identifier">openSemaphore</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#waitOnSemaphore"><span class="hs-identifier">waitOnSemaphore</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#tryWaitOnSemaphore"><span class="hs-identifier">tryWaitOnSemaphore</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#WaitId"><span class="hs-identifier">WaitId</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#forkWaitOnSemaphoreInterruptible"><span class="hs-identifier">forkWaitOnSemaphoreInterruptible</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#interruptWaitOnSemaphore"><span class="hs-identifier">interruptWaitOnSemaphore</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#getSemaphoreValue"><span class="hs-identifier">getSemaphoreValue</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#releaseSemaphore"><span class="hs-identifier">releaseSemaphore</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#destroySemaphore"><span class="hs-identifier">destroySemaphore</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Abstract semaphores</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#AbstractSem"><span class="hs-identifier">AbstractSem</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#withAbstractSem"><span class="hs-identifier">withAbstractSem</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- base</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Concurrent.html"><span class="hs-identifier">Control.Concurrent</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.NonEmpty.html"><span class="hs-identifier">Data.List.NonEmpty</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Exts.html"><span class="hs-identifier">GHC.Exts</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Char</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Int</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">indexCharOffAddr#</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- exceptions</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html"><span class="hs-identifier">Control.Monad.Catch</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MC</span></span><span class="hs-cpp">
+
+#if defined(mingw32_HOST_OS)
+</span><span class="hs-comment">-- Win32</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">System.Win32.Event</span><span>     </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Win32</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">createEvent</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">setEvent</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">waitForSingleObject</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">waitForMultipleObjects</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">wAIT_OBJECT_0</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">System.Win32.File</span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Win32</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">closeHandle</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">System.Win32.Process</span><span>   </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Win32</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">iNFINITE</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">System.Win32.Semaphore</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Win32</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">Semaphore</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">sEMAPHORE_ALL_ACCESS</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">createSemaphore</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">openSemaphore</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">releaseSemaphore</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">System.Win32.Time</span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Win32</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">FILETIME</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">getSystemTimeAsFileTime</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">System.Win32.Types</span><span>     </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Win32</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">HANDLE</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">errorWin</span><span> </span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-comment">-- base</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Foreign.C.Types.html"><span class="hs-identifier">Foreign.C.Types</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">CClock</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- unix</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html"><span class="hs-identifier">System.Posix.Semaphore</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Posix</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#Semaphore"><span class="hs-identifier">Semaphore</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#OpenSemFlags"><span class="hs-identifier">OpenSemFlags</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semOpen"><span class="hs-identifier">semOpen</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semWaitInterruptible"><span class="hs-identifier">semWaitInterruptible</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semTryWait"><span class="hs-identifier">semTryWait</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semThreadWait"><span class="hs-identifier">semThreadWait</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semGetValue"><span class="hs-identifier">semGetValue</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semPost"><span class="hs-identifier">semPost</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semUnlink"><span class="hs-identifier">semUnlink</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Files.html"><span class="hs-identifier">System.Posix.Files</span></a></span><span>     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Posix</span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Files.Common.html#stdFileMode"><span class="hs-identifier">stdFileMode</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Process.html"><span class="hs-identifier">System.Posix.Process</span></a></span><span>   </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Posix</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Process.Common.html#ProcessTimes"><span class="hs-identifier">ProcessTimes</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Process.Common.html#systemTime"><span class="hs-identifier">systemTime</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Process.Common.html#getProcessTimes"><span class="hs-identifier">getProcessTimes</span></a></span><span> </span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-66"></span><span class="hs-comment">---------------------------------------</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- System-specific semaphores</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">newtype</span><span> </span><span id="SemaphoreName"><span class="annot"><a href="System.Semaphore.html#SemaphoreName"><span class="hs-identifier hs-var">SemaphoreName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-70"></span><span>  </span><span id="SemaphoreName"><span class="annot"><a href="System.Semaphore.html#SemaphoreName"><span class="hs-identifier hs-var">SemaphoreName</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getSemaphoreName"><span class="annot"><span class="annottext">SemaphoreName -&gt; String
+</span><a href="System.Semaphore.html#getSemaphoreName"><span class="hs-identifier hs-var hs-var">getSemaphoreName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679053782"><span id="local-6989586621679053788"><span class="annot"><span class="annottext">SemaphoreName -&gt; SemaphoreName -&gt; Bool
+(SemaphoreName -&gt; SemaphoreName -&gt; Bool)
+-&gt; (SemaphoreName -&gt; SemaphoreName -&gt; Bool) -&gt; Eq SemaphoreName
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SemaphoreName -&gt; SemaphoreName -&gt; Bool
+== :: SemaphoreName -&gt; SemaphoreName -&gt; Bool
+$c/= :: SemaphoreName -&gt; SemaphoreName -&gt; Bool
+/= :: SemaphoreName -&gt; SemaphoreName -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><span class="hs-comment">-- | A system semaphore (POSIX or Win32).</span></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">data</span><span> </span><span id="Semaphore"><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-var">Semaphore</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-75"></span><span>  </span><span id="Semaphore"><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-var">Semaphore</span></a></span></span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="semaphoreName"><span class="annot"><span class="annottext">Semaphore -&gt; SemaphoreName
+</span><a href="System.Semaphore.html#semaphoreName"><span class="hs-identifier hs-var hs-var">semaphoreName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Semaphore.html#SemaphoreName"><span class="hs-identifier hs-type">SemaphoreName</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="semaphore"><span class="annot"><span class="annottext">Semaphore -&gt; Semaphore
+</span><a href="System.Semaphore.html#semaphore"><span class="hs-identifier hs-var hs-var">semaphore</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>      </span><span class="hs-glyph">!</span><span class="hs-identifier">Win32.Semaphore</span><span class="hs-cpp">
+#else
+</span><span>      </span><span class="hs-glyph">!</span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Posix.Semaphore</span></a></span><span class="hs-cpp">
+#endif
+</span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- | Create a new semaphore with the given name and initial amount of</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- available resources.</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- Throws an error if a semaphore by this name already exists.</span><span>
+</span><span id="line-89"></span><span class="annot"><a href="System.Semaphore.html#createSemaphore"><span class="hs-identifier hs-type">createSemaphore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Semaphore.html#SemaphoreName"><span class="hs-identifier hs-type">SemaphoreName</span></a></span><span>
+</span><span id="line-90"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ number of tokens on the semaphore</span></span><span>
+</span><span id="line-91"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span>
+</span><span id="line-92"></span><span id="createSemaphore"><span class="annot"><span class="annottext">createSemaphore :: SemaphoreName -&gt; Int -&gt; IO Semaphore
+</span><a href="System.Semaphore.html#createSemaphore"><span class="hs-identifier hs-var hs-var">createSemaphore</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Semaphore.html#SemaphoreName"><span class="hs-identifier hs-type">SemaphoreName</span></a></span><span> </span><span id="local-6989586621679053799"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053799"><span class="hs-identifier hs-var">sem_name</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679053800"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053800"><span class="hs-identifier hs-var">init_toks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679053801"><span class="annot"><a href="#local-6989586621679053801"><span class="hs-identifier hs-var">mb_sem</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; Int -&gt; IO (Either (IO Semaphore) Semaphore)
+</span><a href="System.Semaphore.html#create_sem"><span class="hs-identifier hs-var">create_sem</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053799"><span class="hs-identifier hs-var">sem_name</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053800"><span class="hs-identifier hs-var">init_toks</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679053801"><span class="hs-identifier hs-type">mb_sem</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span>  </span><span id="local-6989586621679053803"><span class="annot"><span class="annottext">IO Semaphore
+</span><a href="#local-6989586621679053803"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO Semaphore
+</span><a href="#local-6989586621679053803"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679053804"><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053804"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Semaphore -&gt; IO Semaphore
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053804"><span class="hs-identifier hs-var">sem</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- | Create a fresh semaphore with the given amount of tokens.</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- Its name will start with the given prefix, but will have a random suffix</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- appended to it.</span><span>
+</span><span id="line-102"></span><span class="annot"><a href="System.Semaphore.html#freshSemaphore"><span class="hs-identifier hs-type">freshSemaphore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ prefix</span></span><span>
+</span><span id="line-103"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ number of tokens on the semaphore</span></span><span>
+</span><span id="line-104"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span>
+</span><span id="line-105"></span><span id="freshSemaphore"><span class="annot"><span class="annottext">freshSemaphore :: String -&gt; Int -&gt; IO Semaphore
+</span><a href="System.Semaphore.html#freshSemaphore"><span class="hs-identifier hs-var hs-var">freshSemaphore</span></a></span></span><span> </span><span id="local-6989586621679053805"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053805"><span class="hs-identifier hs-var">prefix</span></a></span></span><span> </span><span id="local-6989586621679053806"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053806"><span class="hs-identifier hs-var">init_toks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-106"></span><span>  </span><span id="local-6989586621679053807"><span class="annot"><a href="#local-6989586621679053807"><span class="hs-identifier hs-var">suffixes</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (NonEmpty String)
+</span><a href="System.Semaphore.html#random_strings"><span class="hs-identifier hs-var">random_strings</span></a></span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><a href="#local-6989586621679053809"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><a href="#local-6989586621679053807"><span class="hs-identifier hs-type">suffixes</span></a></span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><a href="#local-6989586621679053809"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span>
+</span><span id="line-110"></span><span>    </span><span id="local-6989586621679053809"><span class="annot"><span class="annottext">go :: Int -&gt; NonEmpty String -&gt; IO Semaphore
+</span><a href="#local-6989586621679053809"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679053810"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053810"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679053811"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053811"><span class="hs-identifier hs-var">suffix</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:|</span></span><span> </span><span id="local-6989586621679053813"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679053813"><span class="hs-identifier hs-var">suffs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-111"></span><span>      </span><span id="local-6989586621679053814"><span class="annot"><a href="#local-6989586621679053814"><span class="hs-identifier hs-var">mb_sem</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; Int -&gt; IO (Either (IO Semaphore) Semaphore)
+</span><a href="System.Semaphore.html#create_sem"><span class="hs-identifier hs-var">create_sem</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053805"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;_&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053811"><span class="hs-identifier hs-var">suffix</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053806"><span class="hs-identifier hs-var">init_toks</span></a></span><span>
+</span><span id="line-112"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679053814"><span class="hs-identifier hs-type">mb_sem</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-113"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679053815"><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053815"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Semaphore -&gt; IO Semaphore
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053815"><span class="hs-identifier hs-var">sem</span></a></span><span>
+</span><span id="line-114"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span>  </span><span id="local-6989586621679053816"><span class="annot"><span class="annottext">IO Semaphore
+</span><a href="#local-6989586621679053816"><span class="hs-identifier hs-var">err</span></a></span></span><span>
+</span><span id="line-115"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679053817"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053817"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679053818"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679053818"><span class="hs-identifier hs-var">nexts</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679053813"><span class="hs-identifier hs-var">suffs</span></a></span><span>
+</span><span id="line-116"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053810"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span> </span><span class="hs-comment">-- give up after 32 attempts</span><span>
+</span><span id="line-117"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; NonEmpty String -&gt; IO Semaphore
+</span><a href="#local-6989586621679053809"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053810"><span class="hs-identifier hs-var">i</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053817"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; NonEmpty String
+forall a. a -&gt; [a] -&gt; NonEmpty a
+</span><span class="hs-operator hs-var">:|</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679053818"><span class="hs-identifier hs-var">nexts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-119"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO Semaphore
+</span><a href="#local-6989586621679053816"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="annot"><a href="System.Semaphore.html#create_sem"><span class="hs-identifier hs-type">create_sem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span id="create_sem"><span class="annot"><span class="annottext">create_sem :: String -&gt; Int -&gt; IO (Either (IO Semaphore) Semaphore)
+</span><a href="System.Semaphore.html#create_sem"><span class="hs-identifier hs-var hs-var">create_sem</span></a></span></span><span> </span><span id="local-6989586621679053821"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053821"><span class="hs-identifier hs-var">sem_str</span></a></span></span><span> </span><span id="local-6989586621679053822"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053822"><span class="hs-identifier hs-var">init_toks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-identifier">toks</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">init_toks</span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-identifier">mb_sem</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">MC.try</span><span> </span><span class="hs-glyph">@</span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">@</span><span class="hs-identifier">MC.SomeException</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-identifier">Win32.createSemaphore</span><span> </span><span class="hs-identifier">Nothing</span><span> </span><span class="hs-identifier">toks</span><span> </span><span class="hs-identifier">toks</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Just</span><span> </span><span class="hs-identifier">sem_str</span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">mb_sem</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-128"></span><span>    </span><span class="hs-identifier">Right</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">sem</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">exists</span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">exists</span><span>
+</span><span id="line-130"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Left</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Win32.errorWin</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-string">&quot;semaphore-compat: semaphore &quot;</span><span> </span><span class="hs-operator">++</span><span> </span><span class="hs-identifier">sem_str</span><span> </span><span class="hs-operator">++</span><span> </span><span class="hs-string">&quot; already exists&quot;</span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">otherwise</span><span>
+</span><span id="line-132"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Right</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">mk_sem</span><span> </span><span class="hs-identifier">sem</span><span>
+</span><span id="line-133"></span><span>    </span><span class="hs-identifier">Left</span><span> </span><span class="hs-identifier">err</span><span>
+</span><span id="line-134"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Left</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">MC.throwM</span><span> </span><span class="hs-identifier">err</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679053823"><span class="annot"><span class="annottext">flags :: OpenSemFlags
+</span><a href="#local-6989586621679053823"><span class="hs-identifier hs-var hs-var hs-var">flags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-137"></span><span>        </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#OpenSemFlags"><span class="hs-identifier hs-type">Posix.OpenSemFlags</span></a></span><span>
+</span><span id="line-138"></span><span>          </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">semCreate :: Bool
+</span><a href="#local-6989586621679053825"><span class="hs-identifier hs-var">Posix.semCreate</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-139"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">semExclusive :: Bool
+</span><a href="#local-6989586621679053826"><span class="hs-identifier hs-var">Posix.semExclusive</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-140"></span><span>  </span><span id="local-6989586621679053827"><span class="annot"><a href="#local-6989586621679053827"><span class="hs-identifier hs-var">mb_sem</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) e a.
+(HasCallStack, MonadCatch m, Exception e) =&gt;
+m a -&gt; m (Either e a)
+</span><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#try"><span class="hs-identifier hs-var">MC.try</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">MC.SomeException</span></span><span> </span><span class="annot"><span class="annottext">(IO Semaphore -&gt; IO (Either SomeException Semaphore))
+-&gt; IO Semaphore -&gt; IO (Either SomeException Semaphore)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-141"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; OpenSemFlags -&gt; FileMode -&gt; Int -&gt; IO Semaphore
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semOpen"><span class="hs-identifier hs-var">Posix.semOpen</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053821"><span class="hs-identifier hs-var">sem_str</span></a></span><span> </span><span class="annot"><span class="annottext">OpenSemFlags
+</span><a href="#local-6989586621679053823"><span class="hs-identifier hs-var">flags</span></a></span><span> </span><span class="annot"><span class="annottext">FileMode
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Files.Common.html#stdFileMode"><span class="hs-identifier hs-var">Posix.stdFileMode</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053822"><span class="hs-identifier hs-var">init_toks</span></a></span><span>
+</span><span id="line-142"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679053827"><span class="hs-identifier hs-type">mb_sem</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-143"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span>  </span><span id="local-6989586621679053829"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679053829"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO Semaphore -&gt; Either (IO Semaphore) Semaphore
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(IO Semaphore -&gt; Either (IO Semaphore) Semaphore)
+-&gt; IO Semaphore -&gt; Either (IO Semaphore) Semaphore
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; IO Semaphore
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+forall (m :: * -&gt; *) e a.
+(MonadThrow m, HasCallStack, Exception e) =&gt;
+e -&gt; m a
+</span><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#throwM"><span class="hs-identifier hs-var">MC.throwM</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679053829"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679053831"><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053831"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Semaphore -&gt; Either (IO Semaphore) Semaphore
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Semaphore -&gt; Either (IO Semaphore) Semaphore)
+-&gt; Semaphore -&gt; Either (IO Semaphore) Semaphore
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Semaphore -&gt; Semaphore
+</span><a href="#local-6989586621679053832"><span class="hs-identifier hs-var">mk_sem</span></a></span><span> </span><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053831"><span class="hs-identifier hs-var">sem</span></a></span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>    </span><span id="local-6989586621679053833"><span class="annot"><span class="annottext">sem_nm :: SemaphoreName
+</span><a href="#local-6989586621679053833"><span class="hs-identifier hs-var hs-var">sem_nm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SemaphoreName
+</span><a href="System.Semaphore.html#SemaphoreName"><span class="hs-identifier hs-var">SemaphoreName</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053821"><span class="hs-identifier hs-var">sem_str</span></a></span><span>
+</span><span id="line-148"></span><span>    </span><span id="local-6989586621679053832"><span class="annot"><span class="annottext">mk_sem :: Semaphore -&gt; Semaphore
+</span><a href="#local-6989586621679053832"><span class="hs-identifier hs-var hs-var">mk_sem</span></a></span></span><span> </span><span id="local-6989586621679053834"><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053834"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-149"></span><span>      </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span>
+</span><span id="line-150"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">semaphore :: Semaphore
+</span><a href="System.Semaphore.html#semaphore"><span class="hs-identifier hs-var">semaphore</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053834"><span class="hs-identifier hs-var">sem</span></a></span><span>
+</span><span id="line-151"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">semaphoreName :: SemaphoreName
+</span><a href="System.Semaphore.html#semaphoreName"><span class="hs-identifier hs-var">semaphoreName</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SemaphoreName
+</span><a href="#local-6989586621679053833"><span class="hs-identifier hs-var">sem_nm</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- | Open a semaphore with the given name.</span><span>
+</span><span id="line-154"></span><span class="hs-comment">--</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- If no such semaphore exists, throws an error.</span><span>
+</span><span id="line-156"></span><span class="annot"><a href="System.Semaphore.html#openSemaphore"><span class="hs-identifier hs-type">openSemaphore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Semaphore.html#SemaphoreName"><span class="hs-identifier hs-type">SemaphoreName</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span>
+</span><span id="line-157"></span><span id="openSemaphore"><span class="annot"><span class="annottext">openSemaphore :: SemaphoreName -&gt; IO Semaphore
+</span><a href="System.Semaphore.html#openSemaphore"><span class="hs-identifier hs-var hs-var">openSemaphore</span></a></span></span><span> </span><span id="local-6989586621679053835"><span class="annot"><span class="annottext">nm :: SemaphoreName
+</span><a href="#local-6989586621679053835"><span class="hs-identifier hs-var">nm</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Semaphore.html#SemaphoreName"><span class="hs-identifier hs-type">SemaphoreName</span></a></span><span> </span><span id="local-6989586621679053836"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053836"><span class="hs-identifier hs-var">sem_name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>  </span><span class="hs-identifier">sem</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">Win32.openSemaphore</span><span> </span><span class="hs-identifier">Win32.sEMAPHORE_ALL_ACCESS</span><span> </span><span class="hs-identifier">True</span><span> </span><span class="hs-identifier">sem_name</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="hs-keyword">let</span><span>
+</span><span id="line-162"></span><span>    </span><span id="local-6989586621679053837"><span class="annot"><span class="annottext">flags :: OpenSemFlags
+</span><a href="#local-6989586621679053837"><span class="hs-identifier hs-var hs-var hs-var">flags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#OpenSemFlags"><span class="hs-identifier hs-type">Posix.OpenSemFlags</span></a></span><span>
+</span><span id="line-163"></span><span>          </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">semCreate :: Bool
+</span><a href="#local-6989586621679053825"><span class="hs-identifier hs-var">Posix.semCreate</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-164"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">semExclusive :: Bool
+</span><a href="#local-6989586621679053826"><span class="hs-identifier hs-var">Posix.semExclusive</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-165"></span><span>  </span><span id="local-6989586621679053838"><span class="annot"><a href="#local-6989586621679053838"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; OpenSemFlags -&gt; FileMode -&gt; Int -&gt; IO Semaphore
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semOpen"><span class="hs-identifier hs-var">Posix.semOpen</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053836"><span class="hs-identifier hs-var">sem_name</span></a></span><span> </span><span class="annot"><span class="annottext">OpenSemFlags
+</span><a href="#local-6989586621679053837"><span class="hs-identifier hs-var">flags</span></a></span><span> </span><span class="annot"><span class="annottext">FileMode
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Files.Common.html#stdFileMode"><span class="hs-identifier hs-var">Posix.stdFileMode</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-168"></span><span>    </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span>
+</span><span id="line-169"></span><span>      </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="System.Semaphore.html#semaphore"><span class="hs-identifier hs-var">semaphore</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679053838"><span class="hs-identifier hs-type">sem</span></a></span><span>
+</span><span id="line-170"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Semaphore.html#semaphoreName"><span class="hs-identifier hs-var">semaphoreName</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679053835"><span class="hs-identifier hs-type">nm</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- | Indefinitely wait on a semaphore.</span><span>
+</span><span id="line-173"></span><span class="hs-comment">--</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- If you want to be able to cancel a wait operation, use</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- 'forkWaitOnSemaphoreInterruptible' instead.</span><span>
+</span><span id="line-176"></span><span class="annot"><a href="System.Semaphore.html#waitOnSemaphore"><span class="hs-identifier hs-type">waitOnSemaphore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span id="waitOnSemaphore"><span class="annot"><span class="annottext">waitOnSemaphore :: Semaphore -&gt; IO ()
+</span><a href="System.Semaphore.html#waitOnSemaphore"><span class="hs-identifier hs-var hs-var">waitOnSemaphore</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">semaphore :: Semaphore -&gt; Semaphore
+</span><a href="System.Semaphore.html#semaphore"><span class="hs-identifier hs-var">semaphore</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679053839"><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053839"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>  </span><span class="hs-identifier">MC.mask_</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-180"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-operator">&lt;$</span><span> </span><span class="hs-identifier">Win32.waitForSingleObject</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Win32.semaphoreHandle</span><span> </span><span class="hs-identifier">sem</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">Win32.iNFINITE</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="annot"><span class="annottext">Semaphore -&gt; IO ()
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semThreadWait"><span class="hs-identifier hs-var">Posix.semThreadWait</span></a></span><span> </span><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053839"><span class="hs-identifier hs-var">sem</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- | Try to obtain a token from the semaphore, without blocking.</span><span>
+</span><span id="line-186"></span><span class="hs-comment">--</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- Immediately returns 'False' if no resources are available.</span><span>
+</span><span id="line-188"></span><span class="annot"><a href="System.Semaphore.html#tryWaitOnSemaphore"><span class="hs-identifier hs-type">tryWaitOnSemaphore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-189"></span><span id="tryWaitOnSemaphore"><span class="annot"><span class="annottext">tryWaitOnSemaphore :: Semaphore -&gt; IO Bool
+</span><a href="System.Semaphore.html#tryWaitOnSemaphore"><span class="hs-identifier hs-var hs-var">tryWaitOnSemaphore</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">semaphore :: Semaphore -&gt; Semaphore
+</span><a href="System.Semaphore.html#semaphore"><span class="hs-identifier hs-var">semaphore</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679053840"><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053840"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>  </span><span class="hs-identifier">MC.mask_</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-192"></span><span>    </span><span class="hs-identifier">wait_res</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">Win32.waitForSingleObject</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Win32.semaphoreHandle</span><span> </span><span class="hs-identifier">sem</span><span class="hs-special">)</span><span> </span><span class="hs-number">0</span><span>
+</span><span id="line-193"></span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">wait_res</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">Win32.wAIT_OBJECT_0</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="annot"><span class="annottext">Semaphore -&gt; IO Bool
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semTryWait"><span class="hs-identifier hs-var">Posix.semTryWait</span></a></span><span> </span><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053840"><span class="hs-identifier hs-var">sem</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- | Release a semaphore: add @n@ to its internal counter.</span><span>
+</span><span id="line-199"></span><span class="hs-comment">--</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- No-op when `n &lt;= 0`.</span><span>
+</span><span id="line-201"></span><span class="annot"><a href="System.Semaphore.html#releaseSemaphore"><span class="hs-identifier hs-type">releaseSemaphore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-202"></span><span id="releaseSemaphore"><span class="annot"><span class="annottext">releaseSemaphore :: Semaphore -&gt; Int -&gt; IO ()
+</span><a href="System.Semaphore.html#releaseSemaphore"><span class="hs-identifier hs-var hs-var">releaseSemaphore</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">semaphore :: Semaphore -&gt; Semaphore
+</span><a href="System.Semaphore.html#semaphore"><span class="hs-identifier hs-var">semaphore</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679053841"><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053841"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span id="local-6989586621679053842"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053842"><span class="hs-identifier hs-var">n</span></a></span></span><span>
+</span><span id="line-203"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053842"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall (m :: * -&gt; *) a. (HasCallStack, MonadMask m) =&gt; m a -&gt; m a
+</span><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#mask_"><span class="hs-identifier hs-var">MC.mask_</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>    </span><span class="hs-identifier">void</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">Win32.releaseSemaphore</span><span> </span><span class="hs-identifier">sem</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">n</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span>    </span><span class="annot"><span class="annottext">Int -&gt; IO () -&gt; IO ()
+forall (m :: * -&gt; *) a. Applicative m =&gt; Int -&gt; m a -&gt; m ()
+</span><span class="hs-identifier hs-var">replicateM_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053842"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Semaphore -&gt; IO ()
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semPost"><span class="hs-identifier hs-var">Posix.semPost</span></a></span><span> </span><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053841"><span class="hs-identifier hs-var">sem</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-213"></span><span class="annot"><span class="hs-comment">-- | Destroy the given semaphore.</span></span><span>
+</span><span id="line-214"></span><span class="annot"><a href="System.Semaphore.html#destroySemaphore"><span class="hs-identifier hs-type">destroySemaphore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-215"></span><span id="destroySemaphore"><span class="annot"><span class="annottext">destroySemaphore :: Semaphore -&gt; IO ()
+</span><a href="System.Semaphore.html#destroySemaphore"><span class="hs-identifier hs-var hs-var">destroySemaphore</span></a></span></span><span> </span><span id="local-6989586621679053846"><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053846"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>  </span><span class="hs-identifier">Win32.closeHandle</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Win32.semaphoreHandle</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">semaphore</span><span> </span><span class="hs-identifier">sem</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semUnlink"><span class="hs-identifier hs-var">Posix.semUnlink</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SemaphoreName -&gt; String
+</span><a href="System.Semaphore.html#getSemaphoreName"><span class="hs-identifier hs-var">getSemaphoreName</span></a></span><span> </span><span class="annot"><span class="annottext">(SemaphoreName -&gt; String) -&gt; SemaphoreName -&gt; String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Semaphore -&gt; SemaphoreName
+</span><a href="System.Semaphore.html#semaphoreName"><span class="hs-identifier hs-var">semaphoreName</span></a></span><span> </span><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053846"><span class="hs-identifier hs-var">sem</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- | Query the current semaphore value (how many tokens it has available).</span><span>
+</span><span id="line-223"></span><span class="hs-comment">--</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- This is mainly for debugging use, as it is easy to introduce race conditions</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- when nontrivial program logic depends on the value returned by this function.</span><span>
+</span><span id="line-226"></span><span class="annot"><a href="System.Semaphore.html#getSemaphoreValue"><span class="hs-identifier hs-type">getSemaphoreValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-227"></span><span id="getSemaphoreValue"><span class="annot"><span class="annottext">getSemaphoreValue :: Semaphore -&gt; IO Int
+</span><a href="System.Semaphore.html#getSemaphoreValue"><span class="hs-identifier hs-var hs-var">getSemaphoreValue</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">semaphore :: Semaphore -&gt; Semaphore
+</span><a href="System.Semaphore.html#semaphore"><span class="hs-identifier hs-var">semaphore</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679053847"><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053847"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>  </span><span class="hs-identifier">MC.mask_</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-230"></span><span>    </span><span class="hs-identifier">wait_res</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">Win32.waitForSingleObject</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Win32.semaphoreHandle</span><span> </span><span class="hs-identifier">sem</span><span class="hs-special">)</span><span> </span><span class="hs-number">0</span><span>
+</span><span id="line-231"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="hs-identifier">wait_res</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">Win32.wAIT_OBJECT_0</span><span>
+</span><span id="line-232"></span><span>      </span><span class="hs-comment">-- We were able to acquire a resource from the semaphore without waiting:</span><span>
+</span><span id="line-233"></span><span>      </span><span class="hs-comment">-- release it immediately, thus obtaining the total number of available</span><span>
+</span><span id="line-234"></span><span>      </span><span class="hs-comment">-- resources.</span><span>
+</span><span id="line-235"></span><span>    </span><span class="hs-keyword">then</span><span>
+</span><span id="line-236"></span><span>      </span><span class="hs-special">(</span><span class="hs-operator">+</span><span class="hs-number">1</span><span class="hs-special">)</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">Win32.releaseSemaphore</span><span> </span><span class="hs-identifier">sem</span><span> </span><span class="hs-number">1</span><span>
+</span><span id="line-237"></span><span>    </span><span class="hs-keyword">else</span><span>
+</span><span id="line-238"></span><span>      </span><span class="hs-identifier">return</span><span> </span><span class="hs-number">0</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="annot"><span class="annottext">Semaphore -&gt; IO Int
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semGetValue"><span class="hs-identifier hs-var">Posix.semGetValue</span></a></span><span> </span><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053847"><span class="hs-identifier hs-var">sem</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- | 'WaitId' stores the information we need to cancel a thread</span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- which is waiting on a semaphore.</span><span>
+</span><span id="line-245"></span><span class="hs-comment">--</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- See 'forkWaitOnSemaphoreInterruptible' and 'interruptWaitOnSemaphore'.</span><span>
+</span><span id="line-247"></span><span class="hs-keyword">data</span><span> </span><span id="WaitId"><span class="annot"><a href="System.Semaphore.html#WaitId"><span class="hs-identifier hs-var">WaitId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="WaitId"><span class="annot"><a href="System.Semaphore.html#WaitId"><span class="hs-identifier hs-var">WaitId</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="waitingThreadId"><span class="annot"><span class="annottext">WaitId -&gt; ThreadId
+</span><a href="System.Semaphore.html#waitingThreadId"><span class="hs-identifier hs-var hs-var">waitingThreadId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ThreadId</span></span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>                     </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">cancelHandle</span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Win32.HANDLE</span><span class="hs-cpp">
+#endif
+</span><span>                     </span><span class="hs-special">}</span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- | Spawn a thread that waits on the given semaphore.</span><span>
+</span><span id="line-254"></span><span class="hs-comment">--</span><span>
+</span><span id="line-255"></span><span class="hs-comment">-- In this thread, asynchronous exceptions will be masked.</span><span>
+</span><span id="line-256"></span><span class="hs-comment">--</span><span>
+</span><span id="line-257"></span><span class="hs-comment">-- The waiting operation can be interrupted using the</span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- 'interruptWaitOnSemaphore' function.</span><span>
+</span><span id="line-259"></span><span class="hs-comment">--</span><span>
+</span><span id="line-260"></span><span class="hs-comment">-- This implements a similar pattern to the @forkFinally@ function.</span><span>
+</span><span id="line-261"></span><span class="annot"><a href="System.Semaphore.html#forkWaitOnSemaphoreInterruptible"><span class="hs-identifier hs-type">forkWaitOnSemaphoreInterruptible</span></a></span><span>
+</span><span id="line-262"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span>
+</span><span id="line-263"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">MC.SomeException</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ wait result action</span></span><span>
+</span><span id="line-264"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.Semaphore.html#WaitId"><span class="hs-identifier hs-type">WaitId</span></a></span><span>
+</span><span id="line-265"></span><span id="forkWaitOnSemaphoreInterruptible"><span class="annot"><span class="annottext">forkWaitOnSemaphoreInterruptible :: Semaphore -&gt; (Either SomeException Bool -&gt; IO ()) -&gt; IO WaitId
+</span><a href="System.Semaphore.html#forkWaitOnSemaphoreInterruptible"><span class="hs-identifier hs-var hs-var">forkWaitOnSemaphoreInterruptible</span></a></span></span><span>
+</span><span id="line-266"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="System.Semaphore.html#Semaphore"><span class="hs-identifier hs-type">Semaphore</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">semaphore :: Semaphore -&gt; Semaphore
+</span><a href="System.Semaphore.html#semaphore"><span class="hs-identifier hs-var">semaphore</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679053850"><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053850"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-267"></span><span>  </span><span id="local-6989586621679053851"><span class="annot"><span class="annottext">Either SomeException Bool -&gt; IO ()
+</span><a href="#local-6989586621679053851"><span class="hs-identifier hs-var">wait_result_action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>    </span><span class="hs-identifier">cancelHandle</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">Win32.createEvent</span><span> </span><span class="hs-identifier">Nothing</span><span> </span><span class="hs-identifier">True</span><span> </span><span class="hs-identifier">False</span><span> </span><span class="hs-string">&quot;&quot;</span><span class="hs-cpp">
+#endif
+</span><span>    </span><span class="hs-keyword">let</span><span>
+</span><span id="line-272"></span><span>      </span><span class="annot"><a href="#local-6989586621679053852"><span class="hs-identifier hs-type">interruptible_wait</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-273"></span><span>      </span><span id="local-6989586621679053852"><span class="annot"><span class="annottext">interruptible_wait :: IO Bool
+</span><a href="#local-6989586621679053852"><span class="hs-identifier hs-var hs-var hs-var">interruptible_wait</span></a></span></span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>        </span><span class="hs-comment">-- Windows: wait on both the handle used for cancelling the wait</span><span>
+</span><span id="line-276"></span><span>        </span><span class="hs-comment">-- and on the semaphore.</span><span>
+</span><span id="line-277"></span><span>          </span><span class="hs-keyword">do</span><span>
+</span><span id="line-278"></span><span>            </span><span class="hs-identifier">wait_res</span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-279"></span><span>              </span><span class="hs-identifier">Win32.waitForMultipleObjects</span><span>
+</span><span id="line-280"></span><span>                </span><span class="hs-special">[</span><span> </span><span class="hs-identifier">Win32.semaphoreHandle</span><span> </span><span class="hs-identifier">sem</span><span>
+</span><span id="line-281"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">cancelHandle</span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-282"></span><span>                </span><span class="hs-identifier">False</span><span> </span><span class="hs-comment">-- False &lt;=&gt; WaitAny</span><span>
+</span><span id="line-283"></span><span>                </span><span class="hs-identifier">Win32.iNFINITE</span><span>
+</span><span id="line-284"></span><span>            </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">wait_res</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">Win32.wAIT_OBJECT_0</span><span>
+</span><span id="line-285"></span><span>            </span><span class="hs-comment">-- Only in the case that the wait result is WAIT_OBJECT_0 will</span><span>
+</span><span id="line-286"></span><span>            </span><span class="hs-comment">-- we have succeeded in obtaining a token from the semaphore.</span><span class="hs-cpp">
+#else
+</span><span>        </span><span class="hs-comment">-- POSIX: use the 'semWaitInterruptible' interruptible FFI call</span><span>
+</span><span id="line-289"></span><span>        </span><span class="hs-comment">-- that can be interrupted when we send a killThread signal.</span><span>
+</span><span id="line-290"></span><span>          </span><span class="annot"><span class="annottext">Semaphore -&gt; IO Bool
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Semaphore.html#semWaitInterruptible"><span class="hs-identifier hs-var">Posix.semWaitInterruptible</span></a></span><span> </span><span class="annot"><span class="annottext">Semaphore
+</span><a href="#local-6989586621679053850"><span class="hs-identifier hs-var">sem</span></a></span><span class="hs-cpp">
+#endif
+</span><span>    </span><span id="local-6989586621679053853"><span class="annot"><a href="#local-6989586621679053853"><span class="hs-identifier hs-var">waitingThreadId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ThreadId
+</span><span class="hs-identifier hs-var">forkIO</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ThreadId) -&gt; IO () -&gt; IO ThreadId
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall (m :: * -&gt; *) a. (HasCallStack, MonadMask m) =&gt; m a -&gt; m a
+</span><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#mask_"><span class="hs-identifier hs-var">MC.mask_</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-293"></span><span>      </span><span id="local-6989586621679053855"><span class="annot"><a href="#local-6989586621679053855"><span class="hs-identifier hs-var">wait_res</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Bool -&gt; IO (Either SomeException Bool)
+forall (m :: * -&gt; *) e a.
+(HasCallStack, MonadCatch m, Exception e) =&gt;
+m a -&gt; m (Either e a)
+</span><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#try"><span class="hs-identifier hs-var">MC.try</span></a></span><span> </span><span class="annot"><span class="annottext">IO Bool
+</span><a href="#local-6989586621679053852"><span class="hs-identifier hs-var">interruptible_wait</span></a></span><span>
+</span><span id="line-294"></span><span>      </span><span class="annot"><a href="#local-6989586621679053851"><span class="hs-identifier hs-type">wait_result_action</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053855"><span class="hs-identifier hs-type">wait_res</span></a></span><span>
+</span><span id="line-295"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="System.Semaphore.html#WaitId"><span class="hs-identifier hs-type">WaitId</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="System.Semaphore.html#waitingThreadId"><span class="hs-glyph hs-var hs-type">..</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-296"></span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- | Interrupt a semaphore wait operation initiated by</span><span>
+</span><span id="line-298"></span><span class="hs-comment">-- 'forkWaitOnSemaphoreInterruptible'.</span><span>
+</span><span id="line-299"></span><span class="annot"><a href="System.Semaphore.html#interruptWaitOnSemaphore"><span class="hs-identifier hs-type">interruptWaitOnSemaphore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Semaphore.html#WaitId"><span class="hs-identifier hs-type">WaitId</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-300"></span><span id="interruptWaitOnSemaphore"><span class="annot"><span class="annottext">interruptWaitOnSemaphore :: WaitId -&gt; IO ()
+</span><a href="System.Semaphore.html#interruptWaitOnSemaphore"><span class="hs-identifier hs-var hs-var">interruptWaitOnSemaphore</span></a></span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="System.Semaphore.html#WaitId"><span class="hs-identifier hs-type">WaitId</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621679053856"><span class="annot"><span class="annottext">ThreadId
+waitingThreadId :: WaitId -&gt; ThreadId
+waitingThreadId :: ThreadId
+</span><a href="System.Semaphore.html#waitingThreadId"><span class="hs-glyph hs-var hs-var">..</span></a></span></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>  </span><span class="hs-identifier">Win32.setEvent</span><span> </span><span class="hs-identifier">cancelHandle</span><span>
+</span><span id="line-303"></span><span>    </span><span class="hs-comment">-- On Windows, we signal to stop waiting.</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="annot"><span class="annottext">ThreadId -&gt; IO ()
+</span><span class="hs-identifier hs-var">killThread</span></span><span> </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679053856"><span class="hs-identifier hs-var">waitingThreadId</span></a></span><span>
+</span><span id="line-306"></span><span>    </span><span class="hs-comment">-- On POSIX, killing the thread will cancel the wait on the semaphore</span><span>
+</span><span id="line-307"></span><span>    </span><span class="hs-comment">-- due to the FFI call being interruptible ('semWaitInterruptible').</span><span>
+</span><span id="line-308"></span><span>
+</span><span id="line-309"></span><span class="hs-comment">---------------------------------------</span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- Abstract semaphores</span><span>
+</span><span id="line-311"></span><span>
+</span><span id="line-312"></span><span class="annot"><span class="hs-comment">-- | Abstraction over the operations of a semaphore.</span></span><span>
+</span><span id="line-313"></span><span class="hs-keyword">data</span><span> </span><span id="AbstractSem"><span class="annot"><a href="System.Semaphore.html#AbstractSem"><span class="hs-identifier hs-var">AbstractSem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-314"></span><span>  </span><span id="AbstractSem"><span class="annot"><a href="System.Semaphore.html#AbstractSem"><span class="hs-identifier hs-var">AbstractSem</span></a></span></span><span>
+</span><span id="line-315"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="acquireSem"><span class="annot"><span class="annottext">AbstractSem -&gt; IO ()
+</span><a href="System.Semaphore.html#acquireSem"><span class="hs-identifier hs-var hs-var">acquireSem</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-316"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="releaseSem"><span class="annot"><span class="annottext">AbstractSem -&gt; IO ()
+</span><a href="System.Semaphore.html#releaseSem"><span class="hs-identifier hs-var hs-var">releaseSem</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-317"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-318"></span><span>
+</span><span id="line-319"></span><span id="local-6989586621679053679"><span class="annot"><a href="System.Semaphore.html#withAbstractSem"><span class="hs-identifier hs-type">withAbstractSem</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.Semaphore.html#AbstractSem"><span class="hs-identifier hs-type">AbstractSem</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679053679"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679053679"><span class="hs-identifier hs-type">b</span></a></span></span><span>
+</span><span id="line-320"></span><span id="withAbstractSem"><span class="annot"><span class="annottext">withAbstractSem :: forall b. AbstractSem -&gt; IO b -&gt; IO b
+</span><a href="System.Semaphore.html#withAbstractSem"><span class="hs-identifier hs-var hs-var">withAbstractSem</span></a></span></span><span> </span><span id="local-6989586621679053864"><span class="annot"><span class="annottext">AbstractSem
+</span><a href="#local-6989586621679053864"><span class="hs-identifier hs-var">sem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a c b.
+(HasCallStack, MonadMask m) =&gt;
+m a -&gt; m c -&gt; m b -&gt; m b
+</span><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#bracket_"><span class="hs-identifier hs-var">MC.bracket_</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AbstractSem -&gt; IO ()
+</span><a href="System.Semaphore.html#acquireSem"><span class="hs-identifier hs-var">acquireSem</span></a></span><span> </span><span class="annot"><span class="annottext">AbstractSem
+</span><a href="#local-6989586621679053864"><span class="hs-identifier hs-var">sem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AbstractSem -&gt; IO ()
+</span><a href="System.Semaphore.html#releaseSem"><span class="hs-identifier hs-var">releaseSem</span></a></span><span> </span><span class="annot"><span class="annottext">AbstractSem
+</span><a href="#local-6989586621679053864"><span class="hs-identifier hs-var">sem</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-321"></span><span>
+</span><span id="line-322"></span><span class="hs-comment">---------------------------------------</span><span>
+</span><span id="line-323"></span><span class="hs-comment">-- Utility</span><span>
+</span><span id="line-324"></span><span>
+</span><span id="line-325"></span><span class="annot"><a href="System.Semaphore.html#iToBase62"><span class="hs-identifier hs-type">iToBase62</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-326"></span><span id="iToBase62"><span class="annot"><span class="annottext">iToBase62 :: Int -&gt; String
+</span><a href="System.Semaphore.html#iToBase62"><span class="hs-identifier hs-var hs-var">iToBase62</span></a></span></span><span> </span><span id="local-6989586621679053867"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053867"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+</span><a href="#local-6989586621679053868"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053869"><span class="hs-identifier hs-var">m'</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-327"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-328"></span><span>    </span><span id="local-6989586621679053869"><span class="annot"><span class="annottext">m' :: Int
+</span><a href="#local-6989586621679053869"><span class="hs-identifier hs-var hs-var">m'</span></a></span></span><span>
+</span><span id="line-329"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053867"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span>
+</span><span id="line-330"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span>
+</span><span id="line-331"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-332"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053867"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-333"></span><span>    </span><span id="local-6989586621679053868"><span class="annot"><span class="annottext">go :: Int -&gt; String -&gt; String
+</span><a href="#local-6989586621679053868"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679053881"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053881"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679053882"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053882"><span class="hs-identifier hs-var">cs</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053881"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">62</span></span><span>
+</span><span id="line-334"></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679053883"><span class="annot"><span class="annottext">c :: Char
+</span><a href="#local-6989586621679053883"><span class="hs-identifier hs-var hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Char
+</span><a href="#local-6989586621679053884"><span class="hs-identifier hs-var">chooseChar62</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053881"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-335"></span><span>              </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679053883"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; String -&gt; String
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053882"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-336"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-337"></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="hs-glyph">!</span><span id="local-6989586621679053888"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053888"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679053889"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053889"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; (Int, Int)
+forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">quotRem</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053881"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">62</span></span><span>
+</span><span id="line-338"></span><span>                  </span><span class="hs-glyph">!</span><span id="local-6989586621679053891"><span class="annot"><span class="annottext">c :: Char
+</span><a href="#local-6989586621679053891"><span class="hs-identifier hs-var hs-var">c</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Char
+</span><a href="#local-6989586621679053884"><span class="hs-identifier hs-var">chooseChar62</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053889"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-339"></span><span>              </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+</span><a href="#local-6989586621679053868"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053888"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679053891"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; String -&gt; String
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679053882"><span class="hs-identifier hs-var">cs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-340"></span><span>
+</span><span id="line-341"></span><span>    </span><span class="annot"><a href="#local-6989586621679053884"><span class="hs-identifier hs-type">chooseChar62</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span>
+</span><span id="line-342"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679053884"><span class="hs-pragma hs-type">chooseChar62</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-343"></span><span>    </span><span id="local-6989586621679053884"><span class="annot"><span class="annottext">chooseChar62 :: Int -&gt; Char
+</span><a href="#local-6989586621679053884"><span class="hs-identifier hs-var hs-var">chooseChar62</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679053892"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679053892"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char# -&gt; Char
+</span><span class="hs-identifier hs-var">C#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Addr# -&gt; Int# -&gt; Char#
+</span><span class="hs-identifier hs-var">indexCharOffAddr#</span></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679053893"><span class="hs-identifier hs-var">chars62</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679053892"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-344"></span><span>    </span><span id="local-6989586621679053893"><span class="annot"><span class="annottext">chars62 :: Addr#
+</span><a href="#local-6989586621679053893"><span class="hs-identifier hs-var hs-var">chars62</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><span class="hs-string">&quot;0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;#</span></span><span>
+</span><span id="line-345"></span><span>
+</span><span id="line-346"></span><span class="annot"><a href="System.Semaphore.html#random_strings"><span class="hs-identifier hs-type">random_strings</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span>
+</span><span id="line-347"></span><span id="random_strings"><span class="annot"><span class="annottext">random_strings :: IO (NonEmpty String)
+</span><a href="System.Semaphore.html#random_strings"><span class="hs-identifier hs-var hs-var">random_strings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>  </span><span class="hs-identifier">Win32.FILETIME</span><span> </span><span class="hs-identifier">t</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">Win32.getSystemTimeAsFileTime</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="annot"><span class="hs-identifier hs-type">CClock</span></span><span> </span><span id="local-6989586621679053895"><span class="annot"><a href="#local-6989586621679053895"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ProcessTimes -&gt; CClock
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Process.Common.html#systemTime"><span class="hs-identifier hs-var">Posix.systemTime</span></a></span><span> </span><span class="annot"><span class="annottext">(ProcessTimes -&gt; CClock) -&gt; IO ProcessTimes -&gt; IO CClock
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO ProcessTimes
+</span><a href="../../unix-2.8.7.0-6a00/src/System.Posix.Process.Common.html#getProcessTimes"><span class="hs-identifier hs-var">Posix.getProcessTimes</span></a></span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">fmap</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679053897"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053897"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String
+</span><a href="System.Semaphore.html#iToBase62"><span class="hs-identifier hs-var">iToBase62</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053897"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679053895"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:|</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-number">1</span></span><span class="hs-glyph">..</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-354"></span></pre></body></html>

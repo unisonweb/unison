@@ -1,0 +1,447 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- Module for working with &quot;PersonalKeys&quot; in Unison Auth.</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- A Personal Key is just an Ed25519 EdDSA key pair.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- We use the private key to make assertions on behalf of the user,</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- such as signing comments.</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Then we can register the public key with our share user account.</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- to link the key to the user.</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html"><span class="hs-identifier">Unison.Auth.PersonalKey</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier">PersonalPrivateKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#encodePrivateKey"><span class="hs-identifier">encodePrivateKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPublicKey"><span class="hs-identifier">PersonalPublicKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#publicKey"><span class="hs-identifier">publicKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#generatePersonalKey"><span class="hs-identifier">generatePersonalKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#personalKeyThumbprint"><span class="hs-identifier">personalKeyThumbprint</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#signWithPersonalKey"><span class="hs-identifier">signWithPersonalKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#verifyWithPersonalKey"><span class="hs-identifier">verifyWithPersonalKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalKeySignature"><span class="hs-identifier">PersonalKeySignature</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Error.Class</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Except</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.JOSE</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">JOSE</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.JOSE.JWA.JWK</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">JWA</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.JOSE.JWK</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">JWK</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">KeyMaterialGenParam</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">OKPGenParam</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">OKPCrv</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ed25519</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">genJWK</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.JOSE.JWK</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">JWK</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.JOSE.JWS</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">JWS</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Random</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ToJSON</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Value</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ByteArray</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Base64.URL</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Base64URL</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.KeyThumbprint</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">KeyThumbprint</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="annot"><span class="hs-comment">-- | A JWK representing a personal key</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">newtype</span><span> </span><span id="PersonalPrivateKey"><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-var">PersonalPrivateKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PersonalPrivateKey"><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-var">PersonalPrivateKey</span></a></span></span><span> </span><span class="hs-special">{</span><span id="_personalPrivateKeyJWK"><span class="annot"><span class="annottext">PersonalPrivateKey -&gt; JWK
+</span><a href="Unison.Auth.PersonalKey.html#_personalPrivateKeyJWK"><span class="hs-identifier hs-var hs-var">_personalPrivateKeyJWK</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">JWK</span></span><span class="hs-special">}</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679193290"><span id="local-6989586621679193294"><span class="annot"><span class="annottext">PersonalPrivateKey -&gt; PersonalPrivateKey -&gt; Bool
+(PersonalPrivateKey -&gt; PersonalPrivateKey -&gt; Bool)
+-&gt; (PersonalPrivateKey -&gt; PersonalPrivateKey -&gt; Bool)
+-&gt; Eq PersonalPrivateKey
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PersonalPrivateKey -&gt; PersonalPrivateKey -&gt; Bool
+== :: PersonalPrivateKey -&gt; PersonalPrivateKey -&gt; Bool
+$c/= :: PersonalPrivateKey -&gt; PersonalPrivateKey -&gt; Bool
+/= :: PersonalPrivateKey -&gt; PersonalPrivateKey -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679193299"><span id="local-6989586621679193304"><span id="local-6989586621679193308"><span class="annot"><span class="annottext">Maybe PersonalPrivateKey
+Value -&gt; Parser [PersonalPrivateKey]
+Value -&gt; Parser PersonalPrivateKey
+(Value -&gt; Parser PersonalPrivateKey)
+-&gt; (Value -&gt; Parser [PersonalPrivateKey])
+-&gt; Maybe PersonalPrivateKey
+-&gt; FromJSON PersonalPrivateKey
+forall a.
+(Value -&gt; Parser a)
+-&gt; (Value -&gt; Parser [a]) -&gt; Maybe a -&gt; FromJSON a
+$cparseJSON :: Value -&gt; Parser PersonalPrivateKey
+parseJSON :: Value -&gt; Parser PersonalPrivateKey
+$cparseJSONList :: Value -&gt; Parser [PersonalPrivateKey]
+parseJSONList :: Value -&gt; Parser [PersonalPrivateKey]
+$comittedField :: Maybe PersonalPrivateKey
+omittedField :: Maybe PersonalPrivateKey
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Unison.Auth.PersonalKey.html#personalKeyThumbprint"><span class="hs-identifier hs-type">personalKeyThumbprint</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-type">PersonalPrivateKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KeyThumbprint</span></span><span>
+</span><span id="line-47"></span><span id="personalKeyThumbprint"><span class="annot"><span class="annottext">personalKeyThumbprint :: PersonalPrivateKey -&gt; KeyThumbprint
+</span><a href="Unison.Auth.PersonalKey.html#personalKeyThumbprint"><span class="hs-identifier hs-var hs-var">personalKeyThumbprint</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-type">PersonalPrivateKey</span></a></span><span> </span><span id="local-6989586621679193316"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193316"><span class="hs-identifier hs-var">jwk</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JWK -&gt; KeyThumbprint
+</span><a href="Unison.Auth.PersonalKey.html#jwkThumbprint"><span class="hs-identifier hs-var">jwkThumbprint</span></a></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193316"><span class="hs-identifier hs-var">jwk</span></a></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Unison.Auth.PersonalKey.html#jwkThumbprint"><span class="hs-identifier hs-type">jwkThumbprint</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">JWK.JWK</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KeyThumbprint</span></span><span>
+</span><span id="line-50"></span><span id="jwkThumbprint"><span class="annot"><span class="annottext">jwkThumbprint :: JWK -&gt; KeyThumbprint
+</span><a href="Unison.Auth.PersonalKey.html#jwkThumbprint"><span class="hs-identifier hs-var hs-var">jwkThumbprint</span></a></span></span><span> </span><span id="local-6989586621679193318"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193318"><span class="hs-identifier hs-var">jwk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193318"><span class="hs-identifier hs-var">jwk</span></a></span><span> </span><span class="annot"><span class="annottext">JWK -&gt; Getting (Digest SHA256) JWK (Digest SHA256) -&gt; Digest SHA256
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">forall a. HashAlgorithm a =&gt; Getter JWK (Digest a)
+</span><span class="hs-identifier hs-var">JWK.thumbprint</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">JWK.SHA256</span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="annottext">Digest SHA256 -&gt; (Digest SHA256 -&gt; ByteString) -&gt; ByteString
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Digest SHA256 -&gt; ByteString
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">ByteArray.convert</span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">ByteString -&gt; (ByteString -&gt; ByteString) -&gt; ByteString
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">Base64URL.encodeUnpadded</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><span class="annottext">ByteString -&gt; (ByteString -&gt; Text) -&gt; Text
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">Text.decodeUtf8</span></span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><span class="annottext">Text -&gt; (Text -&gt; KeyThumbprint) -&gt; KeyThumbprint
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; KeyThumbprint
+</span><span class="hs-identifier hs-var">KeyThumbprint</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | Encode the private JWK.</span><span>
+</span><span id="line-58"></span><span class="hs-comment">--</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- I left off a ToJSON instance because I want to be explicit about when</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- we're encoding the private key.</span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Unison.Auth.PersonalKey.html#encodePrivateKey"><span class="hs-identifier hs-type">encodePrivateKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-type">PersonalPrivateKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-62"></span><span id="encodePrivateKey"><span class="annot"><span class="annottext">encodePrivateKey :: PersonalPrivateKey -&gt; Value
+</span><a href="Unison.Auth.PersonalKey.html#encodePrivateKey"><span class="hs-identifier hs-var hs-var">encodePrivateKey</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-type">PersonalPrivateKey</span></a></span><span> </span><span id="local-6989586621679193326"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193326"><span class="hs-identifier hs-var">jwk</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JWK -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.toJSON</span></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193326"><span class="hs-identifier hs-var">jwk</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><a href="Unison.Auth.PersonalKey.html#publicKey"><span class="hs-identifier hs-type">publicKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-type">PersonalPrivateKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPublicKey"><span class="hs-identifier hs-type">PersonalPublicKey</span></a></span><span>
+</span><span id="line-65"></span><span id="publicKey"><span class="annot"><span class="annottext">publicKey :: PersonalPrivateKey -&gt; PersonalPublicKey
+</span><a href="Unison.Auth.PersonalKey.html#publicKey"><span class="hs-identifier hs-var hs-var">publicKey</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-type">PersonalPrivateKey</span></a></span><span> </span><span id="local-6989586621679193328"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193328"><span class="hs-identifier hs-var">jwk</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193328"><span class="hs-identifier hs-var">jwk</span></a></span><span> </span><span class="annot"><span class="annottext">JWK -&gt; Getting (Maybe JWK) JWK (Maybe JWK) -&gt; Maybe JWK
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe JWK) JWK (Maybe JWK)
+forall k. AsPublicKey k =&gt; Getter k (Maybe k)
+Getter JWK (Maybe JWK)
+</span><span class="hs-identifier hs-var">JWK.asPublicKey</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679193330"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193330"><span class="hs-identifier hs-var">public</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">JWK -&gt; PersonalPublicKey
+</span><a href="Unison.Auth.PersonalKey.html#PersonalPublicKey"><span class="hs-identifier hs-var">PersonalPublicKey</span></a></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193330"><span class="hs-identifier hs-var">public</span></a></span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><span class="annottext">Maybe JWK
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; PersonalPublicKey
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;publicKey: Failed to extract public key from private key. This should never happen.&quot;</span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">newtype</span><span> </span><span id="PersonalPublicKey"><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPublicKey"><span class="hs-identifier hs-var">PersonalPublicKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PersonalPublicKey"><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPublicKey"><span class="hs-identifier hs-var">PersonalPublicKey</span></a></span></span><span> </span><span class="hs-special">{</span><span id="_personalPublicKeyJWK"><span class="annot"><span class="annottext">PersonalPublicKey -&gt; JWK
+</span><a href="Unison.Auth.PersonalKey.html#_personalPublicKeyJWK"><span class="hs-identifier hs-var hs-var">_personalPublicKeyJWK</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">JWK</span></span><span class="hs-special">}</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679193335"><span id="local-6989586621679193339"><span id="local-6989586621679193343"><span id="local-6989586621679193347"><span id="local-6989586621679193351"><span class="annot"><span class="annottext">[PersonalPublicKey] -&gt; Value
+[PersonalPublicKey] -&gt; Encoding
+PersonalPublicKey -&gt; Bool
+PersonalPublicKey -&gt; Value
+PersonalPublicKey -&gt; Encoding
+(PersonalPublicKey -&gt; Value)
+-&gt; (PersonalPublicKey -&gt; Encoding)
+-&gt; ([PersonalPublicKey] -&gt; Value)
+-&gt; ([PersonalPublicKey] -&gt; Encoding)
+-&gt; (PersonalPublicKey -&gt; Bool)
+-&gt; ToJSON PersonalPublicKey
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; (a -&gt; Bool)
+-&gt; ToJSON a
+$ctoJSON :: PersonalPublicKey -&gt; Value
+toJSON :: PersonalPublicKey -&gt; Value
+$ctoEncoding :: PersonalPublicKey -&gt; Encoding
+toEncoding :: PersonalPublicKey -&gt; Encoding
+$ctoJSONList :: [PersonalPublicKey] -&gt; Value
+toJSONList :: [PersonalPublicKey] -&gt; Value
+$ctoEncodingList :: [PersonalPublicKey] -&gt; Encoding
+toEncodingList :: [PersonalPublicKey] -&gt; Encoding
+$comitField :: PersonalPublicKey -&gt; Bool
+omitField :: PersonalPublicKey -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">ToJSON</span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- Generate a single Ed25519 JWK</span><span>
+</span><span id="line-73"></span><span id="local-6989586621679193139"><span class="annot"><a href="Unison.Auth.PersonalKey.html#generatePersonalKey"><span class="hs-identifier hs-type">generatePersonalKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679193139"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679193139"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-type">PersonalPrivateKey</span></a></span></span><span>
+</span><span id="line-74"></span><span id="generatePersonalKey"><span class="annot"><span class="annottext">generatePersonalKey :: forall (m :: * -&gt; *). MonadIO m =&gt; m PersonalPrivateKey
+</span><a href="Unison.Auth.PersonalKey.html#generatePersonalKey"><span class="hs-identifier hs-var hs-var">generatePersonalKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO PersonalPrivateKey -&gt; m PersonalPrivateKey
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO PersonalPrivateKey -&gt; m PersonalPrivateKey)
+-&gt; IO PersonalPrivateKey -&gt; m PersonalPrivateKey
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadRandom m =&gt; KeyMaterialGenParam -&gt; m JWK
+</span><span class="hs-identifier hs-var">genJWK</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OKPCrv -&gt; KeyMaterialGenParam
+</span><span class="hs-identifier hs-var">OKPGenParam</span></span><span> </span><span class="annot"><span class="annottext">OKPCrv
+</span><span class="hs-identifier hs-var">Ed25519</span></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>    </span><span class="annot"><span class="annottext">IO JWK -&gt; (JWK -&gt; JWK) -&gt; IO JWK
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Maybe KeyUse -&gt; Identity (Maybe KeyUse)) -&gt; JWK -&gt; Identity JWK
+Lens' JWK (Maybe KeyUse)
+</span><span class="hs-identifier hs-var">JWK.jwkUse</span></span><span> </span><span class="annot"><span class="annottext">((Maybe KeyUse -&gt; Identity (Maybe KeyUse)) -&gt; JWK -&gt; Identity JWK)
+-&gt; Maybe KeyUse -&gt; JWK -&gt; JWK
+forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-operator hs-var">.~</span></span><span> </span><span class="annot"><span class="annottext">KeyUse -&gt; Maybe KeyUse
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">KeyUse
+</span><span class="hs-identifier hs-var">JWK.Sig</span></span><span>
+</span><span id="line-77"></span><span>    </span><span class="annot"><span class="annottext">IO JWK -&gt; (JWK -&gt; JWK) -&gt; IO JWK
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Maybe JWKAlg -&gt; Identity (Maybe JWKAlg)) -&gt; JWK -&gt; Identity JWK
+Lens' JWK (Maybe JWKAlg)
+</span><span class="hs-identifier hs-var">JWK.jwkAlg</span></span><span> </span><span class="annot"><span class="annottext">((Maybe JWKAlg -&gt; Identity (Maybe JWKAlg)) -&gt; JWK -&gt; Identity JWK)
+-&gt; Maybe JWKAlg -&gt; JWK -&gt; JWK
+forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-operator hs-var">.~</span></span><span> </span><span class="annot"><span class="annottext">JWKAlg -&gt; Maybe JWKAlg
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Alg -&gt; JWKAlg
+</span><span class="hs-identifier hs-var">JWK.JWSAlg</span></span><span> </span><span class="annot"><span class="annottext">Alg
+</span><span class="hs-identifier hs-var">JWS.EdDSA</span></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><span class="annottext">IO JWK -&gt; (JWK -&gt; JWK) -&gt; IO JWK
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679193381"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193381"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193381"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">JWK -&gt; (JWK -&gt; JWK) -&gt; JWK
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Text -&gt; Identity (Maybe Text)) -&gt; JWK -&gt; Identity JWK
+Lens' JWK (Maybe Text)
+</span><span class="hs-identifier hs-var">JWK.jwkKid</span></span><span> </span><span class="annot"><span class="annottext">((Maybe Text -&gt; Identity (Maybe Text)) -&gt; JWK -&gt; Identity JWK)
+-&gt; Maybe Text -&gt; JWK -&gt; JWK
+forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-operator hs-var">.~</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">KeyThumbprint -&gt; Text
+</span><span class="hs-identifier hs-var">thumbprintToText</span></span><span> </span><span class="annot"><span class="annottext">(KeyThumbprint -&gt; Text) -&gt; KeyThumbprint -&gt; Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">JWK -&gt; KeyThumbprint
+</span><a href="Unison.Auth.PersonalKey.html#jwkThumbprint"><span class="hs-identifier hs-var">jwkThumbprint</span></a></span><span> </span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193381"><span class="hs-identifier hs-var">j</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>    </span><span class="annot"><span class="annottext">IO JWK -&gt; (JWK -&gt; PersonalPrivateKey) -&gt; IO PersonalPrivateKey
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">JWK -&gt; PersonalPrivateKey
+</span><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-var">PersonalPrivateKey</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">newtype</span><span> </span><span id="PersonalKeySignature"><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalKeySignature"><span class="hs-identifier hs-var">PersonalKeySignature</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PersonalKeySignature"><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalKeySignature"><span class="hs-identifier hs-var">PersonalKeySignature</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unPersonalKeySignature"><span class="annot"><span class="annottext">PersonalKeySignature -&gt; ByteString
+</span><a href="Unison.Auth.PersonalKey.html#unPersonalKeySignature"><span class="hs-identifier hs-var hs-var">unPersonalKeySignature</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">}</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679193387"><span id="local-6989586621679193393"><span id="local-6989586621679193397"><span class="annot"><span class="annottext">Int -&gt; PersonalKeySignature -&gt; ShowS
+[PersonalKeySignature] -&gt; ShowS
+PersonalKeySignature -&gt; [Char]
+(Int -&gt; PersonalKeySignature -&gt; ShowS)
+-&gt; (PersonalKeySignature -&gt; [Char])
+-&gt; ([PersonalKeySignature] -&gt; ShowS)
+-&gt; Show PersonalKeySignature
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PersonalKeySignature -&gt; ShowS
+showsPrec :: Int -&gt; PersonalKeySignature -&gt; ShowS
+$cshow :: PersonalKeySignature -&gt; [Char]
+show :: PersonalKeySignature -&gt; [Char]
+$cshowList :: [PersonalKeySignature] -&gt; ShowS
+showList :: [PersonalKeySignature] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679193402"><span id="local-6989586621679193407"><span class="annot"><span class="annottext">PersonalKeySignature -&gt; PersonalKeySignature -&gt; Bool
+(PersonalKeySignature -&gt; PersonalKeySignature -&gt; Bool)
+-&gt; (PersonalKeySignature -&gt; PersonalKeySignature -&gt; Bool)
+-&gt; Eq PersonalKeySignature
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PersonalKeySignature -&gt; PersonalKeySignature -&gt; Bool
+== :: PersonalKeySignature -&gt; PersonalKeySignature -&gt; Bool
+$c/= :: PersonalKeySignature -&gt; PersonalKeySignature -&gt; Bool
+/= :: PersonalKeySignature -&gt; PersonalKeySignature -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | For some reason `sign` and `verify` require a single monad which implements both MonadRandom and MonadError,</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- but ExceptT doesn't implement MonadRandom :|</span><span>
+</span><span id="line-86"></span><span class="hs-keyword">newtype</span><span> </span><span id="SignM"><span class="annot"><a href="Unison.Auth.PersonalKey.html#SignM"><span class="hs-identifier hs-var">SignM</span></a></span></span><span> </span><span id="local-6989586621679193168"><span class="annot"><a href="#local-6989586621679193168"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SignM"><span class="annot"><a href="Unison.Auth.PersonalKey.html#SignM"><span class="hs-identifier hs-var">SignM</span></a></span></span><span> </span><span class="hs-special">{</span><span id="_unSignM"><span class="annot"><span class="annottext">forall a. SignM a -&gt; ExceptT Error IO a
+</span><a href="Unison.Auth.PersonalKey.html#_unSignM"><span class="hs-identifier hs-var hs-var">_unSignM</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">JOSE.Error</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679193168"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679193415"><span id="local-6989586621679193421"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; SignM a -&gt; SignM b)
+-&gt; (forall a b. a -&gt; SignM b -&gt; SignM a) -&gt; Functor SignM
+forall a b. a -&gt; SignM b -&gt; SignM a
+forall a b. (a -&gt; b) -&gt; SignM a -&gt; SignM b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; SignM a -&gt; SignM b
+fmap :: forall a b. (a -&gt; b) -&gt; SignM a -&gt; SignM b
+$c&lt;$ :: forall a b. a -&gt; SignM b -&gt; SignM a
+&lt;$ :: forall a b. a -&gt; SignM b -&gt; SignM a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679193431"><span id="local-6989586621679193438"><span id="local-6989586621679193444"><span id="local-6989586621679193450"><span id="local-6989586621679193456"><span class="annot"><span class="annottext">Functor SignM
+Functor SignM =&gt;
+(forall a. a -&gt; SignM a)
+-&gt; (forall a b. SignM (a -&gt; b) -&gt; SignM a -&gt; SignM b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; SignM a -&gt; SignM b -&gt; SignM c)
+-&gt; (forall a b. SignM a -&gt; SignM b -&gt; SignM b)
+-&gt; (forall a b. SignM a -&gt; SignM b -&gt; SignM a)
+-&gt; Applicative SignM
+forall a. a -&gt; SignM a
+forall a b. SignM a -&gt; SignM b -&gt; SignM a
+forall a b. SignM a -&gt; SignM b -&gt; SignM b
+forall a b. SignM (a -&gt; b) -&gt; SignM a -&gt; SignM b
+forall a b c. (a -&gt; b -&gt; c) -&gt; SignM a -&gt; SignM b -&gt; SignM c
+forall (f :: * -&gt; *).
+Functor f =&gt;
+(forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+$cpure :: forall a. a -&gt; SignM a
+pure :: forall a. a -&gt; SignM a
+$c&lt;*&gt; :: forall a b. SignM (a -&gt; b) -&gt; SignM a -&gt; SignM b
+&lt;*&gt; :: forall a b. SignM (a -&gt; b) -&gt; SignM a -&gt; SignM b
+$cliftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; SignM a -&gt; SignM b -&gt; SignM c
+liftA2 :: forall a b c. (a -&gt; b -&gt; c) -&gt; SignM a -&gt; SignM b -&gt; SignM c
+$c*&gt; :: forall a b. SignM a -&gt; SignM b -&gt; SignM b
+*&gt; :: forall a b. SignM a -&gt; SignM b -&gt; SignM b
+$c&lt;* :: forall a b. SignM a -&gt; SignM b -&gt; SignM a
+&lt;* :: forall a b. SignM a -&gt; SignM b -&gt; SignM a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679193469"><span id="local-6989586621679193475"><span id="local-6989586621679193480"><span class="annot"><span class="annottext">Applicative SignM
+Applicative SignM =&gt;
+(forall a b. SignM a -&gt; (a -&gt; SignM b) -&gt; SignM b)
+-&gt; (forall a b. SignM a -&gt; SignM b -&gt; SignM b)
+-&gt; (forall a. a -&gt; SignM a)
+-&gt; Monad SignM
+forall a. a -&gt; SignM a
+forall a b. SignM a -&gt; SignM b -&gt; SignM b
+forall a b. SignM a -&gt; (a -&gt; SignM b) -&gt; SignM b
+forall (m :: * -&gt; *).
+Applicative m =&gt;
+(forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+$c&gt;&gt;= :: forall a b. SignM a -&gt; (a -&gt; SignM b) -&gt; SignM b
+&gt;&gt;= :: forall a b. SignM a -&gt; (a -&gt; SignM b) -&gt; SignM b
+$c&gt;&gt; :: forall a b. SignM a -&gt; SignM b -&gt; SignM b
+&gt;&gt; :: forall a b. SignM a -&gt; SignM b -&gt; SignM b
+$creturn :: forall a. a -&gt; SignM a
+return :: forall a. a -&gt; SignM a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679193489"><span class="annot"><span class="annottext">Monad SignM
+Monad SignM =&gt; (forall a. IO a -&gt; SignM a) -&gt; MonadIO SignM
+forall a. IO a -&gt; SignM a
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall a. IO a -&gt; m a) -&gt; MonadIO m
+$cliftIO :: forall a. IO a -&gt; SignM a
+liftIO :: forall a. IO a -&gt; SignM a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadIO</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679193500"><span id="local-6989586621679193506"><span class="annot"><span class="hs-identifier hs-type">MonadError</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">JOSE.Error</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span id="local-6989586621679193232"><span id="local-6989586621679193233"><span class="annot"><a href="Unison.Auth.PersonalKey.html#runSignM"><span class="hs-identifier hs-type">runSignM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679193232"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#SignM"><span class="hs-identifier hs-type">SignM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679193233"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679193232"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">JOSE.Error</span></span><span> </span><span class="annot"><a href="#local-6989586621679193233"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-90"></span><span id="runSignM"><span class="annot"><span class="annottext">runSignM :: forall (m :: * -&gt; *) a. MonadIO m =&gt; SignM a -&gt; m (Either Error a)
+</span><a href="Unison.Auth.PersonalKey.html#runSignM"><span class="hs-identifier hs-var hs-var">runSignM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Auth.PersonalKey.html#SignM"><span class="hs-identifier hs-type">SignM</span></a></span><span> </span><span id="local-6989586621679193517"><span class="annot"><span class="annottext">ExceptT Error IO a
+</span><a href="#local-6989586621679193517"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Either Error a) -&gt; m (Either Error a)
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (Either Error a) -&gt; m (Either Error a))
+-&gt; IO (Either Error a) -&gt; m (Either Error a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ExceptT Error IO a -&gt; IO (Either Error a)
+forall e (m :: * -&gt; *) a. ExceptT e m a -&gt; m (Either e a)
+</span><span class="hs-identifier hs-var">runExceptT</span></span><span> </span><span class="annot"><span class="annottext">ExceptT Error IO a
+</span><a href="#local-6989586621679193517"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadRandom</span></span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#SignM"><span class="hs-identifier hs-type">SignM</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679193529"><span class="annot"><span class="annottext">getRandomBytes :: forall byteArray. ByteArray byteArray =&gt; Int -&gt; SignM byteArray
+</span><a href="#local-6989586621679193529"><span class="hs-identifier hs-var hs-var hs-var">getRandomBytes</span></a></span></span><span> </span><span id="local-6989586621679193531"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679193531"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExceptT Error IO byteArray -&gt; SignM byteArray
+forall a. ExceptT Error IO a -&gt; SignM a
+</span><a href="Unison.Auth.PersonalKey.html#SignM"><span class="hs-identifier hs-var">SignM</span></a></span><span> </span><span class="annot"><span class="annottext">(ExceptT Error IO byteArray -&gt; SignM byteArray)
+-&gt; (IO byteArray -&gt; ExceptT Error IO byteArray)
+-&gt; IO byteArray
+-&gt; SignM byteArray
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IO byteArray -&gt; ExceptT Error IO byteArray
+forall a. IO a -&gt; ExceptT Error IO a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO byteArray -&gt; SignM byteArray)
+-&gt; IO byteArray -&gt; SignM byteArray
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO byteArray
+forall byteArray. ByteArray byteArray =&gt; Int -&gt; IO byteArray
+forall (m :: * -&gt; *) byteArray.
+(MonadRandom m, ByteArray byteArray) =&gt;
+Int -&gt; m byteArray
+</span><span class="hs-identifier hs-var">getRandomBytes</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679193531"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- | Sign arbitrary bytes using a personal private key</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- &gt;&gt;&gt; key &lt;- generatePersonalKey</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- &gt;&gt;&gt; let msg = &quot;Hello, world!&quot;</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- &gt;&gt;&gt; signature &lt;- fromRight (error &quot;failed to sign&quot;) &lt;$&gt; signWithPersonalKey key msg</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- &gt;&gt;&gt; verifyWithPersonalKey (publicKey key) msg signature</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-102"></span><span id="local-6989586621679193245"><span class="annot"><a href="Unison.Auth.PersonalKey.html#signWithPersonalKey"><span class="hs-identifier hs-type">signWithPersonalKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679193245"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-type">PersonalPrivateKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679193245"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">JOSE.Error</span></span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalKeySignature"><span class="hs-identifier hs-type">PersonalKeySignature</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-103"></span><span id="signWithPersonalKey"><span class="annot"><span class="annottext">signWithPersonalKey :: forall (m :: * -&gt; *).
+MonadIO m =&gt;
+PersonalPrivateKey
+-&gt; ByteString -&gt; m (Either Error PersonalKeySignature)
+</span><a href="Unison.Auth.PersonalKey.html#signWithPersonalKey"><span class="hs-identifier hs-var hs-var">signWithPersonalKey</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPrivateKey"><span class="hs-identifier hs-type">PersonalPrivateKey</span></a></span><span> </span><span id="local-6989586621679193541"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193541"><span class="hs-identifier hs-var">jwk</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679193542"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679193542"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SignM PersonalKeySignature -&gt; m (Either Error PersonalKeySignature)
+forall (m :: * -&gt; *) a. MonadIO m =&gt; SignM a -&gt; m (Either Error a)
+</span><a href="Unison.Auth.PersonalKey.html#runSignM"><span class="hs-identifier hs-var">runSignM</span></a></span><span> </span><span class="annot"><span class="annottext">(SignM PersonalKeySignature
+ -&gt; m (Either Error PersonalKeySignature))
+-&gt; SignM PersonalKeySignature
+-&gt; m (Either Error PersonalKeySignature)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-104"></span><span>  </span><span class="annot"><span class="annottext">ByteString -&gt; PersonalKeySignature
+</span><a href="Unison.Auth.PersonalKey.html#PersonalKeySignature"><span class="hs-identifier hs-var">PersonalKeySignature</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; PersonalKeySignature)
+-&gt; SignM ByteString -&gt; SignM PersonalKeySignature
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) e.
+(MonadRandom m, MonadError e m, AsError e) =&gt;
+Alg -&gt; KeyMaterial -&gt; ByteString -&gt; m ByteString
+</span><span class="hs-identifier hs-var">JWA.sign</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="Unison.Auth.PersonalKey.html#SignM"><span class="hs-identifier hs-type">SignM</span></a></span><span> </span><span class="annot"><span class="annottext">Alg
+</span><span class="hs-identifier hs-var">JWS.EdDSA</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193541"><span class="hs-identifier hs-var">jwk</span></a></span><span> </span><span class="annot"><span class="annottext">JWK -&gt; Getting KeyMaterial JWK KeyMaterial -&gt; KeyMaterial
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting KeyMaterial JWK KeyMaterial
+Lens' JWK KeyMaterial
+</span><span class="hs-identifier hs-var">JWS.jwkMaterial</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679193542"><span class="hs-identifier hs-var">bytes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="annot"><span class="hs-comment">-- | Verify a signature made with a personal private key</span></span><span>
+</span><span id="line-107"></span><span id="local-6989586621679193254"><span class="annot"><a href="Unison.Auth.PersonalKey.html#verifyWithPersonalKey"><span class="hs-identifier hs-type">verifyWithPersonalKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679193254"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPublicKey"><span class="hs-identifier hs-type">PersonalPublicKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalKeySignature"><span class="hs-identifier hs-type">PersonalKeySignature</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679193254"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-108"></span><span id="verifyWithPersonalKey"><span class="annot"><span class="annottext">verifyWithPersonalKey :: forall (m :: * -&gt; *).
+MonadIO m =&gt;
+PersonalPublicKey -&gt; ByteString -&gt; PersonalKeySignature -&gt; m Bool
+</span><a href="Unison.Auth.PersonalKey.html#verifyWithPersonalKey"><span class="hs-identifier hs-var hs-var">verifyWithPersonalKey</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalPublicKey"><span class="hs-identifier hs-type">PersonalPublicKey</span></a></span><span> </span><span id="local-6989586621679193558"><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193558"><span class="hs-identifier hs-var">jwk</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679193559"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679193559"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Auth.PersonalKey.html#PersonalKeySignature"><span class="hs-identifier hs-type">PersonalKeySignature</span></a></span><span> </span><span id="local-6989586621679193560"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679193560"><span class="hs-keyword hs-var">signature</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall e (m :: * -&gt; *).
+(MonadError e m, AsError e) =&gt;
+Alg -&gt; KeyMaterial -&gt; ByteString -&gt; ByteString -&gt; m Bool
+</span><span class="hs-identifier hs-var">JWA.verify</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">JOSE.Error</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="Unison.Auth.PersonalKey.html#SignM"><span class="hs-identifier hs-type">SignM</span></a></span><span> </span><span class="annot"><span class="annottext">Alg
+</span><span class="hs-identifier hs-var">JWS.EdDSA</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JWK
+</span><a href="#local-6989586621679193558"><span class="hs-identifier hs-var">jwk</span></a></span><span> </span><span class="annot"><span class="annottext">JWK -&gt; Getting KeyMaterial JWK KeyMaterial -&gt; KeyMaterial
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting KeyMaterial JWK KeyMaterial
+Lens' JWK KeyMaterial
+</span><span class="hs-identifier hs-var">JWS.jwkMaterial</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679193559"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679193560"><span class="hs-keyword hs-var">signature</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><span class="annottext">SignM Bool
+-&gt; (SignM Bool -&gt; m (Either Error Bool)) -&gt; m (Either Error Bool)
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">SignM Bool -&gt; m (Either Error Bool)
+forall (m :: * -&gt; *) a. MonadIO m =&gt; SignM a -&gt; m (Either Error a)
+</span><a href="Unison.Auth.PersonalKey.html#runSignM"><span class="hs-identifier hs-var">runSignM</span></a></span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><span class="annottext">m (Either Error Bool) -&gt; (Either Error Bool -&gt; Bool) -&gt; m Bool
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Either Error Bool -&gt; Bool
+forall b a. b -&gt; Either a b -&gt; b
+</span><span class="hs-identifier hs-var">fromRight</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-112"></span></pre></body></html>

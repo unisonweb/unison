@@ -1,0 +1,99 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- process handshake message received</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.Process.html"><span class="hs-identifier">Network.TLS.Handshake.Process</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.Process.html#processHandshake12"><span class="hs-identifier">processHandshake12</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.Process.html#processHandshake13"><span class="hs-identifier">processHandshake13</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.Process.html#startHandshake"><span class="hs-identifier">startHandshake</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.MVar</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html"><span class="hs-identifier">Network.TLS.Context.Internal</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State.html"><span class="hs-identifier">Network.TLS.Handshake.State</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State13.html"><span class="hs-identifier">Network.TLS.Handshake.State13</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.IO.Encode.html"><span class="hs-identifier">Network.TLS.IO.Encode</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Imports.html"><span class="hs-identifier">Network.TLS.Imports</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Struct.html"><span class="hs-identifier">Network.TLS.Struct</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Struct13.html"><span class="hs-identifier">Network.TLS.Struct13</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="annot"><a href="Network.TLS.Handshake.Process.html#processHandshake12"><span class="hs-identifier hs-type">processHandshake12</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Struct.html#Handshake"><span class="hs-identifier hs-type">Handshake</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span id="processHandshake12"><span class="annot"><span class="annottext">processHandshake12 :: Context -&gt; Handshake -&gt; IO ()
+</span><a href="Network.TLS.Handshake.Process.html#processHandshake12"><span class="hs-identifier hs-var hs-var">processHandshake12</span></a></span></span><span> </span><span id="local-6989586621679252481"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679252481"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621679252482"><span class="annot"><span class="annottext">Handshake
+</span><a href="#local-6989586621679252482"><span class="hs-identifier hs-var">hs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handshake -&gt; Bool
+</span><a href="#local-6989586621679252484"><span class="hs-identifier hs-var">isHRR</span></a></span><span> </span><span class="annot"><span class="annottext">Handshake
+</span><a href="#local-6989586621679252482"><span class="hs-identifier hs-var">hs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; HandshakeM () -&gt; IO ()
+forall (m :: * -&gt; *) a. MonadIO m =&gt; Context -&gt; HandshakeM a -&gt; m a
+</span><a href="Network.TLS.Context.Internal.html#usingHState"><span class="hs-identifier hs-var">usingHState</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679252481"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">HandshakeM ()
+</span><a href="Network.TLS.Handshake.State13.html#wrapAsMessageHash13"><span class="hs-identifier hs-var">wrapAsMessageHash13</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><span class="annottext">IO ByteString -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO ByteString -&gt; IO ()) -&gt; IO ByteString -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; Handshake -&gt; IO ByteString
+</span><a href="Network.TLS.IO.Encode.html#updateHandshake12"><span class="hs-identifier hs-var">updateHandshake12</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679252481"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Handshake
+</span><a href="#local-6989586621679252482"><span class="hs-identifier hs-var">hs</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>    </span><span id="local-6989586621679252484"><span class="annot"><span class="annottext">isHRR :: Handshake -&gt; Bool
+</span><a href="#local-6989586621679252484"><span class="hs-identifier hs-var hs-var">isHRR</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Struct.html#ServerHello"><span class="hs-identifier hs-type">ServerHello</span></a></span><span> </span><span class="annot"><span class="annottext">Version
+</span><a href="Network.TLS.Types.Version.html#TLS12"><span class="hs-identifier hs-var">TLS12</span></a></span><span> </span><span id="local-6989586621679252491"><span class="annot"><span class="annottext">ServerRandom
+</span><a href="#local-6989586621679252491"><span class="hs-identifier hs-var">srand</span></a></span></span><span> </span><span class="annot"><span class="annottext">Session
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CipherId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CompressionID
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[ExtensionRaw]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ServerRandom -&gt; Bool
+</span><a href="Network.TLS.Struct.html#isHelloRetryRequest"><span class="hs-identifier hs-var">isHelloRetryRequest</span></a></span><span> </span><span class="annot"><span class="annottext">ServerRandom
+</span><a href="#local-6989586621679252491"><span class="hs-identifier hs-var">srand</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="#local-6989586621679252484"><span class="hs-identifier hs-var">isHRR</span></a></span><span> </span><span class="annot"><span class="annottext">Handshake
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="annot"><a href="Network.TLS.Handshake.Process.html#processHandshake13"><span class="hs-identifier hs-type">processHandshake13</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Struct13.html#Handshake13"><span class="hs-identifier hs-type">Handshake13</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span id="processHandshake13"><span class="annot"><span class="annottext">processHandshake13 :: Context -&gt; Handshake13 -&gt; IO ()
+</span><a href="Network.TLS.Handshake.Process.html#processHandshake13"><span class="hs-identifier hs-var hs-var">processHandshake13</span></a></span></span><span> </span><span id="local-6989586621679252493"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679252493"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO ByteString -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO ByteString -&gt; IO ())
+-&gt; (Handshake13 -&gt; IO ByteString) -&gt; Handshake13 -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; Handshake13 -&gt; IO ByteString
+</span><a href="Network.TLS.IO.Encode.html#updateHandshake13"><span class="hs-identifier hs-var">updateHandshake13</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679252493"><span class="hs-identifier hs-var">ctx</span></a></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- initialize a new Handshake context (initial handshake or renegotiations)</span><span>
+</span><span id="line-31"></span><span class="annot"><a href="Network.TLS.Handshake.Process.html#startHandshake"><span class="hs-identifier hs-type">startHandshake</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Version.html#Version"><span class="hs-identifier hs-type">Version</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Struct.html#ClientRandom"><span class="hs-identifier hs-type">ClientRandom</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span id="startHandshake"><span class="annot"><span class="annottext">startHandshake :: Context -&gt; Version -&gt; ClientRandom -&gt; IO ()
+</span><a href="Network.TLS.Handshake.Process.html#startHandshake"><span class="hs-identifier hs-var hs-var">startHandshake</span></a></span></span><span> </span><span id="local-6989586621679252496"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679252496"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621679252497"><span class="annot"><span class="annottext">Version
+</span><a href="#local-6989586621679252497"><span class="hs-identifier hs-var">ver</span></a></span></span><span> </span><span id="local-6989586621679252498"><span class="annot"><span class="annottext">ClientRandom
+</span><a href="#local-6989586621679252498"><span class="hs-identifier hs-var">crand</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679252499"><span class="annot"><span class="annottext">hs :: Maybe HandshakeState
+</span><a href="#local-6989586621679252499"><span class="hs-identifier hs-var hs-var">hs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HandshakeState -&gt; Maybe HandshakeState
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(HandshakeState -&gt; Maybe HandshakeState)
+-&gt; HandshakeState -&gt; Maybe HandshakeState
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Version -&gt; ClientRandom -&gt; HandshakeState
+</span><a href="Network.TLS.Handshake.State.html#newEmptyHandshake"><span class="hs-identifier hs-var">newEmptyHandshake</span></a></span><span> </span><span class="annot"><span class="annottext">Version
+</span><a href="#local-6989586621679252497"><span class="hs-identifier hs-var">ver</span></a></span><span> </span><span class="annot"><span class="annottext">ClientRandom
+</span><a href="#local-6989586621679252498"><span class="hs-identifier hs-var">crand</span></a></span><span>
+</span><span id="line-34"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">IO (Maybe HandshakeState) -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO (Maybe HandshakeState) -&gt; IO ())
+-&gt; IO (Maybe HandshakeState) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe HandshakeState)
+-&gt; Maybe HandshakeState -&gt; IO (Maybe HandshakeState)
+forall a. MVar a -&gt; a -&gt; IO a
+</span><span class="hs-identifier hs-var">swapMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; MVar (Maybe HandshakeState)
+</span><a href="Network.TLS.Context.Internal.html#ctxHandshakeState"><span class="hs-identifier hs-var">ctxHandshakeState</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679252496"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe HandshakeState
+</span><a href="#local-6989586621679252499"><span class="hs-identifier hs-var">hs</span></a></span><span>
+</span><span id="line-35"></span></pre></body></html>

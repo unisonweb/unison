@@ -1,0 +1,481 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskellQuotes #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Time.Orphans.html"><span class="hs-identifier">Data.Time.Orphans</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Orphans</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NFData</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Ix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ix</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Data</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Data</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock.TAI</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Format</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hashable</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Format</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">TimeLocale</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock.System</span></span><span class="hs-cpp">
+
+#if !MIN_VERSION_time(1,11,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Fixed</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Pico</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Text.Read</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Read</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Text.ParserCombinators.ReadP</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Text.ParserCombinators.ReadPrec</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,11,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Ix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ix</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Calendar.Month</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Calendar.Quarter</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Calendar.WeekDate</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !MIN_VERSION_time(1,15,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.Haskell.TH.Syntax</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TH</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Fixed</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Fixed</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Pico</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,9,0) &amp;&amp; !MIN_VERSION_time(1,11,0)
+</span><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Ord</span><span> </span><span class="hs-identifier">DayOfWeek</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,9,0) &amp;&amp; !MIN_VERSION_time(1,10,0)
+</span><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Data</span><span> </span><span class="hs-identifier">DayOfWeek</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,8,0) &amp;&amp; !MIN_VERSION_time(1,10,0)
+</span><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Data</span><span> </span><span class="hs-identifier">SystemTime</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,9,0) &amp;&amp; !MIN_VERSION_time(1,11,1)
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">NFData</span><span> </span><span class="hs-identifier">DayOfWeek</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-glyph">!</span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">NFData</span><span> </span><span class="hs-identifier">CalendarDiffTime</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CalendarDiffTime</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-identifier">y</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">seq</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-identifier">y</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">NFData</span><span> </span><span class="hs-identifier">CalendarDiffDays</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CalendarDiffDays</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-identifier">y</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">seq</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-identifier">y</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Ix</span><span> </span><span class="hs-identifier">DayOfWeek</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !MIN_VERSION_time(1,11,0)
+</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Read</span><span> </span><span class="hs-identifier">DiffTime</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-identifier">readPrec</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-70"></span><span>        </span><span class="hs-identifier">t</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">readPrec</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ReadPrec</span><span> </span><span class="hs-identifier">Pico</span><span>
+</span><span id="line-71"></span><span>        </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">lift</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">char</span><span> </span><span class="hs-char">'s'</span><span>
+</span><span id="line-72"></span><span>        </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">realToFrac</span><span> </span><span class="hs-identifier">t</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Read</span><span> </span><span class="hs-identifier">NominalDiffTime</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-identifier">readPrec</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-76"></span><span>        </span><span class="hs-identifier">t</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">readPrec</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ReadPrec</span><span> </span><span class="hs-identifier">Pico</span><span>
+</span><span id="line-77"></span><span>        </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">lift</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">char</span><span> </span><span class="hs-char">'s'</span><span>
+</span><span id="line-78"></span><span>        </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">realToFrac</span><span> </span><span class="hs-identifier">t</span><span class="hs-cpp">
+
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,11,0) &amp;&amp; !MIN_VERSION_time(1,11,1)
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">NFData</span><span> </span><span class="hs-identifier">Month</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">m</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-identifier">m</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Enum</span><span> </span><span class="hs-identifier">Month</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-identifier">succ</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">succ</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-identifier">pred</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">pred</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">toEnum</span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-identifier">enumFrom</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">enumFrom</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-identifier">enumFromThen</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">enumFromThen</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-identifier">enumFromTo</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">enumFromTo</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-identifier">enumFromThenTo</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">c</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-95"></span><span>        </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">enumFromThenTo</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-identifier">c</span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Ix</span><span> </span><span class="hs-identifier">Month</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-identifier">range</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">range</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-identifier">index</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">c</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">index</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">c</span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-identifier">inRange</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">c</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">inRange</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">c</span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-identifier">rangeSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">MkMonth</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">rangeSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">NFData</span><span> </span><span class="hs-identifier">QuarterOfYear</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-identifier">Q1</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-identifier">Q2</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-identifier">Q3</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-identifier">Q4</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">NFData</span><span> </span><span class="hs-identifier">Quarter</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">m</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">rnf</span><span> </span><span class="hs-identifier">m</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Enum</span><span> </span><span class="hs-identifier">Quarter</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-identifier">succ</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">succ</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-identifier">pred</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">pred</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-identifier">toEnum</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">toEnum</span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromEnum</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-identifier">enumFrom</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">enumFrom</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>    </span><span class="hs-identifier">enumFromThen</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">enumFromThen</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-identifier">enumFromTo</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">enumFromTo</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-identifier">enumFromThenTo</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">c</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-121"></span><span>        </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">enumFromThenTo</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-identifier">c</span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Ix</span><span> </span><span class="hs-identifier">Quarter</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-124"></span><span>    </span><span class="hs-identifier">range</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fmap</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">range</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-identifier">index</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">c</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">index</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">c</span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-identifier">inRange</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">c</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">inRange</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">c</span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-identifier">rangeSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">MkQuarter</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">rangeSize</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Ix</span><span> </span><span class="hs-identifier">QuarterOfYear</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- Lift &amp; Generic</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span class="hs-cpp">
+
+#if !MIN_VERSION_time(1,15,0)
+</span><span id="local-6989586621679070571"><span id="local-6989586621679070581"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LocalTime</span></span></span></span><span>
+</span><span id="line-138"></span><span id="local-6989586621679070591"><span id="local-6989586621679070605"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TimeZone</span></span></span></span><span>
+</span><span id="line-139"></span><span id="local-6989586621679070618"><span id="local-6989586621679070626"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ZonedTime</span></span></span></span><span class="hs-cpp">
+
+#if MIN_VERSION_time(1,9,2)
+</span><span id="local-6989586621679070635"><span id="local-6989586621679070645"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CalendarDiffTime</span></span></span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,11,0)
+</span><span id="local-6989586621679070654"><span id="local-6989586621679070660"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Quarter</span></span></span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-149"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TimeOfDay</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-150"></span><span>  </span><span id="local-6989586621679070676"><span class="annot"><span class="annottext">lift :: forall (m :: * -&gt; *). Quote m =&gt; TimeOfDay -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var">lift</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TimeOfDay</span></span><span> </span><span id="local-6989586621679070678"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070678"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679070679"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070679"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MkFixed</span></span><span> </span><span id="local-6989586621679070681"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070681"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TimeOfDay</span></span><span> </span><span class="annot"><a href="#local-6989586621679070678"><span class="hs-identifier hs-type">h</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070679"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MkFixed</span></span><span> </span><span class="annot"><a href="#local-6989586621679070681"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">|]</span><span class="hs-cpp">
+
+#if MIN_VERSION_template_haskell(2,16,0)
+</span><span>  </span><span id="local-6989586621679070687"><span class="annot"><span class="annottext">liftTyped :: forall (m :: * -&gt; *). Quote m =&gt; TimeOfDay -&gt; Code m TimeOfDay
+</span><span class="hs-identifier hs-var hs-var hs-var">liftTyped</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TimeOfDay</span></span><span> </span><span id="local-6989586621679070688"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070688"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679070689"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070689"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MkFixed</span></span><span> </span><span id="local-6989586621679070690"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070690"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[||</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Fixed E12 -&gt; TimeOfDay
+</span><span class="hs-identifier hs-var">TimeOfDay</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070688"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070689"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Fixed a
+forall k (a :: k). Integer -&gt; Fixed a
+</span><span class="hs-identifier hs-var">MkFixed</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070690"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">||]</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#if !MIN_VERSION_time(1,14,0)
+</span><span id="local-6989586621679070692"><span id="local-6989586621679070698"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Day</span></span></span></span><span>
+</span><span id="line-159"></span><span id="local-6989586621679070704"><span id="local-6989586621679070713"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span></span></span><span>
+</span><span id="line-160"></span><span id="local-6989586621679070722"><span id="local-6989586621679070730"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UniversalTime</span></span></span></span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span id="local-6989586621679070739"><span id="local-6989586621679070741"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Day</span></span></span></span><span>
+</span><span id="line-163"></span><span id="local-6989586621679070747"><span id="local-6989586621679070749"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LocalTime</span></span></span></span><span>
+</span><span id="line-164"></span><span id="local-6989586621679070752"><span id="local-6989586621679070754"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TimeOfDay</span></span></span></span><span>
+</span><span id="line-165"></span><span id="local-6989586621679070757"><span id="local-6989586621679070759"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TimeZone</span></span></span></span><span>
+</span><span id="line-166"></span><span id="local-6989586621679070762"><span id="local-6989586621679070764"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span></span></span><span>
+</span><span id="line-167"></span><span id="local-6989586621679070767"><span id="local-6989586621679070769"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UniversalTime</span></span></span></span><span>
+</span><span id="line-168"></span><span id="local-6989586621679070772"><span id="local-6989586621679070774"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ZonedTime</span></span></span></span><span class="hs-cpp">
+
+#if MIN_VERSION_time(1,9,0)
+</span><span id="local-6989586621679070777"><span id="local-6989586621679070787"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DayOfWeek</span></span></span></span><span>
+</span><span id="line-172"></span><span id="local-6989586621679070798"><span id="local-6989586621679070806"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CalendarDiffDays</span></span></span></span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span id="local-6989586621679070815"><span id="local-6989586621679070817"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CalendarDiffDays</span></span></span></span><span>
+</span><span id="line-175"></span><span id="local-6989586621679070820"><span id="local-6989586621679070822"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CalendarDiffTime</span></span></span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,11,0)
+</span><span id="local-6989586621679070825"><span id="local-6989586621679070827"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Quarter</span></span></span></span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span id="local-6989586621679070830"><span id="local-6989586621679070836"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Month</span></span></span></span><span>
+</span><span id="line-182"></span><span id="local-6989586621679070843"><span id="local-6989586621679070850"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">QuarterOfYear</span></span></span></span><span>
+</span><span id="line-183"></span><span id="local-6989586621679070858"><span id="local-6989586621679070863"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FirstWeekType</span></span></span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-186"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-187"></span><span>    </span><span id="local-6989586621679070874"><span class="annot"><span class="annottext">lift :: forall (m :: * -&gt; *). Quote m =&gt; DiffTime -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var">lift</span></span></span><span> </span><span id="local-6989586621679070875"><span class="annot"><span class="annottext">DiffTime
+</span><a href="#local-6989586621679070875"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">picosecondsToDiffTime</span></span><span> </span><span class="annot"><a href="#local-6989586621679070877"><span class="hs-identifier hs-type">x'</span></a></span><span> </span><span class="hs-special">|]</span><span>
+</span><span id="line-188"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-189"></span><span>        </span><span id="local-6989586621679070877"><span class="annot"><span class="annottext">x' :: Integer
+</span><a href="#local-6989586621679070877"><span class="hs-identifier hs-var hs-var">x'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DiffTime -&gt; Integer
+</span><span class="hs-identifier hs-var">diffTimeToPicoseconds</span></span><span> </span><span class="annot"><span class="annottext">DiffTime
+</span><a href="#local-6989586621679070875"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-cpp">
+
+#if MIN_VERSION_template_haskell(2,16,0)
+</span><span>    </span><span id="local-6989586621679070882"><span class="annot"><span class="annottext">liftTyped :: forall (m :: * -&gt; *). Quote m =&gt; DiffTime -&gt; Code m DiffTime
+</span><span class="hs-identifier hs-var hs-var hs-var">liftTyped</span></span></span><span> </span><span id="local-6989586621679070883"><span class="annot"><span class="annottext">DiffTime
+</span><a href="#local-6989586621679070883"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[||</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; DiffTime
+</span><span class="hs-identifier hs-var">picosecondsToDiffTime</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070884"><span class="hs-identifier hs-var">x'</span></a></span><span> </span><span class="hs-special">||]</span><span>
+</span><span id="line-193"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-194"></span><span>        </span><span id="local-6989586621679070884"><span class="annot"><span class="annottext">x' :: Integer
+</span><a href="#local-6989586621679070884"><span class="hs-identifier hs-var hs-var">x'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DiffTime -&gt; Integer
+</span><span class="hs-identifier hs-var">diffTimeToPicoseconds</span></span><span> </span><span class="annot"><span class="annottext">DiffTime
+</span><a href="#local-6989586621679070883"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,9,1)
+</span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TH.Lift</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NominalDiffTime</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-199"></span><span>    </span><span id="local-6989586621679070891"><span class="annot"><span class="annottext">lift :: forall (m :: * -&gt; *). Quote m =&gt; NominalDiffTime -&gt; m Exp
+</span><span class="hs-identifier hs-var hs-var hs-var">lift</span></span></span><span> </span><span id="local-6989586621679070892"><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621679070892"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">secondsToNominalDiffTime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MkFixed</span></span><span> </span><span class="annot"><a href="#local-6989586621679070894"><span class="hs-identifier hs-type">x'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pico</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">|]</span><span>
+</span><span id="line-200"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-201"></span><span>        </span><span id="local-6989586621679070894"><span class="annot"><span class="annottext">x' :: Integer
+</span><a href="#local-6989586621679070894"><span class="hs-identifier hs-var hs-var">x'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">NominalDiffTime -&gt; Fixed E12
+</span><span class="hs-identifier hs-var">nominalDiffTimeToSeconds</span></span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621679070892"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MkFixed</span></span><span> </span><span id="local-6989586621679070896"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070896"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070896"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-cpp">
+
+#if MIN_VERSION_template_haskell(2,16,0)
+</span><span>    </span><span id="local-6989586621679070900"><span class="annot"><span class="annottext">liftTyped :: forall (m :: * -&gt; *).
+Quote m =&gt;
+NominalDiffTime -&gt; Code m NominalDiffTime
+</span><span class="hs-identifier hs-var hs-var hs-var">liftTyped</span></span></span><span> </span><span id="local-6989586621679070901"><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621679070901"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[||</span><span> </span><span class="annot"><span class="annottext">Fixed E12 -&gt; NominalDiffTime
+</span><span class="hs-identifier hs-var">secondsToNominalDiffTime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Fixed a
+forall k (a :: k). Integer -&gt; Fixed a
+</span><span class="hs-identifier hs-var">MkFixed</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070902"><span class="hs-identifier hs-var">x'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pico</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">||]</span><span>
+</span><span id="line-205"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-206"></span><span>        </span><span id="local-6989586621679070902"><span class="annot"><span class="annottext">x' :: Integer
+</span><a href="#local-6989586621679070902"><span class="hs-identifier hs-var hs-var">x'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">NominalDiffTime -&gt; Fixed E12
+</span><span class="hs-identifier hs-var">nominalDiffTimeToSeconds</span></span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621679070901"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MkFixed</span></span><span> </span><span id="local-6989586621679070903"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070903"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070903"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#else
+</span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">TH.Lift</span><span> </span><span class="hs-identifier">NominalDiffTime</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-210"></span><span>    </span><span class="hs-identifier">lift</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[|</span><span> </span><span class="hs-identifier">realToFrac</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkFixed</span><span> </span><span class="hs-identifier">x'</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Pico</span><span class="hs-special">)</span><span> </span><span class="hs-special">|]</span><span>
+</span><span id="line-211"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-212"></span><span>        </span><span class="hs-identifier">x'</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">realToFrac</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Pico</span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-identifier">MkFixed</span><span> </span><span class="hs-identifier">y</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">y</span><span class="hs-cpp">
+
+#if MIN_VERSION_template_haskell(2,16,0)
+</span><span>    </span><span class="hs-identifier">liftTyped</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[||</span><span> </span><span class="hs-identifier">realToFrac</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">MkFixed</span><span> </span><span class="hs-identifier">x'</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Pico</span><span class="hs-special">)</span><span> </span><span class="hs-special">||]</span><span>
+</span><span id="line-216"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-217"></span><span>        </span><span class="hs-identifier">x'</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">realToFrac</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Pico</span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-identifier">MkFixed</span><span> </span><span class="hs-identifier">y</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">y</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- Hashable</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679070909"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UniversalTime</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-228"></span><span>    </span><span id="local-6989586621679070917"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; UniversalTime -&gt; Int
+</span><a href="#local-6989586621679070917"><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></a></span></span><span> </span><span id="local-6989586621679070919"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070919"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Rational -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">hashWithSalt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070919"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">(Rational -&gt; Int)
+-&gt; (UniversalTime -&gt; Rational) -&gt; UniversalTime -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">UniversalTime -&gt; Rational
+</span><span class="hs-identifier hs-var">getModJulianDate</span></span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679070927"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-231"></span><span>    </span><span id="local-6989586621679070934"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; DiffTime -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679070935"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070935"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Rational -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">hashWithSalt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070935"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">(Rational -&gt; Int) -&gt; (DiffTime -&gt; Rational) -&gt; DiffTime -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">DiffTime -&gt; Rational
+forall a. Real a =&gt; a -&gt; Rational
+</span><span class="hs-identifier hs-var">toRational</span></span><span>
+</span><span id="line-232"></span><span>
+</span><span id="line-233"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679070941"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-234"></span><span>    </span><span id="local-6989586621679070947"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; UTCTime -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679070948"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070948"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span> </span><span id="local-6989586621679070950"><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679070950"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621679070951"><span class="annot"><span class="annottext">DiffTime
+</span><a href="#local-6989586621679070951"><span class="hs-identifier hs-var">dt</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-235"></span><span>        </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070948"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Day -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679070950"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; DiffTime -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">DiffTime
+</span><a href="#local-6989586621679070951"><span class="hs-identifier hs-var">dt</span></a></span><span>
+</span><span id="line-236"></span><span>
+</span><span id="line-237"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679070957"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">NominalDiffTime</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-238"></span><span>    </span><span id="local-6989586621679070964"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; NominalDiffTime -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679070965"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070965"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Rational -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">hashWithSalt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070965"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">(Rational -&gt; Int)
+-&gt; (NominalDiffTime -&gt; Rational) -&gt; NominalDiffTime -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">NominalDiffTime -&gt; Rational
+forall a. Real a =&gt; a -&gt; Rational
+</span><span class="hs-identifier hs-var">toRational</span></span><span>
+</span><span id="line-239"></span><span>
+</span><span id="line-240"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679070971"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Day</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-241"></span><span>    </span><span id="local-6989586621679070974"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; Day -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679070975"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070975"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ModifiedJulianDay</span></span><span> </span><span id="local-6989586621679070977"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070977"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Integer -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">hashWithSalt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070975"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679070977"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679070983"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TimeZone</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-244"></span><span>    </span><span id="local-6989586621679070994"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; TimeZone -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679070995"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070995"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TimeZone</span></span><span> </span><span id="local-6989586621679070997"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070997"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679070998"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679070998"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679070999"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679070999"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-245"></span><span>        </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070995"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070997"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679070998"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679070999"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071005"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TimeOfDay</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-248"></span><span>    </span><span id="local-6989586621679071012"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; TimeOfDay -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679071013"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071013"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TimeOfDay</span></span><span> </span><span id="local-6989586621679071014"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071014"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679071015"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071015"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679071016"><span class="annot"><span class="annottext">Fixed E12
+</span><a href="#local-6989586621679071016"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-249"></span><span>        </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071013"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071014"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071015"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Fixed E12 -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">Fixed E12
+</span><a href="#local-6989586621679071016"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-250"></span><span>
+</span><span id="line-251"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071022"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LocalTime</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-252"></span><span>    </span><span id="local-6989586621679071027"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; LocalTime -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679071028"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071028"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LocalTime</span></span><span> </span><span id="local-6989586621679071030"><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679071030"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621679071031"><span class="annot"><span class="annottext">TimeOfDay
+</span><a href="#local-6989586621679071031"><span class="hs-identifier hs-var">tod</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-253"></span><span>        </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071028"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Day -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679071030"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; TimeOfDay -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">TimeOfDay
+</span><a href="#local-6989586621679071031"><span class="hs-identifier hs-var">tod</span></a></span><span>
+</span><span id="line-254"></span><span>
+</span><span id="line-255"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071037"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TimeLocale</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-256"></span><span>    </span><span id="local-6989586621679071051"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; TimeLocale -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679071052"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071052"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TimeLocale</span></span><span> </span><span id="local-6989586621679071054"><span class="annot"><span class="annottext">[(String, String)]
+</span><a href="#local-6989586621679071054"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679071055"><span class="annot"><span class="annottext">[(String, String)]
+</span><a href="#local-6989586621679071055"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679071056"><span class="annot"><span class="annottext">(String, String)
+</span><a href="#local-6989586621679071056"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679071057"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679071057"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621679071058"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679071058"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621679071059"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679071059"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679071060"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679071060"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679071061"><span class="annot"><span class="annottext">[TimeZone]
+</span><a href="#local-6989586621679071061"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-257"></span><span>      </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071052"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [(String, String)] -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">[(String, String)]
+</span><a href="#local-6989586621679071054"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-258"></span><span>           </span><span class="annot"><span class="annottext">Int -&gt; [(String, String)] -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">[(String, String)]
+</span><a href="#local-6989586621679071055"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-259"></span><span>           </span><span class="annot"><span class="annottext">Int -&gt; (String, String) -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">(String, String)
+</span><a href="#local-6989586621679071056"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-260"></span><span>           </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679071057"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-261"></span><span>           </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679071058"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-262"></span><span>           </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679071059"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-263"></span><span>           </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679071060"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-264"></span><span>           </span><span class="annot"><span class="annottext">Int -&gt; [TimeZone] -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-operator hs-var">`hashWithSalt`</span></span><span> </span><span class="annot"><span class="annottext">[TimeZone]
+</span><a href="#local-6989586621679071061"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-cpp">
+
+#if MIN_VERSION_time(1,9,0)
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071067"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DayOfWeek</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-268"></span><span>    </span><span id="local-6989586621679071073"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; DayOfWeek -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679071074"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071074"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">hashWithSalt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071074"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; (DayOfWeek -&gt; Int) -&gt; DayOfWeek -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">DayOfWeek -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_time(1,11,0)
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071081"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Month</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-273"></span><span>    </span><span id="local-6989586621679071085"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; Month -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679071086"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071086"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MkMonth</span></span><span> </span><span id="local-6989586621679071088"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679071088"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Integer -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">hashWithSalt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071086"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679071088"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-274"></span><span>
+</span><span id="line-275"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071094"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Quarter</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-276"></span><span>    </span><span id="local-6989586621679071098"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; Quarter -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679071099"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071099"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MkQuarter</span></span><span> </span><span id="local-6989586621679071101"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679071101"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Integer -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">hashWithSalt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071099"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679071101"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-277"></span><span>
+</span><span id="line-278"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071107"><span class="annot"><span class="hs-identifier hs-type">Hashable</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">QuarterOfYear</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-279"></span><span>    </span><span id="local-6989586621679071113"><span class="annot"><span class="annottext">hashWithSalt :: Int -&gt; QuarterOfYear -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var">hashWithSalt</span></span></span><span> </span><span id="local-6989586621679071114"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071114"><span class="hs-identifier hs-var">salt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Hashable a =&gt; Int -&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">hashWithSalt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071114"><span class="hs-identifier hs-var">salt</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; (QuarterOfYear -&gt; Int) -&gt; QuarterOfYear -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">QuarterOfYear -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

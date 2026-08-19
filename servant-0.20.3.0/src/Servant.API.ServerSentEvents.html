@@ -1,0 +1,71 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds     #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds     #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- | Server-sent events</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- See &lt;https://www.w3.org/TR/2009/WD-eventsource-20090421/&gt;.</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Servant.API.ServerSentEvents.html"><span class="hs-identifier">Servant.API.ServerSentEvents</span></a></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Servant.API.ServerSentEvents.html#ServerSentEvents%27"><span class="hs-identifier">ServerSentEvents'</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Servant.API.ServerSentEvents.html#ServerSentEvents"><span class="hs-identifier">ServerSentEvents</span></a></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Servant.API.ServerSentEvents.html#EventKind"><span class="hs-identifier">EventKind</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Kind</span></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Nat</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Network.HTTP.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">StdMethod</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">GET</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- | Determines the shape of events you may receive (i.e. the @a@ in</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- 'ServerSentEvents\'')</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">data</span><span> </span><span id="EventKind"><span class="annot"><a href="Servant.API.ServerSentEvents.html#EventKind"><span class="hs-identifier hs-var">EventKind</span></a></span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="RawEvent"><span class="annot"><a href="Servant.API.ServerSentEvents.html#RawEvent"><span class="hs-identifier hs-var">RawEvent</span></a></span></span><span>
+</span><span id="line-26"></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ 'EventMessage' or 'Event' 'ByteString'</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="JsonEvent"><span class="annot"><a href="Servant.API.ServerSentEvents.html#JsonEvent"><span class="hs-identifier hs-var">JsonEvent</span></a></span></span><span>
+</span><span id="line-28"></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ Anything that implements 'FromJSON'</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | Server-sent events (SSE)</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- See &lt;https://www.w3.org/TR/2009/WD-eventsource-20090421/&gt;.</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="ServerSentEvents%27"><span class="annot"><a href="Servant.API.ServerSentEvents.html#ServerSentEvents%27"><span class="hs-identifier hs-var">ServerSentEvents'</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679148639"><span class="annot"><a href="#local-6989586621679148639"><span class="hs-identifier hs-type">method</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679148640"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">status</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Nat</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">kind</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">EventKind</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679148642"><span id="local-6989586621679148644"><span class="annot"><span class="annottext">(forall x.
+ ServerSentEvents' method status kind a
+ -&gt; Rep (ServerSentEvents' method status kind a) x)
+-&gt; (forall x.
+    Rep (ServerSentEvents' method status kind a) x
+    -&gt; ServerSentEvents' method status kind a)
+-&gt; Generic (ServerSentEvents' method status kind a)
+forall x.
+Rep (ServerSentEvents' method status kind a) x
+-&gt; ServerSentEvents' method status kind a
+forall x.
+ServerSentEvents' method status kind a
+-&gt; Rep (ServerSentEvents' method status kind a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall k (method :: k) (status :: Nat) (kind :: EventKind) a x.
+Rep (ServerSentEvents' method status kind a) x
+-&gt; ServerSentEvents' method status kind a
+forall k (method :: k) (status :: Nat) (kind :: EventKind) a x.
+ServerSentEvents' method status kind a
+-&gt; Rep (ServerSentEvents' method status kind a) x
+$cfrom :: forall k (method :: k) (status :: Nat) (kind :: EventKind) a x.
+ServerSentEvents' method status kind a
+-&gt; Rep (ServerSentEvents' method status kind a) x
+from :: forall x.
+ServerSentEvents' method status kind a
+-&gt; Rep (ServerSentEvents' method status kind a) x
+$cto :: forall k (method :: k) (status :: Nat) (kind :: EventKind) a x.
+Rep (ServerSentEvents' method status kind a) x
+-&gt; ServerSentEvents' method status kind a
+to :: forall x.
+Rep (ServerSentEvents' method status kind a) x
+-&gt; ServerSentEvents' method status kind a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">type</span><span> </span><span id="ServerSentEvents"><span class="annot"><a href="Servant.API.ServerSentEvents.html#ServerSentEvents"><span class="hs-identifier hs-var">ServerSentEvents</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Servant.API.ServerSentEvents.html#ServerSentEvents%27"><span class="hs-identifier hs-type">ServerSentEvents'</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><span class="hs-identifier hs-type">GET</span></span><span> </span><span class="annot"><span class="hs-number">200</span></span><span>
+</span><span id="line-38"></span></pre></body></html>

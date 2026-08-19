@@ -1,0 +1,57 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Ki.Internal.ThreadAffinity.html"><span class="hs-identifier">Ki.Internal.ThreadAffinity</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Ki.Internal.ThreadAffinity.html#ThreadAffinity"><span class="hs-identifier">ThreadAffinity</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Ki.Internal.ThreadAffinity.html#forkWithAffinity"><span class="hs-identifier">forkWithAffinity</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ThreadId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">forkOS</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Ki.Internal.IO.html"><span class="hs-identifier">Ki.Internal.IO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Ki.Internal.IO.html#forkIO"><span class="hs-identifier">forkIO</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Ki.Internal.IO.html#forkOn"><span class="hs-identifier">forkOn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="annot"><span class="hs-comment">-- | What, if anything, a thread is bound to.</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">data</span><span> </span><span id="ThreadAffinity"><span class="annot"><a href="Ki.Internal.ThreadAffinity.html#ThreadAffinity"><span class="hs-identifier hs-var">ThreadAffinity</span></a></span></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | Unbound.</span></span><span>
+</span><span id="line-13"></span><span>    </span><span id="Unbound"><span class="annot"><a href="Ki.Internal.ThreadAffinity.html#Unbound"><span class="hs-identifier hs-var">Unbound</span></a></span></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Bound to a capability.</span></span><span>
+</span><span id="line-15"></span><span>    </span><span id="Capability"><span class="annot"><a href="Ki.Internal.ThreadAffinity.html#Capability"><span class="hs-identifier hs-var">Capability</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Bound to an OS thread.</span></span><span>
+</span><span id="line-17"></span><span>    </span><span id="OsThread"><span class="annot"><a href="Ki.Internal.ThreadAffinity.html#OsThread"><span class="hs-identifier hs-var">OsThread</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679053218"><span id="local-6989586621679053225"><span class="annot"><span class="annottext">ThreadAffinity -&gt; ThreadAffinity -&gt; Bool
+(ThreadAffinity -&gt; ThreadAffinity -&gt; Bool)
+-&gt; (ThreadAffinity -&gt; ThreadAffinity -&gt; Bool) -&gt; Eq ThreadAffinity
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ThreadAffinity -&gt; ThreadAffinity -&gt; Bool
+== :: ThreadAffinity -&gt; ThreadAffinity -&gt; Bool
+$c/= :: ThreadAffinity -&gt; ThreadAffinity -&gt; Bool
+/= :: ThreadAffinity -&gt; ThreadAffinity -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679053230"><span id="local-6989586621679053236"><span id="local-6989586621679053240"><span class="annot"><span class="annottext">Int -&gt; ThreadAffinity -&gt; ShowS
+[ThreadAffinity] -&gt; ShowS
+ThreadAffinity -&gt; String
+(Int -&gt; ThreadAffinity -&gt; ShowS)
+-&gt; (ThreadAffinity -&gt; String)
+-&gt; ([ThreadAffinity] -&gt; ShowS)
+-&gt; Show ThreadAffinity
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ThreadAffinity -&gt; ShowS
+showsPrec :: Int -&gt; ThreadAffinity -&gt; ShowS
+$cshow :: ThreadAffinity -&gt; String
+show :: ThreadAffinity -&gt; String
+$cshowList :: [ThreadAffinity] -&gt; ShowS
+showList :: [ThreadAffinity] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- forkIO/forkOn/forkOS, switching on affinity</span><span>
+</span><span id="line-21"></span><span class="annot"><a href="Ki.Internal.ThreadAffinity.html#forkWithAffinity"><span class="hs-identifier hs-type">forkWithAffinity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Ki.Internal.ThreadAffinity.html#ThreadAffinity"><span class="hs-identifier hs-type">ThreadAffinity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ThreadId</span></span><span>
+</span><span id="line-22"></span><span id="forkWithAffinity"><span class="annot"><span class="annottext">forkWithAffinity :: ThreadAffinity -&gt; IO () -&gt; IO ThreadId
+</span><a href="Ki.Internal.ThreadAffinity.html#forkWithAffinity"><span class="hs-identifier hs-var hs-var">forkWithAffinity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-23"></span><span>  </span><span class="annot"><span class="annottext">ThreadAffinity
+</span><a href="Ki.Internal.ThreadAffinity.html#Unbound"><span class="hs-identifier hs-var">Unbound</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ThreadId
+</span><a href="Ki.Internal.IO.html#forkIO"><span class="hs-identifier hs-var">forkIO</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><a href="Ki.Internal.ThreadAffinity.html#Capability"><span class="hs-identifier hs-type">Capability</span></a></span><span> </span><span id="local-6989586621679053244"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053244"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO () -&gt; IO ThreadId
+</span><a href="Ki.Internal.IO.html#forkOn"><span class="hs-identifier hs-var">forkOn</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679053244"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><span class="annottext">ThreadAffinity
+</span><a href="Ki.Internal.ThreadAffinity.html#OsThread"><span class="hs-identifier hs-var">OsThread</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ThreadId
+</span><span class="hs-identifier hs-var">forkOS</span></span><span>
+</span><span id="line-26"></span></pre></body></html>

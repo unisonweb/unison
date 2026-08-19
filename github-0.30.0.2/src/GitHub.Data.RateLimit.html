@@ -1,0 +1,287 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html"><span class="hs-identifier">GitHub.Data.RateLimit</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock.System</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SystemTime</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Char8</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS8</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Client</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HTTP</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">data</span><span> </span><span id="Limits"><span class="annot"><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-var">Limits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Limits"><span class="annot"><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-var">Limits</span></a></span></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="limitsMax"><span class="annot"><span class="annottext">Limits -&gt; Int
+</span><a href="GitHub.Data.RateLimit.html#limitsMax"><span class="hs-identifier hs-var hs-var">limitsMax</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="limitsRemaining"><span class="annot"><span class="annottext">Limits -&gt; Int
+</span><a href="GitHub.Data.RateLimit.html#limitsRemaining"><span class="hs-identifier hs-var hs-var">limitsRemaining</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="limitsReset"><span class="annot"><span class="annottext">Limits -&gt; SystemTime
+</span><a href="GitHub.Data.RateLimit.html#limitsReset"><span class="hs-identifier hs-var hs-var">limitsReset</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">SystemTime</span></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679463645"><span id="local-6989586621679463654"><span id="local-6989586621679463658"><span class="annot"><span class="annottext">Int -&gt; Limits -&gt; ShowS
+[Limits] -&gt; ShowS
+Limits -&gt; String
+(Int -&gt; Limits -&gt; ShowS)
+-&gt; (Limits -&gt; String) -&gt; ([Limits] -&gt; ShowS) -&gt; Show Limits
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Limits -&gt; ShowS
+showsPrec :: Int -&gt; Limits -&gt; ShowS
+$cshow :: Limits -&gt; String
+show :: Limits -&gt; String
+$cshowList :: [Limits] -&gt; ShowS
+showList :: [Limits] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679463663"><span id="local-6989586621679463670"><span class="annot"><span class="annottext">Limits -&gt; Limits -&gt; Bool
+(Limits -&gt; Limits -&gt; Bool)
+-&gt; (Limits -&gt; Limits -&gt; Bool) -&gt; Eq Limits
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Limits -&gt; Limits -&gt; Bool
+== :: Limits -&gt; Limits -&gt; Bool
+$c/= :: Limits -&gt; Limits -&gt; Bool
+/= :: Limits -&gt; Limits -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679463677"><span id="local-6989586621679463683"><span id="local-6989586621679463688"><span id="local-6989586621679463692"><span id="local-6989586621679463695"><span id="local-6989586621679463698"><span id="local-6989586621679463701"><span class="annot"><span class="annottext">Eq Limits
+Eq Limits =&gt;
+(Limits -&gt; Limits -&gt; Ordering)
+-&gt; (Limits -&gt; Limits -&gt; Bool)
+-&gt; (Limits -&gt; Limits -&gt; Bool)
+-&gt; (Limits -&gt; Limits -&gt; Bool)
+-&gt; (Limits -&gt; Limits -&gt; Bool)
+-&gt; (Limits -&gt; Limits -&gt; Limits)
+-&gt; (Limits -&gt; Limits -&gt; Limits)
+-&gt; Ord Limits
+Limits -&gt; Limits -&gt; Bool
+Limits -&gt; Limits -&gt; Ordering
+Limits -&gt; Limits -&gt; Limits
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Limits -&gt; Limits -&gt; Ordering
+compare :: Limits -&gt; Limits -&gt; Ordering
+$c&lt; :: Limits -&gt; Limits -&gt; Bool
+&lt; :: Limits -&gt; Limits -&gt; Bool
+$c&lt;= :: Limits -&gt; Limits -&gt; Bool
+&lt;= :: Limits -&gt; Limits -&gt; Bool
+$c&gt; :: Limits -&gt; Limits -&gt; Bool
+&gt; :: Limits -&gt; Limits -&gt; Bool
+$c&gt;= :: Limits -&gt; Limits -&gt; Bool
+&gt;= :: Limits -&gt; Limits -&gt; Bool
+$cmax :: Limits -&gt; Limits -&gt; Limits
+max :: Limits -&gt; Limits -&gt; Limits
+$cmin :: Limits -&gt; Limits -&gt; Limits
+min :: Limits -&gt; Limits -&gt; Limits
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679463709"><span id="local-6989586621679463711"><span class="annot"><span class="annottext">(forall x. Limits -&gt; Rep Limits x)
+-&gt; (forall x. Rep Limits x -&gt; Limits) -&gt; Generic Limits
+forall x. Rep Limits x -&gt; Limits
+forall x. Limits -&gt; Rep Limits x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Limits -&gt; Rep Limits x
+from :: forall x. Limits -&gt; Rep Limits x
+$cto :: forall x. Rep Limits x -&gt; Limits
+to :: forall x. Rep Limits x -&gt; Limits
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679463717"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-type">Limits</span></a></span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679463740"><span id="local-6989586621679463747"><span id="local-6989586621679463753"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-type">Limits</span></a></span></span></span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679463786"><span id="local-6989586621679463790"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-type">Limits</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>    </span><span id="local-6989586621679463810"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Limits
+</span><a href="#local-6989586621679463810"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Limits) -&gt; Value -&gt; Parser Limits
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Limits&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Limits) -&gt; Value -&gt; Parser Limits)
+-&gt; (Object -&gt; Parser Limits) -&gt; Value -&gt; Parser Limits
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679463813"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679463813"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; SystemTime -&gt; Limits
+</span><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-var">Limits</span></a></span><span>
+</span><span id="line-23"></span><span>        </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; SystemTime -&gt; Limits)
+-&gt; Parser Int -&gt; Parser (Int -&gt; SystemTime -&gt; Limits)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679463813"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;limit&quot;</span></span><span>
+</span><span id="line-24"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; SystemTime -&gt; Limits)
+-&gt; Parser Int -&gt; Parser (SystemTime -&gt; Limits)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679463813"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;remaining&quot;</span></span><span>
+</span><span id="line-25"></span><span>        </span><span class="annot"><span class="annottext">Parser (SystemTime -&gt; Limits) -&gt; Parser SystemTime -&gt; Parser Limits
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Int64 -&gt; SystemTime) -&gt; Parser Int64 -&gt; Parser SystemTime
+forall a b. (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679463816"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679463816"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Word32 -&gt; SystemTime
+</span><span class="hs-identifier hs-var">MkSystemTime</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679463816"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679463813"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int64
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;reset&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="RateLimit"><span class="annot"><a href="GitHub.Data.RateLimit.html#RateLimit"><span class="hs-identifier hs-var">RateLimit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RateLimit"><span class="annot"><a href="GitHub.Data.RateLimit.html#RateLimit"><span class="hs-identifier hs-var">RateLimit</span></a></span></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="rateLimitCore"><span class="annot"><span class="annottext">RateLimit -&gt; Limits
+</span><a href="GitHub.Data.RateLimit.html#rateLimitCore"><span class="hs-identifier hs-var hs-var">rateLimitCore</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-type">Limits</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="rateLimitSearch"><span class="annot"><span class="annottext">RateLimit -&gt; Limits
+</span><a href="GitHub.Data.RateLimit.html#rateLimitSearch"><span class="hs-identifier hs-var hs-var">rateLimitSearch</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-type">Limits</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="rateLimitGraphQL"><span class="annot"><span class="annottext">RateLimit -&gt; Limits
+</span><a href="GitHub.Data.RateLimit.html#rateLimitGraphQL"><span class="hs-identifier hs-var hs-var">rateLimitGraphQL</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-type">Limits</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679463823"><span id="local-6989586621679463829"><span id="local-6989586621679463833"><span class="annot"><span class="annottext">Int -&gt; RateLimit -&gt; ShowS
+[RateLimit] -&gt; ShowS
+RateLimit -&gt; String
+(Int -&gt; RateLimit -&gt; ShowS)
+-&gt; (RateLimit -&gt; String)
+-&gt; ([RateLimit] -&gt; ShowS)
+-&gt; Show RateLimit
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; RateLimit -&gt; ShowS
+showsPrec :: Int -&gt; RateLimit -&gt; ShowS
+$cshow :: RateLimit -&gt; String
+show :: RateLimit -&gt; String
+$cshowList :: [RateLimit] -&gt; ShowS
+showList :: [RateLimit] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679463836"><span id="local-6989586621679463841"><span class="annot"><span class="annottext">RateLimit -&gt; RateLimit -&gt; Bool
+(RateLimit -&gt; RateLimit -&gt; Bool)
+-&gt; (RateLimit -&gt; RateLimit -&gt; Bool) -&gt; Eq RateLimit
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: RateLimit -&gt; RateLimit -&gt; Bool
+== :: RateLimit -&gt; RateLimit -&gt; Bool
+$c/= :: RateLimit -&gt; RateLimit -&gt; Bool
+/= :: RateLimit -&gt; RateLimit -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679463847"><span id="local-6989586621679463852"><span id="local-6989586621679463857"><span id="local-6989586621679463861"><span id="local-6989586621679463864"><span id="local-6989586621679463867"><span id="local-6989586621679463870"><span class="annot"><span class="annottext">Eq RateLimit
+Eq RateLimit =&gt;
+(RateLimit -&gt; RateLimit -&gt; Ordering)
+-&gt; (RateLimit -&gt; RateLimit -&gt; Bool)
+-&gt; (RateLimit -&gt; RateLimit -&gt; Bool)
+-&gt; (RateLimit -&gt; RateLimit -&gt; Bool)
+-&gt; (RateLimit -&gt; RateLimit -&gt; Bool)
+-&gt; (RateLimit -&gt; RateLimit -&gt; RateLimit)
+-&gt; (RateLimit -&gt; RateLimit -&gt; RateLimit)
+-&gt; Ord RateLimit
+RateLimit -&gt; RateLimit -&gt; Bool
+RateLimit -&gt; RateLimit -&gt; Ordering
+RateLimit -&gt; RateLimit -&gt; RateLimit
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: RateLimit -&gt; RateLimit -&gt; Ordering
+compare :: RateLimit -&gt; RateLimit -&gt; Ordering
+$c&lt; :: RateLimit -&gt; RateLimit -&gt; Bool
+&lt; :: RateLimit -&gt; RateLimit -&gt; Bool
+$c&lt;= :: RateLimit -&gt; RateLimit -&gt; Bool
+&lt;= :: RateLimit -&gt; RateLimit -&gt; Bool
+$c&gt; :: RateLimit -&gt; RateLimit -&gt; Bool
+&gt; :: RateLimit -&gt; RateLimit -&gt; Bool
+$c&gt;= :: RateLimit -&gt; RateLimit -&gt; Bool
+&gt;= :: RateLimit -&gt; RateLimit -&gt; Bool
+$cmax :: RateLimit -&gt; RateLimit -&gt; RateLimit
+max :: RateLimit -&gt; RateLimit -&gt; RateLimit
+$cmin :: RateLimit -&gt; RateLimit -&gt; RateLimit
+min :: RateLimit -&gt; RateLimit -&gt; RateLimit
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679463873"><span id="local-6989586621679463875"><span class="annot"><span class="annottext">(forall x. RateLimit -&gt; Rep RateLimit x)
+-&gt; (forall x. Rep RateLimit x -&gt; RateLimit) -&gt; Generic RateLimit
+forall x. Rep RateLimit x -&gt; RateLimit
+forall x. RateLimit -&gt; Rep RateLimit x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. RateLimit -&gt; Rep RateLimit x
+from :: forall x. RateLimit -&gt; Rep RateLimit x
+$cto :: forall x. Rep RateLimit x -&gt; RateLimit
+to :: forall x. Rep RateLimit x -&gt; RateLimit
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679463878"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#RateLimit"><span class="hs-identifier hs-type">RateLimit</span></a></span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679463893"><span id="local-6989586621679463900"><span id="local-6989586621679463906"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#RateLimit"><span class="hs-identifier hs-type">RateLimit</span></a></span></span></span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679463926"><span id="local-6989586621679463930"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#RateLimit"><span class="hs-identifier hs-type">RateLimit</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621679463948"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser RateLimit
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser RateLimit) -&gt; Value -&gt; Parser RateLimit
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RateLimit&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser RateLimit) -&gt; Value -&gt; Parser RateLimit)
+-&gt; (Object -&gt; Parser RateLimit) -&gt; Value -&gt; Parser RateLimit
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679463949"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679463949"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-39"></span><span>        </span><span id="local-6989586621679463950"><span class="annot"><a href="#local-6989586621679463950"><span class="hs-identifier hs-var">resources</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679463949"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Object
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;resources&quot;</span></span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><a href="GitHub.Data.RateLimit.html#RateLimit"><span class="hs-identifier hs-type">RateLimit</span></a></span><span>
+</span><span id="line-41"></span><span>            </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621679463950"><span class="hs-identifier hs-type">resources</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.:</span></span><span> </span><span class="annot"><span class="hs-string">&quot;core&quot;</span></span><span>
+</span><span id="line-42"></span><span>            </span><span class="annot"><span class="hs-operator hs-type">&lt;*&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621679463950"><span class="hs-identifier hs-type">resources</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.:</span></span><span> </span><span class="annot"><span class="hs-string">&quot;search&quot;</span></span><span>
+</span><span id="line-43"></span><span>            </span><span class="annot"><span class="hs-operator hs-type">&lt;*&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621679463950"><span class="hs-identifier hs-type">resources</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.:</span></span><span> </span><span class="annot"><span class="hs-string">&quot;graphql&quot;</span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- Extras</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><span class="hs-comment">-- | @since 0.24</span></span><span>
+</span><span id="line-50"></span><span id="local-6989586621679463618"><span class="annot"><a href="GitHub.Data.RateLimit.html#limitsFromHttpResponse"><span class="hs-identifier hs-type">limitsFromHttpResponse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HTTP.Response</span></span><span> </span><span class="annot"><a href="#local-6989586621679463618"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-type">Limits</span></a></span></span><span>
+</span><span id="line-51"></span><span id="limitsFromHttpResponse"><span class="annot"><span class="annottext">limitsFromHttpResponse :: forall a. Response a -&gt; Maybe Limits
+</span><a href="GitHub.Data.RateLimit.html#limitsFromHttpResponse"><span class="hs-identifier hs-var hs-var">limitsFromHttpResponse</span></a></span></span><span> </span><span id="local-6989586621679463980"><span class="annot"><span class="annottext">Response a
+</span><a href="#local-6989586621679463980"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679463981"><span class="annot"><span class="annottext">hdrs :: ResponseHeaders
+</span><a href="#local-6989586621679463981"><span class="hs-identifier hs-var hs-var hs-var">hdrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Response a -&gt; ResponseHeaders
+forall body. Response body -&gt; ResponseHeaders
+</span><span class="hs-identifier hs-var">HTTP.responseHeaders</span></span><span> </span><span class="annot"><span class="annottext">Response a
+</span><a href="#local-6989586621679463980"><span class="hs-identifier hs-var">res</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679463983"><span class="annot"><a href="#local-6989586621679463983"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HeaderName -&gt; ResponseHeaders -&gt; Maybe ByteString
+forall a b. Eq a =&gt; a -&gt; [(a, b)] -&gt; Maybe b
+</span><span class="hs-identifier hs-var">lookup</span></span><span> </span><span class="annot"><span class="annottext">HeaderName
+</span><span class="hs-string">&quot;X-RateLimit-Limit&quot;</span></span><span>     </span><span class="annot"><span class="annottext">ResponseHeaders
+</span><a href="#local-6989586621679463981"><span class="hs-identifier hs-var">hdrs</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString -&gt; (ByteString -&gt; Maybe Int) -&gt; Maybe Int
+forall a b. Maybe a -&gt; (a -&gt; Maybe b) -&gt; Maybe b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe Int
+forall a. Num a =&gt; ByteString -&gt; Maybe a
+</span><a href="#local-6989586621679463985"><span class="hs-identifier hs-var">readIntegral</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span id="local-6989586621679463986"><span class="annot"><a href="#local-6989586621679463986"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">lookup</span></span><span> </span><span class="annot"><span class="hs-string">&quot;X-RateLimit-Remaining&quot;</span></span><span> </span><span class="annot"><a href="#local-6989586621679463981"><span class="hs-identifier hs-type">hdrs</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="annot"><a href="#local-6989586621679463985"><span class="hs-identifier hs-type">readIntegral</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679463987"><span class="annot"><a href="#local-6989586621679463987"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">lookup</span></span><span> </span><span class="annot"><span class="hs-string">&quot;X-RateLimit-Reset&quot;</span></span><span>     </span><span class="annot"><a href="#local-6989586621679463981"><span class="hs-identifier hs-type">hdrs</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="annot"><a href="#local-6989586621679463985"><span class="hs-identifier hs-type">readIntegral</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.RateLimit.html#Limits"><span class="hs-identifier hs-type">Limits</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679463983"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679463986"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MkSystemTime</span></span><span> </span><span class="annot"><a href="#local-6989586621679463987"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679463634"><span class="annot"><a href="#local-6989586621679463985"><span class="hs-identifier hs-type">readIntegral</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679463634"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS8.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679463634"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679463985"><span class="annot"><span class="annottext">readIntegral :: forall a. Num a =&gt; ByteString -&gt; Maybe a
+</span><a href="#local-6989586621679463985"><span class="hs-identifier hs-var hs-var">readIntegral</span></a></span></span><span> </span><span id="local-6989586621679463992"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679463992"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Int, ByteString)
+</span><span class="hs-identifier hs-var">BS8.readInt</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679463992"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679463994"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679463994"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679463995"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679463995"><span class="hs-identifier hs-var">bs'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">BS8.null</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679463995"><span class="hs-identifier hs-var">bs'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; a
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679463994"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="annottext">Maybe (Int, ByteString)
+</span><span class="hs-identifier">_</span></span><span>                            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-62"></span></pre></body></html>

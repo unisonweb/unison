@@ -1,0 +1,197 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html"><span class="hs-identifier">GitHub.Endpoints.Actions.Workflows</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-2"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#repositoryWorkflowsR"><span class="hs-identifier">repositoryWorkflowsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#workflowR"><span class="hs-identifier">workflowR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#disableWorkflowR"><span class="hs-identifier">disableWorkflowR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#triggerWorkflowR"><span class="hs-identifier">triggerWorkflowR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#enableWorkflowR"><span class="hs-identifier">enableWorkflowR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- | List repository workflows.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- See &lt;https://docs.github.com/en/rest/actions/workflows#list-repository-workflows&gt;</span><span>
+</span><span id="line-16"></span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#repositoryWorkflowsR"><span class="hs-identifier hs-type">repositoryWorkflowsR</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtJSON"><span class="hs-identifier hs-type">MtJSON</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier hs-type">WithTotalCount</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#Workflow"><span class="hs-identifier hs-type">Workflow</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span id="repositoryWorkflowsR"><span class="annot"><span class="annottext">repositoryWorkflowsR :: Name Owner
+-&gt; Name Repo
+-&gt; FetchCount
+-&gt; GenRequest 'MtJSON 'RA (WithTotalCount Workflow)
+</span><a href="GitHub.Endpoints.Actions.Workflows.html#repositoryWorkflowsR"><span class="hs-identifier hs-var hs-var">repositoryWorkflowsR</span></a></span></span><span> </span><span id="local-6989586621679581984"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679581984"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679581985"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679581985"><span class="hs-identifier hs-var">repo</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString
+-&gt; FetchCount
+-&gt; GenRequest 'MtJSON 'RA (WithTotalCount Workflow)
+forall a (t :: * -&gt; *) b (mt :: MediaType (*)) (rw :: RW).
+(a ~ t b, Foldable t, Semigroup a) =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; GenRequest mt rw a
+</span><a href="GitHub.Data.Request.html#PagedQuery"><span class="hs-identifier hs-var">PagedQuery</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679581984"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679581985"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;actions&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;workflows&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | Get a workflow.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- See &lt;https://docs.github.com/en/rest/actions/workflows#get-a-workflow&gt;</span><span>
+</span><span id="line-27"></span><span id="local-6989586621679581946"><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#workflowR"><span class="hs-identifier hs-type">workflowR</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Request.html#IsPathPart"><span class="hs-identifier hs-type">IsPathPart</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679581946"><span class="hs-identifier hs-type">idOrName</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679581946"><span class="hs-identifier hs-type">idOrName</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtJSON"><span class="hs-identifier hs-type">MtJSON</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span>  </span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#Workflow"><span class="hs-identifier hs-type">Workflow</span></a></span></span><span>
+</span><span id="line-32"></span><span id="workflowR"><span class="annot"><span class="annottext">workflowR :: forall idOrName.
+IsPathPart idOrName =&gt;
+Name Owner
+-&gt; Name Repo -&gt; idOrName -&gt; GenRequest 'MtJSON 'RA Workflow
+</span><a href="GitHub.Endpoints.Actions.Workflows.html#workflowR"><span class="hs-identifier hs-var hs-var">workflowR</span></a></span></span><span> </span><span id="local-6989586621679581995"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679581995"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679581996"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679581996"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679581997"><span class="annot"><span class="annottext">idOrName
+</span><a href="#local-6989586621679581997"><span class="hs-identifier hs-var">idOrName</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; GenRequest 'MtJSON 'RA Workflow
+forall (mt :: MediaType (*)) (rw :: RW) a.
+Paths -&gt; QueryString -&gt; GenRequest mt rw a
+</span><a href="GitHub.Data.Request.html#Query"><span class="hs-identifier hs-var">Query</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679581995"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679581996"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;actions&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;workflows&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">idOrName -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">idOrName
+</span><a href="#local-6989586621679581997"><span class="hs-identifier hs-var">idOrName</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Disable a workflow.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- See &lt;https://docs.github.com/en/rest/actions/workflows#disable-a-workflow&gt;</span><span>
+</span><span id="line-38"></span><span id="local-6989586621679581948"><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#disableWorkflowR"><span class="hs-identifier hs-type">disableWorkflowR</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Request.html#IsPathPart"><span class="hs-identifier hs-type">IsPathPart</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679581948"><span class="hs-identifier hs-type">idOrName</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679581948"><span class="hs-identifier hs-type">idOrName</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span>  </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-43"></span><span id="disableWorkflowR"><span class="annot"><span class="annottext">disableWorkflowR :: forall idOrName.
+IsPathPart idOrName =&gt;
+Name Owner -&gt; Name Repo -&gt; idOrName -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Actions.Workflows.html#disableWorkflowR"><span class="hs-identifier hs-var hs-var">disableWorkflowR</span></a></span></span><span> </span><span id="local-6989586621679582009"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679582009"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679582010"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679582010"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679582011"><span class="annot"><span class="annottext">idOrName
+</span><a href="#local-6989586621679582011"><span class="hs-identifier hs-var">idOrName</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Put"><span class="hs-identifier hs-var">Put</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679582009"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679582010"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;actions&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;workflows&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">idOrName -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">idOrName
+</span><a href="#local-6989586621679582011"><span class="hs-identifier hs-var">idOrName</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;disable&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- | Create a workflow dispatch event.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- See &lt;https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event&gt;</span><span>
+</span><span id="line-49"></span><span id="local-6989586621679581955"><span id="local-6989586621679581957"><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#triggerWorkflowR"><span class="hs-identifier hs-type">triggerWorkflowR</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679581955"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#IsPathPart"><span class="hs-identifier hs-type">IsPathPart</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679581957"><span class="hs-identifier hs-type">idOrName</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679581957"><span class="hs-identifier hs-type">idOrName</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Workflows.html#CreateWorkflowDispatchEvent"><span class="hs-identifier hs-type">CreateWorkflowDispatchEvent</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679581955"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span>  </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-55"></span><span id="triggerWorkflowR"><span class="annot"><span class="annottext">triggerWorkflowR :: forall a idOrName.
+(ToJSON a, IsPathPart idOrName) =&gt;
+Name Owner
+-&gt; Name Repo
+-&gt; idOrName
+-&gt; CreateWorkflowDispatchEvent a
+-&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Actions.Workflows.html#triggerWorkflowR"><span class="hs-identifier hs-var hs-var">triggerWorkflowR</span></a></span></span><span> </span><span id="local-6989586621679582025"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679582025"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679582026"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679582026"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679582027"><span class="annot"><span class="annottext">idOrName
+</span><a href="#local-6989586621679582027"><span class="hs-identifier hs-var">idOrName</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679582025"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679582026"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;actions&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;workflows&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">idOrName -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">idOrName
+</span><a href="#local-6989586621679582027"><span class="hs-identifier hs-var">idOrName</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;dispatches&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><span class="annottext">(ByteString -&gt; GenRequest 'MtUnit 'RW ())
+-&gt; (CreateWorkflowDispatchEvent a -&gt; ByteString)
+-&gt; CreateWorkflowDispatchEvent a
+-&gt; GenRequest 'MtUnit 'RW ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CreateWorkflowDispatchEvent a -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- | Enable a workflow.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- See &lt;https://docs.github.com/en/rest/actions/workflows#enable-a-workflow&gt;</span><span>
+</span><span id="line-61"></span><span id="local-6989586621679582031"><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#enableWorkflowR"><span class="hs-identifier hs-type">enableWorkflowR</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Request.html#IsPathPart"><span class="hs-identifier hs-type">IsPathPart</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679582031"><span class="hs-identifier hs-type">idOrName</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679582031"><span class="hs-identifier hs-type">idOrName</span></a></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span>  </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-66"></span><span id="enableWorkflowR"><span class="annot"><span class="annottext">enableWorkflowR :: forall idOrName.
+IsPathPart idOrName =&gt;
+Name Owner -&gt; Name Repo -&gt; idOrName -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Actions.Workflows.html#enableWorkflowR"><span class="hs-identifier hs-var hs-var">enableWorkflowR</span></a></span></span><span> </span><span id="local-6989586621679582041"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679582041"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679582042"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679582042"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679582043"><span class="annot"><span class="annottext">idOrName
+</span><a href="#local-6989586621679582043"><span class="hs-identifier hs-var">idOrName</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Put"><span class="hs-identifier hs-var">Put</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679582041"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679582042"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;actions&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;workflows&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">idOrName -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">idOrName
+</span><a href="#local-6989586621679582043"><span class="hs-identifier hs-var">idOrName</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;enable&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-69"></span></pre></body></html>

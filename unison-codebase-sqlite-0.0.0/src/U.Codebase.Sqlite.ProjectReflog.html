@@ -1,0 +1,455 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ViewPatterns #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html"><span class="hs-identifier">U.Codebase.Sqlite.ProjectReflog</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier">Entry</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#project_"><span class="hs-identifier">project_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#branch_"><span class="hs-identifier">branch_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#projectAndBranch_"><span class="hs-identifier">projectAndBranch_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.DbId.html"><span class="hs-identifier">U.Codebase.Sqlite.DbId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Sqlite.DbId.html#CausalHashId"><span class="hs-identifier">CausalHashId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.DbId.html#ProjectBranchId"><span class="hs-identifier">ProjectBranchId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.DbId.html#ProjectId"><span class="hs-identifier">ProjectId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Sqlite</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FromRow</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ToRow</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">field</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">data</span><span> </span><span id="Entry"><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-var">Entry</span></a></span></span><span> </span><span id="local-6989586621679677945"><span class="annot"><a href="#local-6989586621679677945"><span class="hs-identifier hs-type">project</span></a></span></span><span> </span><span id="local-6989586621679677946"><span class="annot"><a href="#local-6989586621679677946"><span class="hs-identifier hs-type">branch</span></a></span></span><span> </span><span id="local-6989586621679677947"><span class="annot"><a href="#local-6989586621679677947"><span class="hs-identifier hs-type">causal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Entry"><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-var">Entry</span></a></span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="project"><span class="annot"><span class="annottext">forall project branch causal.
+Entry project branch causal -&gt; project
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#project"><span class="hs-identifier hs-var hs-var">project</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679677945"><span class="hs-identifier hs-type">project</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span id="branch"><span class="annot"><span class="annottext">forall project branch causal. Entry project branch causal -&gt; branch
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#branch"><span class="hs-identifier hs-var hs-var">branch</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679677946"><span class="hs-identifier hs-type">branch</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span id="time"><span class="annot"><span class="annottext">forall project branch causal.
+Entry project branch causal -&gt; UTCTime
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#time"><span class="hs-identifier hs-var hs-var">time</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span id="fromRootCausalHash"><span class="annot"><span class="annottext">forall project branch causal.
+Entry project branch causal -&gt; Maybe causal
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#fromRootCausalHash"><span class="hs-identifier hs-var hs-var">fromRootCausalHash</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679677947"><span class="hs-identifier hs-type">causal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span id="toRootCausalHash"><span class="annot"><span class="annottext">forall project branch causal. Entry project branch causal -&gt; causal
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#toRootCausalHash"><span class="hs-identifier hs-var hs-var">toRootCausalHash</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679677947"><span class="hs-identifier hs-type">causal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span id="reason"><span class="annot"><span class="annottext">forall project branch causal. Entry project branch causal -&gt; Text
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#reason"><span class="hs-identifier hs-var hs-var">reason</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679678114"><span id="local-6989586621679678125"><span class="annot"><span class="annottext">Entry project branch causal -&gt; Entry project branch causal -&gt; Bool
+(Entry project branch causal
+ -&gt; Entry project branch causal -&gt; Bool)
+-&gt; (Entry project branch causal
+    -&gt; Entry project branch causal -&gt; Bool)
+-&gt; Eq (Entry project branch causal)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall project branch causal.
+(Eq project, Eq branch, Eq causal) =&gt;
+Entry project branch causal -&gt; Entry project branch causal -&gt; Bool
+$c== :: forall project branch causal.
+(Eq project, Eq branch, Eq causal) =&gt;
+Entry project branch causal -&gt; Entry project branch causal -&gt; Bool
+== :: Entry project branch causal -&gt; Entry project branch causal -&gt; Bool
+$c/= :: forall project branch causal.
+(Eq project, Eq branch, Eq causal) =&gt;
+Entry project branch causal -&gt; Entry project branch causal -&gt; Bool
+/= :: Entry project branch causal -&gt; Entry project branch causal -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679678133"><span id="local-6989586621679678146"><span id="local-6989586621679678150"><span class="annot"><span class="annottext">Int -&gt; Entry project branch causal -&gt; ShowS
+[Entry project branch causal] -&gt; ShowS
+Entry project branch causal -&gt; String
+(Int -&gt; Entry project branch causal -&gt; ShowS)
+-&gt; (Entry project branch causal -&gt; String)
+-&gt; ([Entry project branch causal] -&gt; ShowS)
+-&gt; Show (Entry project branch causal)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall project branch causal.
+(Show project, Show branch, Show causal) =&gt;
+Int -&gt; Entry project branch causal -&gt; ShowS
+forall project branch causal.
+(Show project, Show branch, Show causal) =&gt;
+[Entry project branch causal] -&gt; ShowS
+forall project branch causal.
+(Show project, Show branch, Show causal) =&gt;
+Entry project branch causal -&gt; String
+$cshowsPrec :: forall project branch causal.
+(Show project, Show branch, Show causal) =&gt;
+Int -&gt; Entry project branch causal -&gt; ShowS
+showsPrec :: Int -&gt; Entry project branch causal -&gt; ShowS
+$cshow :: forall project branch causal.
+(Show project, Show branch, Show causal) =&gt;
+Entry project branch causal -&gt; String
+show :: Entry project branch causal -&gt; String
+$cshowList :: forall project branch causal.
+(Show project, Show branch, Show causal) =&gt;
+[Entry project branch causal] -&gt; ShowS
+showList :: [Entry project branch causal] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679678155"><span id="local-6989586621679678159"><span class="annot"><span class="annottext">(forall a b.
+ (a -&gt; b) -&gt; Entry project branch a -&gt; Entry project branch b)
+-&gt; (forall a b.
+    a -&gt; Entry project branch b -&gt; Entry project branch a)
+-&gt; Functor (Entry project branch)
+forall a b. a -&gt; Entry project branch b -&gt; Entry project branch a
+forall a b.
+(a -&gt; b) -&gt; Entry project branch a -&gt; Entry project branch b
+forall project branch a b.
+a -&gt; Entry project branch b -&gt; Entry project branch a
+forall project branch a b.
+(a -&gt; b) -&gt; Entry project branch a -&gt; Entry project branch b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall project branch a b.
+(a -&gt; b) -&gt; Entry project branch a -&gt; Entry project branch b
+fmap :: forall a b.
+(a -&gt; b) -&gt; Entry project branch a -&gt; Entry project branch b
+$c&lt;$ :: forall project branch a b.
+a -&gt; Entry project branch b -&gt; Entry project branch a
+&lt;$ :: forall a b. a -&gt; Entry project branch b -&gt; Entry project branch a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679678165"><span id="local-6989586621679678171"><span id="local-6989586621679678178"><span id="local-6989586621679678183"><span id="local-6989586621679678186"><span id="local-6989586621679678189"><span id="local-6989586621679678192"><span id="local-6989586621679678195"><span id="local-6989586621679678198"><span id="local-6989586621679678201"><span id="local-6989586621679678204"><span id="local-6989586621679678206"><span id="local-6989586621679678209"><span id="local-6989586621679678214"><span id="local-6989586621679678219"><span id="local-6989586621679678224"><span id="local-6989586621679678229"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; Entry project branch m -&gt; m)
+-&gt; (forall m a.
+    Monoid m =&gt;
+    (a -&gt; m) -&gt; Entry project branch a -&gt; m)
+-&gt; (forall m a.
+    Monoid m =&gt;
+    (a -&gt; m) -&gt; Entry project branch a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Entry project branch a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Entry project branch a -&gt; a)
+-&gt; (forall a. Entry project branch a -&gt; [a])
+-&gt; (forall a. Entry project branch a -&gt; Bool)
+-&gt; (forall a. Entry project branch a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; Entry project branch a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; Entry project branch a -&gt; a)
+-&gt; (forall a. Ord a =&gt; Entry project branch a -&gt; a)
+-&gt; (forall a. Num a =&gt; Entry project branch a -&gt; a)
+-&gt; (forall a. Num a =&gt; Entry project branch a -&gt; a)
+-&gt; Foldable (Entry project branch)
+forall a. Eq a =&gt; a -&gt; Entry project branch a -&gt; Bool
+forall a. Num a =&gt; Entry project branch a -&gt; a
+forall a. Ord a =&gt; Entry project branch a -&gt; a
+forall m. Monoid m =&gt; Entry project branch m -&gt; m
+forall a. Entry project branch a -&gt; Bool
+forall a. Entry project branch a -&gt; Int
+forall a. Entry project branch a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; Entry project branch a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Entry project branch a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+forall project branch a.
+Eq a =&gt;
+a -&gt; Entry project branch a -&gt; Bool
+forall project branch a. Num a =&gt; Entry project branch a -&gt; a
+forall project branch a. Ord a =&gt; Entry project branch a -&gt; a
+forall project branch m. Monoid m =&gt; Entry project branch m -&gt; m
+forall project branch a. Entry project branch a -&gt; Bool
+forall project branch a. Entry project branch a -&gt; Int
+forall project branch a. Entry project branch a -&gt; [a]
+forall project branch a.
+(a -&gt; a -&gt; a) -&gt; Entry project branch a -&gt; a
+forall project branch m a.
+Monoid m =&gt;
+(a -&gt; m) -&gt; Entry project branch a -&gt; m
+forall project branch b a.
+(b -&gt; a -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+forall project branch a b.
+(a -&gt; b -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall project branch m. Monoid m =&gt; Entry project branch m -&gt; m
+fold :: forall m. Monoid m =&gt; Entry project branch m -&gt; m
+$cfoldMap :: forall project branch m a.
+Monoid m =&gt;
+(a -&gt; m) -&gt; Entry project branch a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Entry project branch a -&gt; m
+$cfoldMap' :: forall project branch m a.
+Monoid m =&gt;
+(a -&gt; m) -&gt; Entry project branch a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Entry project branch a -&gt; m
+$cfoldr :: forall project branch a b.
+(a -&gt; b -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+$cfoldr' :: forall project branch a b.
+(a -&gt; b -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+$cfoldl :: forall project branch b a.
+(b -&gt; a -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+$cfoldl' :: forall project branch b a.
+(b -&gt; a -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Entry project branch a -&gt; b
+$cfoldr1 :: forall project branch a.
+(a -&gt; a -&gt; a) -&gt; Entry project branch a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Entry project branch a -&gt; a
+$cfoldl1 :: forall project branch a.
+(a -&gt; a -&gt; a) -&gt; Entry project branch a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Entry project branch a -&gt; a
+$ctoList :: forall project branch a. Entry project branch a -&gt; [a]
+toList :: forall a. Entry project branch a -&gt; [a]
+$cnull :: forall project branch a. Entry project branch a -&gt; Bool
+null :: forall a. Entry project branch a -&gt; Bool
+$clength :: forall project branch a. Entry project branch a -&gt; Int
+length :: forall a. Entry project branch a -&gt; Int
+$celem :: forall project branch a.
+Eq a =&gt;
+a -&gt; Entry project branch a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; Entry project branch a -&gt; Bool
+$cmaximum :: forall project branch a. Ord a =&gt; Entry project branch a -&gt; a
+maximum :: forall a. Ord a =&gt; Entry project branch a -&gt; a
+$cminimum :: forall project branch a. Ord a =&gt; Entry project branch a -&gt; a
+minimum :: forall a. Ord a =&gt; Entry project branch a -&gt; a
+$csum :: forall project branch a. Num a =&gt; Entry project branch a -&gt; a
+sum :: forall a. Num a =&gt; Entry project branch a -&gt; a
+$cproduct :: forall project branch a. Num a =&gt; Entry project branch a -&gt; a
+product :: forall a. Num a =&gt; Entry project branch a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679678242"><span id="local-6989586621679678249"><span id="local-6989586621679678255"><span id="local-6989586621679678260"><span class="annot"><span class="annottext">Functor (Entry project branch)
+Foldable (Entry project branch)
+(Functor (Entry project branch),
+ Foldable (Entry project branch)) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; Entry project branch a -&gt; f (Entry project branch b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    Entry project branch (f a) -&gt; f (Entry project branch a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; Entry project branch a -&gt; m (Entry project branch b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    Entry project branch (m a) -&gt; m (Entry project branch a))
+-&gt; Traversable (Entry project branch)
+forall project branch. Functor (Entry project branch)
+forall project branch. Foldable (Entry project branch)
+forall project branch (m :: * -&gt; *) a.
+Monad m =&gt;
+Entry project branch (m a) -&gt; m (Entry project branch a)
+forall project branch (f :: * -&gt; *) a.
+Applicative f =&gt;
+Entry project branch (f a) -&gt; f (Entry project branch a)
+forall project branch (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Entry project branch a -&gt; m (Entry project branch b)
+forall project branch (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Entry project branch a -&gt; f (Entry project branch b)
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Entry project branch (m a) -&gt; m (Entry project branch a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Entry project branch (f a) -&gt; f (Entry project branch a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Entry project branch a -&gt; m (Entry project branch b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Entry project branch a -&gt; f (Entry project branch b)
+$ctraverse :: forall project branch (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Entry project branch a -&gt; f (Entry project branch b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Entry project branch a -&gt; f (Entry project branch b)
+$csequenceA :: forall project branch (f :: * -&gt; *) a.
+Applicative f =&gt;
+Entry project branch (f a) -&gt; f (Entry project branch a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Entry project branch (f a) -&gt; f (Entry project branch a)
+$cmapM :: forall project branch (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Entry project branch a -&gt; m (Entry project branch b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Entry project branch a -&gt; m (Entry project branch b)
+$csequence :: forall project branch (m :: * -&gt; *) a.
+Monad m =&gt;
+Entry project branch (m a) -&gt; m (Entry project branch a)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Entry project branch (m a) -&gt; m (Entry project branch a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span id="local-6989586621679678042"><span id="local-6989586621679678043"><span id="local-6989586621679678044"><span id="local-6989586621679678045"><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#project_"><span class="hs-identifier hs-type">project_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678042"><span class="hs-identifier hs-type">project</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678044"><span class="hs-identifier hs-type">branch</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678045"><span class="hs-identifier hs-type">causal</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678043"><span class="hs-identifier hs-type">project'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678044"><span class="hs-identifier hs-type">branch</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678045"><span class="hs-identifier hs-type">causal</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679678042"><span class="hs-identifier hs-type">project</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678043"><span class="hs-identifier hs-type">project'</span></a></span></span></span></span></span><span>
+</span><span id="line-29"></span><span id="project_"><span class="annot"><span class="annottext">project_ :: forall project branch causal project' (f :: * -&gt; *).
+Functor f =&gt;
+(project -&gt; f project')
+-&gt; Entry project branch causal -&gt; f (Entry project' branch causal)
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#project_"><span class="hs-identifier hs-var hs-var">project_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Entry project branch causal -&gt; project)
+-&gt; (Entry project branch causal
+    -&gt; project' -&gt; Entry project' branch causal)
+-&gt; Lens
+     (Entry project branch causal)
+     (Entry project' branch causal)
+     project
+     project'
+forall s a b t. (s -&gt; a) -&gt; (s -&gt; b -&gt; t) -&gt; Lens s t a b
+</span><span class="hs-identifier hs-var">lens</span></span><span> </span><span class="annot"><span class="annottext">Entry project branch causal -&gt; project
+forall project branch causal.
+Entry project branch causal -&gt; project
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#project"><span class="hs-identifier hs-var">project</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679678269"><span class="annot"><span class="annottext">Entry project branch causal
+</span><a href="#local-6989586621679678269"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621679678270"><span class="annot"><span class="annottext">project'
+</span><a href="#local-6989586621679678270"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Entry project branch causal
+</span><a href="#local-6989586621679678269"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#project"><span class="hs-identifier hs-var">project</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679678270"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span id="local-6989586621679678056"><span id="local-6989586621679678057"><span id="local-6989586621679678058"><span id="local-6989586621679678059"><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#branch_"><span class="hs-identifier hs-type">branch_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678058"><span class="hs-identifier hs-type">project</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678056"><span class="hs-identifier hs-type">branch</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678059"><span class="hs-identifier hs-type">causal</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678058"><span class="hs-identifier hs-type">project</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678057"><span class="hs-identifier hs-type">branch'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678059"><span class="hs-identifier hs-type">causal</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679678056"><span class="hs-identifier hs-type">branch</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678057"><span class="hs-identifier hs-type">branch'</span></a></span></span></span></span></span><span>
+</span><span id="line-32"></span><span id="branch_"><span class="annot"><span class="annottext">branch_ :: forall project branch causal branch' (f :: * -&gt; *).
+Functor f =&gt;
+(branch -&gt; f branch')
+-&gt; Entry project branch causal -&gt; f (Entry project branch' causal)
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#branch_"><span class="hs-identifier hs-var hs-var">branch_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Entry project branch causal -&gt; branch)
+-&gt; (Entry project branch causal
+    -&gt; branch' -&gt; Entry project branch' causal)
+-&gt; Lens
+     (Entry project branch causal)
+     (Entry project branch' causal)
+     branch
+     branch'
+forall s a b t. (s -&gt; a) -&gt; (s -&gt; b -&gt; t) -&gt; Lens s t a b
+</span><span class="hs-identifier hs-var">lens</span></span><span> </span><span class="annot"><span class="annottext">Entry project branch causal -&gt; branch
+forall project branch causal. Entry project branch causal -&gt; branch
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#branch"><span class="hs-identifier hs-var">branch</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679678273"><span class="annot"><span class="annottext">Entry project branch causal
+</span><a href="#local-6989586621679678273"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621679678274"><span class="annot"><span class="annottext">branch'
+</span><a href="#local-6989586621679678274"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Entry project branch causal
+</span><a href="#local-6989586621679678273"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#branch"><span class="hs-identifier hs-var">branch</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679678274"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><span class="hs-comment">-- | Both Project and Branch Ids are required to load a branch, so this is often more useful.</span></span><span>
+</span><span id="line-35"></span><span id="local-6989586621679678065"><span id="local-6989586621679678066"><span id="local-6989586621679678067"><span id="local-6989586621679678068"><span id="local-6989586621679678069"><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#projectAndBranch_"><span class="hs-identifier hs-type">projectAndBranch_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678065"><span class="hs-identifier hs-type">project</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678066"><span class="hs-identifier hs-type">branch</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678069"><span class="hs-identifier hs-type">causal</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678067"><span class="hs-identifier hs-type">project'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678068"><span class="hs-identifier hs-type">branch'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678069"><span class="hs-identifier hs-type">causal</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679678065"><span class="hs-identifier hs-type">project</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679678066"><span class="hs-identifier hs-type">branch</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679678067"><span class="hs-identifier hs-type">project'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679678068"><span class="hs-identifier hs-type">branch'</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-36"></span><span id="projectAndBranch_"><span class="annot"><span class="annottext">projectAndBranch_ :: forall project branch causal project' branch' (f :: * -&gt; *).
+Functor f =&gt;
+((project, branch) -&gt; f (project', branch'))
+-&gt; Entry project branch causal -&gt; f (Entry project' branch' causal)
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#projectAndBranch_"><span class="hs-identifier hs-var hs-var">projectAndBranch_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Entry project branch causal -&gt; (project, branch))
+-&gt; (Entry project branch causal
+    -&gt; (project', branch') -&gt; Entry project' branch' causal)
+-&gt; Lens
+     (Entry project branch causal)
+     (Entry project' branch' causal)
+     (project, branch)
+     (project', branch')
+forall s a b t. (s -&gt; a) -&gt; (s -&gt; b -&gt; t) -&gt; Lens s t a b
+</span><span class="hs-identifier hs-var">lens</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679678277"><span id="local-6989586621679678278"><span id="local-6989586621679678279"><span id="local-6989586621679678280"><span id="local-6989586621679678281"><span id="local-6989586621679678282"><span class="annot"><span class="annottext">project
+branch
+causal
+Maybe causal
+Text
+UTCTime
+project :: forall project branch causal.
+Entry project branch causal -&gt; project
+branch :: forall project branch causal. Entry project branch causal -&gt; branch
+time :: forall project branch causal.
+Entry project branch causal -&gt; UTCTime
+fromRootCausalHash :: forall project branch causal.
+Entry project branch causal -&gt; Maybe causal
+toRootCausalHash :: forall project branch causal. Entry project branch causal -&gt; causal
+reason :: forall project branch causal. Entry project branch causal -&gt; Text
+project :: project
+branch :: branch
+time :: UTCTime
+fromRootCausalHash :: Maybe causal
+toRootCausalHash :: causal
+reason :: Text
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#project"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">project
+</span><a href="#local-6989586621679678277"><span class="hs-identifier hs-var">project</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">branch
+</span><a href="#local-6989586621679678278"><span class="hs-identifier hs-var">branch</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679678283"><span class="annot"><span class="annottext">Entry project branch causal
+</span><a href="#local-6989586621679678283"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679678284"><span class="annot"><span class="annottext">project'
+</span><a href="#local-6989586621679678284"><span class="hs-identifier hs-var">project</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679678285"><span class="annot"><span class="annottext">branch'
+</span><a href="#local-6989586621679678285"><span class="hs-identifier hs-var">branch</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Entry project branch causal
+</span><a href="#local-6989586621679678283"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#project"><span class="hs-identifier hs-var">project</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679678284"><span class="hs-identifier hs-type">project</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#branch"><span class="hs-identifier hs-var">branch</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679678285"><span class="hs-identifier hs-type">branch</span></a></span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToRow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.DbId.html#ProjectId"><span class="hs-identifier hs-type">ProjectId</span></a></span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.DbId.html#ProjectBranchId"><span class="hs-identifier hs-type">ProjectBranchId</span></a></span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.DbId.html#CausalHashId"><span class="hs-identifier hs-type">CausalHashId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621679678304"><span class="annot"><span class="annottext">toRow :: Entry ProjectId ProjectBranchId CausalHashId -&gt; [SQLData]
+</span><a href="#local-6989586621679678304"><span class="hs-identifier hs-var hs-var hs-var">toRow</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span id="local-6989586621679678306"><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621679678306"><span class="hs-identifier hs-var">proj</span></a></span></span><span> </span><span id="local-6989586621679678307"><span class="annot"><span class="annottext">ProjectBranchId
+</span><a href="#local-6989586621679678307"><span class="hs-identifier hs-var">branch</span></a></span></span><span> </span><span id="local-6989586621679678308"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679678308"><span class="hs-identifier hs-var">time</span></a></span></span><span> </span><span id="local-6989586621679678309"><span class="annot"><span class="annottext">Maybe CausalHashId
+</span><a href="#local-6989586621679678309"><span class="hs-identifier hs-var">fromRootCausalHash</span></a></span></span><span> </span><span id="local-6989586621679678310"><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621679678310"><span class="hs-identifier hs-var">toRootCausalHash</span></a></span></span><span> </span><span id="local-6989586621679678311"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679678311"><span class="hs-identifier hs-var">reason</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="annottext">(ProjectId, ProjectBranchId, UTCTime, Maybe CausalHashId,
+ CausalHashId, Text)
+-&gt; [SQLData]
+forall a. ToRow a =&gt; a -&gt; [SQLData]
+</span><span class="hs-identifier hs-var">toRow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621679678306"><span class="hs-identifier hs-var">proj</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ProjectBranchId
+</span><a href="#local-6989586621679678307"><span class="hs-identifier hs-var">branch</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679678308"><span class="hs-identifier hs-var">time</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe CausalHashId
+</span><a href="#local-6989586621679678309"><span class="hs-identifier hs-var">fromRootCausalHash</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621679678310"><span class="hs-identifier hs-var">toRootCausalHash</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679678311"><span class="hs-identifier hs-var">reason</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromRow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.DbId.html#ProjectId"><span class="hs-identifier hs-type">ProjectId</span></a></span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.DbId.html#ProjectBranchId"><span class="hs-identifier hs-type">ProjectBranchId</span></a></span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.DbId.html#CausalHashId"><span class="hs-identifier hs-type">CausalHashId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621679678336"><span class="annot"><span class="annottext">fromRow :: RowParser (Entry ProjectId ProjectBranchId CausalHashId)
+</span><a href="#local-6989586621679678336"><span class="hs-identifier hs-var hs-var hs-var">fromRow</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-44"></span><span>    </span><span id="local-6989586621679678338"><span class="annot"><span class="annottext">ProjectId
+</span><a href="#local-6989586621679678338"><span class="hs-identifier hs-var">project</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RowParser ProjectId
+forall a. FromField a =&gt; RowParser a
+</span><span class="hs-identifier hs-var">field</span></span><span>
+</span><span id="line-45"></span><span>    </span><span id="local-6989586621679678339"><span class="annot"><span class="annottext">ProjectBranchId
+</span><a href="#local-6989586621679678339"><span class="hs-identifier hs-var">branch</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RowParser ProjectBranchId
+forall a. FromField a =&gt; RowParser a
+</span><span class="hs-identifier hs-var">field</span></span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679678340"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679678340"><span class="hs-identifier hs-var">time</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RowParser UTCTime
+forall a. FromField a =&gt; RowParser a
+</span><span class="hs-identifier hs-var">field</span></span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679678341"><span class="annot"><span class="annottext">Maybe CausalHashId
+</span><a href="#local-6989586621679678341"><span class="hs-identifier hs-var">fromRootCausalHash</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RowParser (Maybe CausalHashId)
+forall a. FromField a =&gt; RowParser a
+</span><span class="hs-identifier hs-var">field</span></span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679678342"><span class="annot"><span class="annottext">CausalHashId
+</span><a href="#local-6989586621679678342"><span class="hs-identifier hs-var">toRootCausalHash</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RowParser CausalHashId
+forall a. FromField a =&gt; RowParser a
+</span><span class="hs-identifier hs-var">field</span></span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621679678343"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679678343"><span class="hs-identifier hs-var">reason</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">RowParser Text
+forall a. FromField a =&gt; RowParser a
+</span><span class="hs-identifier hs-var">field</span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><a href="U.Codebase.Sqlite.ProjectReflog.html#Entry"><span class="hs-identifier hs-type">Entry</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">Maybe CausalHashId
+Text
+UTCTime
+ProjectId
+ProjectBranchId
+CausalHashId
+project :: ProjectId
+branch :: ProjectBranchId
+time :: UTCTime
+fromRootCausalHash :: Maybe CausalHashId
+toRootCausalHash :: CausalHashId
+reason :: Text
+project :: ProjectId
+branch :: ProjectBranchId
+time :: UTCTime
+fromRootCausalHash :: Maybe CausalHashId
+toRootCausalHash :: CausalHashId
+reason :: Text
+</span><a href="U.Codebase.Sqlite.ProjectReflog.html#project"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-51"></span></pre></body></html>
