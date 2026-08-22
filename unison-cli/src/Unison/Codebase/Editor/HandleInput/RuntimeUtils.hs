@@ -1,6 +1,7 @@
 module Unison.Codebase.Editor.HandleInput.RuntimeUtils
   ( evalUnisonTerm,
     evalUnisonTermE,
+    evalUnisonTermBatch,
     evalPureUnison,
     displayDecompileErrors,
     displayResponse,
@@ -12,6 +13,7 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (ask)
+import Data.Zip qualified as Zip
 import Unison.ABT qualified as ABT
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -93,6 +95,43 @@ evalUnisonTermE mode ppe useCache tm = do
         displayResponse resp
       Left _ -> pure ()
   pure $ r <&> Term.amap (\() -> Ann.External) . snd
+
+-- | Evaluate many closed definitions in a batch.
+evalUnisonTermBatch ::
+  EvalMode ->
+  PPE.PrettyPrintEnv ->
+  Bool ->
+  Map Symbol (Term Symbol Ann) ->
+  Cli (Either Error (Map Symbol (Term Symbol Ann)))
+evalUnisonTermBatch mode ppe useCache tms = do
+  Cli.Env {codebase} <- ask
+  theRuntime <- selectRuntime mode
+  let prof = modeProfSpec mode
+
+  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
+      watchCache ref = do
+        maybeTerm <- Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase ref)
+        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
+
+  let cache = if useCache then watchCache else Runtime.noCache
+  r <- liftIO (Runtime.evaluateTermBatch' (Codebase.codebaseToCodeLookup codebase) cache ppe prof theRuntime tms)
+  when useCache do
+    case r of
+      Right evalled ->
+        for_ (Zip.zip tms evalled) \case
+          -- don't cache when there were errors
+          (_tm, (Runtime.DecompErrs errs, _)) | not $ null errs -> displayDecompileErrors errs
+          (tm, (resp, tmr)) -> do
+            Cli.runTransaction do
+              Codebase.putWatch
+                WK.RegularWatch
+                (Hashing.hashClosedTerm tm)
+                (Term.amap (const Ann.External) tmr)
+            displayResponse resp
+      Left _ -> pure ()
+  pure $
+    r <&> \result ->
+      Term.amap (\() -> Ann.External) . snd <$> result
 
 displayResponse :: Runtime.Response DecompError -> Cli ()
 displayResponse (Runtime.DecompErrs errs)

@@ -3,8 +3,11 @@
 
 module Unison.Codebase.Runtime where
 
+import Control.Lens
+import Control.Monad.Except
 import Data.Map qualified as Map
 import Data.Set.NonEmpty (NESet)
+import Data.Zip qualified as Zip
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (forceTerm, tupleTerm, pattern TupleTerm')
 import Unison.Codebase.CodeLookup qualified as CL
@@ -205,3 +208,55 @@ evaluateTerm ::
   Term.Term v a ->
   IO (Either e (Response e', Term v))
 evaluateTerm codeLookup = evaluateTerm' codeLookup noCache
+
+evaluateTermBatch' ::
+  forall v a e e'.
+  (Var v, Monoid a) =>
+  CL.CodeLookup v IO a ->
+  (Reference.Id -> IO (Maybe (Term v))) ->
+  PPE.PrettyPrintEnv ->
+  ProfileSpec ->
+  Runtime e e' v ->
+  Map v (Term.Term v a) ->
+  IO (Either e (Map v (Response e', Term v)))
+evaluateTermBatch' codeLookup cache ppe prof rt tms = do
+  results :: Map v (Maybe (Term v)) <- traverse (cache . Hashing.hashClosedTerm) tms
+  let cacheTagged :: Map v (Either (Response e', Term v) (v, Term.Term v a))
+      cacheTagged =
+        Zip.zip tms results
+          & Map.mapWithKey \k -> \case
+            (_tm, Just cached) -> (Left (EmptyResponse, cached))
+            (tm, Nothing) -> (Right (k, tm))
+
+  cacheTagged
+    & unsafePartsOf (traversed . _Right)
+      %%~ ( \vs -> do
+              let watches = vs <&> \(v, tm) -> (WK.RegularWatch, [(v, mempty, tm, mempty <$> mainType rt)])
+              let tuf =
+                    UF.typecheckedUnisonFile
+                      mempty
+                      mempty
+                      mempty
+                      watches
+              r <- liftIO $ evaluateWatches (void codeLookup) ppe prof cache rt (void tuf)
+              case r of
+                Left e -> throwError e
+                Right (_, errs, resultMap) ->
+                  pure
+                    ( vs <&> \(v, _tm) ->
+                        let (_loc, _kind, _hash, _src, value, _isHit) = resultMap Map.! v
+                         in (errs, value)
+                    )
+          )
+    & runExceptT
+    <&> (fmap . fmap) (either id id)
+
+evaluateTermBatch ::
+  (Var v, Monoid a) =>
+  CL.CodeLookup v IO a ->
+  PPE.PrettyPrintEnv ->
+  ProfileSpec ->
+  Runtime e e' v ->
+  (Map v (Term.Term v a)) ->
+  IO (Either e (Map v (Response e', Term v)))
+evaluateTermBatch codeLookup = evaluateTermBatch' codeLookup noCache
