@@ -228,6 +228,11 @@ inMatchBody = asPathExtractor $ \case
   C.InMatchBody -> Just ()
   _ -> Nothing
 
+inPatternApply :: SubseqExtractor v loc ConstructorReference
+inPatternApply = asPathExtractor $ \case
+  C.InPatternApply ref -> Just ref
+  _ -> Nothing
+
 inMatch, inVector, inIfBody :: SubseqExtractor v loc loc
 inMatch = asPathExtractor $ \case
   C.InMatch loc -> Just loc
