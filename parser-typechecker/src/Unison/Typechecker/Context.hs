@@ -347,6 +347,7 @@ data PathElement v loc
   | InMatchGuard
   | InMatchBody
   | InActionRestriction
+  | InPatternApply ConstructorReference
   deriving (Show)
 
 type ExpectedArgCount = Int
@@ -1797,7 +1798,7 @@ checkPattern scrutineeType p =
             lift . failWith $ PatternArityMismatch loc dct (length args)
       (overall, vs) <- foldM step (udct, []) args
       st <- lift $ applyM scrutineeType
-      lift $ subtype st overall
+      lift $ scope (InPatternApply ref) $ subtype st overall
       pure vs
     Pattern.As loc p' -> do
       v <- getAdvance p
