@@ -138,3 +138,9 @@ scratch/dll-ffi> run doFPTest
 scratch/dll-ffi> run doUPTest
 scratch/dll-ffi> run doAPTest
 ```
+
+``` ucm
+scratch/dll-ffi> load unison-src/transcripts-manual/dll-ffi/variadic.u
+scratch/dll-ffi> run FFI.Spec.variadic.tests.calls
+scratch/dll-ffi> run FFI.Spec.variadic.tests.validation
+```

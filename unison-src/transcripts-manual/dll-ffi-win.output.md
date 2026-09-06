@@ -213,3 +213,38 @@ scratch/dll-ffi> run doAPTest
 
   ()
 ```
+
+``` ucm
+scratch/dll-ffi> load unison-src/transcripts-manual/dll-ffi/variadic.u
+
+  Loading changes detected in
+  unison-src/transcripts-manual/dll-ffi/variadic.u.
+
+  + FFI.Spec.variadic.tests.calls      : '{IO, Exception} ( Boolean,
+                                           Boolean,
+                                           Boolean,
+                                           Boolean,
+                                           Boolean,
+                                           Boolean,
+                                           Boolean)
+  + FFI.Spec.variadic.tests.validation : '{IO, Exception} ( Boolean,
+                                           Boolean,
+                                           Boolean,
+                                           Boolean,
+                                           Boolean,
+                                           Boolean,
+                                           Boolean,
+                                           Boolean)
+  + variadicRejects                    : '{IO, Exception} a
+                                         ->{IO} Boolean
+
+  Run `update` to apply these changes to your codebase.
+
+scratch/dll-ffi> run FFI.Spec.variadic.tests.calls
+
+  (true, true, true, true, true, true, true)
+
+scratch/dll-ffi> run FFI.Spec.variadic.tests.validation
+
+  (true, true, true, true, true, true, true, true)
+```

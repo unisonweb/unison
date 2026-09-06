@@ -1,0 +1,49 @@
+-- Every imported function still has a statically known Unison type.
+FFI.Spec.variadic.tests.calls = do
+  dll = libtest()
+  sum0 = getDLLSym dll "testvarsum" (FFI.Spec.variadic 1 (baseIO int32 int64))
+  sum3Spec = FFI.Spec.variadic 1 (arr int32 (arr int64 (arr int64 (baseIO int64 int64))))
+  sum3 = getDLLSym dll "testvarsum" sum3Spec
+  sum3Remarked = getDLLSym dll "testvarsum" (FFI.Spec.variadic 1 (FFI.Spec.variadic 0 sum3Spec))
+  sum3Pure = getDLLSym dll "testvarsum" (FFI.Spec.variadic 1 (arr int32 (arr int64 (arr int64 (base int64 int64)))))
+  -- Prepending a fixed argument moves the boundary with it.
+  sum3Prepended = getDLLSym dll "testvarsum" (arr int32 (FFI.Spec.variadic 0 (arr int64 (arr int64 (baseIO int64 int64)))))
+  mixedSpec = FFI.Spec.variadic 2 (arr float (arr int32 (arr int32 (arr double (arr int32 (baseIO double double))))))
+  mixed = getDLLSym dll "testvarmixed" mixedSpec
+  getp = getDLLSym dll "getptr" (baseIO void ptr)
+  readp = getDLLSym dll "testvarpointer" (FFI.Spec.variadic 1 (arr int32 (baseIO ptr uint32)))
+  -- Exercise the function-pointer loader as well as the callable loader.
+  _ = getDLLSymPtr dll "testvarsum" sum3Spec
+  ( sum0 +0 == +0,
+    sum3 +3 +10 +20 +30 == +60,
+    sum3Remarked +3 +10 +20 +30 == +60,
+    sum3Pure +3 +10 +20 +30 == +60,
+    sum3Prepended +3 +10 +20 +30 == +60,
+    mixed 1.25 +2 +2 3.5 +4 5.75 == 16.5,
+    readp +0 (getp()) == 10
+  )
+
+variadicRejects : '{IO, Exception} a ->{IO} Boolean
+variadicRejects action =
+  handle
+    _ = action()
+    false
+  with cases
+    { Exception.raise _ -> _ } -> true
+    { result } -> result
+
+FFI.Spec.variadic.tests.validation = do
+  dll = libtest()
+  rejects : forall a. FFI.Spec a ->{IO} Boolean
+  rejects spec = variadicRejects do getDLLSym dll "testvarsum" spec
+  rejectsPointer : forall a. FFI.Spec a ->{IO} Boolean
+  rejectsPointer spec = variadicRejects do getDLLSymPtr dll "testvarsum" spec
+  ( rejects (FFI.Spec.variadic 0 (baseIO int32 int64)),
+    rejects (FFI.Spec.variadic 2 (baseIO int32 int64)),
+    rejects (FFI.Spec.variadic 18446744073709551615 (baseIO int32 int64)),
+    rejects (arr int32 (FFI.Spec.variadic 18446744073709551615 (baseIO int32 int64))),
+    rejects (FFI.Spec.variadic 1 (arr int32 (baseIO float int64))),
+    rejects (FFI.Spec.variadic 1 (arr int32 (baseIO int8 int64))),
+    rejectsPointer (FFI.Spec.variadic 1 (arr int32 (baseIO uint16 int64))),
+    rejects (FFI.Spec.variadic 1 (arr int32 (baseIO void int64)))
+  )
