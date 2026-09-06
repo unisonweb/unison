@@ -844,6 +844,8 @@ builtinsSrc =
       ffiType a --> ffiType b --> ffiSpec (a --> io b),
     B "FFI.arr" . forall2 "a" "b" $ \a b ->
       ffiType a --> ffiSpec b --> ffiSpec (a --> Type.effect () [] b),
+    B "FFI.Spec.variadic" . forall1 "a" $ \a ->
+      nat --> ffiSpec a --> ffiSpec a,
     B "FFI.getDLLSym" . forall1 "a" $ \a ->
       dll --> text --> ffiSpec a --> ioexn a,
     B "FFI.getDLLSymPtr" . forall1 "a" $ \a ->

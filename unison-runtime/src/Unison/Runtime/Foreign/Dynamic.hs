@@ -4,10 +4,11 @@ module Unison.Runtime.Foreign.Dynamic where
 
 import Control.Exception
 import Control.Monad (unless, when)
+import Data.Word (Word64)
+import Foreign.C.Types (CUInt (..))
 import Foreign.ForeignPtr
 import Foreign.LibFFI.FFITypes
 import Foreign.LibFFI.Internal
-import Foreign.Marshal
 import Foreign.Ptr
 import Foreign.Storable qualified as Store
 import Unison.Runtime.FFI.DLL
@@ -28,12 +29,19 @@ data FFType
   | Ptr
   deriving (Eq, Ord, Show)
 
--- arguments and return type
-data FFSpec = FFSpec {ffArgs :: ![FFType], ffResult :: !FFType}
+-- Nothing denotes an ordinary fixed-arity function. Just n denotes a
+-- variadic function with n fixed arguments, even when no optional arguments
+-- are supplied. Keep the count as a Word64 until it has been validated.
+data FFSpec = FFSpec
+  { ffArgs :: ![FFType],
+    ffResult :: !FFType,
+    ffFixedArgs :: !(Maybe Word64)
+  }
   deriving (Eq, Ord, Show)
 
 data CSpec = CSpec
   { cInterface :: !(ForeignPtr CIF),
+    cArgumentTypes :: !(ForeignPtr (Ptr CType)),
     numArgs :: !Int,
     ffSpec :: !FFSpec
   }
@@ -85,19 +93,25 @@ encodeTypes (t : ts) !p = do
   where
     sz = Store.sizeOf (undefined :: Ptr CType)
 
-data PrepException = BadVoid | BadResult | BadInit deriving (Show)
+data PrepException
+  = BadVoid
+  | BadResult
+  | BadInit
+  | BadFixedArgs Word64 Int
+  | BadVariadicArg Int FFType
+  deriving (Eq, Show)
 
 instance Exception PrepException
 
 adjustSpec :: FFSpec -> IO FFSpec
-adjustSpec sp@(FFSpec as r)
-  | [Void] <- as = pure $ FFSpec [] r
+adjustSpec sp@(FFSpec as _ fixed)
+  | [Void] <- as, Nothing <- fixed = pure $ sp {ffArgs = []}
   | any (== Void) as = throwIO BadVoid
   | otherwise = pure sp
 
 prepareSpec :: FFSpec -> IO CSpec
 prepareSpec spec = do
-  ffSpec@(FFSpec args ret) <- adjustSpec spec
+  ffSpec@(FFSpec args ret fixed) <- adjustSpec spec
 
   when (ret == MBArr) $
     throwIO BadResult
@@ -105,16 +119,37 @@ prepareSpec spec = do
   let numArgs = length args
       n = fromIntegral numArgs
 
+  case fixed of
+    Nothing -> pure ()
+    Just count -> do
+      when (count == 0 || count > fromIntegral numArgs || count > fromIntegral (maxBound :: CUInt)) $
+        throwIO $
+          BadFixedArgs count numArgs
+      -- C's default argument promotions apply only after the fixed prefix.
+      -- The caller must describe the promoted types explicitly.
+      mapM_
+        (\(i, t) -> when (t `elem` [I8, I16, U8, U16, F32]) $ throwIO $ BadVariadicArg i t)
+        (drop (fromIntegral count) $ zip [1 ..] args)
+
   cInterface <- mallocForeignPtrBytes sizeOf_cif
+  -- ffi_cif retains the argument-type array. It must survive preparation
+  -- and remain alive throughout every call, just like the CIF itself.
+  cArgumentTypes <- mallocForeignPtrArray numArgs
   withForeignPtr cInterface \cif ->
-    allocaArray numArgs \argTys -> do
+    withForeignPtr cArgumentTypes \argTys -> do
       let retTy = encodeType ret
       encodeTypes args argTys
-      status <- ffi_prep_cif cif ffi_default_abi n retTy argTys
+      status <- case fixed of
+        Nothing -> ffi_prep_cif cif ffi_default_abi n retTy argTys
+        Just count -> ffi_prep_cif_var cif ffi_default_abi (fromIntegral count) n retTy argTys
       unless (status == ffi_ok) $
         throwIO BadInit
 
-  pure $ CSpec {cInterface, numArgs, ffSpec}
+  pure $ CSpec {cInterface, cArgumentTypes, numArgs, ffSpec}
+
+-- The Haskell libffi package exposes only the fixed-arity preparation call.
+foreign import ccall unsafe "ffi_prep_cif_var"
+  ffi_prep_cif_var :: Ptr CIF -> C_ffi_abi -> CUInt -> CUInt -> Ptr CType -> Ptr (Ptr CType) -> IO C_ffi_status
 
 loadForeign :: DLL -> FFSpec -> String -> IO CDynFunc
 loadForeign dll fspec sym =
@@ -135,6 +170,7 @@ loadForeign dll fspec sym =
 --
 --     Store.poke (castPtr (plusPtr p i)) <smaller-value>
 callForeign :: CDynFunc -> Ptr (Ptr a) -> Ptr r -> IO ()
-callForeign (CDynFunc _ (CSpec cInterface _ _) fun) cArgs cRet =
+callForeign (CDynFunc _ CSpec {cInterface, cArgumentTypes} fun) cArgs cRet =
   withForeignPtr cInterface \cif ->
-    ffi_call cif fun (castPtr cRet) (castPtr cArgs)
+    withForeignPtr cArgumentTypes \_ ->
+      ffi_call cif fun (castPtr cRet) (castPtr cArgs)

@@ -1234,9 +1234,11 @@ foreignCallHelper = \case
   FFI_void -> mkForeign \() -> pure Void
   FFI_ptr -> mkForeign \() -> pure Ptr
   FFI_pinnedByteArray -> mkForeign \() -> pure $ MBArr
-  FFI_base -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
-  FFI_baseIO -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
-  FFI_arr -> mkForeign $ \(t, FFSpec ts r) -> evaluate $ FFSpec (t : ts) r
+  FFI_base -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r Nothing
+  FFI_baseIO -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r Nothing
+  FFI_arr -> mkForeign $ \(t, FFSpec ts r fixed) ->
+    evaluate $ FFSpec (t : ts) r (fmap (\n -> if n == maxBound then n else n + 1) fixed)
+  FFI_Spec_variadic -> mkForeign $ \(n, spec) -> evaluate $ spec {ffFixedArgs = Just n}
   FFI_getDLLSym -> mkForeignExn $ \(dll, sym, spec) ->
     let name = getDLLPath dll ++ "$" ++ sym
         n = length $ ffArgs spec
@@ -1400,6 +1402,32 @@ foreignCallHelper = \case
           pure . Left $ F.Failure Ty.miscFailureRef imsg unitValue
         prep BadResult =
           pure . Left $ F.Failure Ty.miscFailureRef rmsg unitValue
+        prep (BadFixedArgs count total) =
+          pure . Left $
+            F.Failure
+              Ty.miscFailureRef
+              ( "bad FFI signature for `"
+                  <> pack name
+                  <> "`: variadic fixed-argument count "
+                  <> pack (show count)
+                  <> " must be between 1 and the total argument count ("
+                  <> pack (show total)
+                  <> ") and fit in a C unsigned int"
+              )
+              unitValue
+        prep (BadVariadicArg index ty) =
+          pure . Left $
+            F.Failure
+              Ty.miscFailureRef
+              ( "bad FFI signature for `"
+                  <> pack name
+                  <> "`: variadic argument "
+                  <> pack (show index)
+                  <> " ("
+                  <> pack (show ty)
+                  <> ") requires C default argument promotion; use double or an int-sized integer type"
+              )
+              unitValue
 
         vmsg =
           "bad FFI signature for `"
