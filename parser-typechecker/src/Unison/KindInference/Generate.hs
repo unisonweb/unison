@@ -385,7 +385,9 @@ builtinConstraintTree =
           flip Type.ref Type.int8Ref,
           flip Type.ref Type.int16Ref,
           flip Type.ref Type.int32Ref,
-          flip Type.ref Type.float32Ref
+          flip Type.ref Type.float32Ref,
+          flip Type.ref Type.signalRef,
+          flip Type.ref Type.signalSubscriptionRef
         ],
       traverse
         (constrain (Type :-> Type))

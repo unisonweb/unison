@@ -1166,6 +1166,10 @@ declareForeigns = do
   declareForeign Tracked 1 IO_process_wait
 
   declareForeign Tracked 1 IO_process_exitCode
+  declareForeign Tracked 0 IO_signal_available
+  declareForeign Tracked 1 IO_signal_subscribe
+  declareForeign Tracked 1 IO_signal_Subscription_await
+  declareForeign Tracked 1 IO_signal_Subscription_close
   declareForeign Tracked 1 MVar_new
 
   declareForeign Tracked 0 MVar_newEmpty_v2

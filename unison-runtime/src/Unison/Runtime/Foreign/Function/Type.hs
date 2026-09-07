@@ -472,6 +472,10 @@ data ForeignFunc
   | FFI_ForeignPtr_Float32_allocate
   | FFI_ForeignPtr_Float_allocate
   | FFI_ForeignPtr_Ptr_allocate
+  | IO_signal_available
+  | IO_signal_subscribe
+  | IO_signal_Subscription_await
+  | IO_signal_Subscription_close
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -940,3 +944,7 @@ foreignFuncBuiltinName = \case
   FFI_ForeignPtr_Float32_allocate -> "FFI.ForeignPtr.Float32.allocate"
   FFI_ForeignPtr_Float_allocate -> "FFI.ForeignPtr.Float.allocate"
   FFI_ForeignPtr_Ptr_allocate -> "FFI.ForeignPtr.Ptr.allocate"
+  IO_signal_available -> "IO.signal.available"
+  IO_signal_subscribe -> "IO.signal.subscribe"
+  IO_signal_Subscription_await -> "IO.signal.Subscription.await"
+  IO_signal_Subscription_close -> "IO.signal.Subscription.close"

@@ -30,7 +30,7 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
   21.  Float.              (38 terms)
   22.  Float32             (builtin type)
   23.  Handle.             (1 term)
-  24.  IO.                 (1 term)
+  24.  IO.                 (5 terms, 2 types)
   25.  ImmutableArray      (builtin type)
   26.  ImmutableArray.     (3 terms)
   27.  ImmutableByteArray  (builtin type)
