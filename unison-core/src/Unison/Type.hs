@@ -328,6 +328,10 @@ mvarRef, tvarRef :: TypeReference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
 
+signalRef, signalSubscriptionRef :: TypeReference
+signalRef = Reference.Builtin "IO.signal.Signal"
+signalSubscriptionRef = Reference.Builtin "IO.signal.Subscription"
+
 ticketRef :: TypeReference
 ticketRef = Reference.Builtin "Ref.Ticket"
 
