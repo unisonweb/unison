@@ -88,9 +88,20 @@ hashFieldAccessors ::
   DD.DataDeclaration v a ->
   Maybe (Map v (TermReferenceId, Term v (), Type v ()))
 hashFieldAccessors ppe declName vars declRef dd = do
-  let accessors :: [(v, (), Term v ())]
+  -- The data declaration's single constructor type is
+  -- @forall ddTyvars. t1 -> t2 -> … -> tn -> SelfType@. Peel the
+  -- input arrow chain to get each field's declared type so the
+  -- generator can attach proper type annotations.
+  let ddTyvars = DD.bound dd
+      fieldTypes :: [Type v a]
+      fieldTypes = case DD.constructors dd of
+        [(_, ctorType)] -> peelArrowInputs (snd (Type.unforall' ctorType))
+        _ -> []
+      fields :: [(v, (), Type v ())]
+      fields = zipWith (\v t -> (v, (), () <$ t)) vars fieldTypes
+      accessors :: [(v, (), Term v ())]
       accessors =
-        generateRecordAccessors Var.namespaced id (map (,()) vars) declName declRef
+        generateRecordAccessors Var.namespaced id fields ddTyvars declName declRef
 
   typecheckedAccessors <-
     for accessors \(v, _a, term) -> do
@@ -112,6 +123,13 @@ hashFieldAccessors ppe declName vars declRef dd = do
       -- done when typechecking a whole file and ensuring we get the
       -- same inferred type.
       Just (Type.cleanup typ)
+
+    -- Peel a chain of @t1 -> t2 -> … -> tn -> result@ down to
+    -- @[t1, …, tn]@.
+    peelArrowInputs :: Type v a -> [Type v a]
+    peelArrowInputs ty = case ty of
+      Type.Arrow' i o -> i : peelArrowInputs o
+      _ -> []
 
     typecheckingEnv :: Typechecker.Env v ()
     typecheckingEnv =

@@ -107,7 +107,10 @@ prettyGADT env guid ctorType r name dd =
       prettyPattern unsuffixifiedPPE ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
           `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
-    header = prettyEffectHeader guid name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
+    header = declHeader <> fmt S.ControlKeyword " where"
+    declHeader = case ctorType of
+      CT.Effect -> prettyEffectHeader guid name (DD.EffectDeclaration dd)
+      CT.Data -> prettyDataHeader guid name dd
 
 prettyPattern ::
   PrettyPrintEnv ->
@@ -152,6 +155,31 @@ orderConstructors ppe r dd ctype =
     -- Then we flatten back out to a list of constructors.
     & foldMap (toList . snd)
 
+-- | Does this data declaration require GADT (`where`) syntax to be displayed
+-- faithfully? That's the case when some constructor is type-indexed — its result
+-- type is not simply the declared type applied to its parameters in order — or
+-- when a constructor introduces its own (existential) type variables. Ordinary
+-- algebraic data types are all "vanilla" and keep their `=` rendering.
+isGadtDecl :: forall v a. (Var v) => TypeReference -> DataDeclaration v a -> Bool
+isGadtDecl r dd = not (all vanilla (DD.constructorTypes dd))
+  where
+    arity = length (DD.bound dd)
+    vanilla :: Type.Type v a -> Bool
+    vanilla ty =
+      let (qvars, body) = case ty of
+            Type.ForallsNamed' vs b -> (vs, b)
+            _ -> ([], ty)
+          result = fromMaybe body (lastMay =<< Type.unArrows body)
+       in length qvars == arity && resultIsVanilla qvars result
+    resultIsVanilla qvars = \case
+      Type.Apps' (Type.Ref' r') args | r' == r -> map asVar args == map Just qvars
+      Type.Ref' r' | r' == r -> null qvars
+      _ -> False
+    asVar :: Type.Type v a -> Maybe v
+    asVar = \case
+      Type.Var' v -> Just v
+      _ -> Nothing
+
 prettyDataDecl ::
   forall v a.
   (Var v) =>
@@ -161,9 +189,13 @@ prettyDataDecl ::
   HQ.HashQualified Name ->
   DataDeclaration v a ->
   Writer (Set AccessorName) (Pretty SyntaxText)
-prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) guid r name dd =
-  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
-    <$> constructor `traverse` (orderConstructors unsuffixifiedPPE r dd CT.Data)
+prettyDataDecl ppe@(PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) guid r name dd
+  -- A type-indexed (GADT) data declaration can't be displayed with `=` syntax;
+  -- render it with `where`, reusing the same machinery as abilities.
+  | isGadtDecl r dd = pure (prettyGADT ppe guid CT.Data r name dd)
+  | otherwise =
+      (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
+        <$> constructor `traverse` (orderConstructors unsuffixifiedPPE r dd CT.Data)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t

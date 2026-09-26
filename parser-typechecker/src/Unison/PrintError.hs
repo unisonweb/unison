@@ -845,6 +845,22 @@ renderTypeError e env src = case e of
     let prettyTyp t = Pr.bold (renderType' env t)
         showSource = showSourceMaybes src . map (\(loc, color) -> (,color) <$> rangeForAnnotated loc)
      in prettyKindError prettyTyp showSource Type1 Type2 env ke
+  RunWatchTypeMismatch runWatchType watchSite note ->
+    mconcat
+      [ Pr.wrap $
+          "I was expecting this"
+            <> Pr.group (style ErrorSite "run>")
+            <> "watch expression to be a subtype of:",
+        "\n\n",
+        Pr.indentN 2 (style Type2 "'{IO, Exception} a"),
+        "\n\n",
+        Pr.wrap "but it actually has type:",
+        "\n\n",
+        Pr.indentN 2 (style Type1 (renderType' env runWatchType)),
+        "\n\n",
+        annotatedAsErrorSite src watchSite,
+        debugSummary note
+      ]
   UnknownTerm {..}
     | Var.typeOf unknownTermV == Var.MissingResult ->
         Pr.lines
@@ -1194,6 +1210,8 @@ renderTypeError e env src = case e of
         mconcat ["TypeMismatch\n", "  context:\n", renderContext env c]
       C.HandlerOfUnexpectedType loc typ ->
         mconcat ["HandlerOfUnexpectedType\n", Pr.shown loc, "type:\n", renderType' env typ]
+      C.RunWatchTypeMismatch loc typ ->
+        mconcat ["RunWatchTypeMismatch\n", annotatedAsErrorSite src loc, "type:\n", renderType' env typ]
       C.IllFormedType c ->
         mconcat ["IllFormedType\n", "  context:\n", renderContext env c]
       C.UnguardedLetRecCycle vs _ts ->
@@ -1399,6 +1417,9 @@ renderContext env ctx@(C.Context es) =
       "'" <> shortName v <> " = " <> renderType' env (C.apply ctx t)
     showElem ctx (C.Ann v _ t) =
       shortName v <> " : " <> renderType' env (C.apply ctx t)
+    showElem ctx (C.Refined v t) =
+      shortName v <> " ~ " <> renderType' env (C.apply ctx t)
+    showElem _ (C.Inconsistent _) = "⊥"
     showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 
 renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) v loc1 -> s

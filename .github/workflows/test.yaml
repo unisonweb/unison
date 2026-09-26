@@ -118,7 +118,7 @@ jobs:
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         uses: unisonweb/actions/stack/install@main
         with:
-          stack-version: 3.7.1
+          stack-version: 3.9.3
 
       - name: build dependencies
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'

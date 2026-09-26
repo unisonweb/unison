@@ -41,7 +41,11 @@ data GenState v loc = GenState
   }
   deriving stock (Generic)
 
-data GenError loc = MissingBuiltin loc Reference
+data GenError loc
+  = MissingBuiltin loc Reference
+  | -- | A derived type reference was encountered that isn't in scope
+    -- (neither a builtin nor present in the kind-inference environment).
+    UnknownType loc Reference
   deriving stock (Show, Eq)
 
 newtype Gen v loc a = Gen

@@ -605,7 +605,7 @@ negotiateKnownCausals unisonShareUrl branchRef hashJwt = Timing.time "Causal Neg
       liftIO $ Codebase.runTransaction codebase do
         Q.causalExistsByHash32 causalHash
     maxNegotiationEntities :: Int
-    maxNegotiationEntities = 1000
+    maxNegotiationEntities = 200
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Progress Tracking
