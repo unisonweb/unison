@@ -639,6 +639,9 @@ fetchIssueFromGitHub :: Word -> IO Pretty
 fetchIssueFromGitHub i =
   either (const $ issueUrl i) (\title -> P.wrap $ P.text title <> " " <> issueUrl i) <$> githubTitleForIssue i
 
+testsRemainingAfterCurrent :: (Int, Int) -> Int
+testsRemainingAfterCurrent (n, total) = total - n
+
 notifyUser ::
   -- | The directory being watched for .u files. If a `FilePath` isn’t provided, it uses a constant string. This is
   --   useful in contexts like transcripts, where we need the output to be consistent, and not vary because of a temp
@@ -697,7 +700,9 @@ notifyUser dir issueFn = \case
     displayRendered outputLoc pp
   TestIncrementalOutputStart ppe (n, total) r -> do
     putPretty' $
-      P.shown (total - n)
+      P.shown (testsRemainingAfterCurrent (n, total))
+        <> "/"
+        <> P.shown total
         <> " tests left to run, current test: "
         <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.fromTermReferenceId r))
     pure mempty

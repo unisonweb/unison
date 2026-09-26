@@ -494,6 +494,9 @@ data Cause v loc
   | RedundantPattern loc
   | KindInferenceFailure (KindInference.KindError v loc)
   | InaccessiblePattern loc
+  | -- A `run>` watch whose type isn't a valid `'{IO, Exception} a`. Carries the
+    -- watch's location and its (offending) inferred type.
+    RunWatchTypeMismatch loc (Type.Type v loc)
   deriving (Show)
 
 errorTerms :: ErrorNote v loc -> [Term v loc]

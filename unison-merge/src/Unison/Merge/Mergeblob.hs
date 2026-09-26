@@ -225,7 +225,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
            in case runIdentity (Parsers.parseFile "<merge>" (Text.unpack $ Pretty.toPlain 80 unparsedFile) parsingEnv) of
                 Left _err -> pure Nothing
                 Right file -> do
-                  typeLookup <- loadTypeLookup (UnisonFile.dependencies file)
+                  typeLookup <- (UnisonFile.declsToTypeLookup file <>) <$> loadTypeLookup (UnisonFile.dependencies file)
                   let typecheckingEnv =
                         Typechecker.Env
                           { ambientAbilities = [],
