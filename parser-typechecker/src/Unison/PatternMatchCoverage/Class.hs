@@ -25,6 +25,14 @@ class (Ord loc, Var vt, Var v, MonadFix m) => Pmc vt v loc m | m -> vt v loc whe
   -- | Get the types of the arguments of a specific constructor
   getConstructorVarTypes :: Type vt loc -> ConstructorReference -> m [Type vt loc]
 
+  -- | The GADT type-index equations implied by matching the given constructor
+  -- against a value of the given type — the proposition the DK indexed-types
+  -- paper attaches to a constructor via the asserting type @A ∧ P@, recovered
+  -- here by unifying the constructor's result with the scrutinee's type. Each
+  -- pair maps a (rigid) index variable to the type the constructor pins it to.
+  -- Empty for ordinary (non-index-pinning) constructors.
+  getConstructorIndexRefinements :: Type vt loc -> ConstructorReference -> m [(vt, Type vt loc)]
+
   -- | Get a fresh variable
   fresh :: m v
 

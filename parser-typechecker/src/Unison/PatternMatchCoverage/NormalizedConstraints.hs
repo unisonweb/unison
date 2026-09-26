@@ -15,6 +15,7 @@ module Unison.PatternMatchCoverage.NormalizedConstraints
 where
 
 import Data.Functor.Compose
+import Data.Map qualified as Map
 import Data.Sequence (pattern Empty)
 import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference)
@@ -61,7 +62,14 @@ data NormalizedConstraints vt v loc = NormalizedConstraints
     -- constraints are handled by 'UFMap'.
     constraintMap :: UFMap v (VarInfo vt v loc),
     -- | dirty variables are ones that must be checked for inhabitance
-    dirtySet :: Set v
+    dirtySet :: Set v,
+    -- | Branch-local GADT type-index equations accumulated by the positive
+    -- constructor constraints in this state: a (rigid) index variable mapped to
+    -- the type a matched constructor pins it to. Two constructors pinning the
+    -- same index to definitely-different types make the state uninhabited (see
+    -- the DK indexed-types paper's `⊥`), which is what lets coverage drop
+    -- impossible cross-argument combinations. Empty for non-GADT matches.
+    typeRefinements :: Map vt (Type vt loc)
   }
   deriving stock (Eq, Ord, Show)
 
@@ -78,7 +86,8 @@ emptyNormalizedConstraints :: (Ord v) => NormalizedConstraints vt v loc
 emptyNormalizedConstraints =
   NormalizedConstraints
     { constraintMap = UFMap.empty,
-      dirtySet = mempty
+      dirtySet = mempty,
+      typeRefinements = Map.empty
     }
 
 -- | Lookup the canonical value of @v@ from the constraint map. Throws
