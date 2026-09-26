@@ -389,6 +389,7 @@ test-suite cli-tests
       Unison.Test.ClearCache
       Unison.Test.Cli.Monad
       Unison.Test.LSP
+      Unison.Test.TestProgress
       Unison.Test.Ucm
       Unison.Test.UriParser
   hs-source-dirs:
