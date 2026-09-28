@@ -269,7 +269,9 @@ builtinTypesSrc =
     B' "Int32" CT.Data,
     B' "Float32" CT.Data,
     B' "FFI.Func" CT.Data,
-    B' "FFI.ForeignPtr" CT.Data
+    B' "FFI.ForeignPtr" CT.Data,
+    B' "IO.signal.Signal" CT.Data,
+    B' "IO.signal.Subscription" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -824,6 +826,10 @@ builtinsSrc =
     B "Natural.toFloat" $ natural --> float,
     B "Natural.isEven" $ natural --> boolean,
     B "Natural.isOdd" $ natural --> boolean,
+    B "IO.signal.available" $ unit --> io (list (tuple [text, Type.ref () Type.signalRef])),
+    B "IO.signal.subscribe" $ Type.ref () Type.signalRef --> ioexn (Type.ref () Type.signalSubscriptionRef),
+    B "IO.signal.Subscription.await" $ Type.ref () Type.signalSubscriptionRef --> ioexn unit,
+    B "IO.signal.Subscription.close" $ Type.ref () Type.signalSubscriptionRef --> ioexn unit,
     B "FFI.openDLL" $ text --> ioexn dll,
     B "FFI.int8" $ ffiType int,
     B "FFI.int16" $ ffiType int,

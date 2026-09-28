@@ -27,6 +27,9 @@ PATTERNS=(
     '**/package.yaml'
     # Haskell source (affects UCM behavior)
     '**/*.hs'
+    # Native sources and headers (affect runtime behavior)
+    '**/*.c'
+    '**/*.h'
     # Transcript inputs (need both *.ext and **/*.ext because ** doesn't match zero dirs)
     'unison-src/*.md'
     'unison-src/**/*.md'
