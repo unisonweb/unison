@@ -874,16 +874,6 @@ groupCases ms =
       )
     & foldMap \((p, vs), guardRows) ->
       [(p, vs, second (vs,) <$> toList guardRows)]
-  where
-
--- case Debug.debug Debug.Temp "groupCases: ms" ms of
--- [] -> []
--- ms@((p1, _, AbsN' vs1 _) : _) -> go (p1, vs1) [] ms
-
--- go (p0, vs0) acc [] = [(p0, vs0, reverse acc)]
--- go (p0, vs0) acc ms@((p1, g1, AbsN' vs body) : tl)
---   | p0 == p1 && vs == vs0 = go (p0, vs0) ((g1, (vs, body)) : acc) tl
---   | otherwise = (p0, vs0, reverse acc) : groupCases ms
 
 printCase ::
   forall m v.
@@ -1457,7 +1447,6 @@ countPatternUsages n usedTm = Pattern.foldMap' f
           then mempty
           else countHQ usedTm $ PrettyPrintEnv.patternName n r
       Pattern.RecordLiteral _loc fields ->
-        -- TODO: double-check this
         foldMap (countPatternUsages n usedTm) fields
 
 countHQ :: (HasCallStack) => Set Name -> HQ.HashQualified Name -> PrintAnnotation
@@ -1743,7 +1732,6 @@ isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)] =
       Pattern.Char _ _ -> True
       Pattern.Constructor _ _ ps -> any hasLiteral ps
       Pattern.RecordLiteral _loc fields ->
-        -- TODO: double-check that this is correct
         any hasLiteral fields
       Pattern.As _ p -> hasLiteral p
       Pattern.EffectPure _ p -> hasLiteral p

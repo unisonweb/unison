@@ -583,13 +583,7 @@ data GInstr comb
     RecUnpack
       !(Vector FieldRef {- fields to unpack -})
       !Int {- index of record on boxed stack -}
-  | -- Which fields to pack each arg into
-    -- TODO: Do we need this? I think we should just generate ANF
-    -- with all fields in order according to key, then we can just assume
-    -- the field values are in alphabetical order according to their key.
-    -- ![FieldTag]
-
-    -- Push a particular value onto the appropriate stack
+  | -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
   | -- Print a value on the unboxed stack
     Print !Int -- index of the primitive value to print
