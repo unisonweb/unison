@@ -159,9 +159,9 @@ getName = cases
     name: 𝕩16
 
   because it should have the type:
-
+    
     {age: Nat}
-
+    
 
   derived from here:
 
@@ -189,9 +189,9 @@ createPerson = Person { name: "Alice", age: 30, address: "123 Main St" }
     address: Text
 
   so that it would match the type:
-
+    
     {age: Nat, name: Text}
-
+    
 
   from here:
 
@@ -252,7 +252,7 @@ getAgeRedundant = cases
 
   This case would be ignored because it's already covered by the preceding case(s):
         4 |   { address:_ } -> 99
-
+    
 ```
 
 Pattern match coverage should warn if there are NO cases, at least one is required.
@@ -269,7 +269,7 @@ missingRight = cases
   Pattern match doesn't cover all possible cases:
         2 | missingRight = cases
         3 |   Left n -> n
-
+    
 
   Patterns not matched:
    * Right _
@@ -285,7 +285,7 @@ missingAllCases = cases
 
   Pattern match doesn't cover all possible cases:
         2 | missingAllCases = cases
-
+    
 
   Patterns not matched:
    * _
@@ -307,21 +307,59 @@ getVoid = cases
   Pattern match doesn't cover all possible cases:
         4 | getVoid = cases
         5 |   Right n -> n
-
+    
 
   Patterns not matched:
    * Left _
 ```
 
-
 ### Universals
 
-Currently broken:
-
 ``` unison
-> {a: 1} === {a: 1}
-> {a: 1} === {a: 2}
-> Universal.gt {a: 1} {a: 1}
-> Universal.gt {a: 2} {a: 1}
-> Universal.gt {a: 1} {a: 2}
+> {a: 1} Universal.== {a: 1}
+> {a: 1} Universal.== {a: 2}
+> Any {a: 1} Universal.== Any {a: 1}
+> Any {a: 1} Universal.== Any {a: 1, b: 2}
+> Any {a: 1} Universal.== Any {a: 2}
+> {a: 1} Universal.> {a: 1}
+> {a: 2} Universal.> {a: 1}
+> {a: 1} Universal.> {a: 2}
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > {a: 1} Universal.== {a: 1}
+          ⧩
+          true
+
+    2 | > {a: 1} Universal.== {a: 2}
+          ⧩
+          false
+
+    3 | > Any {a: 1} Universal.== Any {a: 1}
+          ⧩
+          true
+
+    4 | > Any {a: 1} Universal.== Any {a: 1, b: 2}
+          ⧩
+          false
+
+    5 | > Any {a: 1} Universal.== Any {a: 2}
+          ⧩
+          false
+
+    6 | > {a: 1} Universal.> {a: 1}
+          ⧩
+          false
+
+    7 | > {a: 2} Universal.> {a: 1}
+          ⧩
+          true
+
+    8 | > {a: 1} Universal.> {a: 2}
+          ⧩
+          false
 ```
