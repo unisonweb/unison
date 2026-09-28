@@ -8,6 +8,8 @@ in this particular call, including the optional arguments.
 Each loaded binding is an ordinary, statically typed Unison function. To
 call the same C symbol with another argument count or types, load it with
 another specification. There is no dynamically typed argument list.
+Function equality and ordering include the call signature as well as the
+symbol address, so bindings with different call shapes remain distinct.
 
 For example, on macOS ARM64, `ioctl(int, unsigned long, ...)` with a pointer
 argument can be described using the base library's signature builders:

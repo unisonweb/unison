@@ -32,6 +32,21 @@ variadicRejects action =
     { Exception.raise _ -> _ } -> true
     { result } -> result
 
+FFI.Spec.variadic.tests.identity = do
+  dll = libtest()
+  zeroSpec = FFI.Spec.variadic 1 (baseIO int32 int64)
+  threeSpec = FFI.Spec.variadic 1 (arr int32 (arr int64 (arr int64 (baseIO int64 int64))))
+  zero = getDLLSym dll "testvarsum" zeroSpec
+  same = getDLLSym dll "testvarsum" zeroSpec
+  three = getDLLSym dll "testvarsum" threeSpec
+  zeroPtr = getDLLSymPtr dll "testvarsum" zeroSpec
+  threePtr = getDLLSymPtr dll "testvarsum" threeSpec
+  ( not (Any.Any zero == Any.Any three),
+    not (Universal.compare (Any.Any zero) (Any.Any three) == +0),
+    zero == same,
+    not (Any.Any zeroPtr == Any.Any threePtr)
+  )
+
 FFI.Spec.variadic.tests.validation = do
   dll = libtest()
   rejects : forall a. FFI.Spec a ->{IO} Boolean

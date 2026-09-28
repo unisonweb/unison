@@ -63,12 +63,14 @@ cffResult = ffResult . ffSpec . cSpec
 instance Show CDynFunc where
   show f = "<" ++ cName f ++ ">"
 
--- Compare pointers for CDynFunc
+-- The call signature is part of a function value's identity: one variadic
+-- symbol can be loaded with different arities, argument types, or conventions.
 instance Eq CDynFunc where
-  CDynFunc _ _ l == CDynFunc _ _ r = l == castFunPtr r
+  CDynFunc _ ls l == CDynFunc _ rs r = l == castFunPtr r && ffSpec ls == ffSpec rs
 
 instance Ord CDynFunc where
-  compare (CDynFunc _ _ l) (CDynFunc _ _ r) = compare l (castFunPtr r)
+  compare (CDynFunc _ ls l) (CDynFunc _ rs r) =
+    compare l (castFunPtr r) <> compare (ffSpec ls) (ffSpec rs)
 
 encodeType :: FFType -> Ptr CType
 encodeType I8 = ffi_type_sint8

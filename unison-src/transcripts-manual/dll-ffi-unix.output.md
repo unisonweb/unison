@@ -227,6 +227,10 @@ scratch/dll-ffi> load unison-src/transcripts-manual/dll-ffi/variadic.u
                                            Boolean,
                                            Boolean,
                                            Boolean)
+  + FFI.Spec.variadic.tests.identity   : '{IO, Exception} ( Boolean,
+                                           Boolean,
+                                           Boolean,
+                                           Boolean)
   + FFI.Spec.variadic.tests.validation : '{IO, Exception} ( Boolean,
                                            Boolean,
                                            Boolean,
@@ -243,6 +247,10 @@ scratch/dll-ffi> load unison-src/transcripts-manual/dll-ffi/variadic.u
 scratch/dll-ffi> run FFI.Spec.variadic.tests.calls
 
   (true, true, true, true, true, true, true)
+
+scratch/dll-ffi> run FFI.Spec.variadic.tests.identity
+
+  (true, true, true, true)
 
 scratch/dll-ffi> run FFI.Spec.variadic.tests.validation
 

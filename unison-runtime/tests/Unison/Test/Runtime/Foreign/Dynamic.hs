@@ -59,6 +59,23 @@ test =
                   callForeign (CDynFunc "strlen" spec strlenPtr) args result
                   peek (castPtr result) :: IO CSize
           expectEqual 9 actual,
+        scope "function identity includes the call signature" do
+          actual <- io do
+            let make name spec = CDynFunc name <$> prepareSpec spec <*> pure snprintfPtr
+                args = [MBArr, sizeType, Ptr]
+                spec = FFSpec args I32 (Just 3)
+            original <- make "snprintf" spec
+            same <- make "another name for snprintf" spec
+            otherArity <- make "snprintf" (FFSpec (args ++ [I32]) I32 (Just 3))
+            otherType <- make "snprintf" (FFSpec (args ++ [I64]) I32 (Just 3))
+            fixed <- make "snprintf" (FFSpec args I32 Nothing)
+            pure
+              ( original == same && compare original same == EQ,
+                all
+                  (\(l, r) -> l /= r && compare l r /= EQ)
+                  [(original, otherArity), (otherArity, otherType), (original, fixed)]
+              )
+          expectEqual (True, True) actual,
         scope "no optional arguments" do
           actual <- io $ formatWith [] [] "no extras"
           expectEqual ("no extras", 9) actual,
