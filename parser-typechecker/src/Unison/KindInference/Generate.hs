@@ -322,12 +322,16 @@ withInstantiatedConstructorType declType tyParams0 constructorType0 k =
               unifyVars e xs
           | otherwise -> goEffs es
 
+      -- Constrain each type argument of the constructor's result type to have
+      -- the kind of the corresponding declared type parameter. For an ordinary
+      -- ADT every argument is exactly a bound type variable, but for a GADT the
+      -- result type may apply the declared type to arbitrary types (e.g. `Int`
+      -- in `Expr Int`), so we generate kind constraints for each argument
+      -- generally rather than assuming it is a single variable.
       unifyVars :: Type.Type v loc -> [Type.Type v loc] -> Gen v loc [GeneratedConstraint v loc]
-      unifyVars typ vs = for (zip vs tyParams0) \(v, tp) -> do
-        lookupType v >>= \case
-          Nothing -> error ("[unifyVars] unknown type in decl result: " <> show v)
-          Just x ->
-            pure (Unify (Provenance DeclDefinition (ABT.annotation typ)) x tp)
+      unifyVars _typ vs =
+        concat <$> for (zip vs tyParams0) \(argTy, declParamKind) ->
+          typeConstraints declParamKind argTy
    in goForall constructorType0
 
 --------------------------------------------------------------------------------
