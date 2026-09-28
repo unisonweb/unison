@@ -348,6 +348,16 @@ analyseNotes codebase fileUri ppe src notes = do
                       [ ("expected record type", r2)
                       ]
                     )
+              TypeError.PatternMatchedMissingField {recordPatternLoc, scrutineeRecordType} ->
+                do
+                  r1 <- aToR recordPatternLoc
+                  r2 <- aToR (ABT.annotation scrutineeRecordType)
+                  pure (r1, [("record type", r2)])
+              TypeError.RecordPatternMatchOnNonRecordType {recordPatternLoc, scrutineeNonRecordType} ->
+                do
+                  r1 <- aToR recordPatternLoc
+                  r2 <- aToR (ABT.annotation scrutineeNonRecordType)
+                  pure (r1, [("not a record type", r2)])
               TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
                 Context.PatternArityMismatch loc _typ _numArgs -> singleRange loc
                 Context.HandlerOfUnexpectedType loc _typ -> singleRange loc
@@ -387,23 +397,8 @@ analyseNotes codebase fileUri ppe src notes = do
                         ("expected record type", r3)
                       ]
                     )
-                Context.PatternMatchedMissingField _fieldName fieldPat recordType -> do
-                  r1 <- aToR (Pattern.loc fieldPat)
-                  r2 <- aToR (ABT.annotation recordType)
-                  pure
-                    ( r1,
-                      [ ("record type", r2)
-                      ]
-                    )
-                Context.RecordPatternMatchOnNonRecordType recordPat notRecordType ->
-                  do
-                    r1 <- aToR (Pattern.loc recordPat)
-                    r2 <- aToR (ABT.annotation notRecordType)
-                    pure
-                      ( r1,
-                        [ ("not a record type", r2)
-                        ]
-                      )
+                Context.PatternMatchedMissingField {} -> shouldHaveBeenHandled e
+                Context.RecordPatternMatchOnNonRecordType {} -> shouldHaveBeenHandled e
 
             shouldHaveBeenHandled e = do
               Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e

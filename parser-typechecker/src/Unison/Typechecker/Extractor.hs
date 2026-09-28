@@ -9,6 +9,7 @@ import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.KindInference (KindError)
 import Unison.Pattern (Pattern)
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude hiding (whenM)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -297,6 +298,20 @@ unexpectedRecordField =
   cause >>= \case
     C.UnexpectedRecordField fieldName actualFieldType recordWithoutField recordWithField ->
       pure (fieldName, actualFieldType, recordWithoutField, recordWithField)
+    _ -> mzero
+
+patternMatchedMissingField :: ErrorExtractor v loc (Text, loc, C.Type v loc)
+patternMatchedMissingField =
+  cause >>= \case
+    C.PatternMatchedMissingField fieldName fieldPat recordType ->
+      pure (fieldName, Pattern.loc fieldPat, recordType)
+    _ -> mzero
+
+recordPatternMatchOnNonRecordType :: ErrorExtractor v loc (loc, C.Type v loc)
+recordPatternMatchOnNonRecordType =
+  cause >>= \case
+    C.RecordPatternMatchOnNonRecordType recordPat nonRecordType ->
+      pure (Pattern.loc recordPat, nonRecordType)
     _ -> mzero
 
 illFormedType :: ErrorExtractor v loc (C.Context v loc)

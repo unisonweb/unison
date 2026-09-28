@@ -157,6 +157,15 @@ data TypeError v loc
         recordWithoutField :: C.Type v loc,
         recordWithField :: C.Type v loc
       }
+  | PatternMatchedMissingField
+      { matchedFieldName :: Text,
+        recordPatternLoc :: loc,
+        scrutineeRecordType :: C.Type v loc
+      }
+  | RecordPatternMatchOnNonRecordType
+      { recordPatternLoc :: loc,
+        scrutineeNonRecordType :: C.Type v loc
+      }
   | Other (C.ErrorNote v loc)
   deriving (Show)
 
@@ -194,6 +203,8 @@ allErrors =
       matchBody,
       missingRecordField,
       unexpectedReccordField,
+      patternMatchedMissingField,
+      recordPatternMatchOnNonRecordType,
       applyingFunction,
       applyingNonFunction,
       generalMismatch,
@@ -452,6 +463,29 @@ unexpectedReccordField = do
         fieldType,
         recordWithoutField,
         recordWithField
+      }
+
+patternMatchedMissingField ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (TypeError v loc)
+patternMatchedMissingField = do
+  (matchedFieldName, recordPatternLoc, scrutineeRecordType) <- Ex.patternMatchedMissingField
+  pure $
+    PatternMatchedMissingField
+      { matchedFieldName,
+        recordPatternLoc,
+        scrutineeRecordType
+      }
+
+recordPatternMatchOnNonRecordType ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (TypeError v loc)
+recordPatternMatchOnNonRecordType = do
+  (recordPatternLoc, scrutineeNonRecordType) <- Ex.recordPatternMatchOnNonRecordType
+  pure $
+    RecordPatternMatchOnNonRecordType
+      { recordPatternLoc,
+        scrutineeNonRecordType
       }
 
 actionRestriction ::

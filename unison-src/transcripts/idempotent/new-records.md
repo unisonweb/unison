@@ -23,7 +23,7 @@ addUpRec = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + addUpRec : {x: Nat, y: Nat, z: Nat | ... } -> Nat
+  + addUpRec : {x: Nat, y: Nat, z: Nat | ...} -> Nat
   + mkRec    : a -> b -> c -> {x: a, y: b, z: c}
 
   Run `update` to apply these changes to your codebase.
@@ -49,7 +49,7 @@ scratch/main> update
 
 scratch/main> ls
 
-  1. addUpRec ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
+  1. addUpRec ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
   2. lib.     (747 terms, 116 types)
   3. mkRec    (a -> b -> c -> {x: a, y: b, z: c})
 ```
@@ -123,7 +123,7 @@ scratch/main> ls
 
   1.  Point       (type)
   2.  Point.      (1 term)
-  3.  addUpRec    ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
+  3.  addUpRec    ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
   4.  getX        (Point -> Nat)
   5.  getY        (Point -> Nat)
   6.  lib.        (747 terms, 116 types)
@@ -150,22 +150,22 @@ getName = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I didn't expect this record:
+  I expected this record:
 
-      2 |   { name:name, age:_ } -> name
+      5 | > getName { age: 30 }
 
 
   to have the field
     name: 𝕩16
 
-  because it should have the type:
+  so that it would match the type:
     
-    {age: Nat}
+    {age: 𝕩15, name: 𝕩16 | ...}
     
 
-  derived from here:
+  from here:
 
-      5 | > getName { age: 30 }
+      2 |   { name:name, age:_ } -> name
 ```
 
 We should get a nice error if we have additional unexpected fields.
@@ -180,7 +180,7 @@ createPerson = Person { name: "Alice", age: 30, address: "123 Main St" }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I expected this record:
+  I didn't expect this record:
 
       4 | createPerson = Person { name: "Alice", age: 30, address: "123 Main St" }
 
@@ -188,14 +188,14 @@ createPerson = Person { name: "Alice", age: 30, address: "123 Main St" }
   to have the field
     address: Text
 
-  so that it would match the type:
+  because it should have the type:
     
     {age: Nat, name: Text}
     
 
-  from here:
+  derived from here:
 
-      4 | createPerson = Person { name: "Alice", age: 30, address: "123 Main St" }
+      1 | type Person = Person { name: Text, age: Nat }
 ```
 
 Record field projections should infer the most general record type:
@@ -208,7 +208,7 @@ getAddress = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + getAddress : {address: t | ... } -> t
+  + getAddress : {address: t | ...} -> t
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -225,8 +225,8 @@ scratch/main> ls
 
   1.  Point       (type)
   2.  Point.      (1 term)
-  3.  addUpRec    ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
-  4.  getAddress  ({address: t | ... } -> t)
+  3.  addUpRec    ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
+  4.  getAddress  ({address: t | ...} -> t)
   5.  getX        (Point -> Nat)
   6.  getY        (Point -> Nat)
   7.  lib.        (747 terms, 116 types)
@@ -234,6 +234,133 @@ scratch/main> ls
   9.  mkRec       (a -> b -> c -> {x: a, y: b, z: c})
   10. p           (Point)
   11. unpackPoint (Point -> (Nat, Nat))
+```
+
+### Nested records
+
+Records nest, both as literals and as patterns, to arbitrary depth.
+
+``` unison
+nested : { a: { b: Nat } } -> Nat
+nested = cases
+  { a: { b: b } } -> b
+
+> nested { a: { b: 7 } }
+
+-- The same thing with no annotation, so every field type is inferred.
+nestedInferred = cases
+  { a: { b: { c: c } } } -> c
+
+> nestedInferred { a: { b: { c: 11 } } }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + nested         : {a: {b: Nat}} -> Nat
+  + nestedInferred : {a: {b: {c: t | ...} | ...} | ...} -> t
+
+  Run `update` to apply these changes to your codebase.
+
+    5 | > nested { a: { b: 7 } }
+          ⧩
+          7
+
+    11 | > nestedInferred { a: { b: { c: 11 } } }
+           ⧩
+           11
+```
+
+Record types unify with each other inside other structures.
+
+``` unison
+jons =
+  [ { name: "Jon Arbuckle", age: 35 }
+  , { name: "Jon Snow", age: 25 }
+  ]
+
+> jons
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + jons : [{age: Nat, name: Text}]
+
+  Run `update` to apply these changes to your codebase.
+
+    6 | > jons
+          ⧩
+          [ {age: 35, name: "Jon Arbuckle"}
+          , {age: 25, name: "Jon Snow"}
+          ]
+```
+
+### More type errors
+
+A field whose type doesn't match across two records that have to unify.
+
+``` unison :error
+mismatchedFieldTypes =
+  [ { name: "Jon Arbuckle", age: 35 }
+  , { name: "Jon Snow", age: "25" }
+  ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  All the elements of a list need to have the same type.
+
+  Here, one   is:  {age: Nat, name: Text}
+  and another is:  {age: Text, name: Text}
+
+
+      2 |   [ { name: "Jon Arbuckle", age: 35 }
+      3 |   , { name: "Jon Snow", age: "25" }
+```
+
+A record pattern can only match a record. If we already know the scrutinee
+isn't one, say so rather than reporting a generic mismatch.
+
+``` unison :error
+notARecord : Nat -> Nat
+notARecord = cases
+  { a: a } -> a
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  This is a record pattern, but the value it's matching isn't a
+  record:
+
+      3 |   { a: a } -> a
+
+
+  It has type:
+    Nat
+```
+
+Matching on a field the record doesn't have points at the pattern.
+
+``` unison :error
+noSuchField : { age: Nat } -> Nat
+noSuchField = cases
+  { name: n, age: _ } -> 1
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  This pattern matches on a field called name , but the record
+  it's matching doesn't have that field:
+
+      3 |   { name: n, age: _ } -> 1
+
+
+  The record being matched has type:
+    {age: Nat}
 ```
 
 ### Pattern match coverage

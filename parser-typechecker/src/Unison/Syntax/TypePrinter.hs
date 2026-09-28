@@ -142,9 +142,13 @@ prettyRaw im p tp = go im p tp
               Map.toList renderedValues
                 <&> (\(k, v) -> fmt (S.RecordFieldName k) (PP.text k) <> fmt S.RecordFieldValueColon ": " <> v)
         let renderedFB = case fb of
-              AllowExtraFields -> fmt S.RecordExtraFields " | ... "
+              AllowExtraFields -> fmt S.RecordExtraFields " | ..."
               RequireExactFields -> mempty
-        pure $ PP.surroundCommas "{" (renderedFB <> "}") renderedFields
+        pure $
+          PP.surroundCommas
+            (fmt S.DelimiterChar "{")
+            (renderedFB <> fmt S.DelimiterChar "}")
+            renderedFields
       _ -> pure . fromString $ "bug: unexpected form in prettyRaw: " <> show tp
     -- Sort effects in effect lists by how they're printed rather than hash,
     -- this helps with both readability and diff alignment.

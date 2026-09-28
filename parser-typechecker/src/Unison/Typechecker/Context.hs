@@ -122,7 +122,6 @@ import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Typechecker.Variance (Variance (..), defaultVariances)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Witherable qualified as Wither
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -506,14 +505,14 @@ data Cause v loc
   | InaccessiblePattern loc
   | MissingRecordField
       (Text {- the missing field name -})
-      (Type v loc {- the type we expected there -})
-      (Type v loc {- record literal missing the field -})
-      (Type v loc {- record literal which has the type -})
+      (Type v loc {- the type we expected the field to have -})
+      (Type v loc {- the record which is missing the field -})
+      (Type v loc {- the record which requires the field -})
   | UnexpectedRecordField
       (Text {- the extra/unexpected field name -})
-      (Type v loc {- the type we inferred there -})
-      (Type v loc {- record literal with the extra field -})
-      (Type v loc {- record type we're trying to match -})
+      (Type v loc {- the type we inferred for the field -})
+      (Type v loc {- the record which does not want the field -})
+      (Type v loc {- the record which has the extra field -})
   | PatternMatchedMissingField
       (Text {- the field name we tried to match, but wasn't in the type -})
       (Pattern loc {- the place we matched on the missing field -})
@@ -1739,6 +1738,20 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
 -- The output (assuming no type errors) is [(x,x'), (y,y'), (z,z')]
 -- where x', y', z' are freshened versions of x, y, z. These will be substituted
 -- into `blah x y z` to produce `blah x' y' z'` before typechecking it.
+
+-- | Whether a type could still turn out to be a record: either it already is
+-- one, or it isn't yet determined. Used to decide whether a record pattern is
+-- definitely being matched against something that isn't a record, which
+-- deserves a better error than a generic type mismatch.
+couldBeRecord :: (Var v) => Type v loc -> Bool
+couldBeRecord = \case
+  Type.Record' {} -> True
+  Type.Var' _ -> True
+  Type.Forall' _ -> True
+  Type.Ann' t _ -> couldBeRecord t
+  Type.Effect1' _ t -> couldBeRecord t
+  _ -> False
+
 checkPattern ::
   (Var v, Ord loc) =>
   Type v loc ->
@@ -1748,6 +1761,20 @@ checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("check
 checkPattern scrutineeType p =
   case p of
     Pattern.RecordLiteral recordLoc fieldPatterns -> do
+      -- The scrutinee may already be solved to a concrete type by an
+      -- enclosing pattern or an annotation, so look through solutions before
+      -- inspecting it.
+      scrutineeType <- lift $ Type.stripIntroOuters <$> applyM scrutineeType
+      -- If we already know what we're matching, we can produce a much better
+      -- error than the `subtype` check below would.
+      case scrutineeType of
+        Type.Record' _fb typeFields ->
+          -- Matching a field the record doesn't have.
+          for_ (Map.toList (Map.difference fieldPatterns typeFields)) \(fieldName, fieldPat) ->
+            lift . failWith $ PatternMatchedMissingField fieldName fieldPat scrutineeType
+        _
+          | couldBeRecord scrutineeType -> pure ()
+          | otherwise -> lift . failWith $ RecordPatternMatchOnNonRecordType p scrutineeType
       -- Create unification variables for each field in the pattern
       inferredFieldTypes <- lift $ for fieldPatterns \pat -> do
         fieldTypeV <- freshenVar Var.inferOther
@@ -1759,21 +1786,15 @@ checkPattern scrutineeType p =
       -- Build the type of the pattern, filled with those unification variables
       let patternRecordType = Type.record recordLoc fb inferredFieldTypes
       lift $ subtype scrutineeType patternRecordType
-      lift $ for_ inferredFieldTypes applyM
-      -- Unify each field pattern against the variable for that field
+      -- Solving the subtype constraint above may have solved some of the field
+      -- variables; the recursive calls need the solutions, since `subtype`
+      -- doesn't apply the context to its arguments itself.
+      inferredFieldTypes <- lift $ traverse applyM inferredFieldTypes
+      -- Check each field pattern against the variable for that field. The two
+      -- maps have the same key set by construction, so this is a zip.
       vs <-
-        Align.align inferredFieldTypes fieldPatterns
-          & Map.traverseWithKey
-            ( \fieldName -> \case
-                -- The expected type has a field the pattern doesn't, that's fine we can ignore it.
-                This _ -> pure $ Nothing
-                -- We have a pattern, but the expected type does not.
-                That p -> lift . failWith $ PatternMatchedMissingField fieldName p scrutineeType
-                -- Both the type and pattern have a field; typecheck the pattern against the type.
-                These fieldTyp fieldPat -> do
-                  Just <$> checkPattern fieldTyp fieldPat
-            )
-          <&> Wither.catMaybes
+        Map.intersectionWith (,) inferredFieldTypes fieldPatterns
+          & traverse (\(fieldTyp, fieldPat) -> checkPattern fieldTyp fieldPat)
       pure $ fold vs
     Pattern.Unbound _ -> pure []
     Pattern.Var loc -> do
@@ -2484,8 +2505,9 @@ discardCovariant vars gens ty =
       | Just vs <- checkVarianceWith vars f,
         length vs == length xs =
           keepVarsT pos f <> foldMap (keepVarsV pos) (zip vs xs)
+    -- Records place no field in a negative position, so every field is
+    -- treated the same way as the covariant part of an application.
     keepVarsT pos (Type.Record' _fb fields) =
-      -- TODO: Is this right?
       foldMap (keepVarsT pos) fields
     keepVarsT _ t = foldMap exi $ Type.freeVars t
 
@@ -2737,8 +2759,9 @@ checkWanted exact want (Term.List' es) lty
       Foldable.foldlM f want es
   where
     bexact = isJust exact
--- TODO: Do we need a case for Term.Record'?
--- I don't think so
+-- Note: no case is needed for `Term.Record'`. The fallthrough synthesizes,
+-- and `synthesizeWanted`'s record case already coalesces every field's wanted
+-- abilities.
 checkWanted _ want e t = do
   (u, wnew) <- synthesize e
   ctx <- getContext
@@ -2875,12 +2898,14 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       Align.align fields1 fields2
         & Map.traverseWithKey
           ( \fieldName -> \case
+              -- r1 has a field r2 doesn't: an extra field, which is only an
+              -- error if r2 won't tolerate extras.
               This t1 -> case fb2 of
-                Type.RequireExactFields -> failWith $ MissingRecordField fieldName t1 r1 r2
+                Type.RequireExactFields -> failWith $ UnexpectedRecordField fieldName t1 r2 r1
                 Type.AllowExtraFields -> pure ()
-              -- If we're missing a field in r1, there's no way it can be a subtype,
+              -- r1 is missing a field r2 requires, so it can't be a subtype
               -- regardless of the field behavior.
-              That t2 -> failWith $ UnexpectedRecordField fieldName t2 r1 r2
+              That t2 -> failWith $ MissingRecordField fieldName t2 r1 r2
               These t1 t2 -> subtype t1 t2
           )
         & void
@@ -2966,12 +2991,19 @@ equate0 t (Type.Var' (TypeVar.Existential b v))
       instantiateL b v t
 equate0 (Type.Effects' es1) (Type.Effects' es2) =
   equateAbilities es1 es2
-equate0 r1@(Type.Record' _fb1 fields1) r2@(Type.Record' _fb2 fields2) =
+equate0 r1@(Type.Record' fb1 fields1) r2@(Type.Record' fb2 fields2) =
   do
+    -- Equality is invariant, so unlike `subtype` an open record is not
+    -- interchangeable with a closed one even when the fields line up.
+    when (fb1 /= fb2) do
+      ctx <- getContext
+      failWith $ TypeMismatch ctx
     Align.align fields1 fields2
       & Map.traverseWithKey
         ( \fieldName -> \case
-            This fieldType -> failWith $ MissingRecordField fieldName fieldType r2 r1
+            -- r1 has a field r2 doesn't, so r1 carries the extra one.
+            This fieldType -> failWith $ UnexpectedRecordField fieldName fieldType r2 r1
+            -- r1 lacks a field r2 has.
             That fieldType -> failWith $ MissingRecordField fieldName fieldType r1 r2
             These t1 t2 -> equate t1 t2
         )
@@ -3201,9 +3233,11 @@ instantiateR (Type.stripIntroOuters -> t) blank v =
         replaceContext
           (existential v)
           ((existential <$> Map.elems fieldVars) <> [solved])
-        -- Finally, instantiate each field type to the corresponding existential
+        -- Finally, instantiate each field type to the corresponding existential.
+        -- Note this is the R direction, matching the surrounding function; the
+        -- two agree for monotype fields but not for arrow- or forall-typed ones.
         for_ (Align.zip fields fieldVars) \(fieldTyp, fieldVar) ->
-          applyM fieldTyp >>= instantiateL B.Blank fieldVar
+          applyM fieldTyp >>= \fieldTyp -> instantiateR fieldTyp B.Blank fieldVar
       Type.Effect1' es vt -> do
         es' <- freshenVar (nameFrom Var.inferAbility es)
         vt' <- freshenVar (nameFrom Var.inferTypeConstructorArg vt)

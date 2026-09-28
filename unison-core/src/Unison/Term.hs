@@ -100,7 +100,9 @@ data F typeVar typeAnn patternAnn a
     Match a [MatchCase patternAnn a]
   | TermLink Referent
   | TypeLink Reference
-  | Record (Map Text {- Should this contain an Ann somehow? -} a)
+  | -- | Field names carry no annotation of their own, so errors about a field
+    -- are reported at the field value's location.
+    Record (Map Text a)
   deriving (Ord, Foldable, Functor, Generic, Generic1, Traversable)
 
 _Ref :: Prism' (F tv ta pa a) Reference

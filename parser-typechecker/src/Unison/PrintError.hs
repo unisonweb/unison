@@ -46,6 +46,7 @@ import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Pattern (Pattern)
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -1042,6 +1043,29 @@ renderTypeError e env src = case e of
         "",
         annotatedAsStyle Type2 src recordWithoutField
       ]
+  PatternMatchedMissingField {matchedFieldName, recordPatternLoc, scrutineeRecordType} ->
+    Pr.lines
+      [ Pr.wrap $
+          "This pattern matches on a field called "
+            <> (style ErrorSite (Text.unpack matchedFieldName) <> ",")
+            <> " but the record it's matching doesn't have that field:",
+        "",
+        annotatedAsErrorSite src recordPatternLoc,
+        "",
+        "The record being matched has type:",
+        Pr.indentN 2 (style Type1 (renderType' env scrutineeRecordType)),
+        ""
+      ]
+  RecordPatternMatchOnNonRecordType {recordPatternLoc, scrutineeNonRecordType} ->
+    Pr.lines
+      [ Pr.wrap "This is a record pattern, but the value it's matching isn't a record:",
+        "",
+        annotatedAsErrorSite src recordPatternLoc,
+        "",
+        "It has type:",
+        Pr.indentN 2 (style Type1 (renderType' env scrutineeNonRecordType)),
+        ""
+      ]
   Other (C.cause -> C.HandlerOfUnexpectedType loc typ) ->
     Pr.lines
       [ Pr.wrap "The handler used here",
@@ -1374,15 +1398,24 @@ renderTypeError e env src = case e of
           ]
       C.PatternMatchedMissingField fieldName fieldPat missingFieldTyp ->
         mconcat
-          [ "This pattern tried to match on the `" <> Pr.text fieldName <> "` field, but it's not part of the type.\n",
-            "  The pattern is here: " <> Pr.lit (renderPattern env fieldPat) <> "\n",
-            "  I inferred the required type here: " <> renderType' env missingFieldTyp <> "\n"
+          [ "PatternMatchedMissingField:\n",
+            "  field=",
+            Pr.text fieldName,
+            "\n",
+            "  loc=",
+            annotatedToEnglish (Pattern.loc fieldPat),
+            "\n",
+            "  typ=",
+            renderType' env missingFieldTyp
           ]
       C.RecordPatternMatchOnNonRecordType recordPat nonRecordTyp ->
         mconcat
-          [ "This pattern is trying to match a record, but the type is not a record.\n",
-            "  The pattern is here: " <> Pr.lit (renderPattern env recordPat) <> "\n",
-            "  I inferred the type here: " <> renderType' env nonRecordTyp <> "\n"
+          [ "RecordPatternMatchOnNonRecordType:\n",
+            "  loc=",
+            annotatedToEnglish (Pattern.loc recordPat),
+            "\n",
+            "  typ=",
+            renderType' env nonRecordTyp
           ]
 
 renderCompilerBug ::
@@ -1491,7 +1524,14 @@ renderPattern env =
   Pr.render 0
     . Pr.syntaxToColor
     . fst
-    . TermPrinter.prettyPattern env TermPrinter.emptyAc Precedence.Annotation ([] :: [Symbol])
+    . TermPrinter.prettyPattern env TermPrinter.emptyAc Precedence.Annotation placeholders
+  where
+    -- `prettyPattern` draws a name from this list for every `Pattern.Var` it
+    -- meets and errors if it runs dry. Callers here render patterns that came
+    -- from the coverage checker, which uses `Unbound` rather than `Var`, but
+    -- an empty list would turn any future var-bearing pattern into a crash.
+    placeholders :: [Symbol]
+    placeholders = Var.named . ("_p" <>) . tShow <$> [(0 :: Int) ..]
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
@@ -1535,7 +1575,7 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
       Type.Var' v -> renderVar v
       Type.Record' fb fields ->
         let fbs = case fb of
-              Type.AllowExtraFields -> "| ..."
+              Type.AllowExtraFields -> " | ..."
               Type.RequireExactFields -> ""
          in curly
               (p >= 3)
