@@ -23,16 +23,16 @@ addUpRec = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + mkRec     : a -> b -> c -> {x: a, y: b, z: c}
   + addUpRec : {x: Nat, y: Nat, z: Nat | ... } -> Nat
+  + mkRec    : a -> b -> c -> {x: a, y: b, z: c}
 
   Run `update` to apply these changes to your codebase.
 
-    2 | > mkRec 1 2 3
+    3 | > mkRec 1 2 3
           ⧩
           {x: 1, y: 2, z: 3}
 
-    7 | > addUpRec (mkRec 1 2 3)
+    9 | > addUpRec (mkRec 1 2 3)
           ⧩
           6
 ```
@@ -49,9 +49,9 @@ scratch/main> update
 
 scratch/main> ls
 
-  1. lib.      (746 terms, 116 types)
-  2. mkRec     (a -> b -> c -> {x: a, y: b, z: c})
-  3. addUpRec ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
+  1. addUpRec ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
+  2. lib.     (747 terms, 116 types)
+  3. mkRec    (a -> b -> c -> {x: a, y: b, z: c})
 ```
 
 We should be able to create wrapper types which encapsulate records, and manipulate them.
@@ -92,19 +92,19 @@ p = mkPoint 3 4
   + getY        : Point -> Nat
   + mkPoint     : Nat -> Nat -> Point
   + p           : Point
-  + unpackPoint : Point -> Nat
+  + unpackPoint : Point -> (Nat, Nat)
 
   Run `update` to apply these changes to your codebase.
 
-    15 | > unpackPoint p
+    22 | > unpackPoint p
            ⧩
-           7
+           (3, 4)
 
-    16 | > getX p
+    23 | > getX p
            ⧩
            3
 
-    17 | > getY p
+    24 | > getY p
            ⧩
            4
 ```
@@ -123,14 +123,14 @@ scratch/main> ls
 
   1.  Point       (type)
   2.  Point.      (1 term)
-  3.  getX        (Point -> Nat)
-  4.  getY        (Point -> Nat)
-  5.  lib.        (746 terms, 116 types)
-  6.  mkPoint     (Nat -> Nat -> Point)
-  7.  mkRec       (a -> b -> c -> {x: a, y: b, z: c})
-  8.  p           (Point)
-  9.  unpackPoint (Point -> Nat)
-  10. unpackRec   ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
+  3.  addUpRec    ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
+  4.  getX        (Point -> Nat)
+  5.  getY        (Point -> Nat)
+  6.  lib.        (747 terms, 116 types)
+  7.  mkPoint     (Nat -> Nat -> Point)
+  8.  mkRec       (a -> b -> c -> {x: a, y: b, z: c})
+  9.  p           (Point)
+  10. unpackPoint (Point -> (Nat, Nat))
 
 scratch/main> view Point
 
@@ -225,13 +225,103 @@ scratch/main> ls
 
   1.  Point       (type)
   2.  Point.      (1 term)
-  3.  getAddress  ({address: t | ... } -> t)
-  4.  getX        (Point -> Nat)
-  5.  getY        (Point -> Nat)
-  6.  lib.        (746 terms, 116 types)
-  7.  mkPoint     (Nat -> Nat -> Point)
-  8.  mkRec       (a -> b -> c -> {x: a, y: b, z: c})
-  9.  p           (Point)
-  10. unpackPoint (Point -> Nat)
-  11. unpackRec   ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
+  3.  addUpRec    ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
+  4.  getAddress  ({address: t | ... } -> t)
+  5.  getX        (Point -> Nat)
+  6.  getY        (Point -> Nat)
+  7.  lib.        (747 terms, 116 types)
+  8.  mkPoint     (Nat -> Nat -> Point)
+  9.  mkRec       (a -> b -> c -> {x: a, y: b, z: c})
+  10. p           (Point)
+  11. unpackPoint (Point -> (Nat, Nat))
+```
+
+### Pattern match coverage
+
+Pattern match coverage should warn on multiple record matches since they're irrefutable.
+
+``` unison :error
+getAgeRedundant : { age: Nat, address: Text | ... } -> Nat
+getAgeRedundant = cases
+  { age:age } -> age
+  { address:_ } -> 99
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  This case would be ignored because it's already covered by the preceding case(s):
+        4 |   { address:_ } -> 99
+
+```
+
+Pattern match coverage should warn if there are NO cases, at least one is required.
+
+``` unison :error
+missingRight : Either Nat { age: Nat } -> Nat
+missingRight = cases
+  Left n -> n
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  Pattern match doesn't cover all possible cases:
+        2 | missingRight = cases
+        3 |   Left n -> n
+
+
+  Patterns not matched:
+   * Right _
+```
+
+``` unison :error
+missingAllCases : { age: Nat } -> Nat
+missingAllCases = cases
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  Pattern match doesn't cover all possible cases:
+        2 | missingAllCases = cases
+
+
+  Patterns not matched:
+   * _
+```
+
+Void inside a record shouldn't require any cases (But currently it does)
+
+``` unison :error
+type Void =
+
+getVoid : Either { x: Void } Nat -> Nat
+getVoid = cases
+  Right n -> n
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  Pattern match doesn't cover all possible cases:
+        4 | getVoid = cases
+        5 |   Right n -> n
+
+
+  Patterns not matched:
+   * Left _
+```
+
+
+### Universals
+
+Currently broken:
+
+``` unison
+> {a: 1} === {a: 1}
+> {a: 1} === {a: 2}
+> Universal.gt {a: 1} {a: 1}
+> Universal.gt {a: 2} {a: 1}
+> Universal.gt {a: 1} {a: 2}
 ```
