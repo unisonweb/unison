@@ -711,11 +711,16 @@ getValue s@(v, _) =
           w <- getWord64be
           vs <- getList (getValue s)
           pure $ Data r w vs
-    -- Record types didn't exist before version 4
-    RecordT -> do
-      rs <- getRecordSchema
-      vs <- getList (getValue s)
-      pure $ Record rs vs
+    RecordT
+      -- Record types didn't exist before version 4, so a payload claiming to
+      -- be older can't contain one.
+      | Transfer vn <- v,
+        vn < 4 ->
+          exn [] $ "getValue: record value in a version " ++ show vn ++ " payload"
+      | otherwise -> do
+          rs <- getRecordSchema
+          vs <- getList (getValue s)
+          pure $ Record rs vs
     ContT
       | Transfer vn <- v,
         vn < 4 -> do

@@ -56,8 +56,13 @@ instance H.Tokenizable (Pattern p) where
   tokens (PatternSequenceLiteral _ ps) = H.Tag 11 : concatMap H.tokens ps
   tokens (PatternSequenceOp _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
   tokens (PatternChar _ c) = H.Tag 13 : H.tokens c
+  -- The field count is hashed so that the flat name/pattern run is explicitly
+  -- delimited, rather than relying on every element happening to be
+  -- self-delimiting.
   tokens (PatternRecord _ fields) =
-    H.Tag 14 : foldMap (\(fieldName, p) -> H.tokens fieldName ++ H.tokens p) (Map.toList fields)
+    H.Tag 14
+      : (H.Nat . fromIntegral $ Map.size fields)
+      : foldMap (\(fieldName, p) -> H.tokens fieldName ++ H.tokens p) (Map.toAscList fields)
 
 instance Eq (Pattern loc) where
   PatternUnbound _ == PatternUnbound _ = True

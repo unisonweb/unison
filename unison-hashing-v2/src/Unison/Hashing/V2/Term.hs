@@ -202,7 +202,10 @@ instance (Var v) => Hashable1 (TermF v a p) where
                   TermOr x y -> [tag 17, hashed $ hash x, hashed $ hash y]
                   TermTermLink r -> [tag 18, accumulateToken r]
                   TermTypeLink r -> [tag 19, accumulateToken r]
-                  TermRecord fields -> [tag 20] <> fieldTokens fields
+                  -- The field count is significant: without it the flat
+                  -- name/value run has no terminator distinguishing it from
+                  -- tokens that follow.
+                  TermRecord fields -> tag 20 : varint (Map.size fields) : fieldTokens fields
                     where
                       fieldTokens :: Map Text x -> [Hashable.Token]
                       fieldTokens fs =
@@ -210,4 +213,4 @@ instance (Var v) => Hashable1 (TermF v a p) where
                           ( \(name, val) ->
                               [accumulateToken name, hashed (hash val)]
                           )
-                          (Map.toList fs)
+                          (Map.toAscList fs)

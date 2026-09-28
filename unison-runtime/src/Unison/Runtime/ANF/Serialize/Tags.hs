@@ -116,6 +116,7 @@ instance Tag FnTag where
     4 -> pure FReqT
     5 -> pure FPrimT
     6 -> pure FForeignT
+    7 -> pure FRecT
     n -> unknownTag "FnTag" n
 
 instance Tag MtTag where
@@ -216,6 +217,7 @@ instance Tag VaTag where
     1 -> pure DataT
     2 -> pure ContT
     3 -> pure BLitT
+    4 -> pure RecordT
     t -> unknownTag "VaTag" t
   {-# INLINE word2tag #-}
 
