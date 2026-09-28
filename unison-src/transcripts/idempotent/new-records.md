@@ -9,20 +9,22 @@ scratch/main> builtins.merge lib.builtins
 We should be able to write simple functions which construct record types, and can evaluate them.
 
 ``` unison
+mkRec : a -> b -> c -> { x: a, y: b, z: c }
 mkRec a b c = { x: a, y: b, z: c }
 > mkRec 1 2 3
 
-unpackRec = cases
+addUpRec : { x: Nat, y: Nat, z: Nat | ... } -> Nat
+addUpRec = cases
   { x:x, y:y, z:z } -> x Nat.+ y Nat.+ z
 
-> unpackRec (mkRec 1 2 3)
+> addUpRec (mkRec 1 2 3)
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   + mkRec     : a -> b -> c -> {x: a, y: b, z: c}
-  + unpackRec : {x: Nat, y: Nat, z: Nat | ... } -> Nat
+  + addUpRec : {x: Nat, y: Nat, z: Nat | ... } -> Nat
 
   Run `update` to apply these changes to your codebase.
 
@@ -30,7 +32,7 @@ unpackRec = cases
           ⧩
           {x: 1, y: 2, z: 3}
 
-    7 | > unpackRec (mkRec 1 2 3)
+    7 | > addUpRec (mkRec 1 2 3)
           ⧩
           6
 ```
@@ -49,7 +51,7 @@ scratch/main> ls
 
   1. lib.      (746 terms, 116 types)
   2. mkRec     (a -> b -> c -> {x: a, y: b, z: c})
-  3. unpackRec ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
+  3. addUpRec ({x: Nat, y: Nat, z: Nat | ... } -> Nat)
 ```
 
 We should be able to create wrapper types which encapsulate records, and manipulate them.
@@ -57,16 +59,23 @@ We should be able to create wrapper types which encapsulate records, and manipul
 ``` unison
 type Point = Point { x: Nat, y: Nat }
 
+mkPoint : Nat -> Nat -> Point
 mkPoint x y = Point { x: x, y: y }
 
+unpackPoint : Point -> (Nat, Nat)
 unpackPoint = cases
-  Point { x:x, y:y } -> x + y
+  Point { x:x, y:y } -> (x, y)
 
+-- We can do partial record projections and only bind the fields we care about.
+getX : Point -> Nat
 getX = cases
-    Point { x:x, y:y } -> x
-getY = cases
-    Point { x:x, y:y } -> y
+    Point { x:x } -> x
 
+getY : Point -> Nat
+getY = cases
+    Point { y:y } -> y
+
+p : Point
 p = mkPoint 3 4
 
 > unpackPoint p
