@@ -363,6 +363,79 @@ noSuchField = cases
     {age: Nat}
 ```
 
+### Field names
+
+A field can only be named once. The field map would otherwise be built with
+`Map.fromList`, which silently keeps the last binding.
+
+``` unison :error
+dupLit = { a: 1, a: 2 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found the field a twice in the same record:
+
+      1 | dupLit = { a: 1, a: 2 }
+
+
+  Each field can only be named once.
+```
+
+``` unison :error
+dupType : { a: Nat, a: Text } -> Nat
+dupType = cases _ -> 1
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found the field a twice in the same record:
+
+      1 | dupType : { a: Nat, a: Text } -> Nat
+
+
+  Each field can only be named once.
+```
+
+``` unison :error
+dupPat = cases
+  { a: x, a: y } -> x
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found the field a twice in the same record:
+
+      2 |   { a: x, a: y } -> x
+
+
+  Each field can only be named once.
+```
+
+The empty record is the record with no fields. It round-trips like any other.
+
+``` unison
+empty : { }
+empty = { }
+
+> empty
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + empty : {}
+
+  Run `update` to apply these changes to your codebase.
+
+    4 | > empty
+          ⧩
+          {}
+```
+
 ### Pattern match coverage
 
 Pattern match coverage should warn on multiple record matches since they're irrefutable.

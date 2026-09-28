@@ -401,10 +401,11 @@ parsePattern =
             fieldName <- Parser.recordFieldName
             _ <- reserved ":"
             fieldPattern <- parsePattern
-            pure (L.payload fieldName, fieldPattern)
+            pure (fieldName, fieldPattern)
       fields <- sepBy (reserved ",") field
       end <- closeBlock
-      pure (Syntax.Pattern.RecordLiteral (ann start <> ann end) (Map.fromList fields))
+      checkForDuplicateRecordFields (fst <$> fields)
+      pure (Syntax.Pattern.RecordLiteral (ann start <> ann end) (Map.fromList (first L.payload <$> fields)))
 
     -- Parse an "HQ-namey", which could either definitely be a nullary constructor (because it's either hash-only or
     -- hash-qualified or symboly), or either a variable or nullary constructor (because it's a wordy name-only). And if
@@ -1310,7 +1311,9 @@ recordLiteral ::
   (Var v, Ord v, Monad m) =>
   TermP v m
 recordLiteral = do
-  seq' "{" finalize keyValueP
+  (spanAnn, kvs) <- seq' "{" (,) keyValueP
+  checkForDuplicateRecordFields (fst <$> kvs)
+  pure $ Term.record spanAnn (Map.fromList (first L.payload <$> kvs))
   where
     keyValueP :: P v m (L.Token Text, Term v Ann)
     keyValueP = do
@@ -1318,8 +1321,6 @@ recordLiteral = do
       _ <- reserved ":"
       value <- term
       pure (key, value)
-    finalize :: Ann -> [(L.Token Text, Term v Ann)] -> (Term v Ann)
-    finalize spanAnn kvs = Term.record spanAnn (Map.fromList (first L.payload <$> kvs))
 
 tupleOrParenthesizedTerm :: (Monad m, Var v) => TermP v m
 tupleOrParenthesizedTerm = label "tuple" $ do

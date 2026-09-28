@@ -120,14 +120,15 @@ recordType = do
       Just _ -> pure Type.AllowExtraFields
       Nothing -> pure Type.RequireExactFields
   close <- closeBlock
+  checkForDuplicateRecordFields (fst <$> fields)
   let a = ann open <> ann close
-  pure $ Type.record a fb (Map.fromList fields)
+  pure $ Type.record a fb (Map.fromList (first L.payload <$> fields))
   where
     recordField = do
       nameTok <- recordFieldName
       _ <- reserved ":"
       t <- valueType
-      pure (L.payload nameTok, t)
+      pure (nameTok, t)
 
 --  valueType ::= ... | Arrow valueType computationType
 arrow :: (Monad m, Var v) => TypeP v m -> TypeP v m

@@ -2276,6 +2276,19 @@ renderParseErrors s = \case
                 tokenAsErrorSite s $ HQ.toText <$> tok
               ]
        in (msg, [rangeForToken tok])
+    go (Parser.DuplicateRecordField ann1 ann2 name) =
+      let msg =
+            Pr.lines
+              [ Pr.wrap $
+                  "I found the field "
+                    <> style ErrorSite (Text.unpack name)
+                    <> " twice in the same record:",
+                "",
+                annotatedsAsErrorSite s [ann1, ann2],
+                "",
+                Pr.wrap "Each field can only be named once."
+              ]
+       in (msg, mapMaybe rangeForAnnotated [ann1, ann2])
     go (Parser.DuplicateBinders ann1 ann2 var) =
       let msg =
             Pr.lines
