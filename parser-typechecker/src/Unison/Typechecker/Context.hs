@@ -964,6 +964,7 @@ getDataConstructors typ
               (ListPat.Nil, [])
             ]
        in pure (SequenceType xs)
+  | Type.Record' _fb fields <- typ = pure (RecordType fields)
   | Just r <- theRef typ = ConstructorType . crFromDecl r <$> getDataDeclaration r
   | otherwise = pure OtherType
   where
@@ -1608,6 +1609,9 @@ instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (PmcState (TypeVa
       BooleanType -> pure []
       OtherType -> pure []
       SequenceType {} -> pure []
+      -- Records have no `ConstructorReference`, so this is never reached for
+      -- them; `withConstructors` gets the field types from `RecordType`.
+      RecordType {} -> pure []
     where
       extractArgs (Type.Arrows' xs) = init xs
       extractArgs _ = []

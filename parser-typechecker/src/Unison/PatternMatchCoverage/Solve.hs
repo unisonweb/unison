@@ -103,9 +103,11 @@ uncoverAnnotate z grdtree0 = cata phi grdtree0 z
         PmLet var expr typ -> do
           nc <- addLiteral' nc0 (Let var expr typ)
           k nc
-        PmRecordLiteral fields recordVar recordType -> do
-          -- TODO: I have no idea what's happening here and should probably spend some time with the paper.
-          nc <- addLiteral' nc0 (PosRecordLiteral recordVar fields recordType)
+        PmRecordLiteral fields recordVar _recordType -> do
+          -- A record match is irrefutable, so unlike a constructor match there
+          -- is no negative branch to take: we only learn which variables stand
+          -- for the scrutinee's fields.
+          nc <- addLiteral' nc0 (PosRecordLiteral recordVar fields)
           k nc
 
     -- Constructors and literals are handled uniformly except that
@@ -205,6 +207,12 @@ generateInhabitants x nc =
               [(v, _)] -> generateInhabitants v nc'
               _ -> error "NoEffect has the incorrect number of convars"
             Effect cr -> Pattern.EffectBind () cr (map (\(v, _) -> generateInhabitants v nc') convars) (Pattern.Unbound ())
+        Vc'Record pos -> case pos of
+          Nothing -> Pattern.Unbound ()
+          -- Note this emits `Unbound` for unconstrained fields rather than
+          -- `Var`: these patterns are rendered with no variable supply.
+          Just fields ->
+            Pattern.RecordLiteral () (fields <&> \(v, _) -> generateInhabitants v nc')
         Vc'Boolean pos _neg -> case pos of
           Nothing -> Pattern.Unbound ()
           Just b -> Pattern.Boolean () b
@@ -329,6 +337,10 @@ expandSolution x nc =
                                                       Vc'Effect pos neg
                                                         | Just _ <- pos -> go newFuel v nc'
                                                         | not (Set.null neg) -> go (newFuel - 1) v nc'
+                                                      -- Always expand records: they're irrefutable, so
+                                                      -- suggesting `{a: {b: _}}` costs nothing and reads
+                                                      -- better than `{a: _}`.
+                                                      Vc'Record _pos -> go newFuel v nc'
                                                       Vc'Boolean _pos neg
                                                         | not (Set.null neg) -> go (newFuel - 1) v nc'
                                                       Vc'ListRoot _typ _posCons _posSnoc neg
@@ -390,6 +402,20 @@ withConstructors nil vinfo k = do
           mkNeg _v (_pos, neg) =
             neg
        in k constraints mkPos mkNeg
+    RecordType fields ->
+      -- A record is a product with exactly one constructor, so there is a
+      -- single instantiation to try and its argument types are the field
+      -- types. Walking into them is what lets us notice that a record with an
+      -- uninhabited field is itself uninhabited.
+      let names = Map.keys fields
+          fieldTypes = Map.elems fields
+          mkPos recVar ns args = [C.PosRecordLiteral recVar (Map.fromList (zip ns args))]
+          -- There is no negative record constraint: with one constructor
+          -- there's nothing to rule out and nothing to retry. Adding an empty
+          -- positive constraint is a no-op, and `inhabited` skips this
+          -- entirely for records (see `shouldAddNegative`).
+          mkNeg recVar _ns = C.PosRecordLiteral recVar mempty
+       in k [(names, fieldTypes)] mkPos mkNeg
     BooleanType -> do
       k [(True, []), (False, [])] (\v b _ -> [C.PosLit v (PmLit.Boolean b)]) (\v b -> C.NegLit v (PmLit.Boolean b))
     OtherType -> nil
@@ -417,6 +443,9 @@ inhabited fuel x nc0 =
       shouldAddNegative :: Bool
       shouldAddNegative = case vi_con xvi of
         Vc'Effect {} -> False
+        -- Records have a single constructor, so there is no other
+        -- instantiation to rule out.
+        Vc'Record {} -> False
         _ -> True
    in withConstructors (pure (Just nc')) xvi \cs posConstraint negConstraint ->
         -- one of the constructors must be inhabited, Return the
@@ -492,10 +521,13 @@ addLiteral lit0 nabla0 = runMaybeT do
       let nabla1 = declVar listElem listElemType id nabla0
           c = C.PosListTail listRoot n listElem
       addConstraint c nabla1
-    PosRecordLiteral recordVar fields recordType -> do
-      let nabla1 = declVar recordVar recordType id nabla0
+    PosRecordLiteral recordVar fields ->
+      -- The record variable is the scrutinee and is already declared; it's the
+      -- field variables that are new. Compare `PosCon`, which declares its
+      -- `convars` the same way.
+      let ctx = foldr (\(trm, typ) b -> declVar trm typ id b) nabla0 (Map.elems fields)
           c = C.PosRecordLiteral recordVar fields
-      addConstraint c nabla1
+       in addConstraint c ctx
     NegListInterval listVar iset -> addConstraint (C.NegListInterval listVar iset) nabla0
     Effectful var -> addConstraint (C.Effectful var) nabla0
     Let var _expr typ -> pure (Just (declVar var typ id nabla0))
@@ -600,11 +632,19 @@ addConstraint con0 nc = do
                     iset' = IntervalSet.delete (0, length posSnoc' - 1) iset
                  in (populateCons r posCons iset', Update (posCons, posSnoc', iset'))
        in modifyListC r updateList nc
-    C.PosRecordLiteral _recordVar _fields ->
-      -- TODO: Actually implement record literal constraints,
-      -- for now it just _always_ succeeds
-      --- modifyRecordC recordVar updateRecord nc
-      pure (Just nc)
+    C.PosRecordLiteral var fields ->
+      let updateRecord pos
+            | Just fields1 <- pos =
+                -- We already know variables for some of this record's fields.
+                -- Fields we've seen before must be equated with the existing
+                -- variable; fields new to this match are added.
+                let varsToEquate =
+                      Map.elems $
+                        Map.intersectionWith (\(y, _) (z, _) -> (y, z)) fields fields1
+                 in (equate varsToEquate, Update (Just (Map.union fields1 fields)))
+            -- A record match can never contradict, so there is no negative case.
+            | otherwise = (pure (), Update (Just fields))
+       in modifyRecordC var updateRecord nc
     C.PosCon var datacon convars ->
       let updateConstructor pos neg
             | Just (datacon1, convars1) <- pos = case datacon == datacon1 of
@@ -710,6 +750,11 @@ union v0 v1 nc@NormalizedConstraints {constraintMap} =
                   Just (datacon, convars) -> [C.PosEffect chosenCanon datacon convars]
                 negC = foldr (\a b -> C.NegEffect chosenCanon a : b) [] neg
              in (posC, negC)
+          Vc'Record pos ->
+            let posC = case pos of
+                  Nothing -> []
+                  Just fields -> [C.PosRecordLiteral chosenCanon fields]
+             in (posC, [])
           Vc'ListRoot _typ posCons posSnoc iset ->
             let consConstraints = map (\(i, x) -> C.PosListHead chosenCanon i x) (zip [0 ..] (toList posCons))
                 snocConstraints = map (\(i, x) -> C.PosListTail chosenCanon i x) (zip [0 ..] (toList posSnoc))
@@ -786,6 +831,32 @@ modifyConstructorF ::
   f (NormalizedConstraints vt v loc)
 modifyConstructorF v f nc =
   let g vc = getCompose (posAndNegConstructor (\pos neg -> Compose (f pos neg)) vc)
+   in modifyVarConstraints v g nc
+
+modifyRecordC ::
+  forall vt v loc m.
+  (Pmc vt v loc m) =>
+  v ->
+  ( Maybe (Map Text (v, Type vt loc)) ->
+    (C vt v loc m (), ConstraintUpdate (Maybe (Map Text (v, Type vt loc))))
+  ) ->
+  NormalizedConstraints vt v loc ->
+  m (Maybe (NormalizedConstraints vt v loc))
+modifyRecordC v f nc0 =
+  let (ccomp, nc1) = modifyRecordF v f nc0
+   in fmap snd <$> runC nc1 ccomp
+
+modifyRecordF ::
+  forall vt v loc f.
+  (Var v, Functor f) =>
+  v ->
+  ( Maybe (Map Text (v, Type vt loc)) ->
+    f (ConstraintUpdate (Maybe (Map Text (v, Type vt loc))))
+  ) ->
+  NormalizedConstraints vt v loc ->
+  f (NormalizedConstraints vt v loc)
+modifyRecordF v f nc =
+  let g vc = getCompose (posRecord (Compose . f) vc)
    in modifyVarConstraints v g nc
 
 modifyEffectC ::
@@ -888,6 +959,21 @@ posAndNegConstructor f = \case
   Vc'Constructor pos neg -> uncurry Vc'Constructor <$> f pos neg
   _ -> error "impossible: posAndNegConstructor called on something other than Vc'Constructor"
 {-# INLINE posAndNegConstructor #-}
+
+-- | Modify the positive constraint of a record. Records have a single
+-- constructor, so there is no negative constraint to modify.
+posRecord ::
+  forall f vt v loc.
+  (Functor f) =>
+  ( Maybe (Map Text (v, Type vt loc)) ->
+    f (Maybe (Map Text (v, Type vt loc)))
+  ) ->
+  VarConstraints vt v loc ->
+  f (VarConstraints vt v loc)
+posRecord f = \case
+  Vc'Record pos -> Vc'Record <$> f pos
+  _ -> error "impossible: posRecord called on something other than Vc'Record"
+{-# INLINE posRecord #-}
 
 -- | Modify the positive and negative constraints of an effect.
 posAndNegEffect ::

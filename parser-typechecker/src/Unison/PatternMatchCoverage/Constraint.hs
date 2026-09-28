@@ -59,8 +59,8 @@ data Constraint vt v loc
   | PosRecordLiteral
       -- | record root
       v
-      -- | fields
-      (Map Text v)
+      -- | a variable and type per matched field
+      (Map Text (v, Type vt loc))
   | -- | Negative constraint on length of the list (/i.e./ the list
     -- may not be an element of the interval set)
     NegListInterval v IntervalSet
@@ -85,8 +85,8 @@ prettyConstraint ppe = \case
   PosListHead root n el -> sep " " [prettyVar el, "<-", "head", pany n, prettyVar root]
   PosListTail root n el -> sep " " [prettyVar el, "<-", "tail", pany n, prettyVar root]
   PosRecordLiteral root fields ->
-    let fieldStrs = fmap (\(k, v) -> sep " " [pany k, ":", prettyVar v]) (Map.toList fields)
-     in "{" <> sep " " [sep ", " fieldStrs, "<-", "record", prettyVar root] <> "}"
+    let fieldStrs = fmap (\(k, (v, _t)) -> sep " " [pany k, ":", prettyVar v]) (Map.toAscList fields)
+     in sep " " ["{" <> sep ", " fieldStrs <> "}", "<-", "record", prettyVar root]
   NegListInterval var x -> sep " " [prettyVar var, "≠", string (show x)]
   Effectful var -> "!" <> prettyVar var
   Eq v0 v1 -> sep " " [prettyVar v0, "=", prettyVar v1]

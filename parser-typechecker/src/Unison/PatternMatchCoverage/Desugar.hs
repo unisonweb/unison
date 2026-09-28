@@ -74,8 +74,12 @@ desugarPattern typ v0 pat k vs = case pat of
     rest <- foldr (\(v, pat, t) b -> desugarPattern t v pat b) k tpatvars vs
     pure (Grd c rest)
   RecordLiteral _loc fields
-    | Type.Record' fb typeFields <- typ -> handleRecord fb typ typeFields v0 k fields vs
-    | otherwise -> error "desugarPattern: RecordLiteral pattern does not correspond to record type"
+    | Type.Record' _fb typeFields <- Type.stripIntroOuters typ -> handleRecord typ typeFields v0 k fields vs
+    -- The typechecker rejects a record pattern whose scrutinee isn't a record,
+    -- so reaching this means the two disagree.
+    | otherwise ->
+        error $
+          "impossible: desugarPattern: record pattern against a non-record type: " <> show typ
   As _ rest -> desugarPattern typ v0 rest k (v0 : vs)
   EffectPure _ resume -> do
     v <- fresh
@@ -98,7 +102,6 @@ desugarPattern typ v0 pat k vs = case pat of
 handleRecord ::
   forall v vt loc m.
   (Pmc vt v loc m) =>
-  Type.FieldBehavior ->
   Type vt loc ->
   (Map Text (Type vt loc)) ->
   v ->
@@ -106,34 +109,31 @@ handleRecord ::
   Map Text (Pattern loc) ->
   [v] ->
   m (GrdTree (PmGrd vt v loc) loc)
-handleRecord fb typ typeFields recordVar k fieldPats vs = do
-  -- TODO: Definitely double-check this
+handleRecord typ typeFields recordVar k fieldPats vs = do
+  -- Each field the pattern mentions gets a fresh variable standing for that
+  -- field of the scrutinee, then its subpattern is desugared against it.
   let go ::
-        (Text, (v, (Type vt loc, Pattern loc))) ->
+        (Text, ((v, Type vt loc), Pattern loc)) ->
         ([v] -> m (GrdTree (PmGrd vt v loc) loc)) ->
         [v] ->
         m (GrdTree (PmGrd vt v loc) loc)
-      go (_fieldName, (fieldVar, (fieldType, fieldPat))) k vs = do
+      go (_fieldName, ((fieldVar, fieldType), fieldPat)) k vs =
         desugarPattern fieldType fieldVar fieldPat k vs
-  let cleanFields k = \case
-        This _ -> Nothing
-        That _ -> case fb of
-          Type.AllowExtraFields -> Nothing
-          Type.RequireExactFields -> error $ "TODO: this error should likely happen elsewhere: handleRecord: extra field in pattern. " <> show k
-        These t p -> Just (t, p)
-  let addVars a = do
-        v <- fresh
-        pure $ (v, a)
-  withVars <-
-    Align.align typeFields fieldPats
-      & Map.mapMaybeWithKey cleanFields
-      & traverse addVars
-  let onlyVars = fst <$> withVars
-  subtree <-
-    withVars
-      & Map.toList
-      & (\fs -> foldr go k fs vs)
-  pure $ Grd (PmRecordLiteral onlyVars recordVar typ) subtree
+  -- Fields present in only one of the two maps are dropped: a field the type
+  -- has but the pattern doesn't is simply unmatched, and a field the pattern
+  -- has but the type doesn't was already rejected by the typechecker.
+  let matched =
+        Align.align typeFields fieldPats
+          & Map.mapMaybe \case
+            This _ -> Nothing
+            That _ -> Nothing
+            These t p -> Just (t, p)
+  withVars <- for matched \(fieldType, fieldPat) -> do
+    v <- fresh
+    pure ((v, fieldType), fieldPat)
+  let fieldVars = fst <$> withVars
+  subtree <- foldr go k (Map.toAscList withVars) vs
+  pure $ Grd (PmRecordLiteral fieldVars recordVar typ) subtree
 
 handleSequence ::
   forall v vt loc m.

@@ -399,7 +399,7 @@ missingRight = cases
     
 
   Patterns not matched:
-   * Right _
+   * Right {age: _}
 ```
 
 ``` unison :error
@@ -415,12 +415,12 @@ missingAllCases = cases
     
 
   Patterns not matched:
-   * _
+   * {age: _}
 ```
 
-Void inside a record shouldn't require any cases (But currently it does)
+A record with an uninhabited field is itself uninhabited, so it needs no case.
 
-``` unison :error
+``` unison
 type Void =
 
 getVoid : Either { x: Void } Nat -> Nat
@@ -431,13 +431,169 @@ getVoid = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
+  + type Void
+
+  + getVoid : Either {x: Void} Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+### Refutable patterns inside records
+
+A record match is irrefutable, but its field patterns need not be. A literal in
+a field:
+
+``` unison
+lit : { x: Nat | ... } -> Text
+lit = cases
+  { x: 0 } -> "zero"
+  _ -> "other"
+
+> lit { x: 0 }
+> lit { x: 5 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lit : {x: Nat | ...} -> Text
+
+  Run `update` to apply these changes to your codebase.
+
+    6 | > lit { x: 0 }
+          ⧩
+          "zero"
+
+    7 | > lit { x: 5 }
+          ⧩
+          "other"
+```
+
+A constructor in a field, covering every case:
+
+``` unison
+con : { x: Optional Nat | ... } -> Nat
+con = cases
+  { x: Some n } -> n
+  { x: None } -> 0
+
+> con { x: Some 5 }
+> con { x: None }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + con : {x: Optional Nat | ...} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    6 | > con { x: Some 5 }
+          ⧩
+          5
+
+    7 | > con { x: None }
+          ⧩
+          0
+```
+
+...and not covering every case:
+
+``` unison :error
+partialField : { x: Optional Nat | ... } -> Nat
+partialField = cases
+  { x: Some n } -> n
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
-        4 | getVoid = cases
-        5 |   Right n -> n
+        2 | partialField = cases
+        3 |   { x: Some n } -> n
     
 
   Patterns not matched:
-   * Left _
+   * {x: None}
+```
+
+Suggestions reach into nested records too:
+
+``` unison :error
+nestedSuggest : { a: { b: Optional Nat } } -> Nat
+nestedSuggest = cases
+  { a: { b: Some n } } -> n
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  Pattern match doesn't cover all possible cases:
+        2 | nestedSuggest = cases
+        3 |   { a: { b: Some n } } -> n
+    
+
+  Patterns not matched:
+   * {a: {b: None}}
+```
+
+Two cases may match entirely different subsets of the record's fields. Each row
+is compiled against the union of the fields matched anywhere in the match, so
+the bindings stay aligned.
+
+``` unison
+subsets : { x: Nat, y: Text | ... } -> Text
+subsets = cases
+  { x: 0 } -> "zero"
+  { y: y } -> y
+
+> subsets { x: 0, y: "no" }
+> subsets { x: 1, y: "one" }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + subsets : {x: Nat, y: Text | ...} -> Text
+
+  Run `update` to apply these changes to your codebase.
+
+    6 | > subsets { x: 0, y: "no" }
+          ⧩
+          "zero"
+
+    7 | > subsets { x: 1, y: "one" }
+          ⧩
+          "one"
+```
+
+A refutable first case leaves a later one reachable, so this is *not* redundant
+\-- compare the `getAgeRedundant` case above.
+
+``` unison
+notRedundant : { age: Nat, address: Text | ... } -> Nat
+notRedundant = cases
+  { age: 0 } -> 1
+  { address: _ } -> 99
+
+> notRedundant { age: 0, address: "x" }
+> notRedundant { age: 7, address: "x" }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + notRedundant : {address: Text, age: Nat | ...} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    6 | > notRedundant { age: 0, address: "x" }
+          ⧩
+          1
+
+    7 | > notRedundant { age: 7, address: "x" }
+          ⧩
+          99
 ```
 
 ### Universals

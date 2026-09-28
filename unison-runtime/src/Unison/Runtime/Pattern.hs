@@ -9,13 +9,12 @@ module Unison.Runtime.Pattern
   ( DataSpec,
     splitPatterns,
     builtinDataSpec,
-    RecordSpec,
   )
 where
 
 import Control.Monad.State (State, evalState, modify, runState, state)
 import Data.Containers.ListUtils (nubOrd)
-import Data.List (transpose)
+import Data.List (mapAccumL, transpose)
 import Data.Map.Strict
   ( fromListWith,
     insertWith,
@@ -57,14 +56,13 @@ type NCons = [(Int, Int)]
 -- and data types (right)
 type DataSpec = Map Reference (Either Cons Cons)
 
--- Maps record references to their field counts
--- TODO: probably don't need this?
-type RecordSpec = Map RecordSchema Int
-
 data PType
   = PData Reference
   | PReq (Set Reference)
-  | PRec (RecordSchema {- The actual fields matched here -})
+  | -- | The union of the fields matched by every record pattern in this
+    -- column. Different cases may match different subsets of a record's
+    -- fields, so this accumulates all of them.
+    PRec RecordSchema
   | Unknown
 
 instance Semigroup PType where
@@ -72,10 +70,8 @@ instance Semigroup PType where
   l <> Unknown = l
   t@(PData l) <> PData r
     | l == r = t
-  -- TODO: Check that schemas are equal
   PReq l <> PReq r = PReq (l <> r)
-  PRec l <> PRec r
-    | l == r = PRec l
+  PRec (RecordSchema l) <> PRec (RecordSchema r) = PRec (RecordSchema (l <> r))
   _ <> _ = internalBug [] "inconsistent pattern matching types"
 
 instance Monoid PType where
@@ -217,21 +213,51 @@ decomposeDataPattern _ _ _ (P.SequenceLiteral _ _) =
   internalBug [] "decomposeDataPattern: sequence literal"
 decomposeDataPattern _ _ _ _ = []
 
--- Splits a record type pattern, yielding its subpatterns.
+-- Splits a record pattern, yielding its subpatterns.
+--
+-- Every row is decomposed against the same schema -- the union of the fields
+-- matched anywhere in this column -- and yields exactly one subpattern per
+-- field of it, in ascending field order. A row that doesn't mention a field
+-- gets `Unbound` there. Without this, rows matching different field subsets
+-- would have different lengths and would misalign when `buildMatrix`
+-- transposes the columns.
 --
 -- The outer list indicates success of the match. It could be Maybe,
 -- but elsewhere these results are added to a list, so it is more
 -- convenient to yield a list here.
 decomposeRecPattern ::
   (Var v) =>
+  Set v ->
+  RecordSchema ->
   P.Pattern v ->
   [[P.Pattern v]]
-decomposeRecPattern (P.RecordLiteral _loc fields) = pure $ Map.elems fields
-decomposeRecPattern (P.Var _) = pure []
-decomposeRecPattern (P.Unbound _) = pure []
-decomposeRecPattern (P.SequenceLiteral _ _) =
-  internalBug [] "decomposeRecPattern: sequence literal"
-decomposeRecPattern _ = empty
+decomposeRecPattern avoid (RecordSchema fields) = \case
+  P.RecordLiteral _loc fieldPats ->
+    pure . snd $
+      mapAccumL
+        ( \used fieldName -> case Map.lookup fieldName fieldPats of
+            Just p -> (used, p)
+            -- This row doesn't match this field, but it still needs a slot so
+            -- that rows matching different subsets stay aligned. It has to be
+            -- a variable rather than `Unbound`: by this point `prepareAs` has
+            -- turned every user-written `_` into a `Var`, so an `Unbound` head
+            -- is the marker `chooseVars` uses to skip rows that came from
+            -- decomposing a wildcard.
+            Nothing ->
+              let u = freshIn used (typed Pattern)
+               in (Set.insert u used, P.Var u)
+        )
+        avoid
+        (Set.toAscList fields)
+  -- These are the genuine wildcard decompositions, where the whole record is
+  -- matched by one variable and the made-up subpatterns share a name.
+  P.Var _ -> pure allUnbound
+  P.Unbound _ -> pure allUnbound
+  P.SequenceLiteral _ _ ->
+    internalBug [] "decomposeRecPattern: sequence literal"
+  _ -> empty
+  where
+    allUnbound = replicate (Set.size fields) (P.Unbound (typed Pattern))
 
 matchBuiltin :: P.Pattern a -> Maybe (P.Pattern ())
 matchBuiltin (P.Var _) = Just $ P.Unbound ()
@@ -370,13 +396,17 @@ splitDataRow _ _ _ _ row = [([], row)]
 -- because these results are accumulated into a larger list elsewhere.
 splitRecRow ::
   (Var v) =>
+  Set v ->
   v ->
+  RecordSchema ->
   PatternRow v ->
   [([P.Pattern v], PatternRow v)]
-splitRecRow v (PR (break ((== v) . loc) -> (pl, sp : pr)) g b) =
-  decomposeRecPattern sp
+splitRecRow avoid0 v schema (PR (break ((== v) . loc) -> (pl, sp : pr)) g b) =
+  decomposeRecPattern avoid schema sp
     <&> \subs -> (subs, PR (pl ++ filter refutable subs ++ pr) g b)
-splitRecRow _ row = [([], row)]
+  where
+    avoid = avoid0 <> maybe mempty freeVars g <> freeVars b
+splitRecRow _ _ _ row = [([], row)]
 
 -- Splits a row with respect to a variable, expecting that the
 -- variable will be matched against a builtin pattern (non-data type,
@@ -535,15 +565,19 @@ splitMatrixOnData v rf cons (PM rs) =
   where
     mmap = fmap (\(t, fs) -> (t, splitDataRow v rf t fs =<< rs)) cons
 
+-- Splits a matrix at a given variable with respect to a record match. A
+-- record has a single constructor, so this always yields exactly one case.
 splitMatrixOnRec ::
   (Var v) =>
+  Set v ->
   v ->
+  RecordSchema ->
   PatternMatrix v ->
   [(Int, [(v, PType)], PatternMatrix v)]
-splitMatrixOnRec v (PM rows) =
+splitMatrixOnRec avoid v schema (PM rows) =
   fmap (\(a, (b, c)) -> (a, b, c)) . (fmap . fmap) buildMatrix $ mmap
   where
-    mmap = [(0, splitRecRow v =<< rows)]
+    mmap = [(0, splitRecRow avoid v schema =<< rows)]
 
 -- Eliminates a variable from a matrix, keeping the rows that are
 -- _not_ specific matches on that variable (so, would potentially
@@ -650,15 +684,19 @@ buildDataPattern effect r vs nfields
       | otherwise =
           P.Var () <$ vs
 
+-- Rebuilds a record pattern over the union schema, binding one variable per
+-- field. `decomposeRecPattern` produced the variables in ascending field
+-- order, so they zip directly against the schema's fields.
 buildRecPattern :: RecordSchema -> [v] -> P.Pattern ()
 buildRecPattern (RecordSchema matchedFields) vs
   | Set.size matchedFields /= length vps =
-      internalBug [] "wrong number of patterns for record literal"
+      internalBug [] $
+        "wrong number of patterns for record literal: expected "
+          ++ show (Set.size matchedFields)
+          ++ " but got "
+          ++ show (length vps)
   | otherwise =
-      let recFields =
-            zip (Set.toList matchedFields) vps
-              & Map.fromList
-       in P.RecordLiteral () recFields
+      P.RecordLiteral () . Map.fromList $ zip (Set.toAscList matchedFields) vps
   where
     vps = P.Var () <$ vs
 
@@ -722,7 +760,7 @@ compile dataspec ctx m@(PM (r : rs))
   | PRec recSchema <- ty =
       match () (var () v) $
         ( buildRecCase dataspec recSchema ctx
-            <$> splitMatrixOnRec v m
+            <$> splitMatrixOnRec (Map.keysSet ctx <> usedVars m) v recSchema m
         )
   | Unknown <- ty =
       internalBug [] "unknown pattern compilation type"
