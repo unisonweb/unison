@@ -1620,6 +1620,8 @@ instance Eq Closure where
     matchTags ct1 ct2 && w1 == w2
   DataC _ ct1 vs1 == DataC _ ct2 vs2 =
     ct1 == ct2 && eqValList vs1 vs2
+  RecordC rr1 vm1 == RecordC rr2 vm2 =
+    rr1 == rr2 && eqValList (snd <$> mapToList vm1) (snd <$> mapToList vm2)
   PApV cix1 _ segs1 == PApV cix2 _ segs2 =
     cix1 == cix2 && eqValList segs1 segs2
   CapV k1 a1 vs1 == CapV k2 a2 vs2 =
@@ -1687,6 +1689,9 @@ compareClosure tyEq = \cases
       -- when comparing corresponding `Any` values, which have
       -- existentials inside check that type references match
       <> compareValList (tyEq || rf1 == Ty.anyRef) vs1 vs2
+  (RecordC rr1 vm1) (RecordC rr2 vm2)
+    | tyEq && rr1 /= rr2 -> compare rr1 rr2
+    | otherwise -> compareValList tyEq (snd <$> mapToList vm1) (snd <$> mapToList vm2)
   (PApV cix1 _ segs1) (PApV cix2 _ segs2) ->
     compare cix1 cix2
       <> compareValList tyEq segs1 segs2
