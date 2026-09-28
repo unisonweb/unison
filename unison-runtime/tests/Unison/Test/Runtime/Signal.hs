@@ -6,9 +6,9 @@ import EasyTest
 import Unison.Runtime.Signal qualified as Signal
 
 #if !defined(mingw32_HOST_OS)
-import Control.Concurrent (forkIO, killThread, newEmptyMVar, putMVar, takeMVar)
+import Control.Concurrent (forkIO, killThread, newEmptyMVar, putMVar, takeMVar, threadDelay, yield)
 import Control.Exception (IOException, bracket, try)
-import Control.Monad (void)
+import Control.Monad (forever, replicateM_, void)
 import Foreign.C.Types (CInt (..))
 import Foreign.Ptr (Ptr, nullPtr)
 import System.Posix.Signals qualified as Posix
@@ -26,6 +26,20 @@ test = scope "signals" do
     expect (all (`elem` names) ["SIGHUP", "SIGWINCH", "SIGUSR1", "SIGCHLD"])
     expect (all (`notElem` names) ["SIGKILL", "SIGSTOP", "SIGSEGV", "SIGPIPE"])
 
+  -- Run before other SIGUSR2 subscriptions: GHC initially remembers Default
+  -- for this signal, independently of the native handler installed here.
+  scope "native handler remains safe during concurrent signal delivery" do
+    result <- io $ bracket (nativeBegin Posix.sigUSR2) nativeEnd \saved ->
+      if saved == nullPtr
+        then fail "Could not install native test signal handler"
+        else do
+          bracket
+            (forkIO $ forever $ Posix.raiseSignal Posix.sigUSR2 >> threadDelay 1000)
+            killThread
+            \_ -> replicateM_ 100000 $ withSubscription "SIGUSR2" (const yield)
+          nativeRestored Posix.sigUSR2
+    expectEqual 1 result
+
   scope "notification can arrive before await" do
     result <- io $ withSubscription "SIGWINCH" \subscription -> do
       Posix.raiseSignal Posix.sigWINCH
@@ -38,6 +52,26 @@ test = scope "signals" do
         Posix.raiseSignal Posix.sigUSR1
         timeout 2000000 (Signal.await first >> Signal.await second)
     expectEqual (Just ()) result
+
+  scope "pending notifications coalesce between awaits" do
+    result <- io $ withSubscription "SIGUSR1" \first ->
+      withSubscription "SIGUSR1" \second -> timeout 2000000 do
+        -- Awaiting first confirms each broadcast has reached both cells.
+        replicateM_ 3 $ Posix.raiseSignal Posix.sigUSR1 >> Signal.await first
+        Signal.await second
+        timeout 10000 (Signal.await second)
+    expectEqual (Just Nothing) result
+
+  scope "closing an old handle leaves a later subscription active" do
+    result <- io $ withSubscription "SIGWINCH" \old -> do
+      Signal.close old
+      withSubscription "SIGWINCH" \current -> do
+        Signal.close old
+        Posix.raiseSignal Posix.sigWINCH
+        received <- timeout 2000000 (Signal.await current)
+        closed <- try @IOException (Signal.await old)
+        pure (received, either (const True) (const False) closed)
+    expectEqual (Just (), True) result
 
   scope "closing one subscriber leaves the other active" do
     result <- io $ withSubscription "SIGUSR1" \first ->
@@ -98,6 +132,18 @@ test = scope "signals" do
           timeout 2000000 (takeMVar notified)
     expectEqual (Just ()) result
 
+  scope "default native disposition is restored" do
+    result <- io $
+      bracket
+        (Posix.installHandler Posix.sigUSR1 Posix.Default Nothing)
+        (\old -> void $ Posix.installHandler Posix.sigUSR1 old Nothing)
+        \_ -> do
+          withSubscription "SIGUSR1" (const (pure ()))
+          native <- nativeIsDefault Posix.sigUSR1
+          previous <- Posix.installHandler Posix.sigUSR1 Posix.Ignore Nothing
+          pure (native, case previous of Posix.Default -> True; _ -> False)
+    expectEqual (1, True) result
+
   scope "native handler, flags and mask survive multiple subscriptions" do
     result <- io $ bracket (nativeBegin Posix.sigUSR2) nativeEnd \saved ->
       if saved == nullPtr
@@ -127,4 +173,6 @@ foreign import ccall unsafe "unison_test_signal_restored"
   nativeRestored :: CInt -> IO CInt
 foreign import ccall unsafe "unison_test_signal_count"
   nativeCount :: IO CInt
+foreign import ccall unsafe "unison_test_signal_is_default"
+  nativeIsDefault :: CInt -> IO CInt
 #endif

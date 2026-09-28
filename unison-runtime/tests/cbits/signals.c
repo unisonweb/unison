@@ -37,3 +37,8 @@ int unison_test_signal_restored(int signal) {
 }
 
 int unison_test_signal_count(void) { return notifications; }
+
+int unison_test_signal_is_default(int signal) {
+  struct sigaction action;
+  return sigaction(signal, NULL, &action) == 0 && action.sa_handler == SIG_DFL;
+}

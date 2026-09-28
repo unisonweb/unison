@@ -42,6 +42,7 @@ Closing the last subscription restores the previous Haskell handler and the
 complete native sigaction, including its flags and mask. This also preserves
 handlers installed by native libraries such as curses. Other code must not
 replace a signal's handler while subscriptions to that signal are active.
+Signals arriving during the final handler restoration may be ignored.
 
 This API supports asynchronous standard signals available on the host. It
 excludes SIGKILL and SIGSTOP, synchronous fault/abort signals, GHC's timer

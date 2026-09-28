@@ -43,3 +43,8 @@ void *unison_signal_save(int signal) {
 int unison_signal_restore(int signal, const void *action) {
   return sigaction(signal, action, NULL);
 }
+
+int unison_signal_is_default(const void *saved) {
+  const struct sigaction *action = saved;
+  return action->sa_handler == SIG_DFL;
+}

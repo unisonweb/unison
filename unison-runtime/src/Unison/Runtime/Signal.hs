@@ -18,7 +18,7 @@ import Data.Unique (Unique)
 
 #if !defined(mingw32_HOST_OS)
 import Control.Concurrent.MVar
-import Control.Exception (mask_, onException)
+import Control.Exception (mask_, onException, uninterruptibleMask_)
 import Control.Monad (forM, forM_, unless, when)
 import Data.Map.Strict qualified as Map
 import Data.Unique (newUnique)
@@ -128,10 +128,26 @@ close (Subscription signal@(Signal number) ident pending) = mask_ $
         then pure table
         else do
           let remaining = Map.delete ident cells
-          when (Map.null remaining) do
+          when (Map.null remaining) $ uninterruptibleMask_ do
             -- Restore the Haskell handler table and then the complete native
             -- action, including flags and mask which unix does not preserve.
-            _ <- Posix.installHandler (fromIntegral number) (previousHandler registration) Nothing
+            -- GHC can report Default even when a native handler was installed.
+            -- Do not briefly install SIG_DFL: a signal arriving before the
+            -- native action is restored could terminate the process. Ignore
+            -- clears GHC's handler bookkeeping without that unsafe interval;
+            -- restoreAction installs the actual original disposition below.
+            -- installHandler can wait for GHC's internal handler-table lock
+            -- after changing the native disposition, so defer cancellation
+            -- across this short transition (which never runs user code).
+            handler <- case previousHandler registration of
+              Posix.Default -> do
+                isDefault <- savedActionIsDefault (previousAction registration)
+                -- Preserve Default in GHC's bookkeeping when it really was
+                -- the native disposition, so later installHandler callers
+                -- receive the correct previous handler.
+                pure if isDefault /= 0 then Posix.Default else Posix.Ignore
+              previous -> pure previous
+            _ <- Posix.installHandler (fromIntegral number) handler Nothing
             throwErrnoIfMinus1_ "restore signal handler" $
               restoreAction (fromIntegral number) (previousAction registration)
             free (previousAction registration)
@@ -145,6 +161,9 @@ foreign import ccall unsafe "unison_signal_save"
 
 foreign import ccall unsafe "unison_signal_restore"
   restoreAction :: CInt -> Ptr () -> IO CInt
+
+foreign import ccall unsafe "unison_signal_is_default"
+  savedActionIsDefault :: Ptr () -> IO CInt
 
 foreign import ccall unsafe "unison_signal_count"
   signalCount :: IO CInt
